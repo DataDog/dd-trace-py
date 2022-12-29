@@ -25,8 +25,8 @@ from ddtrace.profiling.exporter import pprof
 
 
 HOSTNAME = platform.node()
-PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
-PYTHON_VERSION = platform.python_version().encode()
+PYTHON_IMPLEMENTATION = platform.python_implementation()
+PYTHON_VERSION = platform.python_version()
 
 
 class UploadFailed(tenacity.RetryError, exporter.ExportError):
@@ -54,7 +54,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     service = attr.ib(default=None, type=typing.Optional[str])
     env = attr.ib(default=None, type=typing.Optional[str])
     version = attr.ib(default=None, type=typing.Optional[str])
-    tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
+    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
     _retry_upload = attr.ib(init=False, eq=False)
@@ -71,67 +71,54 @@ class PprofHTTPExporter(pprof.PprofExporter):
             retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
         )
         tags = {
-            k: six.ensure_binary(v)
+            k: six.ensure_str(v, "utf-8")
             for k, v in itertools.chain(
                 parse_tags_str(os.environ.get("DD_TAGS")).items(),
                 parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
             )
         }
-        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
+        tags.update(self.tags)
         tags.update(
             {
-                "host": HOSTNAME.encode("utf-8"),
-                "language": b"python",
+                "host": HOSTNAME,
+                "language": "python",
                 "runtime": PYTHON_IMPLEMENTATION,
                 "runtime_version": PYTHON_VERSION,
-                "profiler_version": ddtrace.__version__.encode("ascii"),
+                "profiler_version": ddtrace.__version__,
             }
         )
         if self.version:
-            tags["version"] = self.version.encode("utf-8")
+            tags["version"] = self.version
 
         if self.env:
-            tags["env"] = self.env.encode("utf-8")
+            tags["env"] = self.env
 
         self.tags = tags
 
     @staticmethod
     def _encode_multipart_formdata(
-        fields,  # type: typing.Dict[str, bytes]
-        tags,  # type: typing.Dict[str, bytes]
-        data,  # type: typing.Dict[bytes, bytes]
+        event,  # type: bytes
+        data,  # type: typing.List[typing.Dict[str, bytes]]
     ):
         # type: (...) -> typing.Tuple[bytes, bytes]
         boundary = binascii.hexlify(os.urandom(16))
 
         # The body that is generated is very sensitive and must perfectly match what the server expects.
         body = (
-            b"".join(
-                b"--%s\r\n"
-                b'Content-Disposition: form-data; name="%s"\r\n'
-                b"\r\n"
-                b"%s\r\n" % (boundary, field.encode(), value)
-                for field, value in fields.items()
-                if field != "chunk-data"
-            )
+            (b"--%s\r\n" % boundary)
+            + b'Content-Disposition: form-data; name="event"; filename="event.json"\r\n'
+            + b"Content-Type: application/json\r\n\r\n"
+            + event
+            + b"\r\n"
             + b"".join(
-                b"--%s\r\n"
-                b'Content-Disposition: form-data; name="tags[]"\r\n'
-                b"\r\n"
-                b"%s:%s\r\n" % (boundary, tag.encode(), value)
-                for tag, value in tags.items()
-            )
-            + b"".join(
-                (
-                    b'--%s\r\nContent-Disposition: form-data; name="data[%s]"; filename="%s"\r\n'
-                    % (boundary, field_name, field_name)
-                )
-                + b"Content-Type: application/octet-stream\r\n\r\n"
-                + field_data
+                (b"--%s\r\n" % boundary)
+                + (b'Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % (item["name"], item["filename"]))
+                + (b"Content-Type: %s\r\n\r\n" % (item["content-type"]))
+                + item["data"]
                 + b"\r\n"
-                for field_name, field_data in data.items()
+                for item in data
             )
-            + b"--%s--" % boundary
+            + b"--%s--\r\n" % boundary
         )
 
         content_type = b"multipart/form-data; boundary=%s" % boundary
@@ -141,15 +128,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def _get_tags(
         self, service  # type: str
     ):
-        # type: (...) -> typing.Dict[str, bytes]
+        # type: (...) -> str
         tags = {
-            "service": service.encode("utf-8"),
-            "runtime-id": runtime.get_runtime_id().encode("ascii"),
+            "service": service,
+            "runtime-id": runtime.get_runtime_id(),
         }
 
         tags.update(self.tags)
 
-        return tags
+        return ",".join(tag + ":" + value for tag, value in tags.items())
 
     def export(
         self,
@@ -178,21 +165,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
         pprof = six.BytesIO()
         with gzip.GzipFile(fileobj=pprof, mode="wb") as gz:
             gz.write(profile.SerializeToString())
-        fields = {
-            "version": b"3",
-            "family": b"python",
-            "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "start": (
-                datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
-            ).encode(),
-            "end": (
-                datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
-            ).encode(),
-        }
 
-        service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
-
-        data = {b"auto.pprof": pprof.getvalue()}
+        data = [
+            {
+                "name": b"auto",
+                "filename": b"auto.pprof",
+                "content-type": b"application/octet-stream",
+                "data": pprof.getvalue(),
+            }
+        ]
 
         if self.enable_code_provenance:
             code_provenance = six.BytesIO()
@@ -204,11 +185,27 @@ class PprofHTTPExporter(pprof.PprofExporter):
                         }
                     ).encode("utf-8")
                 )
-            data[b"code-provenance.json"] = code_provenance.getvalue()
+            data.append(
+                {
+                    "name": b"code-provenance",
+                    "filename": b"code-provenance.json",
+                    "content-type": b"application/json",
+                    "data": code_provenance.getvalue(),
+                }
+            )
+
+        service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
+        event = {
+            "version": "4",
+            "family": "python",
+            "attachments": [item["filename"].decode("utf-8") for item in data],
+            "tags_profiler": self._get_tags(service),
+            "start": (datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
+            "end": (datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
+        }
 
         content_type, body = self._encode_multipart_formdata(
-            fields,
-            tags=self._get_tags(service),
+            event=json.dumps(event).encode("utf-8"),
             data=data,
         )
         headers["Content-Type"] = content_type

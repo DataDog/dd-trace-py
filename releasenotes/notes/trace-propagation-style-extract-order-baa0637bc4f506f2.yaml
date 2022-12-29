@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The specification of ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` now respects the configured styles evaluation order. The evaluation order had previously been fixed and so the configured order was ignored.
+upgrade:
+  - |
+    The configured styles in ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` are now evaluated in order to specification. To keep the previous fixed evaluation order, set: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT=datadog,b3,b3 single header``.

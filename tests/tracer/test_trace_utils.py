@@ -462,13 +462,10 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     [
         ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
         ("http-user-agent", None, ["runtime-id"], None),
-        ("http-user-agent", 101234, ["runtime-id"], None),
         ("useragent", True, ["runtime-id"], None),
         ("http-user-agent", False, ["runtime-id"], None),
         ("http-user-agent", [], ["runtime-id"], None),
         ("http-user-agent", {}, ["runtime-id"], None),
-        ("user-agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
-        ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -543,20 +540,20 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             "192.168.1.14",
         ),
         ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
-        ("via", {"x-forwarded-for": "4.4.4.4"}, ["runtime-id"], None),
+        ("via", {"x-forwarded-for": "4.4.8.8"}, ["runtime-id"], None),
         ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP], "8.8.8.8"),
         (
             "via",
-            {"x-forwarded-for": "4.4.4.4", "via": "8.8.8.8"},
+            {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},
             ["runtime-id", "network.client.ip", http.CLIENT_IP],
-            "8.8.8.8",
+            "8.8.4.4",
         ),
     ],
 )
 def test_set_http_meta_headers_ip(
     mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
 ):
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    with override_global_config(dict(_appsec_enabled=True)):
         with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
             int_config.myint.http._header_tags = {"enabled": True}
             assert int_config.myint.is_header_tracing_configured is True
@@ -613,7 +610,7 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
         (u"", ["runtime-id"], None),
     ],
 )

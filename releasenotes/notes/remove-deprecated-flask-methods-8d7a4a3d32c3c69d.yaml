@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask: add support for flask v2.3. Remove deprecated usages of ``flask._app_ctx_stack`` and ``flask._request_ctx_stack``.

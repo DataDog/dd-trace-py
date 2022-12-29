@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "POST",
@@ -21,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 4441
+      "process_id": 4441
     },
     "duration": 41721600,
     "start": 1632161674325085600
@@ -34,6 +35,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "sql.db": "test.db"
        },
@@ -54,6 +56,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -68,7 +71,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 4441
+      "process_id": 4441
     },
     "duration": 13264900,
     "start": 1632161674374141500
@@ -81,6 +84,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "sql.db": "test.db"
        },

@@ -1,7 +1,16 @@
 name: Build
 
 on:
+  push:
+    branches:
+      - '[0-9].[0-9]*'
+      - '[0-9].x'
   pull_request:
+    paths:
+      - "setup.py"
+      - "**.c"
+      - "**.pyx"
+      - "ddtrace/vendor/**"
   release:
     types:
       - published
@@ -97,13 +106,12 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.11.1
+        uses: pypa/cibuildwheel@v2.11.4
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
           CIBW_BUILD: cp3*
-          CIBW_SKIP: cp311*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github

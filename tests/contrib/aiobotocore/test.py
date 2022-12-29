@@ -3,9 +3,9 @@ from botocore.errorfactory import ClientError
 import pytest
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
-from ddtrace.internal.compat import stringify
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_config
@@ -75,8 +75,7 @@ async def test_s3_client(tracer):
     assert span.name == "s3.command"
 
 
-@pytest.mark.asyncio
-async def test_s3_put(tracer):
+async def _test_s3_put(tracer):
     params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
 
     async with aiobotocore_client("s3", tracer) as s3:
@@ -96,9 +95,33 @@ async def test_s3_put(tracer):
     assert_is_measured(spans[1])
     assert spans[1].get_tag("aws.operation") == "PutObject"
     assert spans[1].resource == "s3.putobject"
-    assert spans[1].get_tag("params.Key") == stringify(params["Key"])
-    assert spans[1].get_tag("params.Bucket") == stringify(params["Bucket"])
-    assert spans[1].get_tag("params.Body") is None
+
+    return spans[1]
+
+
+@pytest.mark.asyncio
+async def test_s3_put(tracer):
+    span = await _test_s3_put(tracer)
+    assert span.get_tag("aws.s3.bucket_name") == "mybucket"
+
+
+@pytest.mark.asyncio
+async def test_s3_put_no_params(tracer):
+    with override_config("aiobotocore", dict(tag_no_params=True)):
+        span = await _test_s3_put(tracer)
+        assert span.get_tag("aws.s3.bucket_name") is None
+        assert span.get_tag("params.Key") is None
+        assert span.get_tag("params.Bucket") is None
+        assert span.get_tag("params.Body") is None
+
+
+@pytest.mark.asyncio
+async def test_s3_put_all_params(tracer):
+    with override_config("aiobotocore", dict(tag_all_params=True)):
+        span = await _test_s3_put(tracer)
+        assert span.get_tag("params.Key") == "foo"
+        assert span.get_tag("params.Bucket") == "mybucket"
+        assert span.get_tag("params.Body") is None
 
 
 @pytest.mark.asyncio
@@ -116,7 +139,7 @@ async def test_s3_client_error(tracer):
     assert_is_measured(span)
     assert span.resource == "s3.listobjects"
     assert span.error == 1
-    assert "NoSuchBucket" in span.get_tag("error.msg")
+    assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
 
 
 @pytest.mark.asyncio

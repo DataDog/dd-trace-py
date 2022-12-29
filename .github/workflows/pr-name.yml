@@ -18,7 +18,7 @@ jobs:
         run: |
           npm install @commitlint/lint @commitlint/load @commitlint/config-conventional @actions/core
       - name: Lint PR name
-        uses: actions/github-script@v6.3.0
+        uses: actions/github-script@v6.3.3
         with:
           script: |
             const load = require('@commitlint/load').default;

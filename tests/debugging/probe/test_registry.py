@@ -56,6 +56,8 @@ def test_registry_location_error():
     assert not registry.get_pending(__file__)
 
     # Check that we emitted the correct diagnostic error message
+    for e in status_logger.queue:
+        del e["timestamp"]
     assert status_logger.queue == [
         {
             "service": "test",

@@ -8,9 +8,12 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_B3
+from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -35,7 +38,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
 
 
 def _parse_propagation_styles(name, default):
-    # type: (str, str) -> set[str]
+    # type: (str, Optional[str]) -> Optional[List[str]]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -46,25 +49,42 @@ def _parse_propagation_styles(name, default):
     The allowed values are:
 
     - "datadog"
-    - "b3"
+    - "b3multi"
     - "b3 single header"
+    - "none"
 
 
-    The default value is ``"datadog"``.
+    The default value is ``"tracecontext,datadog"``.
 
 
     Examples::
 
+        # Extract and inject b3 headers:
+        DD_TRACE_PROPAGATION_STYLE="b3multi"
+
+        # Disable header propagation:
+        DD_TRACE_PROPAGATION_STYLE="none"
+
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
-        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
+        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
     """
-    styles = set()
+    styles = []
     envvar = os.getenv(name, default=default)
+    if envvar is None:
+        return None
     for style in envvar.split(","):
         style = style.strip().lower()
+        if style == "b3":
+            deprecate(
+                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
+                removal_version="2.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -73,7 +93,7 @@ def _parse_propagation_styles(name, default):
                     style, name, PROPAGATION_STYLE_ALL
                 )
             )
-        styles.add(style)
+        styles.append(style)
     return styles
 
 
@@ -201,12 +221,18 @@ class Config(object):
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         # Propagation styles
-        self._propagation_style_extract = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=PROPAGATION_STYLE_DATADOG
+        self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
+            "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
         )
-        self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_INJECT", default=PROPAGATION_STYLE_DATADOG
-        )
+        # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
+        #  take precedence over DD_TRACE_PROPAGATION_STYLE
+        propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
+        if propagation_style_extract is not None:
+            self._propagation_style_extract = propagation_style_extract
+
+        propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
+        if propagation_style_inject is not None:
+            self._propagation_style_inject = propagation_style_inject
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))

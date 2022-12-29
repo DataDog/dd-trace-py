@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -20,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 90749
+      "process_id": 90749
     },
     "duration": 1497000,
     "start": 1643465628968961000
@@ -37,7 +38,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "error.msg": "division by zero",
+      "error.message": "division by zero",
       "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    class Sanic(BaseSanic, metaclass=TouchUpMeta):\n  File \"/Users/brett.langdon/datadog/dd-trace-py/tests/contrib/sanic/run_server.py\", line 31, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",
       "error.type": "builtins.ZeroDivisionError",
       "http.method": "GET",
@@ -52,7 +53,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 90749
+      "process_id": 90749
     },
     "duration": 733000,
     "start": 1643465628981693000

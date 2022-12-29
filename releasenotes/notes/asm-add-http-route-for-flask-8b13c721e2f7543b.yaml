@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    ASM: add http.route for Python Flask.
+    tracing: add http.route tag to root span for Flask framework.

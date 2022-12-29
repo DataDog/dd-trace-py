@@ -1,5 +1,7 @@
 import os
+from typing import TYPE_CHECKING
 
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -7,22 +9,31 @@ from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Mapping
+    from typing import Optional
+
+    from ddtrace import Tracer
+    from ddtrace.internal.remoteconfig.client import ConfigMetadata
+
 log = get_logger(__name__)
 
 
-def _appsec_rc_features_is_enabled():
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
-        return APPSEC_ENV not in os.environ
-    return False
+def enable_appsec_rc():
+    # type: () -> None
+    # Import tracer here to avoid a circular import
+    from ddtrace import tracer
 
-
-def enable_appsec_rc(tracer):
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
+    # type: (Tracer) -> Callable
     def _reload_features(metadata, features):
+        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -37,9 +48,9 @@ def appsec_rc_reload_features(tracer):
         ```
         """
 
-        if features:
-            log.debug("Reloading tracer features. %r", features)
-            rc_appsec_enabled = features.get("asm", {}).get("enabled")
+        if features is not None:
+            log.debug("Reloading appsec rc: %s", features)
+            rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 
             _appsec_enabled = True
 

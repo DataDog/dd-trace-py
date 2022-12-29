@@ -55,14 +55,14 @@ RUN \
   && ./mariadb_repo_setup \
   && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
   && rm mariadb_repo_setup \
+  # For running datadog-ci CLI with npx
+  && apt-get install -y --no-install-recommends nodejs npm \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/* \
   # Install pyenv
-  && git clone --depth 1 --branch v2.3.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+  && git clone --depth 1 --branch v2.3.6 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
-  && cd - \
-  # Install datadog-ci tool for uploading JUnit XML reports
-  && curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
+  && cd -
 
 CMD ["/bin/bash"]

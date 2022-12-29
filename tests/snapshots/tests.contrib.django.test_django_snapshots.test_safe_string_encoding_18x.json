@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
@@ -26,7 +27,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 2392
+      "process_id": 2392
     },
     "duration": 6154000,
     "start": 1633584168818775000
@@ -38,6 +39,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 97000,
        "start": 1633584168818971000
      },
@@ -48,6 +51,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 78000,
        "start": 1633584168819165000
      },
@@ -58,6 +63,8 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 45000,
        "start": 1633584168819318000
      },
@@ -68,6 +75,8 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 35000,
        "start": 1633584168819422000
      },
@@ -78,6 +87,8 @@
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 78000,
        "start": 1633584168819514000
      },
@@ -88,6 +99,8 @@
        "trace_id": 0,
        "span_id": 7,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 37000,
        "start": 1633584168819650000
      },
@@ -98,6 +111,8 @@
        "trace_id": 0,
        "span_id": 8,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 237000,
        "start": 1633584168819906000
      },
@@ -108,6 +123,8 @@
        "trace_id": 0,
        "span_id": 9,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 413000,
        "start": 1633584168820229000
      },
@@ -118,6 +135,8 @@
           "trace_id": 0,
           "span_id": 17,
           "parent_id": 9,
+          "type": "",
+          "error": 0,
           "duration": 305000,
           "start": 1633584168820302000
         },
@@ -128,6 +147,8 @@
              "trace_id": 0,
              "span_id": 19,
              "parent_id": 17,
+             "type": "",
+             "error": 0,
              "duration": 149000,
              "start": 1633584168820364000
            },
@@ -138,6 +159,8 @@
        "trace_id": 0,
        "span_id": 10,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 3278000,
        "start": 1633584168820704000
      },
@@ -149,6 +172,7 @@
           "span_id": 18,
           "parent_id": 10,
           "type": "template",
+          "error": 0,
           "meta": {
             "django.template.engine.class": "django.template.engine.Engine",
             "django.template.name": "cached_list.html"
@@ -164,6 +188,7 @@
              "span_id": 20,
              "parent_id": 18,
              "type": "cache",
+             "error": 0,
              "meta": {
                "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
                "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
@@ -178,6 +203,8 @@
        "trace_id": 0,
        "span_id": 11,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 38000,
        "start": 1633584168824046000
      },
@@ -188,6 +215,8 @@
        "trace_id": 0,
        "span_id": 12,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 51000,
        "start": 1633584168824143000
      },
@@ -198,6 +227,8 @@
        "trace_id": 0,
        "span_id": 13,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 40000,
        "start": 1633584168824253000
      },
@@ -208,6 +239,8 @@
        "trace_id": 0,
        "span_id": 14,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 37000,
        "start": 1633584168824352000
      },
@@ -218,6 +251,8 @@
        "trace_id": 0,
        "span_id": 15,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 38000,
        "start": 1633584168824447000
      },
@@ -228,6 +263,8 @@
        "trace_id": 0,
        "span_id": 16,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 45000,
        "start": 1633584168824542000
      }]]

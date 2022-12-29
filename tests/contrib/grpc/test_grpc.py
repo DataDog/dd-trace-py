@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 
@@ -661,6 +662,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
         return grpc.unary_unary_rpc_method_handler(self._handler)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="flaky on older python versions")
 @snapshot(ignores=["meta.grpc.port"])
 def test_method_service(patch_grpc):
     def handler(request, context):

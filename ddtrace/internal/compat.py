@@ -93,7 +93,7 @@ try:
 
 
 except ImportError:
-    from inspect import getfullargspec  # type: ignore[misc]  # noqa: F401
+    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
 
     def is_not_void_function(f, argspec):
         return (
@@ -274,7 +274,9 @@ def maybe_stringify(obj):
     return None
 
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+NoneType = type(None)
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 

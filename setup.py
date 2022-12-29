@@ -1,7 +1,6 @@
 import os
 import platform
 import sys
-
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
@@ -185,7 +184,6 @@ else:
     else:
         ddwaf_libraries = ["ddwaf"]
 
-
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -198,6 +196,17 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
+    if platform.system() != "Windows":
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec.iast._stacktrace",
+                # Sort source files for reproducibility
+                sources=[
+                    "ddtrace/appsec/iast/_stacktrace.c",
+                ],
+                extra_compile_args=debug_compile_args,
+            )
+        )
 else:
     ext_modules = []
 
@@ -250,7 +259,9 @@ setup(
         "protobuf>=3,<4.0; python_version=='3.6'",
         "protobuf>=3,<3.18; python_version<'3.6'",
         "tenacity>=5",
-        "attrs>=20",
+        "attrs>=20; python_version>'2.7'",
+        "attrs>=20,<22; python_version=='2.7'",
+        "contextlib2<1.0; python_version=='2.7'",
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
@@ -260,7 +271,6 @@ setup(
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
-        "forbiddenfruit>=0.1.4",
     ]
     + bytecode,
     extras_require={
@@ -292,6 +302,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython", "cmake", "ninja"],

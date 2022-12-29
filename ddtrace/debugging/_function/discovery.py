@@ -14,7 +14,7 @@ except ImportError:
 try:
     from typing import Protocol
 except ImportError:
-    from typing_extensions import Protocol  # type: ignore[misc]
+    from typing_extensions import Protocol  # type: ignore[assignment]
 
 from os.path import abspath
 from types import FunctionType

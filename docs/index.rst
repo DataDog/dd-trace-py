@@ -101,6 +101,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`graphql-core <graphql>`                    | >= 2.0.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`gunicorn <gunicorn>`                       | >= 19.10.0    | No             |
++--------------------------------------------------+---------------+----------------+
 | :ref:`httplib`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`httpx`                                     | >= 0.9.0      | Yes            |
@@ -198,7 +200,7 @@ with obfuscated stack traces, and various system performance metrics.
 
 To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
 
-See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>` _ for more details.
+See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 
 Indices and tables
 ==================

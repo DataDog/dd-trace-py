@@ -26,7 +26,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
@@ -147,7 +146,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -176,12 +175,6 @@ _USED_IP_HEADER = ""
 def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Span, Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
-
-    ip_collection_disabled = os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=None)
-    if (ip_collection_disabled is None and not config._appsec_enabled) or asbool(ip_collection_disabled):
-        # IP Collection will honor the environment var is set. Otherwise it will be enabled
-        # only if appsec is enabled
-        return ""
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -452,17 +445,21 @@ def set_http_meta(
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
-            span.set_tag(http.USER_AGENT, user_agent)
+            span.set_tag_str(http.USER_AGENT, user_agent)
+
+        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        if config._appsec_enabled:
+            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
+            if ip:
+                span.set_tag_str(http.CLIENT_IP, ip)
+                span.set_tag_str("network.client.ip", ip)
 
         if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
+            """We should store both http.<request_or_response>.headers.<header_name> and
+            http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
-
-        ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-        if ip:
-            span.set_tag(http.CLIENT_IP, ip)
-            span.set_tag("network.client.ip", ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
@@ -583,15 +580,15 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
 
         # All other fields are optional
         if name:
-            span.set_tag(user.NAME, name)
+            span.set_tag_str(user.NAME, name)
         if email:
-            span.set_tag(user.EMAIL, email)
+            span.set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_tag(user.SCOPE, scope)
+            span.set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_tag(user.ROLE, role)
+            span.set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_tag(user.SESSION_ID, session_id)
+            span.set_tag_str(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "

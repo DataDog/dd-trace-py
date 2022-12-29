@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
@@ -24,7 +25,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 2447
+      "process_id": 2447
     },
     "duration": 11001000,
     "start": 1633584289662289000
@@ -36,6 +37,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 178000,
        "start": 1633584289662771000
      },
@@ -46,6 +49,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 110000,
        "start": 1633584289663310000
      },
@@ -56,6 +61,8 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 95000,
        "start": 1633584289663484000
      },
@@ -66,6 +73,8 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 49000,
        "start": 1633584289663639000
      },
@@ -76,6 +85,8 @@
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 38000,
        "start": 1633584289663748000
      },
@@ -86,6 +97,8 @@
        "trace_id": 0,
        "span_id": 7,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 99000,
        "start": 1633584289663844000
      },
@@ -96,6 +109,8 @@
        "trace_id": 0,
        "span_id": 8,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 35000,
        "start": 1633584289664008000
      },
@@ -106,6 +121,8 @@
        "trace_id": 0,
        "span_id": 9,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 44000,
        "start": 1633584289664214000
      },
@@ -116,6 +133,8 @@
        "trace_id": 0,
        "span_id": 10,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 7643000,
        "start": 1633584289664349000
      },
@@ -126,6 +145,8 @@
        "trace_id": 0,
        "span_id": 11,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 48000,
        "start": 1633584289672102000
      },
@@ -136,6 +157,8 @@
        "trace_id": 0,
        "span_id": 12,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 55000,
        "start": 1633584289672213000
      },
@@ -146,6 +169,8 @@
        "trace_id": 0,
        "span_id": 13,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 42000,
        "start": 1633584289672327000
      },
@@ -156,6 +181,8 @@
        "trace_id": 0,
        "span_id": 14,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 39000,
        "start": 1633584289672429000
      },
@@ -166,6 +193,8 @@
        "trace_id": 0,
        "span_id": 15,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 55000,
        "start": 1633584289672526000
      },
@@ -176,6 +205,8 @@
        "trace_id": 0,
        "span_id": 16,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 49000,
        "start": 1633584289672639000
      }]]

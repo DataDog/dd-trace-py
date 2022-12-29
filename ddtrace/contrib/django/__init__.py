@@ -82,7 +82,7 @@ Configuration
 
    Whether or not to trace fetch methods.
 
-   Can also configured via the ``DD_DJANGO_TRACE_FETCH_METHODS`` environment variable.
+   Can also be configured via the ``DD_DJANGO_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
 
@@ -128,6 +128,8 @@ Configuration
 
    Whether or not to include the authenticated user's username as a tag on the root request span.
 
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_NAME`` environment variable.
+
    Default: ``True``
 
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
@@ -137,6 +139,16 @@ Configuration
    variable.
 
    The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
+
+   Default: ``False``
+
+.. py:data:: ddtrace.config.django['use_handler_with_url_name_resource_format']
+
+   Whether or not to use the resource format `"{method} {handler}.{url_name}"`. Can also be
+   enabled with the ``DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT`` environment
+   variable.
+
+   This configuration applies only for Django <= 2.2.0.
 
    Default: ``False``
 

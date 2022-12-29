@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    tracing: upgrades the default trace API version to ``v0.5`` for non-Windows systems. The ``v0.5`` trace API version generates
+    smaller payloads, thus increasing the throughput to the Datadog agent especially with larger traces.
+  - |
+    tracing: configuring the ``v0.5`` trace API version on Windows machines will raise a ``RuntimeError``
+    due to known compatibility issues. Please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details.

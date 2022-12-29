@@ -25,6 +25,7 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
+        _dbm_propagation_supported=True,
     ),
 )
 
@@ -61,12 +62,20 @@ def unpatch():
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg2"""
 
-    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_operation, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
         if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
 
-        return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
+        return super(Psycopg2TracedCursor, self)._trace_method(
+            method, name, resource, extra_tags, dbm_operation, *args, **kwargs
+        )
+
+    def _dbm_sql_injector(self, dbm_comment, sql_statement):
+        if isinstance(sql_statement, Composable):
+            composable_dbm_comment = psycopg2.sql.SQL(dbm_comment)
+            return composable_dbm_comment + sql_statement
+        return super(Psycopg2TracedCursor, self)._dbm_sql_injector(dbm_comment, sql_statement)
 
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):

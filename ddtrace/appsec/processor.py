@@ -19,6 +19,7 @@ from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
 from ddtrace.constants import APPSEC_EVENT_RULE_LOADED
 from ddtrace.constants import APPSEC_EVENT_RULE_VERSION
 from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import APPSEC_ORIGIN_VALUE
 from ddtrace.constants import APPSEC_WAF_DURATION
 from ddtrace.constants import APPSEC_WAF_DURATION_EXT
 from ddtrace.constants import APPSEC_WAF_VERSION
@@ -314,4 +315,4 @@ class AppSecSpanProcessor(SpanProcessor):
             # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, "appsec")
+                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)

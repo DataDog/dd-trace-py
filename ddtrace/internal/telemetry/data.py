@@ -33,11 +33,28 @@ def _get_container_id():
 def _get_os_version():
     # type: () -> str
     """Returns the os version for applications running on Unix, Mac or Windows 32-bit"""
-    mver, _, _ = platform.mac_ver()
-    _, wver, _, _ = platform.win32_ver()
-    _, lver = platform.libc_ver()
+    try:
+        mver, _, _ = platform.mac_ver()
+        if mver:
+            return mver
 
-    return mver or wver or lver or ""
+        _, wver, _, _ = platform.win32_ver()
+        if wver:
+            return wver
+
+        # This is the call which is more likely to fail
+        #
+        # https://docs.python.org/3/library/platform.html#unix-platforms
+        #   Note that this function has intimate knowledge of how different libc versions add symbols
+        #   to the executable is probably only usable for executables compiled using gcc.
+        _, lver = platform.libc_ver()
+        if lver:
+            return lver
+    except OSError:
+        # We were unable to lookup the proper version
+        pass
+
+    return ""
 
 
 @cached()

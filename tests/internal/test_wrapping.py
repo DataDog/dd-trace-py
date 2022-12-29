@@ -1,5 +1,12 @@
+import sys
+
+import pytest
+
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="FIXME[debugger-311]")
 
 
 def test_wrap_unwrap():

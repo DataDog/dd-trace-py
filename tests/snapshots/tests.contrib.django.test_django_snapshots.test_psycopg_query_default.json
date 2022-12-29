@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "django.db.alias": "postgres",
@@ -20,8 +21,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
-      "sql.rows": 1,
-      "system.pid": 2392
+      "process_id": 2392,
+      "sql.rows": 1
     },
     "duration": 1018000,
     "start": 1633584168859673000
@@ -34,6 +35,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "db.application": "None",
          "db.name": "test_postgres",

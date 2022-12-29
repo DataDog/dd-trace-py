@@ -156,6 +156,9 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
     from cpython.pythread cimport PyThread_type_lock
     from cpython.pythread cimport WAIT_LOCK
 
+    IF PY_MINOR_VERSION >= 11:
+        from cpython.ref cimport Py_XDECREF
+
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
         # but we need to access some of its fields so we redefine it here.
@@ -165,10 +168,17 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
 
-        ctypedef struct _PyErr_StackItem:
-            PyObject* exc_type
-            PyObject* exc_value
-            PyObject* exc_traceback
+        IF PY_MINOR_VERSION < 11:
+            ctypedef struct _PyErr_StackItem:
+                PyObject* exc_type
+                PyObject* exc_value
+                PyObject* exc_traceback
+        ELSE:
+            ctypedef struct _PyErr_StackItem:
+                PyObject* exc_value
+
+        PyObject* PyException_GetTraceback(PyObject* exc)
+        PyObject* Py_TYPE(PyObject* ob)
 
     IF PY_MINOR_VERSION == 7:
         # Python 3.7
@@ -198,6 +208,8 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
             # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
             cdef extern from "<internal/pycore_gc.h>":
                 pass
+            cdef extern from "<Python.h>":
+                PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
 ELSE:
     from cpython.ref cimport Py_DECREF
 
@@ -214,7 +226,8 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
         cdef PyThread_type_lock lmutex = _PyRuntime.interpreters.mutex
-
+        cdef PyObject* exc_type
+        cdef PyObject* exc_tb
         cdef dict running_threads = {}
 
         # This is an internal lock but we do need it.
@@ -230,13 +243,27 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                     tstate = PyInterpreterState_ThreadHead(interp)
                     while tstate:
                         # The frame can be NULL
-                        if tstate.frame:
-                            running_threads[tstate.thread_id] = <object>tstate.frame
-
-                        exc_info = _PyErr_GetTopmostException(tstate)
-                        if exc_info and exc_info.exc_type and exc_info.exc_traceback:
-                            current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
-
+                        # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
+                        IF PY_MINOR_VERSION >= 11:
+                            frame = PyThreadState_GetFrame(tstate)
+                            if frame:
+                                running_threads[tstate.thread_id] = <object>frame
+                            exc_info = _PyErr_GetTopmostException(tstate)
+                            if exc_info and exc_info.exc_value and <object> exc_info.exc_value is not None:
+                                # Python 3.11 removed exc_type, exc_traceback from exception representations,
+                                # can instead derive exc_type and exc_traceback from remaining exc_value field
+                                exc_type = Py_TYPE(exc_info.exc_value)
+                                exc_tb = PyException_GetTraceback(exc_info.exc_value)
+                                if exc_tb:
+                                    current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
+                                Py_XDECREF(exc_tb)
+                        ELSE:
+                            frame = tstate.frame
+                            if frame:
+                                running_threads[tstate.thread_id] = <object>frame
+                            exc_info = _PyErr_GetTopmostException(tstate)
+                            if exc_info and exc_info.exc_type and exc_info.exc_traceback:
+                                current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
                         tstate = PyThreadState_Next(tstate)
 
                     interp = PyInterpreterState_Next(interp)
@@ -297,11 +324,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         tasks = _task.list_tasks(thread_id)
 
-        # This boolean value is used to know if we injected a sample that accounts for the CPU time.
-        # In the case of a gevent program this can be injected into a task.
-        # In other cases, it's injected in a regular sample.
-        cpu_time_accounted_for = False
-
         # Inject wall time for all running tasks
         for task_id, task_name, task_pyframes in tasks:
 
@@ -325,37 +347,26 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 sampling_period=int(interval * 1e9),
             )
 
-            # This only works for gevent
-            if task_id == compat.main_thread.ident:
-                event.cpu_time_ns = cpu_time
-                # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
-                # we'd need to leverage the greenlet tracer to also store the active span
-                event.set_trace_info(span, collect_endpoint)
-
-                cpu_time_accounted_for = True
-
             stack_events.append(event)
 
-        # If a thread has no task, we inject the "regular" thread samples
-        if not cpu_time_accounted_for:
-            frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-            event = stack_event.StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
-                nframes=nframes,
-                frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            )
+        event = stack_event.StackSampleEvent(
+            thread_id=thread_id,
+            thread_native_id=thread_native_id,
+            thread_name=thread_name,
+            task_id=thread_task_id,
+            task_name=thread_task_name,
+            nframes=nframes,
+            frames=frames,
+            wall_time_ns=wall_time,
+            cpu_time_ns=cpu_time,
+            sampling_period=int(interval * 1e9),
+        )
 
-            event.set_trace_info(span, collect_endpoint)
+        event.set_trace_info(span, collect_endpoint)
 
-            stack_events.append(event)
+        stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception

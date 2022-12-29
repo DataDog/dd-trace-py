@@ -1563,6 +1563,23 @@ def test_django_use_handler_resource_format(client, test_spans):
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
 
+def test_django_use_handler_with_url_name_resource_format(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
+    with override_config("django", dict(use_handler_with_url_name_resource_format=True)):
+        resp = client.get("/fail-view/")
+        assert resp.status_code == 403
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        resource = "GET tests.contrib.django.views.ForbiddenView.forbidden-view"
+        if django.VERSION >= (2, 2, 0):
+            resource = "GET ^fail-view/$"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+
+
 def test_django_use_handler_resource_format_env(client, test_spans):
     """
     Test that the specified format is used over the default.
@@ -1575,6 +1592,24 @@ def test_django_use_handler_resource_format_env(client, test_spans):
                 (
                     "from ddtrace import config, patch_all; patch_all(); "
                     "assert config.django.use_handler_resource_format; print('Test success')"
+                ),
+            ]
+        )
+        assert out.startswith(b"Test success")
+
+
+def test_django_use_handler_with_url_name_resource_format_env(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
+    with override_env(dict(DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT="true")):
+        out = subprocess.check_output(
+            [
+                "python",
+                "-c",
+                (
+                    "from ddtrace import config, patch_all; patch_all(); "
+                    "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
             ]
         )
