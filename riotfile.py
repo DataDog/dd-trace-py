@@ -102,7 +102,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": "<7.0.0",
+        "pytest": latest,
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
