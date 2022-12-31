@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    dynamic instrumentation: remove unnecessary log line from application start up
+    dynamic instrumentation: remove unnecessary debug log from application start up
