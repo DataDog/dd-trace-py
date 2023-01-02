@@ -14,7 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def _appsec_rc_features_is_enabled():
     # type: () -> bool
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "false")):
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         return APPSEC_ENV not in os.environ
     return False
 
