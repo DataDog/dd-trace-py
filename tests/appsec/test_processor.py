@@ -213,9 +213,7 @@ def test_ip_block(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item("http.request.blocked", span)
-        assert (
-            json.loads(_context.get_item("http.request.waf_json", span))["triggers"][0]["rule"]["id"] == "blk-001-001"
-        )
+        assert "block" in _context.get_item("http.request.waf_actions", span)
 
 
 def test_ip_not_block(tracer):
@@ -253,9 +251,7 @@ def test_ip_update_rules_and_block(tracer):
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item("http.request.blocked", span)
-        assert (
-            json.loads(_context.get_item("http.request.waf_json", span))["triggers"][0]["rule"]["id"] == "blk-001-001"
-        )
+        assert "block" in _context.get_item("http.request.waf_actions", span)
 
 
 def test_ip_update_rules_expired_no_block(tracer):
