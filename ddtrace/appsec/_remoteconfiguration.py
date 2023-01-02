@@ -50,13 +50,11 @@ def _loading_rules(features, feature, message, rule_list):
     # type: (Mapping[str, Any], str, str, list[Any]) -> None
     rules = features.get(feature, [])
     if rules:
-        log_message = "Reloading Appsec " + message + ": %s"
-        log.debug(log_message, rules)
         try:
             rule_list += json.loads(rules)
+            log.debug("Reloading Appsec %s: %s", message, rules)
         except json.decoder.JSONDecodeError:
-            log_message = "ERROR Appsec " + message + ": json not parsable"
-            log.error(log_message)
+            log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
 def _appsec_rules_data(tracer, features):
