@@ -4,7 +4,7 @@ import typing
 from ddtrace.internal.utils import formats
 
 
-__GITMETADATA_TAGS = None  # type: typing.Optional[typing.Dict[str, str]]
+_GITMETADATA_TAGS = None  # type: typing.Optional[typing.Dict[str, str]]
 
 ENV_ENABLED_FLAG = "DD_TRACE_GIT_METADATA_ENABLED"
 ENV_REPOSITORY_URL = "DD_GIT_REPOSITORY_URL"
@@ -74,18 +74,18 @@ def get_tracer_tags():
     """
     Returns git metadata tags for tracer
     """
-    global __GITMETADATA_TAGS
-    if __GITMETADATA_TAGS is not None:
-        return __GITMETADATA_TAGS
+    global _GITMETADATA_TAGS
+    if _GITMETADATA_TAGS is not None:
+        return _GITMETADATA_TAGS
 
     if formats.asbool(os.getenv(ENV_ENABLED_FLAG, "True")):
         tags = __get_tags_from_env()
         if tags is None:
             tags = __get_tags_from_package()
-        __GITMETADATA_TAGS = tags
+        _GITMETADATA_TAGS = tags
     else:
-        __GITMETADATA_TAGS = {}
-    return __GITMETADATA_TAGS
+        _GITMETADATA_TAGS = {}
+    return _GITMETADATA_TAGS
 
 
 def clean_tags(tags):
