@@ -243,6 +243,7 @@ class AppSecSpanProcessor(SpanProcessor):
                                 "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
                                 "http.request.waf_duration": ddwaf_result.runtime,
                                 "http.request.waf_duration_ext": ddwaf_result.total_runtime,
+                                "http.request.waf_actions": ddwaf_result.actions,
                                 "http.request.blocked": True,
                             },
                             span=span,
