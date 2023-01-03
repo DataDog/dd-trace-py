@@ -48,7 +48,7 @@ class DDWaf_result(object):
     __slots__ = ["data", "actions", "runtime", "total_runtime"]
 
     def __init__(self, data, actions, runtime, total_runtime):
-        # type: (DDWaf_result, unicode|None, list[unicode], float, float) -> None
+        # type: (DDWaf_result, unicode|None, set[unicode], float, float) -> None
         self.data = data
         self.actions = actions
         self.runtime = runtime
@@ -64,6 +64,14 @@ class DDWaf_info(object):
         self.failed = failed
         self.errors = errors
         self.version = version
+
+    def __repr__(self):
+        return '{"loaded": %d, "failed": %d, "errors": %s, "version": %s}' % (
+            self.loaded,
+            self.failed,
+            str(self.errors),
+            self.version,
+        )
 
 
 if _DDWAF_LOADED:
@@ -117,7 +125,7 @@ if _DDWAF_LOADED:
                 error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
                 return DDWaf_result(
                     result.data.decode("UTF-8") if result.data else None,
-                    [result.actions.array[i].decode("UTF-8") for i in range(result.actions.size)],
+                    {result.actions.array[i].decode("UTF-8") for i in range(result.actions.size)},
                     result.total_runtime / 1e3,
                     (time.time() - start) * 1e6,
                 )
@@ -131,7 +139,6 @@ if _DDWAF_LOADED:
     def version():
         # type: () -> unicode
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing

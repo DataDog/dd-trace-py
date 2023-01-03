@@ -2,17 +2,16 @@ import errno
 import json
 import os
 import os.path
-from typing import Any
-from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
-from typing import Tuple
-from typing import Union
 
 import attr
 from six import ensure_binary
 
 from ddtrace import config
+from ddtrace.appsec.constants import SPAN_DATA_NAMES
+from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.constants import WAF_DATA_NAMES
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
@@ -38,8 +37,13 @@ from ddtrace.internal.rate_limiter import RateLimiter
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
     from typing import Dict
+    from typing import List
+    from typing import Tuple
+    from typing import Union
 
+    from ddtrace.appsec.ddwaf import DDWaf_result
     from ddtrace.span import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -100,19 +104,6 @@ def get_appsec_obfuscation_parameter_value_regexp():
     )
 
 
-class _Addresses(object):
-    SERVER_REQUEST_BODY = "server.request.body"
-    SERVER_REQUEST_QUERY = "server.request.query"
-    SERVER_REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
-    SERVER_REQUEST_URI_RAW = "server.request.uri.raw"
-    SERVER_REQUEST_METHOD = "server.request.method"
-    SERVER_REQUEST_PATH_PARAMS = "server.request.path_params"
-    SERVER_REQUEST_COOKIES = "server.request.cookies"
-    HTTP_CLIENT_IP = "http.client_ip"
-    SERVER_RESPONSE_STATUS = "server.response.status"
-    SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
-
-
 _COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
@@ -153,6 +144,22 @@ def _get_rate_limiter():
 def _get_waf_timeout():
     # type: () -> int
     return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
+
+
+class WAF_Aggregated_Results:
+    def __init__(self):
+        self.runtime = 0.0
+        self.total_runtime = 0.0
+        self.actions = set()
+        self.json_data = None
+
+    def update(self, res):
+        # types: (DDWaf_result) -> None
+        self.runtime += res.runtime
+        self.total_runtime += res.total_runtime
+        self.actions.update(res.actions)
+        if res.data is not None and self.json_data is None:
+            self.json_data = '{"triggers":%s}' % (res.data,)
 
 
 @attr.s(eq=False)
@@ -204,9 +211,9 @@ class AppSecSpanProcessor(SpanProcessor):
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
         # we always need the request headers
-        self._mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
+        self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
-        self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
+        self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def update_rules(self, new_rules):
         # type: (List[Dict[str, Any]]) -> None
@@ -220,8 +227,11 @@ class AppSecSpanProcessor(SpanProcessor):
 
         _context.set_items(
             {
-                "http.request.headers": headers,
+                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
                 "http.request.headers_case_sensitive": headers_case_sensitive,
+                WAF_CONTEXT_NAMES.RESULTS: WAF_Aggregated_Results(),
+                WAF_CONTEXT_NAMES.BLOCKED: False,
+                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span),
             },
             span=span,
         )
@@ -229,25 +239,27 @@ class AppSecSpanProcessor(SpanProcessor):
         if config._appsec_enabled and (peer_ip or headers):
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _context.set_item("http.request.remote_ip", ip, span=span)
-            if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
-                data = {_Addresses.HTTP_CLIENT_IP: ip}
-                ddwaf_result = self._run_ddwaf(data)
+            _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
+            self._waf_action(span)
 
-                if ddwaf_result and ddwaf_result.actions:
-                    if "block" in ddwaf_result.actions:
-                        res_dict = json.loads(ddwaf_result.data)
-                        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
-                        _context.set_items(
-                            {
-                                "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
-                                "http.request.waf_duration": ddwaf_result.runtime,
-                                "http.request.waf_duration_ext": ddwaf_result.total_runtime,
-                                "http.request.waf_actions": ddwaf_result.actions,
-                                "http.request.blocked": True,
-                            },
-                            span=span,
-                        )
+    def _waf_action(self, span):
+        # type: (Span) -> None
+        data = {}
+        for key, waf_name in WAF_DATA_NAMES:
+            if self._is_needed(waf_name):
+                value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
+                if value is not None:
+                    data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
+        log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+        ddwaf_result = self._run_ddwaf(data)
+        _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span).update(ddwaf_result)
+        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
+        if "block" in ddwaf_result.actions:
+            _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+
+    def _run_ddwaf(self, data):
+        # type: (dict[str, str]) -> DDWaf_result
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -257,9 +269,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (str) -> bool
         return address in self._addresses_to_keep
 
-    def _run_ddwaf(self, data):
-        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-
     def on_span_finish(self, span):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
@@ -267,69 +276,10 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_metric(APPSEC_ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
-        data = {}
-        if self._is_needed(_Addresses.SERVER_REQUEST_QUERY):
-            request_query = _context.get_item("http.request.query", span=span)
-            if request_query is not None:
-                data[_Addresses.SERVER_REQUEST_QUERY] = request_query
+        self._waf_action(span)
 
-        if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
-            request_headers = _context.get_item("http.request.headers", span=span)
-            if request_headers is not None:
-                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers)
-
-        if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
-            uri = _context.get_item("http.request.uri", span=span)
-            if uri is not None:
-                data[_Addresses.SERVER_REQUEST_URI_RAW] = uri
-
-        if self._is_needed(_Addresses.SERVER_REQUEST_METHOD):
-            request_method = _context.get_item("http.request.method", span=span)
-            if request_method is not None:
-                data[_Addresses.SERVER_REQUEST_METHOD] = request_method
-
-        if self._is_needed(_Addresses.SERVER_REQUEST_PATH_PARAMS):
-            path_params = _context.get_item("http.request.path_params", span=span)
-            if path_params is not None:
-                data[_Addresses.SERVER_REQUEST_PATH_PARAMS] = path_params
-
-        if self._is_needed(_Addresses.SERVER_REQUEST_COOKIES):
-            cookies = _context.get_item("http.request.cookies", span=span)
-            if cookies is not None:
-                data[_Addresses.SERVER_REQUEST_COOKIES] = cookies
-
-        if self._is_needed(_Addresses.SERVER_RESPONSE_STATUS):
-            status = _context.get_item("http.response.status", span=span)
-            if status is not None:
-                data[_Addresses.SERVER_RESPONSE_STATUS] = status
-
-        if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
-            response_headers = _context.get_item("http.response.headers", span=span)
-            if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
-
-        if self._is_needed(_Addresses.SERVER_REQUEST_BODY):
-            body = _context.get_item("http.request.body", span=span)
-            if body is not None:
-                data[_Addresses.SERVER_REQUEST_BODY] = body
-
-        if self._is_needed(_Addresses.HTTP_CLIENT_IP):
-            remote_ip = _context.get_item("http.request.remote_ip", span=span)
-            if remote_ip:
-                data[_Addresses.HTTP_CLIENT_IP] = remote_ip
-
-        log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        blocked_request = _context.get_item("http.request.blocked", span=span)
-        if not blocked_request:
-            ddwaf_result = self._run_ddwaf(data)
-            res = ddwaf_result.data
-            total_runtime = ddwaf_result.runtime
-            total_overall_runtime = ddwaf_result.total_runtime
-        else:
-            # Blocked requests call ddwaf earlier, so we already have the data
-            total_runtime = _context.get_item("http.request.waf_duration", span=span)
-            total_overall_runtime = _context.get_item("http.request.waf_duration_ext", span=span)
-            res = None
+        blocked_request = _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+        aggregated_results = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
 
         try:
             info = self._ddwaf.info
@@ -341,32 +291,32 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
             if not blocked_request:
-                span.set_metric(APPSEC_WAF_DURATION, total_runtime)
-                span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
+                span.set_metric(APPSEC_WAF_DURATION, aggregated_results.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, aggregated_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if res is not None or blocked_request:
+        if aggregated_results.json_data or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
-            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
-                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES], kind="request")
+            if _context.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span):
+                _set_headers(
+                    span, _context.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span), kind="request"
+                )
 
-            if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
-                _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
+            if _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span):
+                _set_headers(
+                    span, _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span), kind="response"
+                )
 
-            if not blocked_request:
-                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-                span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
-            else:
-                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
-                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
+            span.set_tag_str(APPSEC_JSON, aggregated_results.json_data)
+            if blocked_request:
                 span.set_tag("appsec.blocked", True)
 
             # Partial DDAS-011-00

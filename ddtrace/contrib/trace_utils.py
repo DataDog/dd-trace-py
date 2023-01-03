@@ -20,6 +20,7 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -499,6 +500,10 @@ def set_http_meta(
             span=span,
         )
 
+        callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+        if callback:
+            callback()
+
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
 
@@ -531,7 +536,8 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         current_context = tracer.current_trace_context()
         if current_context and current_context.trace_id == context.trace_id:
             log.debug(
-                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already"
+                " active",  # noqa: E501
                 context.trace_id,
                 context.span_id,
             )
