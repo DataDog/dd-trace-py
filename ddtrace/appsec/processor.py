@@ -252,7 +252,9 @@ class AppSecSpanProcessor(SpanProcessor):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         ddwaf_result = self._run_ddwaf(data)
-        _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span).update(ddwaf_result)
+        result_aggregator = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
+        if result_aggregator:
+            result_aggregator.update(ddwaf_result)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
         if "block" in ddwaf_result.actions:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
@@ -275,12 +277,9 @@ class AppSecSpanProcessor(SpanProcessor):
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-
         self._waf_action(span)
-
         blocked_request = _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
         aggregated_results = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
-
         try:
             info = self._ddwaf.info
             if info.errors:
@@ -290,7 +289,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            if not blocked_request:
+            if not blocked_request and aggregated_results:
                 span.set_metric(APPSEC_WAF_DURATION, aggregated_results.runtime)
                 span.set_metric(APPSEC_WAF_DURATION_EXT, aggregated_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
@@ -298,24 +297,21 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if aggregated_results.json_data or blocked_request:
+        if (aggregated_results and aggregated_results.json_data) or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
-            if _context.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span):
-                _set_headers(
-                    span, _context.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span), kind="request"
-                )
 
-            if _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span):
-                _set_headers(
-                    span, _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span), kind="response"
-                )
+            for id_tag in [SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES]:
+                headers_req = _context.get_item(id_tag, span=span)
+                if headers_req:
+                    _set_headers(span, headers_req, kind="request")
 
-            span.set_tag_str(APPSEC_JSON, aggregated_results.json_data)
+            if aggregated_results and aggregated_results.json_data:
+                span.set_tag_str(APPSEC_JSON, aggregated_results.json_data)
             if blocked_request:
                 span.set_tag("appsec.blocked", True)
 
