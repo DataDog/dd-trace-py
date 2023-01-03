@@ -95,8 +95,8 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @mock_s3
-    def test_s3_client(self):
+    def _test_s3_client(self):
+        # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
@@ -116,12 +116,11 @@ class BotoTest(TracerTestCase):
         spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
-        span = spans[0]
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        self.assertEqual(span.get_tag(http.METHOD), "PUT")
-        self.assertEqual(span.get_tag("path"), "/")
-        self.assertEqual(span.get_tag("aws.operation"), "create_bucket")
+        create_span = spans[0]
+        assert_is_measured(create_span)
+        assert_span_http_status_code(create_span, 200)
+        self.assertEqual(create_span.get_tag(http.METHOD), "PUT")
+        self.assertEqual(create_span.get_tag("aws.operation"), "create_bucket")
         self.assertEqual(span.get_tag("component"), "boto")
 
         # Get the created bucket
@@ -147,6 +146,34 @@ class BotoTest(TracerTestCase):
             assert spans
             span = spans[0]
             self.assertEqual(span.resource, "s3.head")
+
+        return create_span
+
+    @mock_s3
+    def test_s3_client(self):
+        span = self._test_s3_client()
+        # DEV: Not currently supported
+        self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+
+    @mock_s3
+    def test_s3_client_no_params(self):
+        with self.override_config("boto", dict(tag_no_params=True)):
+            span = self._test_s3_client()
+            self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+
+    @mock_s3
+    def test_s3_client_all_params(self):
+        with self.override_config("boto", dict(tag_all_params=True)):
+            span = self._test_s3_client()
+            self.assertEqual(span.get_tag("path"), "/")
+
+    @mock_s3
+    def test_s3_client_no_params_all_params(self):
+        # DEV: Test no params overrides all params
+        with self.override_config("boto", dict(tag_no_params=True, tag_all_params=True)):
+            span = self._test_s3_client()
+            self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+            self.assertIsNone(span.get_tag("path"))
 
     @mock_s3
     def test_s3_put(self):

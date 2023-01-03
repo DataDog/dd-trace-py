@@ -109,7 +109,7 @@ class _ProfilerInstance(service.Service):
     # User-supplied values
     url = attr.ib(default=None)
     service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
-    tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
+    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
@@ -160,7 +160,7 @@ class _ProfilerInstance(service.Service):
                 endpoint = agent.get_trace_url()
 
         if self.agentless:
-            endpoint_path = "/v1/input"
+            endpoint_path = "/api/v2/profile"
         else:
             # Agent mode
             # path is relative because it is appended
@@ -168,7 +168,7 @@ class _ProfilerInstance(service.Service):
             endpoint_path = "profiling/v1/input"
 
         if self._lambda_function_name is not None:
-            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
+            self.tags.update({"functionname": self._lambda_function_name})
 
         return [
             http.PprofHTTPExporter(
