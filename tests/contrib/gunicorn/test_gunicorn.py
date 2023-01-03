@@ -137,6 +137,37 @@ def test_traced_basic(gunicorn_server_settings, gunicorn_server):
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
+        # 1. Set `DD_GEVENT_PATCH_ALL` environment variable to true when running with ddtrace-run
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            gevent_patching=True,
+            use_ddtracerun=True,
+        ),
+        # 2. Import ddtrace sitecustomize as first import of application
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.gevent_wsgi_mw_app:app",
+            worker_class="gevent",
+            use_ddtracerun=False,
+        ),
+        # 3. Use post worker init hook to import ddtrace sitecustomize
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            use_ddtracerun=False,
+            post_worker_init=_post_worker_init_ddtrace,
+        ),
+    ],
+)
+def test_correct_gevent_patching_should_succeed(gunicorn_server_settings, gunicorn_server):
+    r = gunicorn_server.get("/")
+    assert r.status_code == 200
+    assert r.content == b"Hello, World!\n"
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
         _gunicorn_settings_factory(
             app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
             worker_class="gevent",
@@ -150,56 +181,7 @@ def test_traced_basic(gunicorn_server_settings, gunicorn_server):
     ],
 )
 def test_gevent_patch_falsy_should_fail(gunicorn_server_settings, gunicorn_server):
-    # TODO: This test should fail as DD_GEVENT_PATCH_ALL is not set to 1.
-    r = gunicorn_server.get("/")
-    assert r.status_code == 200
-    assert r.content == b"Hello, World!\n"
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        _gunicorn_settings_factory(
-            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
-            worker_class="gevent",
-            gevent_patching=True,
-        )
-    ],
-)
-def test_gevent_patch_set_true_should_succeed(gunicorn_server_settings, gunicorn_server):
-    r = gunicorn_server.get("/")
-    assert r.status_code == 200
-    assert r.content == b"Hello, World!\n"
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        _gunicorn_settings_factory(
-            app_path="tests.contrib.gunicorn.gevent_wsgi_mw_app:app",
-            worker_class="gevent",
-            use_ddtracerun=False,
-        )
-    ],
-)
-def test_gevent_sitecustomize_first_import(gunicorn_server_settings, gunicorn_server):
-    r = gunicorn_server.get("/")
-    assert r.status_code == 200
-    assert r.content == b"Hello, World!\n"
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        _gunicorn_settings_factory(
-            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
-            worker_class="gevent",
-            use_ddtracerun=False,
-            post_worker_init=_post_worker_init_ddtrace,
-        )
-    ],
-)
-def test_gevent_post_worker_init_hook(gunicorn_server_settings, gunicorn_server):
+    # FIXME: This test should fail as DD_GEVENT_PATCH_ALL is not set to 1.
     r = gunicorn_server.get("/")
     assert r.status_code == 200
     assert r.content == b"Hello, World!\n"

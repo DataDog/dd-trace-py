@@ -1,7 +1,10 @@
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from ddtrace.debugging import DynamicInstrumentation
 from tests.webclient import PingFilter
 
+
+DynamicInstrumentation.enable()
 
 tracer.configure(
     settings={
