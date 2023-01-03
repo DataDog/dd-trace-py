@@ -14,6 +14,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://0.0.0.0:8080/",
+      "language": "python",
       "runtime-id": "b73097ce1a54484f872936703dc77f48"
     },
     "metrics": {
