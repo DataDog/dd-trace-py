@@ -88,6 +88,7 @@ greenlets
 grpc
 gunicorn
 hostname
+hostnames
 http
 httplib
 https
@@ -204,5 +205,6 @@ Serverless
 serverless
 cattrs
 IAST
+programmatically
 DES
 Blowfish
