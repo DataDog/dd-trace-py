@@ -26,7 +26,7 @@ def _set_and_get_appsec_tags(tracer):
 def test_rc_enabled_by_default(tracer):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    assert not _appsec_rc_features_is_enabled()
+    assert _appsec_rc_features_is_enabled()
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer):

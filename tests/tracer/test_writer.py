@@ -1,5 +1,7 @@
+import contextlib
 import os
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -20,10 +22,21 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.sampler import RateByServiceSampler
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
+
+
+@contextlib.contextmanager
+def mock_sys_platform(new_value):
+    old_value = sys.platform
+    try:
+        sys.platform = new_value
+        yield
+    finally:
+        sys.platform = old_value
 
 
 class DummyOutput:
@@ -550,6 +563,86 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+@pytest.mark.parametrize(
+    "sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected",
+    [
+        # -- win32
+        # Defaults on windows
+        ("win32", None, None, None, False, "v0.3"),
+        # Default with priority sampler
+        ("win32", None, None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly passed in API version is always used
+        ("win32", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
+        ("win32", "v0.3", "v0.4", None, False, "v0.3"),
+        ("win32", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        # Env variable is used if explicit value is not given
+        ("win32", None, "v0.4", None, False, "v0.4"),
+        ("win32", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        # v0.5 is not supported on windows
+        ("win32", "v0.5", None, None, True, None),
+        ("win32", "v0.5", None, RateByServiceSampler(), True, None),
+        ("win32", "v0.5", "v0.4", RateByServiceSampler(), True, None),
+        ("win32", None, "v0.5", RateByServiceSampler(), True, None),
+        # -- cygwin
+        # Defaults on windows
+        ("cygwin", None, None, None, False, "v0.3"),
+        # Default with priority sampler
+        ("cygwin", None, None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly passed in API version is always used
+        ("cygwin", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", None, False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        # Env variable is used if explicit value is not given
+        ("cygwin", None, "v0.4", None, False, "v0.4"),
+        ("cygwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        # v0.5 is not supported on windows
+        ("cygwin", "v0.5", None, None, True, None),
+        ("cygwin", "v0.5", None, RateByServiceSampler(), True, None),
+        ("cygwin", "v0.5", "v0.4", RateByServiceSampler(), True, None),
+        ("cygwin", None, "v0.5", RateByServiceSampler(), True, None),
+        # -- Non-windows
+        # defaults
+        ("darwin", None, None, None, False, "v0.3"),
+        # Default with priority sample
+        ("darwin", None, None, RateByServiceSampler(), False, "v0.5"),
+        # Explicitly setting api version
+        ("darwin", "v0.4", None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly set version takes precedence
+        ("darwin", "v0.4", "v0.5", RateByServiceSampler(), False, "v0.4"),
+        # Via env variable
+        ("darwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        ("darwin", None, "v0.5", RateByServiceSampler(), False, "v0.5"),
+    ],
+)
+def test_writer_api_version_selection(
+    sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected, monkeypatch
+):
+    """test to verify that we are unable to select v0.5 api version when on a windows machine.
+
+    https://docs.python.org/3/library/sys.html#sys.platform
+
+    The possible ``sys.platform`` values when on windows are ``win32`` or ``cygwin``.
+    """
+
+    # Mock the value of `sys.platform` to be a specific value
+    with mock_sys_platform(sys_platform):
+
+        # If desired, set the DD_TRACE_API_VERSION env variable
+        if ddtrace_api_version is not None:
+            monkeypatch.setenv("DD_TRACE_API_VERSION", ddtrace_api_version)
+
+        try:
+            # Create a new writer
+            writer = AgentWriter(
+                agent_url="http://dne:1234", api_version=api_version, priority_sampler=priority_sampler
+            )
+            assert writer._api_version == expected
+        except RuntimeError:
+            # If we were not expecting a RuntimeError, then cause the test to fail
+            if not raises_error:
+                pytest.fail("Raised RuntimeError when it was not expected")
 
 
 def test_writer_reuse_connections_envvar(monkeypatch):

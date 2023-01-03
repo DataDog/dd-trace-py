@@ -18,7 +18,6 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
 
 from ddtrace import config  # noqa
-from ddtrace import constants
 from ddtrace.debugging._config import config as debugger_config
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
@@ -113,10 +112,6 @@ try:
         from ddtrace import patch_all
 
         patch_all(**EXTRA_PATCHED_MODULES)
-
-    dd_env = os.getenv("DD_ENV")
-    if dd_env:
-        tracer.set_tags({constants.ENV_KEY: dd_env})
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
