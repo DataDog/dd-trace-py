@@ -451,8 +451,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
-                    # FIXME[bytecode-3.11]: debugger depends on bytecode, which doesn't yet have 3.11 support
-                    pys=select_pys(min_version="3.5", max_version="3.10"),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],

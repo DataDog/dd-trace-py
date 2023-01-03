@@ -69,6 +69,14 @@ def _make_lambda(ast):
     return _make_function(ast, ("_dd_it", "_locals"), "<lambda>")
 
 
+def _call_bytecode(f, instrs, nargs):
+    # type: (Callable, List[Instr], int) -> List[Instr]
+    if PY < (3, 11):
+        return [Instr("LOAD_CONST", f)] + instrs + [Instr("CALL_FUNCTION", nargs)]
+
+    return [Instr("PUSH_NULL"), Instr("LOAD_CONST", f)] + instrs + [Instr("PRECALL", nargs), Instr("CALL", nargs)]
+
+
 def _compile_direct_predicate(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
     # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
@@ -137,14 +145,14 @@ def _compile_arg_predicate(ast):
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
 
-        return (
-            [Instr("LOAD_CONST", lambda i, c, _locals: f(c(_, _locals) for _ in i))]
-            + ca
+        return _call_bytecode(
+            lambda i, c, _locals: f(c(_, _locals) for _ in i),
+            ca
             + [
                 Instr("LOAD_CONST", fb),
                 Instr("LOAD_FAST", "_locals"),
-                Instr("CALL_FUNCTION", 3),
-            ]
+            ],
+            3,
         )
 
     if _type in {"startsWith", "endsWith"}:
@@ -154,16 +162,16 @@ def _compile_arg_predicate(ast):
             raise ValueError("Invalid argument: %r" % a)
         if cb is None:
             raise ValueError("Invalid argument: %r" % b)
-        return [Instr("LOAD_CONST", getattr(str, _type.lower()))] + ca + cb + [Instr("CALL_FUNCTION", 2)]
+        return _call_bytecode(getattr(str, _type.lower()), ca + cb, 2)
 
     if _type == "matches":
         a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
+        string, pattern = _compile_predicate(a), _compile_predicate(b)
+        if string is None:
             raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
+        if pattern is None:
             raise ValueError("Invalid argument: %r" % b)
-        return [Instr("LOAD_CONST", lambda p, s: re.match(p, s) is not None)] + cb + ca + [Instr("CALL_FUNCTION", 2)]
+        return _call_bytecode(lambda p, s: re.match(p, s) is not None, pattern + string, 2)
 
     return None
 
@@ -181,7 +189,7 @@ def _compile_direct_operation(ast):
         value = _compile_value_source(arg)
         if value is None:
             raise ValueError("Invalid argument: %r" % arg)
-        return [Instr("LOAD_CONST", len)] + value + [Instr("CALL_FUNCTION", 1)]
+        return _call_bytecode(len, value, 1)
 
     return None
 
@@ -216,14 +224,14 @@ def _compile_arg_operation(ast):
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
 
-        return (
-            [Instr("LOAD_CONST", lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)))]
-            + ca
+        return _call_bytecode(
+            lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)),
+            ca
             + [
                 Instr("LOAD_CONST", fb),
                 Instr("LOAD_FAST", "_locals"),
-                Instr("CALL_FUNCTION", 3),
-            ]
+            ],
+            3,
         )
 
     return None
