@@ -240,7 +240,8 @@ class AppSecSpanProcessor(SpanProcessor):
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
-            self._waf_action(span)
+            self._mark_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP)
+            # self._waf_action(span)
 
     def _waf_action(self, span):
         # type: (Span) -> None
