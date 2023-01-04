@@ -3,7 +3,11 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
-import cassandra.cluster as cassandra_cluster
+
+try:
+    import cassandra.cluster as cassandra_cluster
+except AttributeError:
+    from cassandra import cluster as cassandra_cluster
 
 from ddtrace import config
 

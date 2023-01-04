@@ -47,7 +47,14 @@ def daphne_client(django_asgi, additional_env=None):
     client = Client("http://localhost:%d" % SERVER_PORT)
 
     # Wait for the server to start up
-    client.wait()
+    try:
+        client.wait()
+    except Exception as e:
+        proc.terminate()
+        out, err = proc.communicate()
+        print("Server STDOUT:\n%s" % out.decode())
+        print("Server STDERR:\n%s" % err.decode())
+        raise e
 
     try:
         yield client

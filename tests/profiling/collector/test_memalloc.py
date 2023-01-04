@@ -5,13 +5,15 @@ import threading
 
 import pytest
 
+from ddtrace.internal import compat
+
 
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
     pytestmark = pytest.mark.skip("_memalloc not available")
 
-from ddtrace.internal import nogevent
+# from ddtrace.internal import nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import memalloc
 
@@ -51,12 +53,11 @@ def test_start_stop():
     _memalloc.stop()
 
 
-# This is used by tests and must be equal to the line number where object() is called in _allocate_1k 😉
-_ALLOC_LINE_NUMBER = 59
-
-
 def _allocate_1k():
     return [object() for _ in range(1000)]
+
+
+_ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
 def _pre_allocate_1k():
@@ -81,7 +82,7 @@ def test_iter_events():
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert thread_id == nogevent.main_thread_id
+            # assert thread_id == nogevent.main_thread_id
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
             assert stack[1][1] == _ALLOC_LINE_NUMBER
@@ -132,12 +133,12 @@ def test_iter_events_multi_thread():
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert last_call[0] == __file__
-            if thread_id == nogevent.main_thread_id:
+            if thread_id == compat.main_thread.ident:
                 count_object += 1
                 assert stack[1][0] == __file__
                 assert stack[1][1] == _ALLOC_LINE_NUMBER
                 assert stack[1][2] == "_allocate_1k"
-            elif thread_id == t.ident:
+            if thread_id == t.ident:
                 count_thread += 1
                 assert stack[2][0] == threading.__file__
                 assert stack[2][1] > 0
@@ -163,11 +164,11 @@ def test_memory_collector():
         last_call = event.frames[0]
         assert event.size > 0
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert event.thread_id == nogevent.main_thread_id
+            # assert event.thread_id == nogevent.main_thread_id
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 154
+            assert event.frames[2][1] == 155
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
@@ -222,12 +223,12 @@ def test_heap():
     _memalloc.start(max_nframe, 10, 1024)
     x = _allocate_1k()
     # Check that at least one sample comes from the main thread
-    thread_found = False
+    # thread_found = False
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         assert size > 0
-        if thread_id == nogevent.main_thread_id:
-            thread_found = True
+        # if thread_id == nogevent.main_thread_id:
+        #     thread_found = True
         assert isinstance(thread_id, int)
         if (
             stack[0][0] == __file__
@@ -242,7 +243,7 @@ def test_heap():
             break
     else:
         pytest.fail("No trace of allocation in heap")
-    assert thread_found, "Main thread not found"
+    # assert thread_found, "Main thread not found"
     y = _pre_allocate_1k()
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe

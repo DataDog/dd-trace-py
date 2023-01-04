@@ -3,6 +3,7 @@ import unittest
 
 from tornado import version_info
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 

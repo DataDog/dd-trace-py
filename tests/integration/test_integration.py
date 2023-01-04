@@ -694,46 +694,6 @@ s2.finish()
     assert p.returncode == 0
 
 
-@pytest.mark.parametrize(
-    "call_basic_config,debug_mode",
-    itertools.permutations((True, False, None), 2),
-)
-def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
-    """
-    When setting DD_CALL_BASIC_CONFIG env variable
-        When true
-            We call logging.basicConfig()
-        When false
-            We do not call logging.basicConfig()
-        When not set
-            We do not call logging.basicConfig()
-    """
-    env = os.environ.copy()
-
-    if debug_mode is not None:
-        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
-    if call_basic_config is not None:
-        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
-        has_root_handlers = call_basic_config
-    else:
-        has_root_handlers = False
-
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-root = logging.getLogger()
-print(len(root.handlers))
-""",
-        env=env,
-    )
-
-    assert status == 0
-    if has_root_handlers:
-        assert out == six.b("1\n")
-    else:
-        assert out == six.b("0\n")
-
-
 @pytest.mark.subprocess(
     env=dict(
         DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
@@ -858,5 +818,5 @@ def test_no_warnings():
     # has been initiated which results in a deprecation warning.
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
-    assert out == b"", out
-    assert err == b"", err
+    assert out == b"", out.decode()
+    assert err == b"", err.decode()

@@ -156,6 +156,7 @@ class TelemetryWriter(PeriodicService):
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
+        # TODO: Call this with an atexit hook
         self.join()
 
     def add_event(self, payload, payload_type):

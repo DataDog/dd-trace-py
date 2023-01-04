@@ -1,5 +1,9 @@
-import dogpile.cache as dogpile_cache
-import dogpile.lock as dogpile_lock
+try:
+    import dogpile.cache as dogpile_cache
+    import dogpile.lock as dogpile_lock
+except AttributeError:
+    from dogpile import cache as dogpile_cache
+    from dogpile import lock as dogpile_lock
 
 from ddtrace.pin import Pin
 from ddtrace.pin import _DD_PIN_NAME

@@ -84,7 +84,7 @@ class Profiler(object):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
-            self._profiler.stop(flush=False)
+            self._profiler.stop(flush=False, join=False)
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
             pass
@@ -265,10 +265,8 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def _stop_service(
-        self, flush=True  # type: bool
-    ):
-        # type: (...) -> None
+    def _stop_service(self, flush=True, join=True):
+        # type: (bool, bool) -> None
         """Stop the profiler.
 
         :param flush: Flush a last profile.
@@ -277,7 +275,8 @@ class _ProfilerInstance(service.Service):
             self._scheduler.stop()
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
             # collectors before the possibly running flush is finished.
-            self._scheduler.join()
+            if join:
+                self._scheduler.join()
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
@@ -289,5 +288,6 @@ class _ProfilerInstance(service.Service):
                 # It's possible some collector failed to start, ignore failure to stop
                 pass
 
-        for col in reversed(self._collectors):
-            col.join()
+        if join:
+            for col in reversed(self._collectors):
+                col.join()

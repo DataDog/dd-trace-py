@@ -288,61 +288,89 @@ def test_double_fork():
     assert exit_code == 42
 
 
-# FIXME: subprocess marks do not respect pytest.mark.skips
-if sys.version_info < (3, 11, 0):
+@pytest.mark.subprocess(
+    out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"), err=None
+)
+def test_gevent_gunicorn_behaviour():
+    # ---- Emulate sitecustomize.py ----
 
-    @pytest.mark.subprocess(
-        out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"),
-        err=None,
-        env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
-    )
-    def test_gevent_reinit_patch():
-        import os
-        import sys
+    import sys
 
-        from ddtrace.internal import forksafe
-        from ddtrace.internal.periodic import PeriodicService
+    LOADED_MODULES = frozenset(sys.modules.keys())
 
-        class TestService(PeriodicService):
-            def __init__(self):
-                super(TestService, self).__init__(interval=1.0)
+    import atexit
+    import os
 
-            def periodic(self):
-                sys.stdout.write("T")
+    from ddtrace.internal import forksafe
+    from ddtrace.internal.compat import PY2  # noqa
+    from ddtrace.internal.periodic import PeriodicService
 
+    if PY2:
+        _unloaded_modules = []
+
+    def cleanup_loaded_modules():
+        # Unload all the modules that we have imported, expect for the ddtrace one.
+        for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
+            if m.startswith("atexit"):
+                continue
+            if m.startswith("typing"):  # reguired by Python < 3.7
+                continue
+            if m.startswith("ddtrace"):
+                continue
+
+            if PY2:
+                if "encodings" in m:
+                    continue
+                # Store a reference to deleted modules to avoid them being garbage
+                # collected
+                _unloaded_modules.append(sys.modules[m])
+            del sys.modules[m]
+
+    class TestService(PeriodicService):
+        def __init__(self):
+            super(TestService, self).__init__(interval=1.0)
+
+        def periodic(self):
+            sys.stdout.write("T")
+
+    service = TestService()
+    service.start()
+    atexit.register(service.stop)
+
+    def restart_service():
+        global service
+
+        service.stop()
         service = TestService()
         service.start()
 
-        def restart_service():
-            global service
+    forksafe.register(restart_service)
 
-            service.stop()
-            service = TestService()
-            service.start()
+    cleanup_loaded_modules()
 
-        forksafe.register(restart_service)
+    # ---- Application code ----
 
-        import gevent  # noqa
+    import os  # noqa
+    import sys  # noqa
 
-        def run_child():
-            global service
+    import gevent.hub  # noqa
+    import gevent.monkey  # noqa
 
-            # We mimic what gunicorn does in child processes
-            gevent.monkey.patch_all()
-            gevent.hub.reinit()
+    def run_child():
+        # We mimic what gunicorn does in child processes
+        gevent.monkey.patch_all()
+        gevent.hub.reinit()
 
-            sys.stdout.write("C")
+        sys.stdout.write("C")
 
-            gevent.sleep(1.5)
+        gevent.sleep(1.5)
 
-            service.stop()
+    def fork_workers(num):
+        for _ in range(num):
+            if os.fork() == 0:
+                run_child()
+                sys.exit(0)
 
-        def fork_workers(num):
-            for _ in range(num):
-                if os.fork() == 0:
-                    run_child()
-                    sys.exit(0)
+    fork_workers(3)
 
-        fork_workers(3)
-
-        service.stop()
+    exit()

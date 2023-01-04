@@ -91,7 +91,8 @@ import ddtrace
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -130,7 +131,8 @@ custom_logger.setLevel(logging.WARN)
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
 
@@ -161,11 +163,14 @@ def test_unrelated_logger_in_debug_with_ddtrace_run(
         env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + "/" + dd_trace_log_file
     code = """
 import logging
+
 custom_logger = logging.getLogger('custom')
 custom_logger.setLevel(logging.WARN)
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
-ddtrace_logger = logging.getLogger('ddtrace')
+
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 ddtrace_logger.warning('ddtrace warning log')
 """
@@ -201,13 +206,13 @@ def test_logs_with_basicConfig(run_python_code_in_subprocess, ddtrace_run_python
     for run_in_subprocess in [run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess]:
 
         code = """
-import logging
-import ddtrace
+from ddtrace._logger import logging as ddtrace_logging
 
-logging.basicConfig(format='%(message)s')
-ddtrace_logger = logging.getLogger('ddtrace')
+ddtrace_logging.basicConfig(format='%(message)s')
 
-assert ddtrace_logger.getEffectiveLevel() == logging.WARN
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
+
+assert ddtrace_logger.getEffectiveLevel() == ddtrace_logging.WARN
 assert len(ddtrace_logger.handlers) == 0
 
 ddtrace_logger.warning('warning log')
@@ -217,8 +222,8 @@ ddtrace_logger.debug('debug log')
         out, err, status, pid = run_in_subprocess(code)
         assert status == 0, err
         assert re.search(LOG_PATTERN, str(err)) is None
-        assert b"warning log" in err
-        assert b"debug log" not in err
+        assert b"warning log" in err, err.decode()
+        assert b"debug log" not in err, err.decode()
         assert out == b""
 
 
@@ -231,41 +236,23 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "200000"
-    patch_code = """
-import logging
-import ddtrace
-
-ddtrace_logger = logging.getLogger('ddtrace')
-assert ddtrace_logger.getEffectiveLevel() == logging.WARN
+    code = """
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
+assert ddtrace_logger.getEffectiveLevel() == ddtrace_logging.WARN
 assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
+assert isinstance(ddtrace_logger.handlers[0], ddtrace_logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 200000
 assert ddtrace_logger.handlers[0].backupCount == 1
 
 ddtrace_logger.warning('warning log')
 """
 
-    ddtrace_run_code = """
-import logging
-
-ddtrace_logger = logging.getLogger('ddtrace')
-assert ddtrace_logger.getEffectiveLevel() == logging.WARN
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 200000
-assert ddtrace_logger.handlers[0].backupCount == 1
-
-ddtrace_logger.warning('warning log')
-"""
-
-    for run_in_subprocess, code in [
-        (run_python_code_in_subprocess, patch_code),
-        (ddtrace_run_python_code_in_subprocess, ddtrace_run_code),
-    ]:
+    for run_in_subprocess in (run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
         out, err, status, pid = run_in_subprocess(code, env=env)
         assert status == 0, err
-        assert err == b""
-        assert out == b""
+        assert err == b"", err.decode()
+        assert out == b"", out.decode()
         with open(log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
@@ -292,7 +279,8 @@ import logging
 import ddtrace
 
 logging.basicConfig(format='%(message)s')
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 0
@@ -309,12 +297,11 @@ ddtrace_logger.debug('debug log')
     assert out == b""
 
     code = """
-import logging
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
+ddtrace_logging.basicConfig(format='%(message)s')
 
-logging.basicConfig(format='%(message)s')
-ddtrace_logger = logging.getLogger('ddtrace')
-
-assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
+assert ddtrace_logger.getEffectiveLevel() == ddtrace_logging.DEBUG
 assert len(ddtrace_logger.handlers) == 0
 
 ddtrace_logger.warning('warning log')
@@ -325,8 +312,8 @@ ddtrace_logger.debug('debug log')
     assert status == 0, err
     assert re.search(LOG_PATTERN, str(err)) is None
     assert "program executable" in str(err)  # comes from ddtrace-run debug logging
-    assert b"warning log" in err
-    assert b"debug log" in err
+    assert b"warning log" in err, err.decode()
+    assert b"debug log" in err, err.decode()
     assert out == b""
 
 
@@ -352,7 +339,8 @@ import logging
 import os
 import ddtrace
 
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
@@ -361,7 +349,8 @@ assert ddtrace_logger.handlers[0].backupCount == 1
 if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
     ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 
 for attempt in range(100):
     ddtrace_logger.debug('ddtrace multiple debug log')
@@ -384,15 +373,16 @@ for attempt in range(100):
 import logging
 import os
 
-ddtrace_logger = logging.getLogger('ddtrace')
+from ddtrace._logger import logging as ddtrace_logging
+ddtrace_logger = ddtrace_logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
+assert isinstance(ddtrace_logger.handlers[0], ddtrace_logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 10
 assert ddtrace_logger.handlers[0].backupCount == 1
 
 if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
-    ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
+    ddtrace_logger.handlers[0].level == getattr(ddtrace_logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
 for attempt in range(100):
     ddtrace_logger.debug('ddtrace multiple debug log')
@@ -400,7 +390,7 @@ for attempt in range(100):
 """
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
+    assert status == 0, err.decode()
 
     if PY2:
         assert 'No handlers could be found for logger "ddtrace' in err
