@@ -63,7 +63,7 @@ class TestTracedCursor(TracerTestCase):
 
         spans = self.tracer.pop()
         assert len(spans) == 3
-        dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
         # DBM comment should not be added procedure names
