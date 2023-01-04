@@ -6,6 +6,7 @@ from typing import Callable
 from typing import ContextManager
 from typing import Generator
 from typing import Optional
+from typing import Pattern
 from typing import Tuple
 from typing import Union
 
@@ -203,7 +204,7 @@ def w3c_get_dd_list_member(context):
 
 @cached()
 def w3c_encode_tag(args):
-    # type: (Tuple[str, str, str]) -> str
+    # type: (Tuple[Pattern, str, str]) -> str
     pattern, replacement, tag_val = args
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
