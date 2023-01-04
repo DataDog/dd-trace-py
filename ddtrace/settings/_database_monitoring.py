@@ -57,4 +57,8 @@ def _get_dbm_comment(db_span):
         db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
         dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
-    return _generate_sql_comment(**dbm_tags)
+    sql_comment = _generate_sql_comment(**dbm_tags)
+    if sql_comment:
+        # replace leading whitespace with trailing whitespace
+        return sql_comment.strip() + " "
+    return ""
