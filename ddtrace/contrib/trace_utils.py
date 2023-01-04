@@ -20,11 +20,9 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.context import Context
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
-from ddtrace.internal.compat import iteritems
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -597,54 +595,3 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
-
-
-def _start_span_internal(
-    tracer,  # type: Tracer
-    name,  # type: str
-    integration_config,  # type: IntegrationConfig
-    child_of=None,  # type: Optional[Union[Span, Context]]
-    service=None,  # type: Optional[str]
-    resource=None,  # type: Optional[str]
-    span_type=None,  # type: Optional[str]
-    activate=False,  # type: bool
-    meta=None,  # type: Optional[Dict[str, str]]
-    metrics=None,  # type: Optional[Dict[str, float]]
-):
-    span = tracer.start_span(name, child_of, service, resource, span_type, activate)
-    span.set_tag_str("component", integration_config.integration_name)
-
-    if meta:
-        for k, v in iter(meta.items()):
-            span.set_tag_str(k, v)
-
-    if metrics:
-        for k, v in iteritems(metrics):
-            tracer.set_metric(k, v)
-
-    return span
-
-
-def _trace_internal(
-    tracer,  # type: Tracer
-    name,  # type: str
-    integration_config,  # type: IntegrationConfig
-    service=None,  # type: Optional[str]
-    resource=None,  # type: Optional[str]
-    span_type=None,  # type: Optional[str]
-    meta=None,  # type: Optional[Dict[str, str]]
-    metrics=None,  # type: Optional[Dict[str, float]]
-):
-
-    span = tracer.trace(name, service, resource, span_type)
-    span.set_tag_str("component", integration_config.integration_name)
-
-    if meta:
-        for k, v in iter(meta.items()):
-            span.set_tag_str(k, v)
-
-    if metrics:
-        for k, v in iteritems(metrics):
-            tracer.set_metric(k, v)
-
-    return span
