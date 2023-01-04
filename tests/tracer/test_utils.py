@@ -416,7 +416,20 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+        ),
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
+                    # we should not propagate _dd.propagation_error, since it does not start with _dd.p.
+                    "_dd.propagation_error": "-4",
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unknown:baz64"],
         ),
         (
             Context(
@@ -429,7 +442,7 @@ def test_callonce_signature():
                     "no_add": "is_not_added",
                 },
             ),
-            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
         ),
         (
             Context(
@@ -441,10 +454,10 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s~2", "o~synthetics", "t.unknown~baz64"],
+            ["s:2", "o:synthetics", "t.unknown:baz64"],
         ),
         (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
-            # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E with _
+            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
             Context(
                 trace_id=1234,
                 sampling_priority=2,
@@ -453,10 +466,10 @@ def test_callonce_signature():
                     "_dd.p.unk": "-4",
                     "_dd.p.unknown": "baz64",
                     "_dd.p.¢": ";4",
-                    "_dd.p.u=,": "b~,¢a",
+                    "_dd.p.u=,": "b:,¢a",
                 },
             ),
-            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64", "t._~_4", "t.u__~b___a"],
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:b___a"],
         ),
         (
             Context(
@@ -468,11 +481,12 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s~0", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
+            ["s:0", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
         ),
     ],
     ids=[
         "basic",
+        "does_not_add_propagation_error",
         "does_not_add_non_prefixed_tags",
         "does_not_add_more_than_256_char",
         "char_replacement",

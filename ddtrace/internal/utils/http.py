@@ -19,7 +19,7 @@ from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.utils.cache import cached
 
 
-_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|~|[^\x20-\x7E]+"
+_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
@@ -155,29 +155,29 @@ def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
     if context.sampling_priority is not None:
-        tags.append("{}~{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+        tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
-        tags.append("{}~{}".format(W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
+        tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_decision:
-        tags.append("t.dm~{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
+        tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
     # since this can change, we need to grab the value off the current span
     usr_id_key = context._meta.get(USER_ID_KEY)
     if usr_id_key:
-        tags.append("t.usr.id~{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
+        tags.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
 
     current_tags_len = sum(len(i) for i in tags)
     for k, v in context._meta.items():
         if (
             isinstance(k, six.string_types)
-            and k.startswith("_dd.p")
+            and k.startswith("_dd.p.")
             # we've already added sampling decision and user id
             and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
         ):
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
-            next_tag = "{}~{}".format(
+            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
+            next_tag = "{}:{}".format(
                 re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
                 re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
             )

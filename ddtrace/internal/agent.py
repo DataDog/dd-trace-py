@@ -1,4 +1,5 @@
 import os
+import socket
 from typing import TypeVar
 from typing import Union
 
@@ -22,14 +23,28 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 T = TypeVar("T")
 
 
+# This method returns if a hostname is an IPv6 address
+def is_ipv6_hostname(hostname):
+    # type: (Union[T, str]) -> bool
+    if not isinstance(hostname, str):
+        return False
+    try:
+        socket.inet_pton(socket.AF_INET6, hostname)
+        return True
+    except socket.error:  # not a valid address
+        return False
+
+
 def get_trace_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
+    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
+    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
 
 
 def get_stats_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
+    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
+    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
 
 
 def get_trace_port(default=DEFAULT_TRACE_PORT):
