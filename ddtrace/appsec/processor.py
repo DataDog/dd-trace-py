@@ -130,10 +130,10 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 def _set_headers(span, headers, kind):
     # type: (Span, Dict[str, Union[str, List[str]]], str) -> None
-    for k in headers:
-        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+    for id_name, value in headers if isinstance(headers, list) else headers.items():
+        if id_name.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, k), headers[k])
+            span.set_tag(_normalize_tag_name(kind, id_name), value)
 
 
 def _get_rate_limiter():
