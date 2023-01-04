@@ -403,7 +403,6 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 1
         assert_span_http_status_code(span, 500)
         assert span.get_tag(http.URL) == "http://localhost:80/raise_code_method"
-        assert span.get_tag("error.msg") == "Ouch!"
         assert span.get_tag(ERROR_MSG) == "Ouch!"
 
     def test_distributed_tracing_default(self):
