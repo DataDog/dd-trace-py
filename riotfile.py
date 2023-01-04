@@ -2052,6 +2052,7 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.1.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2061,6 +2062,7 @@ venv = Venv(
                         "snowflake-connector-python": [
                             "~=2.2.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2070,6 +2072,7 @@ venv = Venv(
                         "snowflake-connector-python": [
                             "~=2.3.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2081,6 +2084,7 @@ venv = Venv(
                             "~=2.6.0",
                             latest,
                         ],
+                        "cryptography": "<39",
                     },
                 ),
             ],
