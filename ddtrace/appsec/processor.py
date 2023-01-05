@@ -12,7 +12,6 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace import config
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
@@ -226,7 +225,7 @@ class AppSecSpanProcessor(SpanProcessor):
             span=span,
         )
 
-        if config._appsec_enabled and (peer_ip or headers):
+        if peer_ip or headers:
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item("http.request.remote_ip", ip, span=span)
