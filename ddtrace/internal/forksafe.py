@@ -21,7 +21,7 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
 # like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
 # to be executed after the actual fork, which seems to prevent the issue.
-_soft = True
+_soft = False
 
 
 def patch_gevent_hub_reinit(module):

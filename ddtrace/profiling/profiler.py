@@ -35,6 +35,10 @@ from ._asyncio import DdtraceProfilerEventLoopPolicy
 LOG = logging.getLogger(__name__)
 
 
+# This is needed to make the profiler not crash Python on restart after fork.
+forksafe._soft = True
+
+
 class Profiler(object):
     """Run profiling while code is executed.
 
