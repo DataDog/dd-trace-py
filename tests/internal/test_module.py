@@ -339,3 +339,39 @@ def test_module_watchdog_dict_shallow_copy():
     assert original_modules == new_modules
 
     ModuleWatchdog.uninstall()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="LazyLoader was introduced in Python 3.5")
+@pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
+def test_module_watchdog_no_lazy_force_load():
+    """Test that the module watchdog does not force-load lazy modules.
+
+    We use the LazyLoader to load a module lazily. On actual import, the module
+    emits a print statement. We check that the timing of other print statements
+    around the actual import is correct to ensure that the import of ddtrace is
+    not forcing the lazy module to be loaded.
+    """
+    import importlib.util
+    import sys
+
+    def lazy_import(name):
+        spec = importlib.util.find_spec(name)
+        loader = importlib.util.LazyLoader(spec.loader)
+        spec.loader = loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        loader.exec_module(module)
+        return module
+
+    lazy = lazy_import("tests.internal.lazy")
+
+    import ddtrace  # noqa
+
+    print("ddtrace imported")
+
+    print("accessing lazy module")
+    try:
+        # This attribute access should cause the module to be loaded
+        lazy.__spec__
+    except AttributeError:
+        pass
