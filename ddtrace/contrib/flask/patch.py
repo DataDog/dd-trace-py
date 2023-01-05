@@ -20,6 +20,7 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -111,16 +112,20 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         #      we still want `GET /product/<int:product_id>` grouped together,
         #      even if it is a 404
         if not req_span.get_tag(FLASK_ENDPOINT) and not req_span.get_tag(FLASK_URL_RULE):
-            req_span.resource = u" ".join((flask.request.method, code))
+            req_span.resource = " ".join((flask.request.method, code))
 
         trace_utils.set_http_meta(
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
-            request = flask.request
-            start_response("403 FORBIDDEN", request.headers)
-            raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
+        if config._appsec_enabled:
+            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
+            if callback:
+                callback()
+            if _context.get_item("http.request.blocked", span=req_span):
+                request = flask.request
+                start_response("403 FORBIDDEN", request.headers)
+                raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
 
         return start_response(status_code, headers)
 
@@ -187,7 +192,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         #   POST /save
         # We will override this below in `traced_dispatch_request` when we have a `
         # RequestContext` and possibly a url rule
-        span.resource = u" ".join((request.method, request.path))
+        span.resource = " ".join((request.method, request.path))
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
@@ -614,18 +619,18 @@ def _set_request_tags(span):
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = u" ".join((request.method, request.endpoint))
+            span.resource = " ".join((request.method, request.endpoint))
             span.set_tag_str(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = u" ".join((request.method, request.url_rule.rule))
+            span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
                 # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
                 #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
             trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)

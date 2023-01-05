@@ -17,6 +17,7 @@ from django.http import HttpResponseForbidden
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -346,6 +347,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
             utils._after_request_tags(pin, span, request, response)
+            # DEV: This change will have to be put before computing the response
+            # but it will require to compute many information before. TODO in a subsequent PR
+            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+            if callback:
+                callback()
             if _context.get_item("http.request.blocked", span=span):
                 return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
 

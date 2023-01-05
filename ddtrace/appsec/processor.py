@@ -213,9 +213,7 @@ class AppSecSpanProcessor(SpanProcessor):
             {
                 SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
                 "http.request.headers_case_sensitive": headers_case_sensitive,
-                WAF_CONTEXT_NAMES.RESULTS: None,
-                WAF_CONTEXT_NAMES.BLOCKED: False,
-                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span),
+                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span._local_root or span),
             },
             span=span,
         )
