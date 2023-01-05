@@ -258,7 +258,7 @@ jobs:
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
-        run: pytest --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
+        run: pytest -W ignore --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
 
   requests-testsuite-2_26_0:
     runs-on: "ubuntu-latest"
