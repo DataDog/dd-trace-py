@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
-from ddtrace import config
 from ddtrace.appsec.constants import SPAN_DATA_NAMES
 from ddtrace.appsec.constants import WAF_ACTIONS
 from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
