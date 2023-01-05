@@ -32,8 +32,6 @@ typedef struct
     void* ptr;
     /* Memory size allocated in bytes */
     size_t size;
-    /* Domain allocated */
-    PyMemAllocatorDomain domain;
     /* Thread ID */
     unsigned long thread_id;
     /* List of frames, top frame first */
@@ -52,7 +50,7 @@ void
 traceback_free(traceback_t* tb);
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
+memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size);
 
 PyObject*
 traceback_to_tuple(traceback_t* tb);

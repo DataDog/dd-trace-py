@@ -74,8 +74,7 @@ def test_iter_events():
     # Watchout: if we dropped samples the test will likely fail
 
     object_count = 0
-    for (stack, nframe, thread_id), size, domain in events:
-        assert domain == "object"
+    for (stack, nframe, thread_id), size in events:
         assert 0 < len(stack) <= max_nframe
         assert nframe >= len(stack)
         last_call = stack[0]
@@ -124,8 +123,7 @@ def test_iter_events_multi_thread():
 
     count_object = 0
     count_thread = 0
-    for (stack, nframe, thread_id), size, domain in events:
-        assert domain == "object"
+    for (stack, nframe, thread_id), size in events:
         assert 0 < len(stack) <= max_nframe
         assert nframe >= len(stack)
         last_call = stack[0]
@@ -167,7 +165,7 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 154
+            assert event.frames[2][1] == 152
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0

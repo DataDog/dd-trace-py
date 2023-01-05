@@ -14,8 +14,6 @@
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
-    /* The domain we are tracking */
-    PyMemAllocatorDomain domain;
     /* The maximum number of events for allocation tracking */
     uint16_t max_events;
     /* The maximum number of frames collected in stack traces */
@@ -36,9 +34,6 @@ typedef struct
     /* Total number of allocations */
     uint64_t alloc_count;
 } alloc_tracker_t;
-
-/* A string containing "object" */
-static PyObject* object_string = NULL;
 
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
@@ -62,7 +57,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         /* set a barrier so we don't loop as getting a traceback allocates memory */
         memalloc_set_reentrant(true);
         /* Buffer is not full, fill it */
-        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
+        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
         memalloc_set_reentrant(false);
         if (tb)
             traceback_array_append(&global_alloc_tracker->allocs, tb);
@@ -74,8 +69,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         if (r < ctx->max_events) {
             /* set a barrier so we don't loop as getting a traceback allocates memory */
             memalloc_set_reentrant(true);
-            /* Replace a random traceback with this one */
-            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
+            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
             memalloc_set_reentrant(false);
             if (tb) {
                 traceback_free(global_alloc_tracker->allocs.tab[r]);
@@ -117,7 +111,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 
     if (ptr) {
         memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize);
     }
 
     return ptr;
@@ -144,7 +138,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     if (ptr2) {
         memalloc_add_event(memalloc_ctx, ptr2, new_size);
         memalloc_heap_untrack(ptr);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size);
     }
 
     return ptr2;
@@ -213,13 +207,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
         return NULL;
 
-    if (object_string == NULL) {
-        object_string = PyUnicode_FromString("object");
-        if (object_string == NULL)
-            return NULL;
-        PyUnicode_InternInPlace(&object_string);
-    }
-
     memalloc_heap_tracker_init((uint32_t)heap_sample_size);
 
     PyMemAllocatorEx alloc;
@@ -230,8 +217,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.free = memalloc_free;
 
     alloc.ctx = &global_memalloc_ctx;
-
-    global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
     global_alloc_tracker = alloc_tracker_new();
 
@@ -337,20 +322,11 @@ iterevents_next(IterEventsState* iestate)
         traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
         iestate->seq_index++;
 
-        PyObject* tb_size_domain = PyTuple_New(3);
-        PyTuple_SET_ITEM(tb_size_domain, 0, traceback_to_tuple(tb));
-        PyTuple_SET_ITEM(tb_size_domain, 1, PyLong_FromSize_t(tb->size));
+        PyObject* tb_and_size = PyTuple_New(2);
+        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
+        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
 
-        /* Domain name */
-        if (tb->domain == PYMEM_DOMAIN_OBJ) {
-            PyTuple_SET_ITEM(tb_size_domain, 2, object_string);
-            Py_INCREF(object_string);
-        } else {
-            PyTuple_SET_ITEM(tb_size_domain, 2, Py_None);
-            Py_INCREF(Py_None);
-        }
-
-        return tb_size_domain;
+        return tb_and_size;
     }
 
     /* Returning NULL in this case is enough. The next() builtin will raise the

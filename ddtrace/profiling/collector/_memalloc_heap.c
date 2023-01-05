@@ -150,7 +150,7 @@ memalloc_heap_untrack(void* ptr)
 
    Returns true if the allocation was tracked, false otherwise. */
 bool
-memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size)
 {
     /* Heap tracking is disabled */
     if (global_heap_tracker.sample_size == 0)
@@ -174,7 +174,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return false;
 
     memalloc_set_reentrant(true);
-    traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
+    traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory);
     memalloc_set_reentrant(false);
 
     if (tb) {
