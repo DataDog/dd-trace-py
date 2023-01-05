@@ -10,6 +10,7 @@ from six import ensure_binary
 
 from ddtrace import config
 from ddtrace.appsec.constants import SPAN_DATA_NAMES
+from ddtrace.appsec.constants import WAF_ACTIONS
 from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.constants import WAF_DATA_NAMES
 from ddtrace.appsec.ddwaf import DDWaf
@@ -146,22 +147,6 @@ def _get_waf_timeout():
     return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
 
 
-class WAF_Aggregated_Results:
-    def __init__(self):
-        self.runtime = 0.0
-        self.total_runtime = 0.0
-        self.actions = set()
-        self.json_data = None
-
-    def update(self, res):
-        # types: (DDWaf_result) -> None
-        self.runtime += res.runtime
-        self.total_runtime += res.total_runtime
-        self.actions.update(res.actions)
-        if res.data is not None and self.json_data is None:
-            self.json_data = '{"triggers":%s}' % (res.data,)
-
-
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
@@ -229,14 +214,14 @@ class AppSecSpanProcessor(SpanProcessor):
             {
                 SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
                 "http.request.headers_case_sensitive": headers_case_sensitive,
-                WAF_CONTEXT_NAMES.RESULTS: WAF_Aggregated_Results(),
+                WAF_CONTEXT_NAMES.RESULTS: None,
                 WAF_CONTEXT_NAMES.BLOCKED: False,
                 WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span),
             },
             span=span,
         )
 
-        if config._appsec_enabled and (peer_ip or headers):
+        if peer_ip or headers:
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
@@ -253,11 +238,9 @@ class AppSecSpanProcessor(SpanProcessor):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         ddwaf_result = self._run_ddwaf(data)
-        result_aggregator = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
-        if result_aggregator:
-            result_aggregator.update(ddwaf_result)
+        _context.set_item(WAF_CONTEXT_NAMES.RESULTS, ddwaf_result, span=span)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
-        if "block" in ddwaf_result.actions:
+        if WAF_ACTIONS.BLOCK in ddwaf_result.actions:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
 
     def _run_ddwaf(self, data):
@@ -278,9 +261,8 @@ class AppSecSpanProcessor(SpanProcessor):
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-        self._waf_action(span)
+        waf_results = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
         blocked_request = _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
-        aggregated_results = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
         try:
             info = self._ddwaf.info
             if info.errors:
@@ -290,15 +272,15 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            if not blocked_request and aggregated_results:
-                span.set_metric(APPSEC_WAF_DURATION, aggregated_results.runtime)
-                span.set_metric(APPSEC_WAF_DURATION_EXT, aggregated_results.total_runtime)
+            if not blocked_request and waf_results:
+                span.set_metric(APPSEC_WAF_DURATION, waf_results.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, waf_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if (aggregated_results and aggregated_results.json_data) or blocked_request:
+        if (waf_results and waf_results.data) or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
@@ -314,8 +296,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
 
-            if aggregated_results and aggregated_results.json_data:
-                span.set_tag_str(APPSEC_JSON, aggregated_results.json_data)
+            if waf_results and waf_results.data:
+                span.set_tag_str(APPSEC_JSON, '{"triggers": %s}' % (waf_results.data,))
             if blocked_request:
                 span.set_tag("appsec.blocked", True)
 
