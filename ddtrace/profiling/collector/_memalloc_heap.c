@@ -3,7 +3,6 @@
 
 #define PY_SSIZE_T_CLEAN
 #include "_memalloc_heap.h"
-#include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
 typedef struct
@@ -169,14 +168,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     if ((global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= TRACEBACK_ARRAY_MAX_COUNT)
         return false;
 
-    /* Avoid loops */
-    if (memalloc_get_reentrant())
-        return false;
-
-    memalloc_set_reentrant(true);
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
-    memalloc_set_reentrant(false);
-
     if (tb) {
         if (global_heap_tracker.frozen)
             traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
