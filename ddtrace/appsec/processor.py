@@ -234,32 +234,15 @@ class AppSecSpanProcessor(SpanProcessor):
                 if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        ddwaf_result = self._run_ddwaf(data)
-        _context.set_item(WAF_CONTEXT_NAMES.RESULTS, ddwaf_result, span=span)
-        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
-        if WAF_ACTIONS.BLOCK in ddwaf_result.actions:
+        waf_results = self._run_ddwaf(data)
+        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
+        blocked = WAF_ACTIONS.BLOCK in waf_results.actions
+        if blocked:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
-
-    def _run_ddwaf(self, data):
-        # type: (dict[str, str]) -> DDWaf_result
-        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-
-    def _mark_needed(self, address):
-        # type: (str) -> None
-        self._addresses_to_keep.add(address)
-
-    def _is_needed(self, address):
-        # type: (str) -> bool
-        return address in self._addresses_to_keep
-
-    def on_span_finish(self, span):
-        # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-        waf_results = _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span=span)
-        blocked_request = _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
         try:
             info = self._ddwaf.info
             if info.errors:
@@ -269,7 +252,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            if not blocked_request and waf_results:
+            if not blocked and waf_results:
                 span.set_metric(APPSEC_WAF_DURATION, waf_results.runtime)
                 span.set_metric(APPSEC_WAF_DURATION_EXT, waf_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
@@ -277,7 +260,7 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if (waf_results and waf_results.data) or blocked_request:
+        if (waf_results and waf_results.data) or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
@@ -295,7 +278,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             if waf_results and waf_results.data:
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (waf_results.data,))
-            if blocked_request:
+            if blocked:
                 span.set_tag("appsec.blocked", True)
 
             # Partial DDAS-011-00
@@ -312,3 +295,19 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
+
+    def _run_ddwaf(self, data):
+        # type: (dict[str, str]) -> DDWaf_result
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+
+    def _mark_needed(self, address):
+        # type: (str) -> None
+        self._addresses_to_keep.add(address)
+
+    def _is_needed(self, address):
+        # type: (str) -> bool
+        return address in self._addresses_to_keep
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        pass
