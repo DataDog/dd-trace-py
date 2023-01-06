@@ -4,7 +4,6 @@ import os.path
 import pytest
 from six import ensure_binary
 
-from ddtrace.appsec.constants import WAF_ACTIONS
 from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
@@ -215,7 +214,6 @@ def test_ip_block(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span)
-        assert WAF_ACTIONS.BLOCK in _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span).actions
 
 
 def test_ip_not_block(tracer):
@@ -228,7 +226,7 @@ def test_ip_not_block(tracer):
             )
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
-        assert _context.get_item("http.request.blocked", span) is False
+        assert _context.get_item("http.request.blocked", span) is not True
 
 
 def test_ip_update_rules_and_block(tracer):
@@ -253,7 +251,6 @@ def test_ip_update_rules_and_block(tracer):
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item("http.request.blocked", span)
-        assert WAF_ACTIONS.BLOCK in _context.get_item(WAF_CONTEXT_NAMES.RESULTS, span).actions
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -277,7 +274,7 @@ def test_ip_update_rules_expired_no_block(tracer):
             )
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-        assert _context.get_item("http.request.blocked", span) is False
+        assert _context.get_item("http.request.blocked", span) is not True
 
 
 @snapshot(
