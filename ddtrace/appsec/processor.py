@@ -310,4 +310,5 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        pass
+        if span.get_tag(APPSEC_ENABLED) is None:
+            self._waf_action(span)
