@@ -7,6 +7,7 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.utils.formats import asbool
 
 
 if TYPE_CHECKING:
@@ -23,6 +24,9 @@ if TYPE_CHECKING:
 class Span(OtelSpan):
     """Implements the Opentelemetry Span API to create and configure datadog spans"""
 
+    _RECORD_EXCEPTION_KEY = "_dd.otel.record_exception"
+    _SET_EXCEPTION_STATUS_KEY = "_dd.otel.set_status_on_exception"
+
     def __init__(
         self,
         datadog_span,  # type: DDSpan
@@ -38,6 +42,8 @@ class Span(OtelSpan):
             datadog_span.start = start_time / 1e9
 
         self._ddspan = datadog_span
+        self._record_exception = record_exception
+        self._set_status_on_exception = set_status_on_exception
 
         # BUG: self.kind is required by the otel flask instrumentation, this property is NOT defined in the otel-api.
         # TODO: Propose a fix in opentelemetry-python-contrib
@@ -49,8 +55,29 @@ class Span(OtelSpan):
         if attributes:
             self.set_attributes(attributes)
 
-        # BUG: record_exception and set_status_on_exception are not used in Span.__exit__()
-        # TODO: add record_exception and set_status_on_exception attributes to ddspan
+    @property
+    def _record_exception(self):
+        # type: () -> bool
+        return asbool(self._ddspan._meta.get(self._RECORD_EXCEPTION_KEY, "True"))
+
+    @_record_exception.setter
+    def _record_exception(self, value):
+        # type: (Optional[bool]) -> None
+        if value is False:
+            # optimization: only set the SET_EXCEPTION_STATUS tag if the value is False (default value is True)
+            self._ddspan._meta[self._RECORD_EXCEPTION_KEY] = "False"
+
+    @property
+    def _set_status_on_exception(self):
+        # type: () -> bool
+        return asbool(self._ddspan._meta.get(self._SET_EXCEPTION_STATUS_KEY, "True"))
+
+    @_set_status_on_exception.setter
+    def _set_status_on_exception(self, value):
+        # type: (Optional[bool]) -> None
+        if value is False:
+            # optimization: only set the SET_EXCEPTION_STATUS tag if the value is False (default value is True)
+            self._ddspan._meta[self._SET_EXCEPTION_STATUS_KEY] = "False"
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None
@@ -127,6 +154,8 @@ class Span(OtelSpan):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Ends context manager on datadog span"""
         if exc_val:
-            self.record_exception(exc_val)
-            self.set_status(StatusCode.ERROR)
+            if self._record_exception:
+                self.record_exception(exc_val)
+            if self._set_status_on_exception:
+                self.set_status(StatusCode.ERROR)
         self.end()

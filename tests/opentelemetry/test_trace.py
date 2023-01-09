@@ -1,5 +1,3 @@
-import logging
-
 import opentelemetry
 import opentelemetry.version
 import pytest
@@ -71,15 +69,9 @@ def test_otel_start_span_without_default_args(oteltracer):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_otel_start_span_ignore_exceptions(caplog, oteltracer):
-    with caplog.at_level(logging.WARNING):
-        with pytest.raises(Exception):
-            with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
-                raise Exception("Sorry Friend, I failed you")
-
-    assert (
-        "Calling Tracer.start_span with record_exception=False or set_status_on_exception=False is not supported"
-        in caplog.text
-    )
+    with pytest.raises(Exception):
+        with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
+            raise Exception("Sorry Friend, I failed you")
 
 
 @pytest.mark.snapshot

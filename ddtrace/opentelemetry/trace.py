@@ -77,18 +77,6 @@ class Tracer(OtelTracer):
     ):
         # type: (...) -> OtelSpan
         """Creates and starts an opentelemetry span"""
-        if record_exception is False or set_status_on_exception is False:
-            log.warning(
-                """
-                Calling Tracer.start_span with record_exception=False or set_status_on_exception=False is not supported.
-                These parameters will be ignored. To ignore exceptions on spans use:
-                Tracer.start_as_current_span(..., record_exception=False, set_status_on_exception=False) or
-                opentelemtry.trace.use_span(..., record_exception=False, set_status_on_exception=False)
-                """
-            )
-            record_exception = True
-            set_status_on_exception = True
-
         # Get active otel span
         curr_otel_span = get_current_span(context)
         # Get either a datadog span or datadog context object from otel span
@@ -135,8 +123,8 @@ class Tracer(OtelTracer):
             attributes=attributes,
             links=links,
             start_time=start_time,
-            record_exception=True,
-            set_status_on_exception=True,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
         )
 
         with use_span(

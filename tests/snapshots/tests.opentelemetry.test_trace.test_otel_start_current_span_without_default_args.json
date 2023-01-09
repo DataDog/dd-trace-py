@@ -32,6 +32,8 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.otel.record_exception": "False",
+         "_dd.otel.set_status_on_exception": "False",
          "span.kind": "server",
          "start_current_span_tag": "start_cspan_val"
        },
