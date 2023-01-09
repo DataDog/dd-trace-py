@@ -208,6 +208,8 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = kwargs.get("peer_ip")
         headers = kwargs.get("headers", {})
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
+        span.set_metric(APPSEC_ENABLED, 1.0)
+        span.set_tag_str(RUNTIME_FAMILY, "python")
 
         _context.set_items(
             {
@@ -224,6 +226,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
             self._mark_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP)
             # self._waf_action(span)
+        self._waf_action(span)
 
     def _waf_action(self, span):
         # type: (Span) -> None
@@ -241,8 +244,6 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
         if span.span_type != SpanTypes.WEB:
             return
-        span.set_metric(APPSEC_ENABLED, 1.0)
-        span.set_tag_str(RUNTIME_FAMILY, "python")
         try:
             info = self._ddwaf.info
             if info.errors:
