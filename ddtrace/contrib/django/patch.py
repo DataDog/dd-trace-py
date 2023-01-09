@@ -342,6 +342,22 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span._metrics[SPAN_MEASURED_KEY] = 1
 
         response = None
+        if config._appsec_enabled:
+            waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+            if waf_callback:
+                # set context information for waf with uri, params and query
+                query = request.META.get("QUERY_STRING", "")
+                uri = utils.get_request_uri(request)
+                if query:
+                    uri += "?" + query
+                path = request.resolver_match.kwargs if request.resolver_match else None
+                parsed_query = request.GET
+                trace_utils.set_http_meta(
+                    span, config.django, query=query, raw_uri=uri, request_path_params=path, parsed_query=parsed_query
+                )
+                waf_callback()
+            if _context.get_item("http.request.blocked", span=span):
+                return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
         try:
             response = func(*args, **kwargs)
         finally:
@@ -349,11 +365,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             utils._after_request_tags(pin, span, request, response)
             # DEV: This change will have to be put before computing the response
             # but it will require to compute many information before. TODO in a subsequent PR
-            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
-            if callback:
-                callback()
-            if _context.get_item("http.request.blocked", span=span):
-                return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
 
         return response
 

@@ -205,6 +205,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span, *args, **kwargs):
         # type: (Span, Any, Any) -> None
+        if span.span_type != SpanTypes.WEB:
+            return
         peer_ip = kwargs.get("peer_ip")
         headers = kwargs.get("headers", {})
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
@@ -223,10 +225,9 @@ class AppSecSpanProcessor(SpanProcessor):
         if peer_ip or headers:
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
-            self._mark_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP)
-            # self._waf_action(span)
-        self._waf_action(span)
+            if ip:
+                _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
+                self._mark_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP)
 
     def _waf_action(self, span):
         # type: (Span) -> None
@@ -236,6 +237,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
                 if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
+                #     print("got value", SPAN_DATA_NAMES[key], value)
+                # else:
+                #     print("missing value", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         waf_results = self._run_ddwaf(data)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
@@ -311,6 +315,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        # if span.get_tag(APPSEC_ENABLED) is None:
-        #     self._waf_action(span)
-        pass
+        if span.span_type != SpanTypes.WEB:
+            return
+        if span.get_tag(APPSEC_JSON) is None:
+            self._waf_action(span)
