@@ -69,7 +69,7 @@ jobs:
     
       - name: lib-injection test runner
         id: lib-injection-test-runner
-        uses: DataDog/system-tests/lib-injection/runner@main
+        uses: DataDog/system-tests/lib-injection/runner@robertomonteromiguel/lib_injection_python_optimize
         with:
           docker-registry: ghcr.io
           docker-registry-username: ${{ github.repository_owner }}
