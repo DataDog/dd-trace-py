@@ -28,7 +28,7 @@ jobs:
    
     - name: lib-injection-tags
       id: lib-injection-tags
-      uses: DataDog/system-tests/lib-injection/docker-tags@main
+      uses: DataDog/system-tests/lib-injection/docker-tags@robertomonteromiguel/lib_injection_python_optimize
       with:
         init-image-name: 'dd-lib-python-init'
         main-branch-name: '1.x'
