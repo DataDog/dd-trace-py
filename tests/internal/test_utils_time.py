@@ -14,6 +14,8 @@ from ddtrace.internal.utils.time import parse_isoformat
         ("2022-07-31T22:00:00", None),
         ("2022-07-31", None),
         ("2022-07-3122:00:00", None),
+        ("", None),
+        ("aa", None),
     ],
 )
 def test_parse_isoformat_py2(date_str, expected):
@@ -29,6 +31,8 @@ def test_parse_isoformat_py2(date_str, expected):
         ("2022-07-31T22:00:00", datetime.datetime(2022, 7, 31, 22, 0)),
         ("2022-07-31", datetime.datetime(2022, 7, 31, 0, 0)),
         ("2022-07-3122:00:00", None),
+        ("", None),
+        ("aa", None),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3 tests")
