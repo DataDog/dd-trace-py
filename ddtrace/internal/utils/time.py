@@ -13,7 +13,7 @@ log = get_logger(__name__)
 
 def fromisoformat_py2(t):
     # type: (str) -> datetime
-    """Alternative function to datetime.fromisoformat that not exists in python2. This function parses dates with
+    """Alternative function to datetime.fromisoformat that does not exist in python 2. This function parses dates with
     this format: 2022-09-01T01:00:00+02:00
     """
     ret = datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S")
