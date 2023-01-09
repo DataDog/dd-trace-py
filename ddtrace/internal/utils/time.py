@@ -16,7 +16,7 @@ def fromisoformat_py2(t):
     """Alternative function to datetime.fromisoformat that not exists in python2. This function parses dates with
     this format: 2022-09-01T01:00:00+02:00
     """
-    ret = datetime.strptime(t[0:19], "%Y-%m-%dT%H:%M:%S")
+    ret = datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S")
     if t[19] == "+":
         ret -= timedelta(hours=int(t[20:22]), minutes=int(t[23:]))
     elif t[19] == "-":
