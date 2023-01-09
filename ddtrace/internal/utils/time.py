@@ -5,6 +5,10 @@ from typing import Optional
 from typing import Type
 
 from ddtrace.internal import compat
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 def fromisoformat_py2(t):
@@ -18,19 +22,20 @@ def fromisoformat_py2(t):
 
 
 def parse_isoformat(date):
-    # type: (str) -> datetime
+    # type: (str) -> Optional[datetime]
     if date.endswith("Z"):
         try:
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
         except ValueError:
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
-    elif hasattr(datetime, "fromisoformat"):
-        return datetime.fromisoformat(date)
-    else:
-        try:
+    try:
+        if hasattr(datetime, "fromisoformat"):
+            return datetime.fromisoformat(date)
+        else:
             return fromisoformat_py2(date)
-        except ValueError as e:
-            raise ValueError("unsupported isoformat: %s", e)
+    except (ValueError, IndexError):
+        log.debug("unsupported isoformat: %s", date)
+    return None
 
 
 class StopWatch(object):
