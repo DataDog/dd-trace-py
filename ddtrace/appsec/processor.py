@@ -317,5 +317,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
+        assert span.get_tag(RUNTIME_FAMILY) == "python"
         if span.get_tag(APPSEC_JSON) is None:
             self._waf_action(span)
