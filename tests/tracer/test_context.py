@@ -267,14 +267,14 @@ def test_traceparent(context, expected_traceparent):
             Context(),
             "",
         ),
-        (  # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
+        (  # for value replace ",", ";" and characters outside the ASCII range 0x20 to 0x7E with _
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
                     "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
-                    "_dd.p.dm": ";5:",
+                    "_dd.p.dm": ";5;",
                     "_dd.p.usr.id": "b,z64,",
                     "_dd.p.unk": ";2",
                 },
@@ -307,7 +307,8 @@ def test_traceparent(context, expected_traceparent):
                 },
                 dd_origin=";r,um=",
             ),
-            "dd=s:1;o:_r_um_",
+            # = is encoded as ~
+            "dd=s:1;o:_r_um~",
         ),
     ],
     ids=[
