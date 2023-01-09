@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import timedelta
 from types import TracebackType
 from typing import Optional
 from typing import Type
@@ -6,7 +7,18 @@ from typing import Type
 from ddtrace.internal import compat
 
 
+def fromisoformat_py2(t):
+    # type: (str) -> datetime
+    ret = datetime.strptime(t[0:19], "%Y-%m-%dT%H:%M:%S")
+    if t[19] == "+":
+        ret -= timedelta(hours=int(t[20:22]), minutes=int(t[23:]))
+    elif t[19] == "-":
+        ret += timedelta(hours=int(t[20:22]), minutes=int(t[23:]))
+    return ret
+
+
 def parse_isoformat(date):
+    # type: (str) -> datetime
     if date.endswith("Z"):
         try:
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -14,7 +26,11 @@ def parse_isoformat(date):
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
     elif hasattr(datetime, "fromisoformat"):
         return datetime.fromisoformat(date)
-    raise ValueError("unsupported isoformat")
+    else:
+        try:
+            return fromisoformat_py2(date)
+        except ValueError as e:
+            raise ValueError("unsupported isoformat: %s", e)
 
 
 class StopWatch(object):
