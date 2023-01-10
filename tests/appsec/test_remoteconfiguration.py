@@ -82,7 +82,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value):
 @pytest.mark.parametrize(
     "rc_enabled, capability",
     [
-        ("true", "Bg=="),
+        ("true", "Hg=="),
         ("false", ""),
     ],
 )
