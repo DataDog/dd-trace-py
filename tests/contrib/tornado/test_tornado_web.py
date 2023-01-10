@@ -182,6 +182,28 @@ class TestTornadoWeb(TornadoTestCase):
         assert "HTTP 500: Server Error (server error)" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
 
+    def test_http_exception_500_handler_ignored_exception(self):
+        # it should trace a handler that raises a Tornado HTTPError
+        # The exception should NOT be set on the span
+        prev_error_statuses = config.http_server.error_statuses
+        try:
+            config.http_server.error_statuses = "501-599"
+            response = self.fetch("/http_exception_500/")
+            assert 500 == response.code
+        finally:
+            config.http_server.error_statuses = prev_error_statuses
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        request_span = traces[0][0]
+        assert "tornado.request" == request_span.name
+
+        assert_span_http_status_code(request_span, 500)
+        assert request_span.error == 0
+        assert request_span.get_tag(ERROR_MSG) is None
+        assert request_span.get_tag("error.stack") is None
+
     def test_sync_success_handler(self):
         # it should trace a synchronous handler that returns 200
         response = self.fetch("/sync_success/")
