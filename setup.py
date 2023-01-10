@@ -118,11 +118,11 @@ class LibDDWaf_Download(BuildPyCommand):
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-1.6.0-beta1-%s-%s" % (CURRENT_OS.lower(), arch)
+            ddwaf_archive_dir = "libddwaf-1.6.0-%s-%s" % (CURRENT_OS.lower(), arch)
             ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
             ddwaf_download_address = (
-                "https://github.com/DataDog/libddwaf/releases/download/1.6.0-beta1/%s" % ddwaf_archive_name
+                "https://github.com/DataDog/libddwaf/releases/download/1.6.0/%s" % ddwaf_archive_name
             )
 
             try:
