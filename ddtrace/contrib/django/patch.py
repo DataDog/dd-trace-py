@@ -363,7 +363,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
             utils._after_request_tags(pin, span, request, response)
-            # calling the waf again if the request was not blocked at first with additionnal information (response)
+            # calling the waf again if the request was not blocked at first with additional information (response)
             if config._appsec_enabled:
                 waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
                 if waf_callback:
