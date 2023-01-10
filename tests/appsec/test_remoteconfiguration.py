@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -9,6 +10,9 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
+from ddtrace.internal.remoteconfig import RemoteConfig
+from tests.appsec.test_processor import Config
 from tests.utils import override_env
 
 
@@ -89,3 +93,48 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value):
 def test_rc_capabilities(rc_enabled, capability):
     with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
         assert _appsec_rc_capabilities() == capability
+
+
+def test_rc_activation_validate_products(tracer):
+    tracer.configure(appsec_enabled=False)
+
+    rc_config = {"asm": {"enabled": True}}
+
+    assert not RemoteConfig._worker
+
+    appsec_rc_reload_features(tracer)(None, rc_config)
+
+    assert RemoteConfig._worker._client._products["ASM_DATA"]
+
+
+def test_rc_activation_ip_blocking_data(tracer):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True)
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [{"expiration": 1755346879, "value": "user8"}],
+                    "id": "blocked_users",
+                    "type": "data_with_expiration",
+                },
+                {
+                    "data": [
+                        {"value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
