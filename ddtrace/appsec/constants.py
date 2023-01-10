@@ -101,7 +101,7 @@ class WAF_CONTEXT_NAMES(object):
 
     RESULTS = "http.request.waf.results"
     BLOCKED = "http.request.blocked"
-    CALLBACK = "http.request.waf.request_blocking"
+    CALLBACK = "http.request.waf.callback"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
