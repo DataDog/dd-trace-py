@@ -217,7 +217,7 @@ class AppSecSpanProcessor(SpanProcessor):
             {
                 SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
                 "http.request.headers_case_sensitive": headers_case_sensitive,
-                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span),
+                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span._local_root or span),
             },
             span=span,
         )
@@ -237,9 +237,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
                 if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    print("got value", SPAN_DATA_NAMES[key], value)
+                    log.debug("got value", SPAN_DATA_NAMES[key], value)
                 else:
-                    print("missing value", SPAN_DATA_NAMES[key])
+                    log.debug("missing value", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         waf_results = self._run_ddwaf(data)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
@@ -255,11 +255,17 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
             span.set_tag_str(APPSEC_WAF_VERSION, version())
 
-            span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
-            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
+            def update_metric(name, value):
+                old_value = span.get_metric(name)
+                if old_value is None:
+                    old_value = 0.0
+                span.set_metric(name, value + old_value)
+
+            update_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
+            update_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
             if not blocked and waf_results:
-                span.set_metric(APPSEC_WAF_DURATION, waf_results.runtime)
-                span.set_metric(APPSEC_WAF_DURATION_EXT, waf_results.total_runtime)
+                update_metric(APPSEC_WAF_DURATION, waf_results.runtime)
+                update_metric(APPSEC_WAF_DURATION_EXT, waf_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
@@ -317,7 +323,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        # assert span.get_tag(RUNTIME_FAMILY) == "python"
-        # if span.get_tag(APPSEC_JSON) is None:
-        #     print("Balai")
-        #     self._waf_action(span)
+        # this call is only necessary for tests or frameworks that are not using blocking
+        if span.get_tag(APPSEC_EVENT_RULE_VERSION) is None:
+            self._waf_action(span)
