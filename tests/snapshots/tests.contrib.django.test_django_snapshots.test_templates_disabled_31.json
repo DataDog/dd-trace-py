@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "asgi.version": "3.0",
@@ -41,6 +42,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 39477600,
        "start": 1656022110778413600
      },
@@ -51,6 +54,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 64700,
           "start": 1656022110778457400
         },
@@ -61,6 +66,8 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 39160300,
           "start": 1656022110778560200
         },
@@ -71,6 +78,8 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "duration": 58100,
              "start": 1656022110778598800
            },
@@ -81,6 +90,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "duration": 38851500,
              "start": 1656022110778692400
            },
@@ -91,6 +102,8 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "duration": 26000,
                 "start": 1656022110778730400
               },
@@ -101,6 +114,8 @@
                 "trace_id": 0,
                 "span_id": 10,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "duration": 38490600,
                 "start": 1656022110778791300
               },
@@ -111,6 +126,8 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 10,
+                   "type": "",
+                   "error": 0,
                    "duration": 28300,
                    "start": 1656022110778829100
                  },
@@ -121,6 +138,8 @@
                    "trace_id": 0,
                    "span_id": 13,
                    "parent_id": 10,
+                   "type": "",
+                   "error": 0,
                    "duration": 38366600,
                    "start": 1656022110778891900
                  },
@@ -131,6 +150,8 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "duration": 91300,
                       "start": 1656022110778928900
                     },
@@ -141,6 +162,8 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "duration": 37959500,
                       "start": 1656022110779065800
                     },
@@ -151,6 +174,8 @@
                          "trace_id": 0,
                          "span_id": 17,
                          "parent_id": 15,
+                         "type": "",
+                         "error": 0,
                          "duration": 37750400,
                          "start": 1656022110779104900
                        },
@@ -161,6 +186,8 @@
                             "trace_id": 0,
                             "span_id": 19,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "duration": 24000,
                             "start": 1656022110779142500
                           },
@@ -171,6 +198,8 @@
                             "trace_id": 0,
                             "span_id": 20,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "duration": 37372300,
                             "start": 1656022110779201000
                           },
@@ -181,6 +210,8 @@
                                "trace_id": 0,
                                "span_id": 22,
                                "parent_id": 20,
+                               "type": "",
+                               "error": 0,
                                "duration": 37314100,
                                "start": 1656022110779235700
                              },
@@ -191,6 +222,8 @@
                                   "trace_id": 0,
                                   "span_id": 23,
                                   "parent_id": 22,
+                                  "type": "",
+                                  "error": 0,
                                   "duration": 37154400,
                                   "start": 1656022110779284900
                                 },
@@ -201,6 +234,8 @@
                                      "trace_id": 0,
                                      "span_id": 24,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 26600,
                                      "start": 1656022110780706800
                                    },
@@ -211,6 +246,8 @@
                                      "trace_id": 0,
                                      "span_id": 25,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 23900,
                                      "start": 1656022110781054500
                                    },
@@ -221,6 +258,8 @@
                                      "trace_id": 0,
                                      "span_id": 26,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 27055600,
                                      "start": 1656022110781627800
                                    },
@@ -231,6 +270,8 @@
                                      "trace_id": 0,
                                      "span_id": 27,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 111900,
                                      "start": 1656022110809470400
                                    },
@@ -241,6 +282,8 @@
                                      "trace_id": 0,
                                      "span_id": 28,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 5254100,
                                      "start": 1656022110810098600
                                    },
@@ -251,6 +294,8 @@
                             "trace_id": 0,
                             "span_id": 21,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "duration": 50900,
                             "start": 1656022110816705600
                           },
@@ -261,6 +306,8 @@
                          "trace_id": 0,
                          "span_id": 18,
                          "parent_id": 15,
+                         "type": "",
+                         "error": 0,
                          "duration": 108900,
                          "start": 1656022110816893800
                        },
@@ -271,6 +318,8 @@
                       "trace_id": 0,
                       "span_id": 16,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "duration": 178400,
                       "start": 1656022110817062600
                     },
@@ -281,6 +330,8 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "duration": 31200,
                 "start": 1656022110817412300
               },
@@ -291,6 +342,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "duration": 116900,
              "start": 1656022110817581000
            },
@@ -301,6 +354,8 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 109500,
           "start": 1656022110817758900
         }]]

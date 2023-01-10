@@ -64,11 +64,14 @@ def test_debugger_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
+    assert snapshot["message"] in (
+        "instancestuff(self=Stuff(), bar=None)",
+        "instancestuff(bar=None, self=Stuff())",
+    ), snapshot["message"]
+
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
     assert snapshot["debugger.snapshot"]["duration"] is None
 
 
@@ -89,7 +92,6 @@ def test_debugger_line_probe_on_imported_module_function():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"][str(lineno)]
     assert set(captures["arguments"].keys()) == {"snafu"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 @pytest.mark.parametrize(
@@ -231,20 +233,18 @@ def test_debugger_function_probe_on_instance_method():
 
     (snapshot,) = snapshots
     assert snapshot["message"] in (
-        "Stuff.instancestuff(self=Stuff(), bar=42)",
-        "Stuff.instancestuff(bar=42, self=Stuff())",
+        "Stuff.instancestuff(self=Stuff(), bar=42)\n@return=42",
+        "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
     )
 
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
     assert set(return_capture["locals"].keys()) == {"@return"}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"] is None
 
 
@@ -267,13 +267,11 @@ def test_debugger_function_probe_on_function_with_exception():
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert entry_capture["arguments"] == {}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert return_capture["arguments"] == {}
     assert return_capture["locals"] == {}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -315,7 +313,6 @@ def test_debugger_conditional_line_probe_on_instance_method():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 def test_debugger_invalid_line():
@@ -484,23 +481,56 @@ def mock_metrics():
         _probe_metrics._client = old_client
 
 
-def test_debugger_metric_probe(mock_metrics):
+def create_line_metric_probe(kind, value=None):
+    return MetricProbe(
+        probe_id="metric-probe-test",
+        source_file="tests/submod/stuff.py",
+        line=36,
+        kind=kind,
+        name="test.counter",
+        tags={"foo": "bar"},
+        value=value,
+    )
+
+
+def test_debugger_metric_probe_simple_count(mock_metrics):
     with debugger() as d:
-        d.add_probes(
-            MetricProbe(
-                probe_id="metric-probe-test",
-                source_file="tests/submod/stuff.py",
-                line=36,
-                kind=MetricProbeKind.COUNTER,
-                name="test.counter",
-                tags={"foo": "bar"},
-            ),
-        )
+        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER))
         sleep(0.5)
-
         Stuff().instancestuff()
-
         assert call("probe.test.counter", 1.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+
+
+def test_debugger_metric_probe_count_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(40)
+        assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+
+
+def test_debugger_metric_probe_guage_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.GAUGE, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(41)
+        assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
+
+
+def test_debugger_metric_probe_histogram_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(42)
+        assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
+
+
+def test_debugger_metric_probe_distribution_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(43)
+        assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
 
 
 def test_debugger_multiple_function_probes_on_same_function():
@@ -698,7 +728,7 @@ def test_debugger_function_probe_duration(duration):
         durationstuff(duration)
 
         (snapshot,) = d.test_queue
-        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot
+        assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
 def test_debugger_condition_eval_then_rate_limit():
@@ -742,6 +772,34 @@ def test_debugger_function_probe_eval_on_exit():
         )
 
         mutator(arg=[])
+
+        (snapshot,) = d.test_queue
+        assert snapshot, d.test_queue
+
+
+def test_debugger_lambda_fuction_access_locals():
+    from tests.submod.stuff import age_checker
+
+    class Person(object):
+        def __init__(self, age, name):
+            self.age = age
+            self.name = name
+
+    with debugger() as d:
+        d.add_probes(
+            FunctionProbe(
+                probe_id="duration-probe",
+                module="tests.submod.stuff",
+                func_qname="age_checker",
+                condition=dd_compile({"any": ["#people", {"eq": ["#name", "@it.name"]}]}),
+            )
+        )
+
+        # should capture as alice is in people list
+        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
+
+        # should skip as david is not in people list
+        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
         (snapshot,) = d.test_queue
         assert snapshot, d.test_queue

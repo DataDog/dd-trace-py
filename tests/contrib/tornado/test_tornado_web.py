@@ -3,6 +3,7 @@ import tornado
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
@@ -128,7 +129,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag("error.msg")
+        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
 
     def test_http_exception_handler(self):
@@ -150,7 +151,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 501)
         assert self.get_url("/http_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 501: Not Implemented (unavailable)" == request_span.get_tag("error.msg")
+        assert "HTTP 501: Not Implemented (unavailable)" == request_span.get_tag(ERROR_MSG)
         assert "HTTP 501: Not Implemented (unavailable)" in request_span.get_tag("error.stack")
 
     def test_http_exception_500_handler(self):
@@ -172,8 +173,30 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/http_exception_500/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 500: Server Error (server error)" == request_span.get_tag("error.msg")
+        assert "HTTP 500: Server Error (server error)" == request_span.get_tag(ERROR_MSG)
         assert "HTTP 500: Server Error (server error)" in request_span.get_tag("error.stack")
+
+    def test_http_exception_500_handler_ignored_exception(self):
+        # it should trace a handler that raises a Tornado HTTPError
+        # The exception should NOT be set on the span
+        prev_error_statuses = config.http_server.error_statuses
+        try:
+            config.http_server.error_statuses = "501-599"
+            response = self.fetch("/http_exception_500/")
+            assert 500 == response.code
+        finally:
+            config.http_server.error_statuses = prev_error_statuses
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        request_span = traces[0][0]
+        assert "tornado.request" == request_span.name
+
+        assert_span_http_status_code(request_span, 500)
+        assert request_span.error == 0
+        assert request_span.get_tag(ERROR_MSG) is None
+        assert request_span.get_tag("error.stack") is None
 
     def test_sync_success_handler(self):
         # it should trace a synchronous handler that returns 200
@@ -214,7 +237,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/sync_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag("error.msg")
+        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
 
     def test_404_handler(self):

@@ -1,4 +1,5 @@
 from itertools import chain
+import re
 import time
 from typing import Any
 from typing import Callable
@@ -14,6 +15,7 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.utils.cache import LFUCache
 
 
@@ -23,8 +25,8 @@ log = get_logger(__name__)
 _EXPRESSION_CACHE = LFUCache()
 
 
-def _invalid_condition(_):
-    """Forces probes with invalid conditions to never trigger.
+def _invalid_expression(_):
+    """Forces probes with invalid expression/conditions to never trigger.
 
     Any signs of invalid conditions in logs is an indication of a problem with
     the expression compiler.
@@ -32,12 +34,12 @@ def _invalid_condition(_):
     return False
 
 
-INVALID_CONDITION = _invalid_condition
+INVALID_EXPRESSION = _invalid_expression
 
 
-def _compile_condition(when):
+def _compile_expression(when):
     # type: (Optional[Dict[str, Any]]) -> Optional[Callable[[Dict[str, Any]], Any]]
-    global _EXPRESSION_CACHE, INVALID_CONDITION
+    global _EXPRESSION_CACHE, INVALID_EXPRESSION
 
     if when is None:
         return None
@@ -50,13 +52,13 @@ def _compile_condition(when):
             return dd_compile(ast)
         except Exception:
             log.error("Cannot compile expression: %s", expr, exc_info=True)
-            return INVALID_CONDITION
+            return INVALID_EXPRESSION
 
     expr = when["dsl"]
 
     compiled = _EXPRESSION_CACHE.get(expr, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
 
-    if compiled is INVALID_CONDITION:
+    if compiled is INVALID_EXPRESSION:
         log.error("Cannot compile expression: %s", expr, exc_info=True)
 
     return compiled
@@ -89,9 +91,9 @@ def probe(_id, _type, attribs):
     if _type == "snapshotProbes":
         args = dict(
             probe_id=_id,
-            condition=_compile_condition(attribs.get("when")),
+            condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
-            tags=dict(_.split(":", maxsplit=1) for _ in attribs.get("tags", [])),
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
         )
 
         if attribs["where"].get("sourceFile", None):
@@ -109,23 +111,43 @@ def probe(_id, _type, attribs):
         return MetricProbe(
             probe_id=_id,
             active=attribs["active"],
-            tags=dict(_.split(":", maxsplit=1) for _ in attribs.get("tags", [])),
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             source_file=attribs["where"]["sourceFile"],
             line=int(attribs["where"]["lines"][0]),
             name=attribs["metricName"],
             kind=attribs["kind"],
+            value=_compile_expression(attribs.get("value")),
         )
 
     raise ValueError("Unknown probe type: %s" % _type)
 
 
+_SNAPSHOT_PREFIX = "snapshotProbe_"
+_METRIC_PREFIX = "metricProbe_"
+_CONFIG_REGEX = re.compile(r"^[\da-f]{8}-([\da-f]{4}-){3}[\da-f]{12}$", re.IGNORECASE)
+
+
+def _make_probes(probes, _type):
+    return [probe(p["id"], _type, p) for p in probes]
+
+
 @_filter_by_env_and_version
-def get_probes(service_config):
-    # type: (dict) -> Iterable[Probe]
-    return chain(
-        [probe(p["id"], "snapshotProbes", p) for p in service_config.get("snapshotProbes") or []],
-        [probe(p["id"], "metricProbes", p) for p in service_config.get("metricProbes") or []],
-    )
+def get_probes(config_id, config):
+    # type: (str, dict) -> Iterable[Probe]
+
+    if config_id.startswith(_SNAPSHOT_PREFIX):
+        return _make_probes([config], "snapshotProbes")
+
+    if config_id.startswith(_METRIC_PREFIX):
+        return chain(_make_probes([config], "metricProbes"))
+
+    if _CONFIG_REGEX.match(config_id):
+        return chain(
+            _make_probes(config.get("snapshotProbes") or [], "snapshotProbes"),
+            _make_probes(config.get("metricProbes") or [], "metricProbes"),
+        )
+
+    raise ValueError("Unsupported config id: %s" % config_id)
 
 
 log = get_logger(__name__)
@@ -158,34 +180,17 @@ class ProbeRCAdapter(object):
     def __init__(self, callback):
         # type: (Callable[[ProbePollerEventType, Iterable[Probe]], None]) -> None
         self._callback = callback
-        self._probes = {}  # type: Dict[str, Probe]
+        self._configs = {}  # type: Dict[str, Dict[str, Probe]]
         self._next_status_update_timestamp()
 
     def _next_status_update_timestamp(self):
         # type: () -> None
         self._status_timestamp = time.time() + config.diagnostics_interval
 
-    def __call__(self, metadata, config):
-        # type: (Any, Any) -> None
-        # DEV: We emit a status update event here to avoid having to spawn a
-        # separate thread for this.
-        if time.time() > self._status_timestamp:
-            log.debug("Emitting probe status log messages")
-            self._callback(ProbePollerEvent.STATUS_UPDATE, self._probes.values())
-            self._next_status_update_timestamp()
-
-        if config is None:
-            return
-
-        probes = get_probes(config)
-
-        current_probes = {_.probe_id: _ for _ in probes}
-
-        new_probes = [p for _, p in current_probes.items() if _ not in self._probes]
-        deleted_probes = [p for _, p in self._probes.items() if _ not in current_probes]
-        modified_probes = [
-            p for _, p in current_probes.items() if _ in self._probes and probe_modified(p, self._probes[_])
-        ]
+    def _dispatch_probe_events(self, prev_probes, next_probes):
+        new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
+        deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
+        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and probe_modified(p, prev_probes[_])]
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
@@ -194,4 +199,33 @@ class ProbeRCAdapter(object):
         if new_probes:
             self._callback(ProbePollerEvent.NEW_PROBES, new_probes)
 
-        self._probes = current_probes
+    def _update_probes_for_config(self, config_id, config):
+        # type: (str, Any) -> None
+        prev_probes = self._configs.get(config_id, {})  # type: Dict[str, Probe]
+        next_probes = (
+            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config is not None else {}
+        )  # type: Dict[str, Probe]
+
+        self._dispatch_probe_events(prev_probes, next_probes)
+
+        if next_probes:
+            self._configs[config_id] = next_probes
+        else:
+            self._configs.pop(config_id, None)
+
+    def __call__(self, metadata, config):
+        # type: (Optional[ConfigMetadata], Any) -> None
+
+        # DEV: We emit a status update event here to avoid having to spawn a
+        # separate thread for this.
+        if time.time() > self._status_timestamp:
+            log.debug("Emitting probe status log messages")
+            probes = [probe for config in self._configs.values() for probe in config.values()]
+            self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
+            self._next_status_update_timestamp()
+
+        if metadata is None:
+            log.warning("no metadata was provided")
+            return
+
+        self._update_probes_for_config(metadata.id, config)

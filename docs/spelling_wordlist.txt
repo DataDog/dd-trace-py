@@ -32,6 +32,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 backport
@@ -85,7 +86,9 @@ graphene
 greenlet
 greenlets
 grpc
+gunicorn
 hostname
+hostnames
 http
 httplib
 https
@@ -170,6 +173,7 @@ stringable
 subdomains
 submodule
 submodules
+substring
 timestamp
 tweens
 uWSGI
@@ -188,6 +192,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
@@ -200,3 +205,6 @@ Serverless
 serverless
 cattrs
 IAST
+programmatically
+DES
+Blowfish

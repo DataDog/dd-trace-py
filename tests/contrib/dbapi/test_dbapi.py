@@ -31,6 +31,18 @@ class TestTracedCursor(TracerTestCase):
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_dbm_propagation_not_supported(self):
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
+        # By default _dbm_propagation_supported attribute should not be True.
+        # DBM context propagation should be opt in.
+        assert not getattr(cfg, "_dbm_propagation_supported", False)
+        traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        # Ensure dbm comment is not appended to sql statement
+        traced_cursor.execute("SELECT * FROM db;")
+        cursor.execute.assert_called_once_with("SELECT * FROM db;")
+
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -39,9 +51,10 @@ class TestTracedCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_curser_execute_with_dbm_injection(self):
+    def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
-        traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), {})
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagation_supported=True)
+        traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
 
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
@@ -50,10 +63,11 @@ class TestTracedCursor(TracerTestCase):
 
         spans = self.tracer.pop()
         assert len(spans) == 3
-        dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
-        cursor.callproc.assert_called_once_with(dbm_comment + "procedure_named_moon")
+        # DBM comment should not be added procedure names
+        cursor.callproc.assert_called_once_with("procedure_named_moon")
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -514,34 +528,34 @@ class TestFetchTracedCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_curser_execute_with_dbm_injection(self):
+    def test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
-        traced_cursor = FetchTracedCursor(cursor, Pin("pin_name", tracer=self.tracer), {})
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
+        traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
 
         # The following operations should not generate DBM comments
         traced_cursor.fetchone()
         traced_cursor.fetchall()
         traced_cursor.fetchmany(1)
+        traced_cursor.callproc("proc")
         cursor.fetchone.assert_called_once_with()
         cursor.fetchall.assert_called_once_with()
         cursor.fetchmany.assert_called_once_with(1)
+        cursor.callproc.assert_called_once_with("proc")
 
         spans = self.tracer.pop()
-        assert len(spans) == 3
+        assert len(spans) == 4
 
-        # The following operations should generates DBM comments
+        # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
         traced_cursor.executemany("SELECT * FROM db;", ())
-        traced_cursor.callproc("proc")
 
         spans = self.tracer.pop()
-        assert len(spans) == 3
+        assert len(spans) == 2
         dbm_comment_exc = _database_monitoring._get_dbm_comment(spans[0])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
         dbm_comment_excmany = _database_monitoring._get_dbm_comment(spans[1])
         cursor.executemany.assert_called_once_with(dbm_comment_excmany + "SELECT * FROM db;", ())
-        dbm_comment_proc = _database_monitoring._get_dbm_comment(spans[2])
-        cursor.callproc.assert_called_once_with(dbm_comment_proc + "proc")
 
 
 class TestTracedConnection(TracerTestCase):
