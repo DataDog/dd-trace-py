@@ -9,9 +9,17 @@ if TYPE_CHECKING:
 
 
 class Constant_Class(type):
+    """
+    metaclass for Constant Classes
+    - You can access constants with APPSEC.ENV or APPSEC["ENV"]
+    - Direct assignment will fail: APPSEC.ENV = "something" raise TypeError, like other immutable types
+    - Constant Classes can be iterated:
+        for constant_name, constant_value in APPSEC: ...
+    """
+
     def __setattr__(self, __name, __value):
         # type: ("Constant_Class", str, Any) -> None
-        raise TypeError("Constant class can't be changed: %s.%s" % (self.__name__, __name))
+        raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
     def __iter__(self):
         # type: ("Constant_Class") -> Iterator[tuple[str, Any]]
