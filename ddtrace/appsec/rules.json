@@ -1,9 +1,59 @@
 {
   "version": "2.2",
   "metadata": {
-    "rules_version": "1.4.0"
+    "rules_version": "1.4.2"
   },
   "rules": [
+    {
+      "id": "blk-001-001",
+      "name": "Block IP Addresses",
+      "tags": {
+        "type": "block_ip",
+        "category": "security_response"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "data": "blocked_ips"
+          },
+          "operator": "ip_match"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-002",
+      "name": "Block User Addresses",
+      "tags": {
+        "type": "block_user",
+        "category": "security_response"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "usr.id"
+              }
+            ],
+            "data": "blocked_users"
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
     {
       "id": "crs-913-110",
       "name": "Acunetix",
@@ -4294,6 +4344,40 @@
       ]
     },
     {
+      "id": "dog-000-007",
+      "name": "Server side template injection: Velocity & Freemarker",
+      "tags": {
+        "type": "java_code_injection",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "server.request.headers.no_cookies"
+              },
+              {
+                "address": "grpc.server.request.message"
+              }
+            ],
+            "regex": "#(?:set|foreach|macro|parse|if)\\(.*\\)|<#assign.*>"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
       "id": "nfd-000-001",
       "name": "Detect common directory discovery scans",
       "tags": {
@@ -6357,6 +6441,40 @@
         }
       ],
       "transformers": []
+    },
+    {
+      "id": "ua0-600-56x",
+      "name": "Datadog test scanner - blocking version: user-agent",
+      "tags": {
+        "type": "security_scanner",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "user-agent"
+                ]
+              },
+              {
+                "address": "grpc.server.request.metadata",
+                "key_path": [
+                  "dd-canary"
+                ]
+              }
+            ],
+            "regex": "^dd-test-scanner-log-block$"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
     },
     {
       "id": "ua0-600-5xx",
