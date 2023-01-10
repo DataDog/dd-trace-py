@@ -36,7 +36,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-latest
+         - os: macos-11
            # universal2 and arm64 builds require CPython 3.8 or newer:
            # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
            archs: x86_64 universal2
@@ -100,7 +100,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-latest
+         - os: macos-11
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
