@@ -7,7 +7,6 @@ from six import text_type
 from ddtrace.internal.logger import get_logger
 
 
-
 if TYPE_CHECKING:
     from typing import Any
     from typing import Union
