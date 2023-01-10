@@ -217,7 +217,7 @@ class AppSecSpanProcessor(SpanProcessor):
             {
                 SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
                 "http.request.headers_case_sensitive": headers_case_sensitive,
-                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span._local_root or span),
+                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span),
             },
             span=span,
         )
@@ -237,9 +237,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
                 if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                #     print("got value", SPAN_DATA_NAMES[key], value)
-                # else:
-                #     print("missing value", SPAN_DATA_NAMES[key])
+                    print("got value", SPAN_DATA_NAMES[key], value)
+                else:
+                    print("missing value", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         waf_results = self._run_ddwaf(data)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
@@ -317,6 +317,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        assert span.get_tag(RUNTIME_FAMILY) == "python"
-        if span.get_tag(APPSEC_JSON) is None:
-            self._waf_action(span)
+        # assert span.get_tag(RUNTIME_FAMILY) == "python"
+        # if span.get_tag(APPSEC_JSON) is None:
+        #     print("Balai")
+        #     self._waf_action(span)

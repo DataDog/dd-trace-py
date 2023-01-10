@@ -97,6 +97,9 @@ def test_retain_traces(tracer_appsec):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
 
     assert span.context.sampling_priority == USER_KEEP
 
@@ -106,8 +109,10 @@ def test_valid_json(tracer_appsec):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
-
-    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 def test_header_attack(tracer_appsec):
@@ -124,6 +129,9 @@ def test_header_attack(tracer_appsec):
                     "x-forwarded-for": "8.8.8.8",
                 },
             )
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
 
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
         assert span.get_tag("actor.ip") == "8.8.8.8"
@@ -148,6 +156,9 @@ def test_headers_collection(tracer_appsec):
                 "Content-Length": "500",
             },
         )
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
 
     assert span.get_tag("http.request.headers.hello") is None
     assert span.get_tag("http.request.headers.accept") == "something"
@@ -210,6 +221,9 @@ def test_ip_block(tracer):
                 span,
                 Config(),
             )
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
@@ -224,6 +238,9 @@ def test_ip_not_block(tracer):
                 span,
                 Config(),
             )
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
         assert _context.get_item("http.request.blocked", span) is not True
@@ -248,6 +265,9 @@ def test_ip_update_rules_and_block(tracer):
                 span,
                 Config(),
             )
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item("http.request.blocked", span)
@@ -272,6 +292,9 @@ def test_ip_update_rules_expired_no_block(tracer):
                 span,
                 Config(),
             )
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
         assert _context.get_item("http.request.blocked", span) is not True
@@ -309,6 +332,9 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 span.set_tag("http.url", "http://example.com/.git")
                 set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+                waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+                assert waf
+                waf()
 
         assert span.get_tag(APPSEC_JSON) is None
 
@@ -318,14 +344,23 @@ def test_appsec_span_rate_limit(tracer):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
             set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span1)
+            assert waf
+            waf()
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span2:
             set_http_meta(span2, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 1
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span2)
+            assert waf
+            waf()
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span3:
             set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 2
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span3)
+            assert waf
+            waf()
 
         assert span1.get_tag(APPSEC_JSON) is not None
         assert span2.get_tag(APPSEC_JSON) is None
@@ -393,6 +428,9 @@ def test_obfuscation_parameter_value_unconfigured_not_matching(tracer_appsec):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -406,6 +444,9 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+        waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+        assert waf
+        waf()
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -422,6 +463,9 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -438,6 +482,9 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
+            waf = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            assert waf
+            waf()
 
         assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
