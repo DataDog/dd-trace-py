@@ -63,7 +63,7 @@ RUNTIME_VERSION = "runtime.version"
 LIBRARY_VERSION = "library_version"
 
 # CI Visibility env vars used for pipeline correlation ID
-CI_ENV_VARS = "_dd.ci.env_vars"
+_CI_ENV_VARS = "_dd.ci.env_vars"
 
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
