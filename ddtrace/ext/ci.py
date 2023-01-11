@@ -1,6 +1,8 @@
 """
 Tags for common CI attributes
 """
+from collections import OrderedDict
+import json
 import os
 import platform
 import re
@@ -60,6 +62,9 @@ RUNTIME_VERSION = "runtime.version"
 # Version of the ddtrace library
 LIBRARY_VERSION = "library_version"
 
+# CI Visibility env vars used for pipeline correlation ID
+CI_ENV_VARS = "_dd.ci.env_vars"
+
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
@@ -110,8 +115,6 @@ def tags(env=None, cwd=None):
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
     tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
-    if tags.get(git.TAG) and git.BRANCH in tags:
-        del tags[git.BRANCH]
     tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
@@ -207,6 +210,16 @@ def extract_azure_pipelines(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
         JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
+        CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("SYSTEM_TEAMPROJECTID", env.get("SYSTEM_TEAMPROJECTID")),
+                    ("BUILD_BUILDID", env.get("BUILD_BUILDID")),
+                    ("SYSTEM_JOBID", env.get("SYSTEM_JOBID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -251,6 +264,15 @@ def extract_buildkite(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
         git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
         git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
+        CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("BUILDKITE_BUILD_ID", env.get("BUILDKITE_BUILD_ID")),
+                    ("BUILDKITE_JOB_ID", env.get("BUILDKITE_JOB_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -270,6 +292,15 @@ def extract_circle_ci(env):
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+        CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("CIRCLE_WORKFLOW_ID", env.get("CIRCLE_WORKFLOW_ID")),
+                    ("CIRCLE_BUILD_NUM", env.get("CIRCLE_BUILD_NUM")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -292,6 +323,16 @@ def extract_github_actions(env):
     if run_attempt:
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
+    env_vars = OrderedDict(
+        [
+            ("GITHUB_SERVER_URL", env.get("GITHUB_SERVER_URL")),
+            ("GITHUB_REPOSITORY", env.get("GITHUB_REPOSITORY")),
+            ("GITHUB_RUN_ID", env.get("GITHUB_RUN_ID")),
+        ]
+    )
+    if env.get("GITHUB_RUN_ATTEMPT") is not None:
+        env_vars["GITHUB_RUN_ATTEMPT"] = env.get("GITHUB_RUN_ATTEMPT")
+
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
@@ -304,8 +345,10 @@ def extract_github_actions(env):
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
         PIPELINE_URL: pipeline_url,
+        JOB_NAME: env.get("GITHUB_JOB"),
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+        CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
 
 
@@ -340,6 +383,16 @@ def extract_gitlab(env):
         git.COMMIT_AUTHOR_NAME: author_name,
         git.COMMIT_AUTHOR_EMAIL: author_email,
         git.COMMIT_AUTHOR_DATE: commit_timestamp,
+        CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("CI_PROJECT_URL", env.get("CI_PROJECT_URL")),
+                    ("CI_PIPELINE_ID", env.get("CI_PIPELINE_ID")),
+                    ("CI_JOB_ID", env.get("CI_JOB_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -369,6 +422,14 @@ def extract_jenkins(env):
         PIPELINE_URL: env.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",
         WORKSPACE_PATH: env.get("WORKSPACE"),
+        CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("DD_CUSTOM_TRACE_ID", env.get("DD_CUSTOM_TRACE_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -442,6 +503,25 @@ def extract_bitrise(env):
     }
 
 
+def extract_buddy(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Buddy environ."""
+    return {
+        PROVIDER_NAME: "buddy",
+        PIPELINE_ID: "{0}/{1}".format(env.get("BUDDY_PIPELINE_ID"), env.get("BUDDY_EXECUTION_ID")),
+        PIPELINE_NAME: env.get("BUDDY_PIPELINE_NAME"),
+        PIPELINE_NUMBER: env.get("BUDDY_EXECUTION_ID"),
+        PIPELINE_URL: env.get("BUDDY_EXECUTION_URL"),
+        git.REPOSITORY_URL: env.get("BUDDY_SCM_URL"),
+        git.COMMIT_SHA: env.get("BUDDY_EXECUTION_REVISION"),
+        git.BRANCH: env.get("BUDDY_EXECUTION_BRANCH"),
+        git.TAG: env.get("BUDDY_EXECUTION_TAG"),
+        git.COMMIT_MESSAGE: env.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
+        git.COMMIT_COMMITTER_NAME: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
+        git.COMMIT_COMMITTER_EMAIL: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
+    }
+
+
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
@@ -454,4 +534,5 @@ PROVIDERS = (
     ("TEAMCITY_VERSION", extract_teamcity),
     ("TRAVIS", extract_travis),
     ("BITRISE_BUILD_SLUG", extract_bitrise),
+    ("BUDDY", extract_buddy),
 )
