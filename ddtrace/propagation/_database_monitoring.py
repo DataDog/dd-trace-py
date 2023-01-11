@@ -26,6 +26,7 @@ log = get_logger(__name__)
 
 
 def _default_sql_injector(dbm_comment, sql_statement):
+    # type: (str, str) -> str
     try:
         return dbm_comment + sql_statement
     except TypeError:
