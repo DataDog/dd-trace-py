@@ -3,13 +3,14 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from six import text_type
+
 
 if TYPE_CHECKING:
     from typing import Any
     from typing import Union
-    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
 
-from ddtrace.internal.compat import PY3
+    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
 
 
 LOGGER = logging.getLogger(__name__)  # type: logging.Logger
@@ -33,10 +34,6 @@ except OSError:
     _DDWAF_LOADED = False
     LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
 
-# Python 2/3 unicode str compatibility
-if PY3:
-    unicode = str
-
 #
 # Interface as Cython
 #
@@ -48,7 +45,7 @@ class DDWaf_result(object):
     __slots__ = ["data", "actions", "runtime", "total_runtime"]
 
     def __init__(self, data, actions, runtime, total_runtime):
-        # type: (DDWaf_result, unicode|None, list[unicode], float, float) -> None
+        # type: (DDWaf_result, text_type|None, list[text_type], float, float) -> None
         self.data = data
         self.actions = actions
         self.runtime = runtime
@@ -59,7 +56,7 @@ class DDWaf_info(object):
     __slots__ = ["loaded", "failed", "errors", "version"]
 
     def __init__(self, loaded, failed, errors, version):
-        # type: (DDWaf_info, int, int, dict[unicode, Any], unicode) -> None
+        # type: (DDWaf_info, int, int, dict[text_type, Any], text_type) -> None
         self.loaded = loaded
         self.failed = failed
         self.errors = errors
@@ -70,7 +67,7 @@ if _DDWAF_LOADED:
 
     class DDWaf(object):
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, Union[None, int, unicode, list[Any], dict[unicode, Any]], unicode, unicode) -> None
+            # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
@@ -82,7 +79,7 @@ if _DDWAF_LOADED:
 
         @property
         def required_data(self):
-            # type: (DDWaf) -> list[unicode]
+            # type: (DDWaf) -> list[text_type]
             return py_ddwaf_required_addresses(self._handle)
 
         @property
@@ -103,7 +100,7 @@ if _DDWAF_LOADED:
 
         def run(
             self,  # type: DDWaf
-            data,  # type: Union[None, int, unicode, list[Any], dict[unicode, Any]]
+            data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
             # type: (...) -> DDWaf_result
@@ -129,30 +126,30 @@ if _DDWAF_LOADED:
             ddwaf_destroy(self._handle)
 
     def version():
-        # type: () -> unicode
+        # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
 
 
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
-        required_data = []  # type: list[unicode]
-        info = {}  # type: dict[unicode, Any]
+        required_data = []  # type: list[text_type]
+        info = {}  # type: dict[text_type, Any]
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, Union[None, int, unicode, list[Any], dict[unicode, Any]], unicode, unicode) -> None
+            # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
             pass
 
         def run(
             self,  # type: DDWaf
-            data,  # type: Union[None, int, unicode, list[Any], dict[unicode, Any]]
+            data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
-            # type: (...) -> tuple[unicode, float, float]
+            # type: (...) -> tuple[text_type, float, float]
             LOGGER.warning("DDWaf features disabled. dry run")
             return ("", 0.0, 0.0)
 
     def version():
-        # type: () -> unicode
+        # type: () -> text_type
         LOGGER.warning("DDWaf features disabled. null version")
         return "0.0.0"
