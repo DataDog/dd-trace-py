@@ -2,6 +2,5 @@
 features:
   - |
     Add support for CI provider buddy.works
-upgrade:
   - |
-    Add `_dd.ci.env_vars` tag for the calculation of the pipeline correlation ID, used to link pipelines and tests executed on jobs within those pipelines.
+    CI Visibility: Support reliably linking tests to the pipeline that executed them.
