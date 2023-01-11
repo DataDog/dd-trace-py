@@ -129,12 +129,11 @@ if _DDWAF_LOADED:
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
 
-
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
         required_data = []  # type: list[text_type]
-        info = {}  # type: dict[text_type, Any]
+        info = DDWaf_info(0, 0, {}, "")  # type: DDWaf_info
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
             # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
@@ -145,9 +144,9 @@ else:
             data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
-            # type: (...) -> tuple[text_type, float, float]
+            # type: (...) -> DDWaf_result
             LOGGER.warning("DDWaf features disabled. dry run")
-            return ("", 0.0, 0.0)
+            return DDWaf_result("", 0.0, 0.0)
 
     def version():
         # type: () -> text_type
