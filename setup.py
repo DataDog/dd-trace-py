@@ -36,6 +36,8 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
+LIBDDWAF_VERSION = "1.6.0"
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -110,7 +112,8 @@ class LibDDWaf_Download(BuildPyCommand):
 
         build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
-            if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64") and arch == "arm64":
+            if CURRENT_OS == "Darwin" and not build_platform.endswith(arch):
+                # We cannot include the dynamic libraries for other architectures here.
                 continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
@@ -118,16 +121,16 @@ class LibDDWaf_Download(BuildPyCommand):
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-1.6.0-%s-%s" % (CURRENT_OS.lower(), arch)
+            ddwaf_archive_dir = "libddwaf-%s-%s-%s" % (LIBDDWAF_VERSION, CURRENT_OS.lower(), arch)
             ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
-            ddwaf_download_address = (
-                "https://github.com/DataDog/libddwaf/releases/download/1.6.0/%s" % ddwaf_archive_name
+            ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/%s/%s" % (
+                LIBDDWAF_VERSION,
+                ddwaf_archive_name,
             )
 
             try:
                 filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-                print(filename)
             except HTTPError as e:
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
@@ -418,7 +421,6 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
-        compiler_directives={"language_level": "2"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),

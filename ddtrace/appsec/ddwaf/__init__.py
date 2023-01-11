@@ -1,9 +1,10 @@
 import ctypes
-import logging
 import time
 from typing import TYPE_CHECKING
 
 from six import text_type
+
+from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
 
 
-LOGGER = logging.getLogger(__name__)  # type: logging.Logger
+LOGGER = get_logger(__name__)
 
 try:
     from .ddwaf_types import ddwaf_config
