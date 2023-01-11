@@ -70,7 +70,7 @@ jobs:
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx*"
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_BEFORE_TEST_MACOS: pip debug --verbose
 
       - uses: actions/upload-artifact@v3
@@ -118,7 +118,7 @@ jobs:
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx*"
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_BEFORE_TEST_MACOS: pip debug --verbose
 
       - uses: actions/upload-artifact@v3
