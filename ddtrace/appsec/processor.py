@@ -43,7 +43,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.ddwaf import DDWaf_result
     from ddtrace.span import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -241,7 +240,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 else:
                     log.debug("WAF missing value %s", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        waf_results = self._run_ddwaf(data)
+        waf_results = self._ddwaf.run(data, self._waf_timeout)
         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         if blocked:
@@ -306,10 +305,6 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
-
-    def _run_ddwaf(self, data):
-        # type: (dict[str, str]) -> DDWaf_result
-        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
     def _mark_needed(self, address):
         # type: (str) -> None
