@@ -352,8 +352,15 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     uri += "?" + query
                 path = request.resolver_match.kwargs if request.resolver_match else None
                 parsed_query = request.GET
+                body = utils._extract_body(request)
                 trace_utils.set_http_meta(
-                    span, config.django, query=query, raw_uri=uri, request_path_params=path, parsed_query=parsed_query
+                    span,
+                    config.django,
+                    query=query,
+                    raw_uri=uri,
+                    request_path_params=path,
+                    parsed_query=parsed_query,
+                    request_body=body,
                 )
                 waf_callback()
             if _context.get_item("http.request.blocked", span=span):
