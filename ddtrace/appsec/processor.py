@@ -8,22 +8,13 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
+from ddtrace.appsec.constants import APPSEC
 from ddtrace.appsec.constants import SPAN_DATA_NAMES
 from ddtrace.appsec.constants import WAF_ACTIONS
 from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.constants import WAF_DATA_NAMES
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
-from ddtrace.constants import APPSEC_ENABLED
-from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
-from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
-from ddtrace.constants import APPSEC_EVENT_RULE_LOADED
-from ddtrace.constants import APPSEC_EVENT_RULE_VERSION
-from ddtrace.constants import APPSEC_JSON
-from ddtrace.constants import APPSEC_ORIGIN_VALUE
-from ddtrace.constants import APPSEC_WAF_DURATION
-from ddtrace.constants import APPSEC_WAF_DURATION_EXT
-from ddtrace.constants import APPSEC_WAF_VERSION
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
@@ -209,7 +200,7 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = kwargs.get("peer_ip")
         headers = kwargs.get("headers", {})
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
-        span.set_metric(APPSEC_ENABLED, 1.0)
+        span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
         _context.set_items(
@@ -250,9 +241,9 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             info = self._ddwaf.info
             if info.errors:
-                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info.errors))
-            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
-            span.set_tag_str(APPSEC_WAF_VERSION, version())
+                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, json.dumps(info.errors))
+            span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+            span.set_tag_str(APPSEC.WAF_VERSION, version())
 
             def update_metric(name, value):
                 old_value = span.get_metric(name)
@@ -260,11 +251,11 @@ class AppSecSpanProcessor(SpanProcessor):
                     old_value = 0.0
                 span.set_metric(name, value + old_value)
 
-            update_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
-            update_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
+            update_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+            update_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             if not blocked and waf_results:
-                update_metric(APPSEC_WAF_DURATION, waf_results.runtime)
-                update_metric(APPSEC_WAF_DURATION_EXT, waf_results.total_runtime)
+                update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
+                update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
@@ -287,7 +278,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind=kind)
 
             if waf_results and waf_results.data:
-                span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (waf_results.data,))
+                span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
             if blocked:
                 span.set_tag("appsec.blocked", True)
 
@@ -304,7 +295,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
+                span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -319,5 +310,5 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         # this call is only necessary for tests or frameworks that are not using blocking
-        if span.get_tag(APPSEC_EVENT_RULE_VERSION) is None:
+        if span.get_tag(APPSEC.EVENT_RULE_VERSION) is None:
             self._waf_action(span)

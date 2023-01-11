@@ -9,9 +9,17 @@ if TYPE_CHECKING:
 
 
 class Constant_Class(type):
+    """
+    metaclass for Constant Classes
+    - You can access constants with APPSEC.ENV or APPSEC["ENV"]
+    - Direct assignment will fail: APPSEC.ENV = "something" raise TypeError, like other immutable types
+    - Constant Classes can be iterated:
+        for constant_name, constant_value in APPSEC: ...
+    """
+
     def __setattr__(self, __name, __value):
         # type: ("Constant_Class", str, Any) -> None
-        raise TypeError("Constant class can't be changed: %s.%s" % (self.__name__, __name))
+        raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
     def __iter__(self):
         # type: ("Constant_Class") -> Iterator[tuple[str, Any]]
@@ -25,6 +33,34 @@ class Constant_Class(type):
     def __getitem__(self, k):
         # type: ("Constant_Class", str) -> Any
         return self.__dict__[k]
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class APPSEC(object):
+    """Specific constants for AppSec"""
+
+    ENV = "DD_APPSEC_ENABLED"
+    ENABLED = "_dd.appsec.enabled"
+    JSON = "_dd.appsec.json"
+    EVENT_RULE_VERSION = "_dd.appsec.event_rules.version"
+    EVENT_RULE_ERRORS = "_dd.appsec.event_rules.errors"
+    EVENT_RULE_LOADED = "_dd.appsec.event_rules.loaded"
+    EVENT_RULE_ERROR_COUNT = "_dd.appsec.event_rules.error_count"
+    WAF_DURATION = "_dd.appsec.waf.duration"
+    WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
+    WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
+    WAF_VERSION = "_dd.appsec.waf.version"
+    ORIGIN_VALUE = "appsec"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class IAST(object):
+    """Specific constants for IAST"""
+
+    ENV = "DD_IAST_ENABLED"
+    JSON = "_dd.iast.json"
+    ENABLED = "_dd.iast.enabled"
+    CONTEXT_KEY = "_iast_data"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
