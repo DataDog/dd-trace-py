@@ -148,7 +148,7 @@ else:
         ):
             # type: (...) -> DDWaf_result
             LOGGER.warning("DDWaf features disabled. dry run")
-            return DDWaf_result("", 0.0, 0.0)
+            return DDWaf_result(None, [], 0.0, 0.0)
 
     def version():
         # type: () -> text_type
