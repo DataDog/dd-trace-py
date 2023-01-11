@@ -14,7 +14,8 @@ except ImportError:
     raise ImportError(
         "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
         "support installing build requirements during setup. If you're using pip, make sure it's a "
-        "version >=18."
+        "version >=18.\nSee the quickstart documentation for more information:\n"
+        "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
 
