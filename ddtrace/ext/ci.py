@@ -210,7 +210,8 @@ def extract_azure_pipelines(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
         JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
-        CI_ENV_VARS: json.dumps(
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
             OrderedDict(
                 [
                     ("SYSTEM_TEAMPROJECTID", env.get("SYSTEM_TEAMPROJECTID")),
@@ -264,7 +265,8 @@ def extract_buildkite(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
         git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
         git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
-        CI_ENV_VARS: json.dumps(
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
             OrderedDict(
                 [
                     ("BUILDKITE_BUILD_ID", env.get("BUILDKITE_BUILD_ID")),
@@ -292,7 +294,8 @@ def extract_circle_ci(env):
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
-        CI_ENV_VARS: json.dumps(
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
             OrderedDict(
                 [
                     ("CIRCLE_WORKFLOW_ID", env.get("CIRCLE_WORKFLOW_ID")),
@@ -323,6 +326,7 @@ def extract_github_actions(env):
     if run_attempt:
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
+    # OrderedDict is necessary for comparing against a fixture in testing
     env_vars = OrderedDict(
         [
             ("GITHUB_SERVER_URL", env.get("GITHUB_SERVER_URL")),
@@ -348,7 +352,8 @@ def extract_github_actions(env):
         JOB_NAME: env.get("GITHUB_JOB"),
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
 
 
@@ -383,7 +388,8 @@ def extract_gitlab(env):
         git.COMMIT_AUTHOR_NAME: author_name,
         git.COMMIT_AUTHOR_EMAIL: author_email,
         git.COMMIT_AUTHOR_DATE: commit_timestamp,
-        CI_ENV_VARS: json.dumps(
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
             OrderedDict(
                 [
                     ("CI_PROJECT_URL", env.get("CI_PROJECT_URL")),
@@ -422,7 +428,8 @@ def extract_jenkins(env):
         PIPELINE_URL: env.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",
         WORKSPACE_PATH: env.get("WORKSPACE"),
-        CI_ENV_VARS: json.dumps(
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
             OrderedDict(
                 [
                     ("DD_CUSTOM_TRACE_ID", env.get("DD_CUSTOM_TRACE_ID")),
