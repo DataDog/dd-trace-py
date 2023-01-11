@@ -665,7 +665,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTECONFIG_POLL_SECONDS", "0.1")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
     RemoteConfig.disable()
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient

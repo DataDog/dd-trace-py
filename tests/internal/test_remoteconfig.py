@@ -126,7 +126,7 @@ def test_remote_configuration(mock_send_request):
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)

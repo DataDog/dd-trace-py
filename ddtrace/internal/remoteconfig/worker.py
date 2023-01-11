@@ -15,7 +15,14 @@ DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
 def get_poll_interval_seconds():
     # type:() -> float
-    return float(os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
+    if os.getenv("DD_REMOTECONFIG_POLL_SECONDS"):
+        log.warning(
+            "DD_REMOTECONFIG_POLL_SECONDS environment variable is deprecated in favor of "
+            "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS.\n"
+            "DD_REMOTECONFIG_POLL_SECONDS will be removed in next version"
+        )
+        return float(os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
+    return float(os.getenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
 
 
 class RemoteConfigWorker(periodic.PeriodicService):
