@@ -362,6 +362,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     parsed_query=parsed_query,
                     request_body=body,
                 )
+                log.debug("preemptive waf call")
                 waf_callback()
             if _context.get_item("http.request.blocked", span=span):
                 return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
@@ -374,6 +375,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if config._appsec_enabled:
                 waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
                 if waf_callback:
+                    log.debug("post response computation waf call")
                     waf_callback()
                 if _context.get_item("http.request.blocked", span=span):
                     return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
