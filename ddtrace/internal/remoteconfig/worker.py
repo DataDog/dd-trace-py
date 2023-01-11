@@ -29,7 +29,6 @@ def get_poll_interval_seconds():
     )
 
 
-
 class RemoteConfigWorker(periodic.PeriodicService):
     def __init__(self):
         super(RemoteConfigWorker, self).__init__(interval=get_poll_interval_seconds())
