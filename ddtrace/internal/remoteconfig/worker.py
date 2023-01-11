@@ -21,8 +21,13 @@ def get_poll_interval_seconds():
             "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS.\n"
             "DD_REMOTECONFIG_POLL_SECONDS will be removed in next version"
         )
-        return float(os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
-    return float(os.getenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
+    return float(
+        os.getenv(
+            "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS",
+            default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS),
+        )
+    )
+
 
 
 class RemoteConfigWorker(periodic.PeriodicService):
