@@ -91,6 +91,7 @@ try:
     def is_not_void_function(f, argspec):
         return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
+
 except ImportError:
     from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
 
