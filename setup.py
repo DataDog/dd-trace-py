@@ -138,11 +138,14 @@ class LibDDWaf_Download(BuildPyCommand):
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
 
+            # Open the tarfile first to get the files needed.
+            # This could be solved with "r:gz" mode, that allows random access
+            # but that approach does not work on Windows
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                print("extracting dylib:", [c.name for c in dynfiles])
+                print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
 
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
