@@ -21,7 +21,7 @@ from typing import cast
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace import constants
-from ddtrace.appsec.constants import APPSEC
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
