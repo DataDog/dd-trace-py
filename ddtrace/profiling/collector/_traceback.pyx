@@ -1,3 +1,15 @@
+from cpython.object cimport PyObject
+
+
+IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 9:
+    cdef extern from "<Python.h>":
+        PyObject* PyFrame_GetCode(PyObject* frame)
+        PyObject* PyFrame_GetBack(PyObject* frame)
+        IF PY_MINOR_VERSION >= 11:
+            PyObject* PyFrame_GetLocals(PyObject* frame)
+            int PyFrame_GetLineNumber(PyObject* frame)
+
+
 cpdef _extract_class_name(frame):
     # type: (...) -> str
     """Extract class name from a frame, if possible.
