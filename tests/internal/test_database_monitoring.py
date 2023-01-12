@@ -68,7 +68,7 @@ def test_dbm_propagation_service_mode():
     # when dbm propagation is service mode sql comments should be generated with dbm tags
     dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
     sqlcomment = dbm_popagator._get_dbm_comment(dbspan)
-    assert sqlcomment == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+    assert sqlcomment == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
 
     # when dbm propagation mode is service dbm_popagator.inject SHOULD add dbm tags to args/kwargs
     args, kwargs = ("SELECT * from table;",), {}
@@ -100,7 +100,7 @@ def test_dbm_propagation_full_mode():
     # assert tags sqlcomment contains the correct value
     assert (
         sqlcomment
-        == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/"
+        == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
         % (dbspan.context._traceparent,)
     )
 
