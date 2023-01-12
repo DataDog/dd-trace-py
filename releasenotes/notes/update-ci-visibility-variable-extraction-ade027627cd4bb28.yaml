@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    Add support for CI provider buddy.works
-  - |
     CI Visibility: Support reliably linking tests to the pipeline that executed them.

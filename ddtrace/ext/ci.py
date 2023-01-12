@@ -510,25 +510,6 @@ def extract_bitrise(env):
     }
 
 
-def extract_buddy(env):
-    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
-    """Extract CI tags from Buddy environ."""
-    return {
-        PROVIDER_NAME: "buddy",
-        PIPELINE_ID: "{0}/{1}".format(env.get("BUDDY_PIPELINE_ID"), env.get("BUDDY_EXECUTION_ID")),
-        PIPELINE_NAME: env.get("BUDDY_PIPELINE_NAME"),
-        PIPELINE_NUMBER: env.get("BUDDY_EXECUTION_ID"),
-        PIPELINE_URL: env.get("BUDDY_EXECUTION_URL"),
-        git.REPOSITORY_URL: env.get("BUDDY_SCM_URL"),
-        git.COMMIT_SHA: env.get("BUDDY_EXECUTION_REVISION"),
-        git.BRANCH: env.get("BUDDY_EXECUTION_BRANCH"),
-        git.TAG: env.get("BUDDY_EXECUTION_TAG"),
-        git.COMMIT_MESSAGE: env.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
-        git.COMMIT_COMMITTER_NAME: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
-        git.COMMIT_COMMITTER_EMAIL: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
-    }
-
-
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
@@ -541,5 +522,4 @@ PROVIDERS = (
     ("TEAMCITY_VERSION", extract_teamcity),
     ("TRAVIS", extract_travis),
     ("BITRISE_BUILD_SLUG", extract_bitrise),
-    ("BUDDY", extract_buddy),
 )
