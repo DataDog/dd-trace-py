@@ -4,6 +4,7 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
+import sys
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.logger import get_logger
@@ -40,8 +41,17 @@ if system() == "Linux":
     ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
 
 ARCHI = machine().lower()
+
+# 32-bit-Python on 64-bit-Windows
+if system() == "Windows" and ARCHI == "amd64":
+    from sys import maxsize
+
+    if not (maxsize > 2 ** 32):
+        ARCHI = "x86"
+
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
 ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+
 ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
 #
 # Constants
