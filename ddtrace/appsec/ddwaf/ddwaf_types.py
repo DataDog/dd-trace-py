@@ -4,17 +4,11 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
-
-from ddtrace.internal.compat import PY3
-from ddtrace.internal.logger import get_logger
-
-
-# Python 2/3 unicode str compatibility
-if PY3:
-    unicode = str
-    long = int
-
 from typing import TYPE_CHECKING
+
+from ddtrace.internal.compat import long
+from ddtrace.internal.compat import text_type as unicode
+from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
