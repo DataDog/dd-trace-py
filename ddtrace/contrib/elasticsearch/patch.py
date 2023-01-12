@@ -31,6 +31,7 @@ def _es_modules():
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "opensearchpy",
     )
     for module_name in module_names:
         try:
