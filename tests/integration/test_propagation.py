@@ -1,7 +1,9 @@
+import mock
 import pytest
 
 from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
@@ -63,9 +65,11 @@ def test_trace_tags_multispan(tracer):
 
 @pytest.fixture
 def downstream_tracer():
-    tracer = Tracer()
-    yield tracer
-    tracer.shutdown()
+    with mock.patch("ddtrace.Tracer._get_span_sampling_rules") as mock_get_sampling_rules:
+        mock_get_sampling_rules.return_value = [SpanSamplingRule(1, -1)]
+        tracer = Tracer()
+        yield tracer
+        tracer.shutdown()
 
 
 @pytest.mark.snapshot()
@@ -81,3 +85,18 @@ def test_sampling_decision_downstream(downstream_tracer):
 
     with downstream_tracer.trace("p", service="downstream") as span:
         span.set_tag(MANUAL_DROP_KEY)
+
+
+@pytest.mark.snapshot()
+def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(downstream_tracer):
+    headers_indicating_kept_trace = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "-1",
+        "x-datadog-tags": "_dd.p.dm=-1",  # this span belongs to a sampled trace
+    }
+    kept_trace_context = HTTPPropagator.extract(headers_indicating_kept_trace)
+    downstream_tracer.context_provider.activate(kept_trace_context)
+
+    with downstream_tracer.trace("p", service="downstream"):
+        pass

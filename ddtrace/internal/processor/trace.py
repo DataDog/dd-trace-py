@@ -12,6 +12,9 @@ import six
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -80,6 +83,11 @@ class TraceSamplingProcessor(TraceProcessor):
                     return single_spans or None
 
             for span in trace:
+                # DEV: if the whole trace is being returned, single-span-sampling metrics don't matter anymore
+                if is_single_span_sampled(span):
+                    span._remove_metric(_SINGLE_SPAN_SAMPLING_MECHANISM)
+                    span._remove_metric(_SINGLE_SPAN_SAMPLING_RATE)
+                    span._remove_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC)
                 if span.sampled:
                     return trace
 

@@ -401,6 +401,11 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
+    def _remove_metric(self, key):
+        # type: (_TagNameType) -> None
+        if key in self._metrics:
+            del self._metrics[key]
+
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
         if metrics:
