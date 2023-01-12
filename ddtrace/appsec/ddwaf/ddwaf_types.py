@@ -6,7 +6,7 @@ from platform import machine
 from platform import system
 from typing import TYPE_CHECKING
 
-from ddtrace.internal.compat import long
+from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import text_type as unicode
 from ddtrace.internal.logger import get_logger
 
@@ -17,7 +17,8 @@ if TYPE_CHECKING:
     from typing import Union
 
     DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
-
+    if PY3:
+        long = int
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -39,7 +40,7 @@ ARCHI = machine().lower()
 if system() == "Windows" and ARCHI == "amd64":
     from sys import maxsize
 
-    if not (maxsize > 2 ** 32):
+    if not (maxsize > 2**32):
         ARCHI = "x86"
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
