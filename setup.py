@@ -104,6 +104,8 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
+        # If the directory exists and it is not empty, assume the right files are there.
+        # Use `python setup.py clean` to remove it.
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
             return
 
@@ -118,6 +120,7 @@ class LibDDWaf_Download(BuildPyCommand):
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
+            # If the directory for the architecture exists, assume the right files are there
             if os.path.isdir(arch_dir):
                 continue
 
@@ -145,10 +148,13 @@ class LibDDWaf_Download(BuildPyCommand):
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
                 # cleaning unwanted files
                 tar.close()
-            ori = os.path.join(arch_dir, "lib", "ddwaf.dll")
-            if os.path.exists(ori):
-                dest = os.path.join(arch_dir, "lib", "libddwaf.dll")
-                os.rename(ori, dest)
+
+            # Rename ddwaf.xxx to libddwaf.xxx so the filename is the same for every OS
+            original_file = os.path.join(arch_dir, "lib", "ddwaf" + SUFFIX)
+            if os.path.exists(original_file):
+                renamed_file = os.path.join(arch_dir, "lib", "libddwaf" + SUFFIX)
+                os.rename(original_file, renamed_file)
+
             os.remove(filename)
 
     def run(self):
