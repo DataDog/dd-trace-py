@@ -138,7 +138,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
 
-            with tarfile.open(filename, "r:gz", errorlevel=2) as tar:
+            with tarfile.open(filename, "r", errorlevel=2) as tar:
                 tar.extractall(members=[c for c in tar.getmembers() if c.name.endswith(SUFFIX)], path=HERE)
 
             os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
