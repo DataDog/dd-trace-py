@@ -19,7 +19,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import constants
-from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec.constants import APPSEC
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import track_custom_event
@@ -616,8 +616,8 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "\u3132\u3134\u3137\u3138"),
-        ("", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
+        (u"", ["runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py2(
