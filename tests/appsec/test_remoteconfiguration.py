@@ -16,6 +16,12 @@ from tests.appsec.test_processor import Config
 from tests.utils import override_env
 
 
+@pytest.fixture
+def remote_config_worker(tracer):
+    RemoteConfig._worker = None
+    yield
+
+
 def _set_and_get_appsec_tags(tracer):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(
@@ -34,7 +40,7 @@ def test_rc_enabled_by_default(tracer):
     assert _appsec_rc_features_is_enabled()
 
 
-def test_rc_activate_is_active_and_get_processor_tags(tracer):
+def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": True}})
@@ -48,7 +54,7 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer):
         ("true", True),
     ],
 )
-def test_rc_activation_states_on(tracer, appsec_enabled, rc_value):
+def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
     tracer.configure(appsec_enabled=False)
     with override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
@@ -68,7 +74,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value):
         ("true", False),
     ],
 )
-def test_rc_activation_states_off(tracer, appsec_enabled, rc_value):
+def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
     tracer.configure(appsec_enabled=True)
     with override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
@@ -95,7 +101,7 @@ def test_rc_capabilities(rc_enabled, capability):
         assert _appsec_rc_capabilities() == capability
 
 
-def test_rc_activation_validate_products(tracer):
+def test_rc_activation_validate_products(tracer, remote_config_worker):
     tracer.configure(appsec_enabled=False, api_version="v0.4")
 
     rc_config = {"asm": {"enabled": True}}
@@ -107,7 +113,7 @@ def test_rc_activation_validate_products(tracer):
     assert RemoteConfig._worker._client._products["ASM_DATA"]
 
 
-def test_rc_activation_ip_blocking_data(tracer):
+def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
     with override_env({APPSEC_ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
