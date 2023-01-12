@@ -96,7 +96,7 @@ def test_rc_capabilities(rc_enabled, capability):
 
 
 def test_rc_activation_validate_products(tracer):
-    tracer.configure(appsec_enabled=False)
+    tracer.configure(appsec_enabled=False, api_version="v0.4")
 
     rc_config = {"asm": {"enabled": True}}
 
@@ -109,7 +109,7 @@ def test_rc_activation_validate_products(tracer):
 
 def test_rc_activation_ip_blocking_data(tracer):
     with override_env({APPSEC_ENV: "true"}):
-        tracer.configure(appsec_enabled=True)
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "rules_data": [
                 {
