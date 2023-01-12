@@ -51,6 +51,8 @@ class APPSEC(object):
     WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
     WAF_VERSION = "_dd.appsec.waf.version"
     ORIGIN_VALUE = "appsec"
+    CUSTOM_EVENT_PREFIX = "appsec.events"
+    USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
