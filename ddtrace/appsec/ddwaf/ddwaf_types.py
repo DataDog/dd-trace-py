@@ -17,8 +17,9 @@ if TYPE_CHECKING:
     from typing import Union
 
     DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
-    if PY3:
-        long = int
+
+if PY3:
+    long = int
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -40,7 +41,7 @@ ARCHI = machine().lower()
 if system() == "Windows" and ARCHI == "amd64":
     from sys import maxsize
 
-    if not (maxsize > 2 ** 32):
+    if not (maxsize > 2**32):
         ARCHI = "x86"
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
