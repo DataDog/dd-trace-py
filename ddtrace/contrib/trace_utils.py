@@ -20,6 +20,8 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace import constants
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -146,7 +148,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -445,15 +447,15 @@ def set_http_meta(
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
-            span.set_tag(http.USER_AGENT, user_agent)
+            span.set_tag_str(http.USER_AGENT, user_agent)
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
             ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
             if ip:
-                span.set_tag(http.CLIENT_IP, ip)
-                span.set_tag("network.client.ip", ip)
+                span.set_tag_str(http.CLIENT_IP, ip)
+                span.set_tag_str("network.client.ip", ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -574,24 +576,88 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span.set_tag_str(user.ID, user_id)
+        str_user_id = str(user_id)
+        span.set_tag_str(user.ID, str_user_id)
         if propagate:
-            span.context.dd_user_id = user_id
+            span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
-            span.set_tag(user.NAME, name)
+            span.set_tag_str(user.NAME, name)
         if email:
-            span.set_tag(user.EMAIL, email)
+            span.set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_tag(user.SCOPE, scope)
+            span.set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_tag(user.ROLE, role)
+            span.set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_tag(user.SESSION_ID, session_id)
+            span.set_tag_str(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+
+
+def track_user_login(
+    tracer,
+    user_id,
+    success=True,
+    metadata=None,
+    name=None,
+    email=None,
+    scope=None,
+    role=None,
+    session_id=None,
+    propagate=False,
+):
+    # type: (Tracer, str, bool, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None # noqa: E501
+
+    span = tracer.current_root_span()
+    if span:
+        success_str = "success" if success else "failure"
+
+        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str), "true")
+        # usr.id will be set by set_user
+        if metadata is not None:
+            for k, v in six.iteritems(metadata):
+                span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
+
+        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+
+        if success:
+            set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
+        else:
+            span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping track_user_login tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+
+
+def track_custom_event(tracer, event_name, metadata):
+    # type: (Tracer, str, dict) -> None
+
+    if not event_name:
+        log.warning("Empty event name given to track_custom_event. Skipping setting tags.")
+        return
+
+    if not metadata:
+        log.warning("Empty metadata given to track_custom_event. Skipping setting tags.")
+        return
+
+    span = tracer.current_root_span()
+    if span:
+        for k, v in six.iteritems(metadata):
+            span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
+            span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping track_custom_event tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security"
+            "/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )

@@ -111,6 +111,7 @@ _PATCH_ON_IMPORT = {
         "opensearchpy",
     ),
     "pynamodb": ("pynamodb",),
+    "rq": ("rq",),
 }
 
 IAST_PATCH = {
