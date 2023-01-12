@@ -122,6 +122,9 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          # Workaround for Macos 11.0 versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
 
       - uses: actions/upload-artifact@v3
