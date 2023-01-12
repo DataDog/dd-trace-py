@@ -335,7 +335,7 @@ def extract_github_actions(env):
         ]
     )
     if env.get("GITHUB_RUN_ATTEMPT") is not None:
-        env_vars["GITHUB_RUN_ATTEMPT"] = env.get("GITHUB_RUN_ATTEMPT")
+        env_vars["GITHUB_RUN_ATTEMPT"] = env["GITHUB_RUN_ATTEMPT"]
 
     return {
         git.BRANCH: branch,
