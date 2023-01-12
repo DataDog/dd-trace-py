@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Added two new functions for the Application Security Events Tracking API; `track_user_login` and `track_custom_event`.
