@@ -2,12 +2,13 @@ from cpython.object cimport PyObject
 
 
 IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 9:
+    from cpython cimport PyFrameObject
     cdef extern from "<Python.h>":
-        PyObject* PyFrame_GetCode(PyObject* frame)
-        PyObject* PyFrame_GetBack(PyObject* frame)
+        PyObject* PyFrame_GetCode(PyFrameObject* frame)
+        PyObject* PyFrame_GetBack(PyFrameObject* frame)
         IF PY_MINOR_VERSION >= 11:
-            PyObject* PyFrame_GetLocals(PyObject* frame)
-            int PyFrame_GetLineNumber(PyObject* frame)
+            PyObject* PyFrame_GetLocals(PyFrameObject* frame)
+            int PyFrame_GetLineNumber(PyFrameObject* frame)
 
 
 cpdef _extract_class_name(frame):
