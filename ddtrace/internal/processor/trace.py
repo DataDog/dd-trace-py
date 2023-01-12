@@ -82,6 +82,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
                     return single_spans or None
 
+            at_least_one_sampled = False
             for span in trace:
                 # DEV: if the whole trace is being returned, single-span-sampling metrics don't matter anymore
                 if is_single_span_sampled(span):
@@ -89,7 +90,10 @@ class TraceSamplingProcessor(TraceProcessor):
                     span._remove_metric(_SINGLE_SPAN_SAMPLING_RATE)
                     span._remove_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC)
                 if span.sampled:
-                    return trace
+                    at_least_one_sampled = True
+
+            if at_least_one_sampled:
+                return trace
 
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
