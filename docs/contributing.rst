@@ -49,7 +49,7 @@ and losing time.
 Logging
 =======
 
-The ddtrace logger should be used log events in the dd-trace-py library. Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve an instance of the ddtrace logger (DDLogger).
+The ddtrace logger should be used to log events in the dd-trace-py library. Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve an instance of the ddtrace logger (DDLogger).
 
 To ensure the ddtrace library produces consistent and secure logs the following best practices should be followed:
 
