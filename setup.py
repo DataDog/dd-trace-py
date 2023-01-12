@@ -138,10 +138,16 @@ class LibDDWaf_Download(BuildPyCommand):
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
 
-            with tarfile.open(filename, "r", errorlevel=2) as tar:
-                tar.extractall(members=[c for c in tar.getmembers() if c.name.endswith(SUFFIX)], path=HERE)
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
 
-            os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                print("extracting dylib:", [c.name for c in dynfiles])
+                tar.extractall(members=dynfiles, path=HERE)
+
+                os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
+                # cleaning unwanted files
+                tar.close()
 
             # Rename ddwaf.xxx to libddwaf.xxx so the filename is the same for every OS
             original_file = os.path.join(arch_dir, "lib", "ddwaf" + SUFFIX)
