@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue in where the stack collector did not properly access PyFrameObject
+    member values, as PyFrameObject is now created and computed lazily in Python 3.11.
