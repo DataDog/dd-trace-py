@@ -5,10 +5,18 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 
-# ORDER MATTERS
-# Import this after setuptools or it will fail
-from Cython.Build import cythonize  # noqa: I100
-import Cython.Distutils
+try:
+    # ORDER MATTERS
+    # Import this after setuptools or it will fail
+    from Cython.Build import cythonize  # noqa: I100
+    import Cython.Distutils
+except ImportError:
+    raise ImportError(
+        "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
+        "support installing build requirements during setup. If you're using pip, make sure it's a "
+        "version >=18.\nSee the quickstart documentation for more information:\n"
+        "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
+    )
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
