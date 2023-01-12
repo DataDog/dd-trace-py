@@ -149,10 +149,8 @@ class LibDDWaf_Download(BuildPyCommand):
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            with tarfile.open(filename, "r:gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
-
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
 
