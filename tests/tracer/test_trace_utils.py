@@ -19,7 +19,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import constants
-from ddtrace.appsec.constants import APPSEC
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import track_custom_event

@@ -300,11 +300,8 @@ class RemoteConfigClient(object):
             return None, None, None
 
         signed = payload.targets.signed
-        if signed.expires <= datetime.utcnow():
-            signed_expiration = datetime.strftime(signed.expires, "%Y-%m-%dT%H:%M:%SZ")
-            raise RemoteConfigError("targets are expired, expiration date was {}".format(signed_expiration))
-
         targets = dict()
+
         for target, metadata in signed.targets.items():
             config = _parse_target(target, metadata)
             if config is not None:
@@ -410,8 +407,10 @@ class RemoteConfigClient(object):
             self._process_response(response)
         except RemoteConfigError as e:
             self._last_error = str(e)
-            log.warning("remote configuration client reported an error", exc_info=True)
-        except Exception:
-            log.warning("Unexpected error", exc_info=True)
+            log.debug("remote configuration client reported an error", exc_info=True)
+        except ValueError as e:
+            log.debug("Unexpected response data: %s", e)  # noqa: G200
+        except Exception as e:
+            log.debug("Unexpected error: %s", e)  # noqa: G200
         else:
             self._last_error = None
