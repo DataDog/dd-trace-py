@@ -103,23 +103,27 @@ def test_remote_config_register_auto_enable(mock_check_remote_config_enable_in_a
 
 
 @pytest.mark.subprocess
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
-def test_remote_config_forksafe(mock_check_remote_config_enable_in_agent):
-    mock_check_remote_config_enable_in_agent.return_value = True
-
-    import os
+def test_remote_config_forksafe():
+    import mock
 
     from ddtrace.internal.remoteconfig import RemoteConfig
 
-    RemoteConfig.enable()
+    with mock.patch.object(
+        RemoteConfig, "_check_remote_config_enable_in_agent"
+    ) as mock_check_remote_config_enable_in_agent:
+        mock_check_remote_config_enable_in_agent.return_value = True
 
-    parent_worker = RemoteConfig._worker
-    assert parent_worker is not None
+        import os
 
-    if os.fork() == 0:
-        assert RemoteConfig._worker is not None
-        assert RemoteConfig._worker is not parent_worker
-        exit(0)
+        RemoteConfig.enable()
+
+        parent_worker = RemoteConfig._worker
+        assert parent_worker is not None
+
+        if os.fork() == 0:
+            assert RemoteConfig._worker is not None
+            assert RemoteConfig._worker is not parent_worker
+            exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
