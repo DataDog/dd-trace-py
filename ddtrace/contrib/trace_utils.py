@@ -600,7 +600,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
         )
 
 
-def track_user_login(
+def track_user_login_event(
     tracer,
     user_id,
     success=True,
