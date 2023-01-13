@@ -139,6 +139,10 @@ class TracedClient(ObjectProxy):
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
         )
+
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pylibmc.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:

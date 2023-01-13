@@ -11,6 +11,7 @@
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
+      "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
@@ -44,6 +45,7 @@
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
+      "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
@@ -78,6 +80,7 @@
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
+      "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
@@ -111,6 +114,7 @@
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
+      "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",

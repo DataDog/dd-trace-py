@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "132cff2cde77480cb018f34c204199b7"
+      "runtime-id": "78889425fa434f88a0dbd3ce725a2f06"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,8 +19,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 2746650
     },
-    "duration": 805673,
-    "start": 1656706648061546556
+    "duration": 3710000,
+    "start": 1666795740555349000
   },
      {
        "name": "redis.command",
@@ -32,6 +32,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "component": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo"
        },
@@ -42,8 +43,8 @@
          "out.redis_db": 0,
          "redis.args_length": 3
        },
-       "duration": 364850,
-       "start": 1656706648061631734
+       "duration": 1850000,
+       "start": 1666795740555454000
      },
      {
        "name": "redis.command",
@@ -55,6 +56,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "component": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "GET blah"
        },
@@ -65,6 +67,6 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 294084,
-       "start": 1656706648062041260
+       "duration": 1672000,
+       "start": 1666795740557359000
      }]]
