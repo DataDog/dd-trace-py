@@ -23,7 +23,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import track_custom_event
-from ddtrace.contrib.trace_utils import track_user_login
+from ddtrace.contrib.trace_utils import track_user_login_event
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -1027,9 +1027,9 @@ def test_set_flattened_tags_exclude_policy():
 
 
 class EventsSDKTestCase(TracerTestCase):
-    def test_track_user_login_success_without_metadata(self):
+    def test_track_user_login_event_success_without_metadata(self):
         with self.trace("test_success1"):
-            track_user_login(
+            track_user_login_event(
                 self.tracer,
                 "1234",
                 success=True,
@@ -1057,9 +1057,9 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(user.ROLE) == "boss"
             assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
 
-    def test_track_user_login_success_with_metadata(self):
+    def test_track_user_login_event_success_with_metadata(self):
         with self.trace("test_success2"):
-            track_user_login(self.tracer, "1234", success=True, metadata={"foo": "bar"})
+            track_user_login_event(self.tracer, "1234", success=True, metadata={"foo": "bar"})
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
@@ -1073,9 +1073,9 @@ class EventsSDKTestCase(TracerTestCase):
             assert not root_span.get_tag(user.ROLE)
             assert not root_span.get_tag(user.SESSION_ID)
 
-    def test_track_user_login_failure(self):
+    def test_track_user_login_event_failure(self):
         with self.trace("test_failure"):
-            track_user_login(
+            track_user_login_event(
                 self.tracer,
                 "1234",
                 success=False,
