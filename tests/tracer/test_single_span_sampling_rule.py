@@ -4,8 +4,6 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.propagation.http import HTTPPropagator
-from tests.utils import override_global_config
 
 from ..utils import DummyTracer
 
