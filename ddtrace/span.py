@@ -327,8 +327,7 @@ class Span(object):
 
         try:
             self._meta[key] = stringify(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._remove_metric(key)
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
