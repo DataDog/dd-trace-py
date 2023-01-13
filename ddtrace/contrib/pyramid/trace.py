@@ -49,7 +49,10 @@ def trace_render(func, instance, args, kwargs):
         log.debug("No tracer found in request, will not be traced")
         return func(*args, **kwargs)
 
-    with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE):
+    with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pyramid.integration_name)
+
         return func(*args, **kwargs)
 
 
@@ -69,6 +72,9 @@ def trace_tween_factory(handler, registry):
             )
 
             with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
+                # set component tag equal to name of integration
+                span.set_tag_str("component", config.pyramid.integration_name)
+
                 span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api

@@ -16,20 +16,20 @@
       "_dd.runtime_family": "python",
       "appsec.event": "true",
       "http.status_code": "404",
-      "runtime-id": "b44d726d3934445494896dd3496aafa4"
+      "runtime-id": "f2d92db5b6544220bd85b0f8c943e669"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 126,
-      "_dd.appsec.waf.duration": 177.566,
-      "_dd.appsec.waf.duration_ext": 232.4,
+      "_dd.appsec.waf.duration": 343.292,
+      "_dd.appsec.waf.duration_ext": 368.1182861328125,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
       "process_id": 920596
     },
-    "duration": 527860,
-    "start": 1661957009273085957
+    "duration": 147000,
+    "start": 1666810280535556000
   }]]

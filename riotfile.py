@@ -370,6 +370,7 @@ venv = Venv(
                 "botocore": latest,
                 "requests": latest,
                 "elasticsearch": latest,
+                "opensearch-py": latest,
                 "pynamodb": latest,
             },
             venvs=[
@@ -990,6 +991,13 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="elasticsearch-opensearch",
+            # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            pys=select_pys(),
+            pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0", "~=2.0.0", latest]},
         ),
         Venv(
             name="flask",
