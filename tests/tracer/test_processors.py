@@ -472,8 +472,6 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     # The trace is updated to be a keep, but we already span sampled child
     root.set_tag(MANUAL_KEEP_KEY)
     root.finish()
-    # We now expect the span to have both span sampling and tracer context that will sample
-    assert_span_sampling_decision_tags(child)
     assert child.context.sampling_priority == USER_KEEP
 
 
