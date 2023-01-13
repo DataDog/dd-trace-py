@@ -75,6 +75,10 @@ def _wrap_request(func, instance, args, kwargs):
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.httplib.integration_name)
+
         setattr(instance, "_datadog_span", span)
 
         # propagate distributed tracing headers
@@ -114,6 +118,10 @@ def _wrap_putrequest(func, instance, args, kwargs):
         else:
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.httplib.integration_name)
+
             setattr(instance, "_datadog_span", span)
 
         method, path = args[:2]

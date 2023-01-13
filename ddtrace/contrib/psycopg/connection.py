@@ -6,6 +6,8 @@ import functools
 from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
 
+from ddtrace import config
+
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db
@@ -28,6 +30,9 @@ class TracedCursor(cursor):
             return cursor.execute(self, query, vars)
 
         with self._datadog_tracer.trace("postgres.query", service=self._datadog_service, span_type=SpanTypes.SQL) as s:
+            # set component tag equal to name of integration
+            s.set_tag_str("component", config.psycopg.integration_name)
+
             s.set_tag(SPAN_MEASURED_KEY)
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)

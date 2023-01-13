@@ -10,12 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "pyramid",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.28.1",
       "pyramid.route.name": "hello",
-      "runtime-id": "ab53b535630a46bd95767b7dfcf3d559"
+      "runtime-id": "e2934ab18ce745269d2f621e7720fc04"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,6 +26,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 656017
     },
-    "duration": 119727,
-    "start": 1635529255205817037
+    "duration": 133000,
+    "start": 1666809831703988000
   }]]
