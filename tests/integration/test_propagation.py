@@ -103,5 +103,4 @@ def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(trac
     kept_trace_context = HTTPPropagator.extract(span_sampling_headers)
     tracer_with_single_span_sampling_enabled.context_provider.activate(kept_trace_context)
 
-    with tracer_with_single_span_sampling_enabled.trace("p", service="downstream"):
-        pass
+    tracer_with_single_span_sampling_enabled.trace("p", service="downstream").finish()
