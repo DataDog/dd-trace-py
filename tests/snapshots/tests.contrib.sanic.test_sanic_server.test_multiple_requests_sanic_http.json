@@ -10,11 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
-      "runtime-id": "a3de5bb434f3493f93affe4d2b969eca",
+      "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
       "sanic.route.name": "test_sanic_server.hello"
     },
     "metrics": {
@@ -24,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90748
     },
-    "duration": 85407000,
-    "start": 1643465627712966000
+    "duration": 73278000,
+    "start": 1666809950609821000
   },
      {
        "name": "random_sleep",
@@ -51,11 +52,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
-      "runtime-id": "a3de5bb434f3493f93affe4d2b969eca",
+      "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
       "sanic.route.name": "test_sanic_server.hello"
     },
     "metrics": {
@@ -65,8 +67,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90748
     },
-    "duration": 50645000,
-    "start": 1643465627811584000
+    "duration": 45383000,
+    "start": 1666809950715761000
   },
      {
        "name": "random_sleep",

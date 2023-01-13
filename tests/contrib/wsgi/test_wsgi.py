@@ -136,10 +136,15 @@ def test_query_string_tracing(tracer, test_spans):
         assert request_span.get_tag("http.method") == "GET"
         assert request_span.get_tag("http.status_code") == "200"
         assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
+        assert request_span.get_tag("component") == "wsgi"
 
         assert spans[0][1].name == "wsgi.application"
         assert spans[0][2].name == "wsgi.start_response"
         assert spans[0][3].name == "wsgi.response"
+
+        assert spans[0][1].get_tag("component") == "wsgi"
+        assert spans[0][2].get_tag("component") == "wsgi"
+        assert spans[0][3].get_tag("component") == "wsgi"
 
 
 def test_http_request_header_tracing(tracer, test_spans):
