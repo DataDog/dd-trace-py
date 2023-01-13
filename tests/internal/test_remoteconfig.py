@@ -11,7 +11,6 @@ import pytest
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.remoteconfig import _RemoteConfigException
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
@@ -153,23 +152,18 @@ def test_remoteconfig_semver():
 
 
 @pytest.mark.parametrize(
-    "healthcheck_result",
+    "result,expected",
     [
-        None,
-        {},
-        {"endpoints": []},
-        {"endpoints": ["/info"]},
-        {"endpoints": ["/info", "/errors"]},
+        (None, False),
+        ({}, False),
+        ({"endpoints": []}, False),
+        ({"endpoints": ["/info"]}, False),
+        ({"endpoints": ["/info", "/errors"]}, False),
+        ({"endpoints": ["/info", "/errors", REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
+        ({"endpoints": ["/info", "/errors", "/" + REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
     ],
 )
 @mock.patch("ddtrace.internal.agent._healthcheck")
-def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, healthcheck_result):
-    mock_healthcheck.return_value = healthcheck_result
-    with pytest.raises(_RemoteConfigException):
-        RemoteConfig._check_remote_config_enable_in_agent()
-
-
-@mock.patch("ddtrace.internal.agent._healthcheck")
-def test_remote_configuration_check_remote_config_enable_in_agent_ok(mock_healthcheck):
-    mock_healthcheck.return_value = {"endpoints": ["/info", "/errors", REMOTE_CONFIG_AGENT_ENDPOINT]}
-    assert RemoteConfig._check_remote_config_enable_in_agent()
+def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
+    mock_healthcheck.return_value = result
+    assert RemoteConfig._check_remote_config_enable_in_agent() is expected
