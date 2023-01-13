@@ -453,7 +453,6 @@ class Span(object):
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
-
     def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""
