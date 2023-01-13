@@ -121,6 +121,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         if config._appsec_enabled:
             callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
             if callback:
+                log.debug("Flask WAF call")
                 callback()
             if _context.get_item("http.request.blocked", span=req_span):
                 request = flask.request
