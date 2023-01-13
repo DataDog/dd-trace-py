@@ -111,7 +111,8 @@ services:
           - ddagent:/tmp/ddagent:rw
     testagent:
         # image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
-        build: ./ddapm-test-agent/dd-apm-test-agent
+        build: 
+            context: https://github.com/DataDog/dd-apm-test-agent.git#add-span-tag-validation
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
