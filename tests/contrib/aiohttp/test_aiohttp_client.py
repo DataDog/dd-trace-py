@@ -35,6 +35,13 @@ async def test_200_request(snapshot_context):
                 assert resp.status == 200
 
 
+async def test_200_url_with_username_password(snapshot_context):
+    with snapshot_context():
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://username:password@python.org") as resp:
+                assert resp.status == 200
+
+
 @pytest.mark.asyncio
 async def test_200_request_post(snapshot_context):
     with snapshot_context():
