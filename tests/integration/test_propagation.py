@@ -65,6 +65,30 @@ def test_trace_tags_multispan(tracer):
 
 @pytest.fixture
 def downstream_tracer():
+    tracer = Tracer()
+    yield tracer
+    tracer.shutdown()
+
+
+CONTEXT_HEADERS = {
+    "x-datadog-trace-id": "1234",
+    "x-datadog-parent-id": "5678",
+    "x-datadog-sampling-priority": "1",
+    "x-datadog-tags": "_dd.p.dm=-1",
+}
+
+
+@pytest.mark.snapshot()
+def test_sampling_decision_downstream(downstream_tracer):
+    context = HTTPPropagator.extract(CONTEXT_HEADERS)
+    downstream_tracer.context_provider.activate(context)
+
+    with downstream_tracer.trace("p", service="downstream") as span:
+        span.set_tag(MANUAL_DROP_KEY)
+
+
+@pytest.fixture
+def tracer_with_single_span_sampling_enabled():
     with mock.patch("ddtrace.Tracer._get_span_sampling_rules") as mock_get_sampling_rules:
         mock_get_sampling_rules.return_value = [SpanSamplingRule(1, -1)]
         tracer = Tracer()
@@ -73,30 +97,9 @@ def downstream_tracer():
 
 
 @pytest.mark.snapshot()
-def test_sampling_decision_downstream(downstream_tracer):
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "1",
-        "x-datadog-tags": "_dd.p.dm=-1",
-    }
-    context = HTTPPropagator.extract(headers)
-    downstream_tracer.context_provider.activate(context)
+def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(tracer_with_single_span_sampling_enabled):
+    kept_trace_context = HTTPPropagator.extract(CONTEXT_HEADERS)
+    tracer_with_single_span_sampling_enabled.context_provider.activate(kept_trace_context)
 
-    with downstream_tracer.trace("p", service="downstream") as span:
-        span.set_tag(MANUAL_DROP_KEY)
-
-
-@pytest.mark.snapshot()
-def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(downstream_tracer):
-    headers_indicating_kept_trace = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "-1",
-        "x-datadog-tags": "_dd.p.dm=-1",  # this span belongs to a sampled trace
-    }
-    kept_trace_context = HTTPPropagator.extract(headers_indicating_kept_trace)
-    downstream_tracer.context_provider.activate(kept_trace_context)
-
-    with downstream_tracer.trace("p", service="downstream"):
+    with tracer_with_single_span_sampling_enabled.trace("p", service="downstream"):
         pass
