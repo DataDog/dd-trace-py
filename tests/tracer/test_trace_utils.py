@@ -386,6 +386,7 @@ def test_set_http_meta(
 
     if url is not None:
         if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
             expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
         else:
             expected_url = url
