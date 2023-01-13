@@ -270,7 +270,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if body is not None:
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
-        log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
         try:
@@ -300,8 +299,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
-            # Partial DDAS-011-00
-            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span.set_tag_str("appsec.event", "true")
             span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
 
