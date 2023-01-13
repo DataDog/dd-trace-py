@@ -172,7 +172,6 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
-    _get_span_sampling_rules = get_span_sampling_rules  # to enable mocking in test
 
     def __init__(
         self,
@@ -220,7 +219,7 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
-        self._single_span_sampling_rules = Tracer._get_span_sampling_rules()  # type: List[SpanSamplingRule]
+        self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))

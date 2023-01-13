@@ -7,6 +7,7 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
+from ..utils import override_env
 from .test_integration import AGENT_VERSION
 
 
@@ -89,8 +90,7 @@ def test_sampling_decision_downstream(downstream_tracer):
 
 @pytest.fixture
 def tracer_with_single_span_sampling_enabled():
-    with mock.patch("ddtrace.Tracer._get_span_sampling_rules") as mock_get_sampling_rules:
-        mock_get_sampling_rules.return_value = [SpanSamplingRule(1, -1)]
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
         tracer = Tracer()
         yield tracer
         tracer.shutdown()
