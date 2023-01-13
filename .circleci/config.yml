@@ -122,11 +122,14 @@ commands:
       # - run: pip3 install --upgrade pip
       # - run: pip3 install docker-compose
       - run: for i in {1..3}; do docker build --tag << parameters.pull_services >> https://github.com/DataDog/dd-apm-test-agent.git#add-span-tag-validation && break || sleep 3; done
+      - run: LOG_LEVEL=WARNING SNAPSHOT_DIR=/snapshots << parameters.env >> docker run -d --rm -v /tests/snapshots:/snapshots --publish 9126:8126 << parameters.pull_services >>
       - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
       - run: << parameters.env >> docker-compose up -d << parameters.services >>
-      - run: LOG_LEVEL=WARNING SNAPSHOT_DIR=/snapshots << parameters.env >> docker run -d --rm -v /tests/snapshots:/snapshots --publish 9126:8126 << parameters.pull_services >>
       - run:
           command: docker-compose logs -f
+          background: true
+      - run:
+          command: docker logs << parameters.pull_services >> -f
           background: true
 
   run_test:
