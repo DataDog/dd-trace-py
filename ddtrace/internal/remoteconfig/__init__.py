@@ -1,10 +1,18 @@
+from typing import Optional
+
+from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
 
 
 log = get_logger(__name__)
+
+
+class _RemoteConfigException(Exception):
+    pass
 
 
 class RemoteConfig(object):
@@ -12,8 +20,25 @@ class RemoteConfig(object):
     _worker_lock = forksafe.Lock()
 
     @classmethod
+    def _check_remote_config_enable_in_agent(cls):
+        # type: () -> Optional[bool]
+        data = agent._healthcheck()
+        if data and data.get("endpoints"):
+            if REMOTE_CONFIG_AGENT_ENDPOINT in data.get("endpoints"):
+                return True
+        raise _RemoteConfigException(
+            "Agent is down or Remote Config is not enable in the Agent\n"
+            "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
+            "Check Your Remote Config environ variables on your Agent:\n"
+            "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
+            "DD_REMOTE_CONFIGURATION_KEY=<YOUR-KEY>\n"
+            "See: https://app.datadoghq.com/organization-settings/remote-config"
+        )
+
+    @classmethod
     def enable(cls):
         # type: () -> None
+        cls._check_remote_config_enable_in_agent()
         with cls._worker_lock:
             if cls._worker is None:
                 cls._worker = RemoteConfigWorker()

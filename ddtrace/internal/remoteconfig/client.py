@@ -21,6 +21,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 
@@ -245,7 +246,7 @@ class RemoteConfigClient(object):
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
-            self._conn.request("POST", "v0.7/config", payload, self._headers)
+            self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = self._conn.getresponse()
             data = resp.read()
         finally:
