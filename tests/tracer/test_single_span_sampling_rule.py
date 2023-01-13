@@ -3,6 +3,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from tests.utils import override_global_config
 
 from ..utils import DummyTracer
 
@@ -14,12 +15,13 @@ def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMecha
 
 
 def traced_function(rule, name="test_name", service="test_service"):
-    tracer = DummyTracer()
-    with tracer.trace(name) as span:
-        span.service = service
-        if rule.match(span):
-            rule.sample(span)
-    return span
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
+        with tracer.trace(name) as span:
+            span.service = service
+            if rule.match(span):
+                rule.sample(span)
+        return span
 
 
 def test_single_span_rule_no_match_empty_strings():
