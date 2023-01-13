@@ -114,13 +114,17 @@ commands:
       services:
         type: string
         default: ""
+      pull_services:
+        type: string
+        default: ""
     steps:
       # Retry pulls in case they fail
-      - run: pip3 install --upgrade pip
-      - run: pip3 install docker-compose
-      - run: docker-compose disable-v2
-      - run: for i in {1..3}; do DOCKER_BUILDKIT=0 docker-compose pull -q << parameters.services >> && break || sleep 3; done
+      # - run: pip3 install --upgrade pip
+      # - run: pip3 install docker-compose
+      - run: for i in {1..3}; do docker build --tag << parameters.pull_services >> https://github.com/DataDog/dd-apm-test-agent.git#add-span-tag-validation && break || sleep 3; done
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
       - run: << parameters.env >> docker-compose up -d << parameters.services >>
+      - run: LOG_LEVEL=WARNING SNAPSHOT_DIR=/snapshots << parameters.env >> docker run --rm -v /tests/snapshots:/snapshots --publish 9126:8126 << parameters.pull_services >>
       - run:
           command: docker-compose logs -f
           background: true
@@ -154,8 +158,8 @@ commands:
           steps:
             - setup_riot
             - start_docker_services:
-                env: SNAPSHOT_CI=1
-                services: testagent << parameters.docker_services >>
+                services: << parameters.docker_services >>
+                pull_services: testagent 
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
@@ -201,7 +205,8 @@ commands:
       - restore_tox_cache
       - start_docker_services:
           env: SNAPSHOT_CI=1
-          services: memcached redis testagent
+          services: memcached redis
+          pull_services: testagent 
       - run:
           name: "Run scripts/run-tox-scenario"
           environment:
@@ -539,7 +544,7 @@ jobs:
       - checkout
       - start_docker_services:
           env: SNAPSHOT_CI=1
-          services: testagent
+          pull_services: testagent 
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
