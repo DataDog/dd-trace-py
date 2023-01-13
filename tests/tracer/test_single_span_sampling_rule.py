@@ -1,8 +1,10 @@
+from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
 from ..utils import DummyTracer
@@ -15,13 +17,14 @@ def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMecha
 
 
 def traced_function(rule, name="test_name", service="test_service"):
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
-        with tracer.trace(name) as span:
-            span.service = service
-            if rule.match(span):
-                rule.sample(span)
-        return span
+    tracer = DummyTracer()
+    tracer.configure(compute_stats_enabled=True)
+    with tracer.trace(name) as span:
+        span.set_tag(MANUAL_DROP_KEY)
+        span.service = service
+        if rule.match(span):
+            rule.sample(span)
+    return span
 
 
 def test_single_span_rule_no_match_empty_strings():

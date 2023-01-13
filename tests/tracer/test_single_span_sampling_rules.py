@@ -4,6 +4,7 @@ from jsonschema import ValidationError
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -102,9 +103,11 @@ def test_rules_sample_span_via_env():
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
+        tracer.configure(compute_stats_enabled=True)
         tracer.configure(writer=DummyWriter())
 
         span = traced_function(tracer)
+        span.set_tag(MANUAL_DROP_KEY)
 
         assert_sampling_decision_tags(span)
 
