@@ -1,0 +1,3 @@
+fixes:
+  - |
+    tracing: This fix removes single-span-sampling tags from span contexts in sampled traces, in which case they are redundant
