@@ -90,6 +90,7 @@ LATEST_VERSIONS = {
     "mypy": "0.991",
     "mysql-connector-python": "8.0.31",
     "mysqlclient": "2.1.1",
+    "opensearch-py": "2.0.1",
     "opentracing": "2.4.0",
     "packaging": "21.3",
     "pastedeploy": "3.0.1",
