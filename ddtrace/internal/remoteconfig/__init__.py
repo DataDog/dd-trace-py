@@ -20,8 +20,9 @@ class RemoteConfig(object):
         # type: () -> Optional[bool]
         data = agent._healthcheck()
         if data and data.get("endpoints"):
-            if REMOTE_CONFIG_AGENT_ENDPOINT in data.get("endpoints", []) or \
-                    ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in data.get("endpoints", []):
+            if REMOTE_CONFIG_AGENT_ENDPOINT in data.get("endpoints", []) or (
+                "/" + REMOTE_CONFIG_AGENT_ENDPOINT
+            ) in data.get("endpoints", []):
                 return True
         log.warning(
             "Agent is down or Remote Config is not enable in the Agent\n"
