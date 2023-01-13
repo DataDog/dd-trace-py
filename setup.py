@@ -284,8 +284,6 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
-LibDDWaf_Download.download_dynamic_library()
-
 setup(
     name="ddtrace",
     description="Datadog APM client library",
