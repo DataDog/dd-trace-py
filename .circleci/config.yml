@@ -159,8 +159,8 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --pass-env -s
-                  docker exec -it testagent python ./tests/test_span_validations/test_span_validation_run.py
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
+                  docker-compose exec -it testagent python ./tests/test_span_validations/test_span_validation_run.py
       - unless:
           condition:
               << parameters.snapshot >>
@@ -175,7 +175,7 @@ commands:
                       command: riot -v run 'wait' << parameters.wait >>
 
             - run:
-                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --pass-env -s"
+                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
 
       - save_pip_cache
       - when:
