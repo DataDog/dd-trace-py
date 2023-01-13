@@ -110,7 +110,8 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+        # image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+        build: ./ddapm-test-agent/dd-apm-test-agent
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
