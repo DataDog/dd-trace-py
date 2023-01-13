@@ -1,9 +1,7 @@
-import mock
 import pytest
 
 from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
