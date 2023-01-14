@@ -305,6 +305,30 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         (None, None, None, None, None, None),
         ("GET", "http://localhost/", 200, "OK", None, {"my-header": "value1"}),
         ("GET", "http://localhost/", 200, "OK", "search?q=test+query", {"my-header": "value1"}),
+        (
+            "GET",
+            "http://user:pass@localhost/",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://user@localhost/",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://user:pass@localhost/api?q=test",
+            0,
+            None,
+            None,
+            None,
+        ),
     ],
 )
 def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
@@ -326,7 +350,13 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        assert span.get_tag(http.URL) == stringify(url)
+        if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
+            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
+        else:
+            expected_url = url
+
+        assert span.get_tag(http.URL) == stringify(expected_url)
     else:
         assert http.URL not in span.get_tags()
 

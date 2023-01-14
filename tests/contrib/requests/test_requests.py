@@ -30,6 +30,7 @@ from tests.utils import override_global_tracer
 SOCKET = "httpbin.org"
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
+URL_AUTH_200 = "http://user:pass@{}/status/200".format(SOCKET)
 
 
 class BaseRequestTestCase(object):
@@ -124,6 +125,13 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
+
+    def test_auth_200(self):
+        self.session.get(URL_AUTH_200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.get_tag(http.URL) == URL_200
 
     def test_200_send(self):
         # when calling send directly

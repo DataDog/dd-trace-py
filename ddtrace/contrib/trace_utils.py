@@ -15,6 +15,7 @@ from typing import Tuple
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -132,6 +133,29 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
+def _sanitized_url(url):
+    # type: (str) -> str
+    """
+    Sanitize url by removing parts with potential auth info
+    """
+    if "@" in url:
+        parsed = parse.urlparse(url)
+        netloc = parsed.netloc
+        netloc = netloc[netloc.index("@") + 1 :]
+        return parse.urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                "",
+                parsed.query,
+                "",
+            )
+        )
+
+    return url
+
+
 def with_traced_module(func):
     """Helper for providing tracing essentials (module and pin) for tracing
     wrappers.
@@ -246,6 +270,7 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
+        url = _sanitized_url(url)
         span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
 
     if status_code is not None:
