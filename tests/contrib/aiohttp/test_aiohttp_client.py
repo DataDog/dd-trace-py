@@ -16,7 +16,9 @@ HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
 SOCKET = "{}:{}".format(HOST, PORT)
 URL = "http://{}".format(SOCKET)
+URL_AUTH = "http://user:pass@{}".format(SOCKET)
 URL_200 = "{}/status/200".format(URL)
+URL_AUTH_200 = "{}/status/200".format(URL_AUTH)
 URL_500 = "{}/status/500".format(URL)
 
 
@@ -32,6 +34,14 @@ async def test_200_request(snapshot_context):
     with snapshot_context():
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_200) as resp:
+                assert resp.status == 200
+
+
+@pytest.mark.asyncio
+async def test_auth_200_request(snapshot_context):
+    with snapshot_context():
+        async with aiohttp.ClientSession() as session:
+            async with session.get(URL_AUTH_200) as resp:
                 assert resp.status == 200
 
 
