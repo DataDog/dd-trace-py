@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    This fix removes unintended url parts in the ``http.url`` tag.
