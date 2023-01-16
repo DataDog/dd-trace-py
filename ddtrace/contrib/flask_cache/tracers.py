@@ -67,6 +67,10 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             # create a new span
             s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
+
+            # set component tag equal to name of integration
+            s.set_tag_str("component", config.flask_cache.integration_name)
+
             s.set_tag(SPAN_MEASURED_KEY)
             # set span tags
             s.set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
