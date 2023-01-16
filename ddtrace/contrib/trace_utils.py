@@ -141,6 +141,11 @@ def _sanitized_url(url):
     if "@" in url:
         parsed = parse.urlparse(url)
         netloc = parsed.netloc
+
+        if "@" not in netloc:
+            # Safe url, `@` not in netloc
+            return url
+
         netloc = netloc[netloc.index("@") + 1 :]
         return parse.urlunparse(
             (

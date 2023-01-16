@@ -329,6 +329,22 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             None,
             None,
         ),
+        (
+            "GET",
+            "http://localhost/api@test",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://localhost/?api@test",
+            0,
+            None,
+            None,
+            None,
+        ),
     ],
 )
 def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
