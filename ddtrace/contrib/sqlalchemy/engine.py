@@ -87,6 +87,9 @@ class EngineTracer(object):
             span_type=SpanTypes.SQL,
             resource=statement,
         )
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.sqlalchemy.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):

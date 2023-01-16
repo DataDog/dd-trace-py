@@ -35,6 +35,8 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"
 
     def test_nested_exception_wrap_handler(self):
         # it should trace a handler that calls a coroutine that raises an exception
@@ -65,6 +67,8 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"
 
     def test_sync_nested_wrap_handler(self):
         # it should trace a handler that calls a coroutine
@@ -91,6 +95,8 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"
 
     def test_sync_nested_exception_wrap_handler(self):
         # it should trace a handler that calls a coroutine that raises an exception
@@ -121,6 +127,8 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"
 
     def test_nested_wrap_executor_handler(self):
         # it should trace a handler that calls a blocking function in a different executor
@@ -147,6 +155,8 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"
 
     def test_nested_exception_wrap_executor_handler(self):
         # it should trace a handler that calls a blocking function in a different
@@ -178,3 +188,5 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert nested_span.get_tag("component") == "tornado"

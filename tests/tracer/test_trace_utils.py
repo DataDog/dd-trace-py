@@ -23,7 +23,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import track_custom_event
-from ddtrace.contrib.trace_utils import track_user_login
+from ddtrace.contrib.trace_utils import track_user_login_event
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -342,6 +342,9 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             {"id": "val", "name": "vlad"},
             None,
         ),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -382,10 +385,16 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        if query and int_config.trace_query_string:
-            assert span.get_tag(http.URL) == stringify(url + "?" + query)
+        if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
+            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
         else:
-            assert span.get_tag(http.URL) == stringify(url)
+            expected_url = url
+
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -1027,9 +1036,9 @@ def test_set_flattened_tags_exclude_policy():
 
 
 class EventsSDKTestCase(TracerTestCase):
-    def test_track_user_login_success_without_metadata(self):
+    def test_track_user_login_event_success_without_metadata(self):
         with self.trace("test_success1"):
-            track_user_login(
+            track_user_login_event(
                 self.tracer,
                 "1234",
                 success=True,
@@ -1057,9 +1066,9 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(user.ROLE) == "boss"
             assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
 
-    def test_track_user_login_success_with_metadata(self):
+    def test_track_user_login_event_success_with_metadata(self):
         with self.trace("test_success2"):
-            track_user_login(self.tracer, "1234", success=True, metadata={"foo": "bar"})
+            track_user_login_event(self.tracer, "1234", success=True, metadata={"foo": "bar"})
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
@@ -1073,9 +1082,9 @@ class EventsSDKTestCase(TracerTestCase):
             assert not root_span.get_tag(user.ROLE)
             assert not root_span.get_tag(user.SESSION_ID)
 
-    def test_track_user_login_failure(self):
+    def test_track_user_login_event_failure(self):
         with self.trace("test_failure"):
-            track_user_login(
+            track_user_login_event(
                 self.tracer,
                 "1234",
                 success=False,

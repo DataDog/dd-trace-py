@@ -25,6 +25,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -282,6 +283,29 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
+def _sanitized_url(url):
+    # type: (str) -> str
+    """
+    Sanitize url by removing parts with potential auth info
+    """
+    if "@" in url:
+        parsed = parse.urlparse(url)
+        netloc = parsed.netloc
+        netloc = netloc[netloc.index("@") + 1 :]
+        return parse.urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                "",
+                parsed.query,
+                "",
+            )
+        )
+
+    return url
+
+
 def with_traced_module(func):
     """Helper for providing tracing essentials (module and pin) for tracing
     wrappers.
@@ -419,6 +443,8 @@ def set_http_meta(
         span.set_tag_str(http.METHOD, method)
 
     if url is not None:
+        url = _sanitized_url(url)
+
         if integration_config.http_tag_query_string:  # Tagging query string in http.url
             if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
                 span.set_tag_str(http.URL, url)
@@ -600,7 +626,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
         )
 
 
-def track_user_login(
+def track_user_login_event(
     tracer,
     user_id,
     success=True,

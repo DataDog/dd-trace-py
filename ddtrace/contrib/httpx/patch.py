@@ -109,6 +109,9 @@ async def _wrapped_async_send(
         return await wrapped(*args, **kwargs)
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.httpx.integration_name)
+
         _init_span(span, req)
         resp = None
         try:
@@ -132,6 +135,9 @@ def _wrapped_sync_send(
     req = get_argument_value(args, kwargs, 0, "request")
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.httpx.integration_name)
+
         _init_span(span, req)
         resp = None
         try:
