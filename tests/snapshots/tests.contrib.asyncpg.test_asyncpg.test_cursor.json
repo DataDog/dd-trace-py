@@ -10,10 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,8 +24,8 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 3204283,
-    "start": 1647029602892965804
+    "duration": 4747000,
+    "start": 1666809594072590000
   }],
 [
   {
@@ -38,10 +39,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -52,8 +54,8 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 3519562,
-    "start": 1647029602898172290
+    "duration": 5210000,
+    "start": 1666809594077918000
   }],
 [
   {
@@ -67,10 +69,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -81,8 +84,8 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 943752,
-    "start": 1647029602903580832
+    "duration": 1367000,
+    "start": 1666809594084940000
   }],
 [
   {
@@ -96,10 +99,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -110,8 +114,8 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 474086,
-    "start": 1647029602905392287
+    "duration": 852000,
+    "start": 1666809594086405000
   }],
 [
   {
@@ -125,10 +129,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -139,8 +144,8 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 395805,
-    "start": 1647029602907087302
+    "duration": 982000,
+    "start": 1666809594088260000
   }],
 [
   {
@@ -154,10 +159,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "e3157dd809104a68b53d1770cf7ef393"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -168,6 +174,6 @@
       "out.port": 5432,
       "process_id": 235
     },
-    "duration": 450915,
-    "start": 1647029602908043389
+    "duration": 921000,
+    "start": 1666809594089328000
   }]]

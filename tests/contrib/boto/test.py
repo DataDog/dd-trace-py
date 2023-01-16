@@ -49,6 +49,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         # Create an instance
@@ -62,6 +63,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.service, "test-boto-tracing.ec2")
         self.assertEqual(span.resource, "ec2.runinstances")
         self.assertEqual(span.name, "ec2.command")
@@ -107,6 +109,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.operation"), "get_all_buckets")
+        self.assertEqual(span.get_tag("component"), "boto")
 
         # Create a bucket command
         s3.create_bucket("cheese")
@@ -118,6 +121,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(create_span, 200)
         self.assertEqual(create_span.get_tag(http.METHOD), "PUT")
         self.assertEqual(create_span.get_tag("aws.operation"), "create_bucket")
+        self.assertEqual(span.get_tag("component"), "boto")
 
         # Get the created bucket
         s3.get_bucket("cheese")
@@ -129,6 +133,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "HEAD")
         self.assertEqual(span.get_tag("aws.operation"), "head_bucket")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.service, "test-boto-tracing.s3")
         self.assertEqual(span.resource, "s3.head")
         self.assertEqual(span.name, "s3.command")
@@ -185,6 +190,7 @@ class BotoTest(TracerTestCase):
         # create bucket
         self.assertEqual(len(spans), 3)
         self.assertEqual(spans[0].get_tag("aws.operation"), "create_bucket")
+        self.assertEqual(spans[0].get_tag("component"), "boto")
         assert_is_measured(spans[0])
         assert_span_http_status_code(spans[0], 200)
         self.assertEqual(spans[0].service, "test-boto-tracing.s3")
@@ -192,10 +198,12 @@ class BotoTest(TracerTestCase):
         # get bucket
         assert_is_measured(spans[1])
         self.assertEqual(spans[1].get_tag("aws.operation"), "head_bucket")
+        self.assertEqual(spans[1].get_tag("component"), "boto")
         self.assertEqual(spans[1].resource, "s3.head")
         # put object
         assert_is_measured(spans[2])
         self.assertEqual(spans[2].get_tag("aws.operation"), "_send_file_internal")
+        self.assertEqual(spans[2].get_tag("component"), "boto")
         self.assertEqual(spans[2].resource, "s3.put")
 
     @mock_lambda
@@ -241,6 +249,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.region"), "us-east-2")
         self.assertEqual(span.get_tag("aws.operation"), "list_functions")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.service, "test-boto-tracing.lambda")
         self.assertEqual(span.resource, "lambda.get")
 
@@ -257,6 +266,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("aws.operation"), "GetFederationToken")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.service, "test-boto-tracing.sts")
         self.assertEqual(span.resource, "sts.getfederationtoken")
 
@@ -280,6 +290,7 @@ class BotoTest(TracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
         self.assertEqual(span.resource, "elasticache")
 
@@ -303,6 +314,7 @@ class BotoTest(TracerTestCase):
 
         self.assertEqual(ot_span.resource, "ot_span")
         self.assertEqual(dd_span.get_tag("aws.operation"), "DescribeInstances")
+        self.assertEqual(dd_span.get_tag("component"), "boto")
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
@@ -322,6 +334,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("component"), "boto")
         self.assertEqual(dd_span.service, "test-boto-tracing.ec2")
         self.assertEqual(dd_span.resource, "ec2.runinstances")
         self.assertEqual(dd_span.name, "ec2.command")

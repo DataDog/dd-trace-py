@@ -104,6 +104,10 @@ class TracedServer(ObjectProxy):
             return None
 
         span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pymongo.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(mongox.DB, cmd.db)
         span.set_tag_str(mongox.COLLECTION, cmd.coll)
@@ -213,6 +217,9 @@ class TracedSocket(ObjectProxy):
     def __trace(self, cmd):
         pin = ddtrace.Pin.get_from(self)
         s = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+
+        # set component tag equal to name of integration
+        s.set_tag_str("component", config.pymongo.integration_name)
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
