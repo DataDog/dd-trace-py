@@ -92,7 +92,7 @@ def track_custom_event(tracer, event_name, metadata):
             "?tab=set_user&code-lang=python for more information.",
         )
         return
-            
+
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
