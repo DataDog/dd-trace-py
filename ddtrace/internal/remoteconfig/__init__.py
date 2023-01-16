@@ -25,9 +25,9 @@ class RemoteConfig(object):
             ) in data.get("endpoints", []):
                 return True
         log.warning(
-            "Agent is down or Remote Config is not enable in the Agent\n"
+            "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
-            "Check Your Remote Config environ variables on your Agent:\n"
+            "Check Your Remote Config environment variables on your Agent:\n"
             "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
             "DD_REMOTE_CONFIGURATION_KEY=<YOUR-KEY>\n"
             "See: https://app.datadoghq.com/organization-settings/remote-config"
