@@ -3,8 +3,8 @@ import json
 import logging
 
 import pytest
-from django.core.wsgi import get_wsgi_application
 
+from ddtrace import constants
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
