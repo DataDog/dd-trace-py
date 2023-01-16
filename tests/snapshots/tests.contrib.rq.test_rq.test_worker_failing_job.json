@@ -10,10 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
-      "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46",
+      "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
       "queue.name": "q",
-      "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,8 +23,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 67067
     },
-    "duration": 3958000,
-    "start": 1632150771256100000
+    "duration": 3328000,
+    "start": 1666807176767771000
   },
      {
        "name": "rq.worker.perform_job",
@@ -36,10 +37,11 @@
        "error": 1,
        "meta": {
          "_dd.p.dm": "-0",
-         "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46",
+         "component": "rq",
+         "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
          "job.origin": "q",
          "job.status": "failed",
-         "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+         "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
          "_dd.top_level": 1,
@@ -47,8 +49,8 @@
          "_sampling_priority_v1": 1,
          "process_id": 67067
        },
-       "duration": 8098000,
-       "start": 1632150771275814000
+       "duration": 5097000,
+       "start": 1666807176782455000
      },
         {
           "name": "rq.job.perform",
@@ -60,11 +62,12 @@
           "type": "",
           "error": 1,
           "meta": {
+            "component": "rq",
             "error.message": "error",
-            "error.stack": "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 193, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_click712_rq~100/lib/python3.9/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_click712_rq~100/lib/python3.9/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
+            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 206, in traced_job_perform\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\ntests.contrib.rq.jobs.MyException: error\n",
             "error.type": "tests.contrib.rq.jobs.MyException",
-            "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46"
+            "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc"
           },
-          "duration": 1310000,
-          "start": 1632150771277473000
+          "duration": 833000,
+          "start": 1666807176783386000
         }]]

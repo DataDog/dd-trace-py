@@ -32,6 +32,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
        "metrics": {
@@ -50,6 +51,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"
@@ -69,6 +71,9 @@
           "parent_id": 3,
           "type": "graphql",
           "error": 0,
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 101000,
           "start": 1658848939283224000
         },
@@ -94,6 +99,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"
@@ -113,6 +119,9 @@
           "parent_id": 4,
           "type": "graphql",
           "error": 0,
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 89000,
           "start": 1658848939284065000
         },

@@ -11,9 +11,10 @@
     "meta": {
       "_dd.p.dm": "-0",
       "cheese": "camembert",
+      "component": "redis",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "fea3c672c17f40c5984c86f2cb24b514"
+      "runtime-id": "6446f27dcf0e439eb015e4d19ecc4609"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,6 +27,6 @@
       "process_id": 773,
       "redis.args_length": 2
     },
-    "duration": 2034900,
-    "start": 1632158528017439000
+    "duration": 4481000,
+    "start": 1666795689074848000
   }]]

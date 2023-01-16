@@ -37,6 +37,10 @@ def execute(func, handler, args, kwargs):
             service=service,
             span_type=SpanTypes.WEB,
         )
+
+        # set component tag equal to name of integration
+        request_span.set_tag_str("component", config.tornado.integration_name)
+
         request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api

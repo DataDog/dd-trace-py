@@ -74,6 +74,9 @@ def _get_perform_request(elasticsearch):
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.elasticsearch.integration_name)
+
             span.set_tag(SPAN_MEASURED_KEY)
 
             # Don't instrument if the trace is not sampled

@@ -134,6 +134,7 @@ class PsycopgCore(TracerTestCase):
             ),
         )
         root = self.get_root_span()
+        assert root.get_tag("component") == "psycopg"
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
