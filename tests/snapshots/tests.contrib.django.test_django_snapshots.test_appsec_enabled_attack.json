@@ -21,6 +21,7 @@
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
       "django.user.is_authenticated": "False",
+      "http.client_ip": "",
       "http.method": "GET",
       "http.request.headers.accept": "*/*",
       "http.request.headers.accept-encoding": "gzip, deflate",
@@ -30,6 +31,7 @@
       "http.url": "http://localhost:8000/.git",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "network.client.ip": "",
       "runtime-id": "0cff567142fd465e9983446f9f2d044c"
     },
     "metrics": {

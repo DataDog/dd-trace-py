@@ -156,7 +156,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3.10"],
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -177,11 +177,11 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command='codespell -I docs/spelling_wordlist.txt --skip="ddwaf.h" ddtrace/ tests/',
+                    command='codespell --skip="ddwaf.h" ddtrace/ tests/ -I docs/spelling_wordlist.txt',
                 ),
                 Venv(
                     name="hook-codespell",
-                    command='codespell -I docs/spelling_wordlist.txt --skip="ddwaf.h" ddtrace/ tests/ {cmdargs}',
+                    command="codespell {cmdargs}",
                 ),
             ],
         ),

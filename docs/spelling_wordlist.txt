@@ -211,3 +211,4 @@ DES
 Blowfish
 hsa
 ba
+BA

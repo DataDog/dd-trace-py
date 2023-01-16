@@ -130,8 +130,8 @@ def test_remote_configuration(mock_send_request):
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        sleep(1.5)
-        mock_send_request.assert_called()
+        sleep(0.2)
+        mock_send_request.assert_called_once()
         assert callback.features == {"asm": {"enabled": True}}
 
 

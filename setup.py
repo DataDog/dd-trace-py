@@ -89,8 +89,8 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import shlex
         import tox
+        import shlex
 
         args = self.tox_args
         if args:
