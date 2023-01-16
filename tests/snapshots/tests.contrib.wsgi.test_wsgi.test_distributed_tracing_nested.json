@@ -40,11 +40,42 @@
        "start": 1669654618452703000
      },
         {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "component": "wsgi"
+          },
+          "duration": 39000,
+          "start": 1669654618452925000
+        },
+     {
+       "name": "wsgi.response",
+       "service": "wsgi",
+       "resource": "wsgi.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "wsgi",
+         "result_class": "list_iterator"
+       },
+       "duration": 103000,
+       "start": 1669654618453061000
+     },
+        {
           "name": "wsgi.request",
           "service": "wsgi",
           "resource": "GET /",
           "trace_id": 0,
-          "span_id": 4,
+          "span_id": 5,
           "parent_id": 3,
           "type": "web",
           "error": 0,
@@ -64,7 +95,7 @@
              "resource": "wsgi.application",
              "trace_id": 0,
              "span_id": 6,
-             "parent_id": 4,
+             "parent_id": 5,
              "type": "",
              "error": 0,
              "meta": {
@@ -94,7 +125,7 @@
              "resource": "wsgi.response",
              "trace_id": 0,
              "span_id": 7,
-             "parent_id": 4,
+             "parent_id": 5,
              "type": "",
              "error": 0,
              "meta": {
@@ -103,35 +134,4 @@
              },
              "duration": 112000,
              "start": 1669654618453023000
-           },
-        {
-          "name": "wsgi.start_response",
-          "service": "wsgi",
-          "resource": "wsgi.start_response",
-          "trace_id": 0,
-          "span_id": 5,
-          "parent_id": 2,
-          "type": "web",
-          "error": 0,
-          "meta": {
-            "component": "wsgi"
-          },
-          "duration": 39000,
-          "start": 1669654618452925000
-        },
-     {
-       "name": "wsgi.response",
-       "service": "wsgi",
-       "resource": "wsgi.response",
-       "trace_id": 0,
-       "span_id": 3,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
-         "component": "wsgi",
-         "result_class": "list_iterator"
-       },
-       "duration": 103000,
-       "start": 1669654618453061000
-     }]]
+           }]]
