@@ -11,6 +11,8 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -262,7 +264,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             return "Ok", 200
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.8.8"})
@@ -278,7 +279,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             return "Ok", 200
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
@@ -324,7 +324,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             return "Ok", 200
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
@@ -333,3 +332,96 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
             else:
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+
+    def test_request_suspicious_request_block_match_query_value(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("index.html?toto=xtrace")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-001"
+
+    def test_request_suspicious_request_block_match_uri(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/.git")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-002"
+
+    def test_request_suspicious_request_block_match_body(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.post(
+                "/index.html",
+                data='{"key": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+                content_type="application/json",
+            )
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-003"
+
+    def test_request_suspicious_request_block_match_header(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-004"
+
+    def test_request_suspicious_request_block_match_response_code(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/do_not_exist.php")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"

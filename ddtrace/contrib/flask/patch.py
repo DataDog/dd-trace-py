@@ -204,7 +204,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = self._extract_body(request, environ)
-
         trace_utils.set_http_meta(
             span,
             config.flask,
