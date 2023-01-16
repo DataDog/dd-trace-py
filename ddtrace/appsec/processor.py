@@ -227,7 +227,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES[key])
+                    log.debug("[action] WAF got value %s %s", SPAN_DATA_NAMES[key], value)
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)

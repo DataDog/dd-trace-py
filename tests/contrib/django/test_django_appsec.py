@@ -13,20 +13,22 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 def _aux_appsec_get_root_span(
-    client, test_spans, tracer, appsec_enabled=True, payload=None, url="/", content_type="text/plain"
+    client, test_spans, tracer, appsec_enabled=True, payload=None, url="/", content_type="text/plain", agent=None
 ):
     tracer._appsec_enabled = appsec_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     if payload is None:
-        response = client.get(url)
+        response = client.get(url, HTTP_USER_AGENT=agent)
     else:
-        response = client.post(url, payload, content_type=content_type)
+        response = client.post(url, payload, content_type=content_type, HTTP_USER_AGENT=agent)
     return test_spans.spans[0], response
 
 
@@ -372,7 +374,6 @@ def test_request_ipblock_nomatch_200(client, tracer):
 
 def test_request_ipblock_match_403(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
@@ -416,7 +417,6 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
 
 def test_request_ipblock_match_403_json(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
@@ -427,3 +427,80 @@ def test_request_ipblock_match_403_json(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+
+
+def test_request_suspicious_request_block_match_query_value(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=xtrace")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-001"
+
+
+def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-002"
+
+
+def test_request_suspicious_request_block_match_body(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/", payload="yqrweytqwreasldhkuqwgervflnmlnli"
+        )
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-003"
+
+
+def test_request_suspicious_request_block_match_header(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", agent="01972498723465")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-004"
+
+
+def test_request_suspicious_request_block_match_response_code(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/do_not_exist.php")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"

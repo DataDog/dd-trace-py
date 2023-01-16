@@ -1,0 +1,109 @@
+{
+  "version": "2.2",
+  "rules": [
+    {
+      "id": "tst-037-001",
+      "name": "Test block on query",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000001",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "regex": "xtrace"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-002",
+      "name": "Test block on uri",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000002",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.uri.raw"
+              }
+            ],
+            "regex": "\\.git"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-003",
+      "name": "Test block on body",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000003",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.body"
+              }
+            ],
+            "regex": "asldhkuqwgervf"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-004",
+      "name": "Test block on header",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000004",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies"
+              }
+            ],
+            "regex": "01972498723465"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    }
+  ]
+}
