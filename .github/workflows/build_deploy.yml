@@ -37,6 +37,8 @@ jobs:
          - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
+           # universal2 and arm64 builds require CPython 3.8 or newer:
+           # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
@@ -69,6 +71,10 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          # Workaround for Macos 11.0 versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
 
       - uses: actions/upload-artifact@v3
         with:
@@ -116,6 +122,10 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          # Workaround for Macos 11.0 versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
 
       - uses: actions/upload-artifact@v3
         with:
