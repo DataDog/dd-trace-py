@@ -176,8 +176,7 @@ class LibDDWaf_Download(BuildPyCommand):
 class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_dynamic_library():
-        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-        shutil.rmtree(dst, True)
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
 
     def run(self):
         CleanLibraries.remove_dynamic_library()
