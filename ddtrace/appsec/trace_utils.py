@@ -84,14 +84,15 @@ def track_custom_event(tracer, event_name, metadata):
         return
 
     span = tracer.current_root_span()
-    if span:
-        for k, v in six.iteritems(metadata):
-            span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-            span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
-    else:
+    if not span:
         log.warning(
             "No root span in the current execution. Skipping track_custom_event tags. "
             "See https://docs.datadoghq.com/security_platform/application_security"
             "/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
+        return
+            
+    for k, v in six.iteritems(metadata):
+        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
+        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
