@@ -12,5 +12,5 @@ if __name__ == "__main__":
             sys.exit(0)
     ddtrace.appsec.ddwaf.version()
 
-    ddwaf_loaded = ddtrace.appsec.ddwaf._DDWAF_LOADED
-    sys.exit(0 if module.loaded and ddwaf_loaded else 1)
+    assert ddtrace.appsec.ddwaf._DDWAF_LOADED
+    assert module.loaded
