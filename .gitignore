@@ -22,6 +22,9 @@ ddtrace/internal/_tagset.c
 # Cython annotate HTML files
 ddtrace/**/*.html
 
+# Dynamic binary libraries
+ddtrace/appsec/ddwaf/libddwaf/
+
 # Distribution / packaging
 .Python
 env/
