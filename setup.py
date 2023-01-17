@@ -47,7 +47,7 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.6.0"
 
-CHECKSUMS = {
+LIBDDWAF_CHECKSUMS = {
     "darwin-arm64": "fe8773dbc8ffe5a44517719b9b7db62c",
     "darwin-x86_64": "6c9ae9294058811add0bcf356acd1946",
     "linux-aarch64": "7acd4cc79d582d84e5e0c83f360e6b37",
