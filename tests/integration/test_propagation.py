@@ -5,7 +5,6 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
-from ..utils import override_env
 from .test_integration import AGENT_VERSION
 
 
@@ -69,37 +68,17 @@ def downstream_tracer():
     tracer.shutdown()
 
 
-CONTEXT_HEADERS = {
-    "x-datadog-trace-id": "1234",
-    "x-datadog-parent-id": "5678",
-    "x-datadog-sampling-priority": "1",
-    "x-datadog-tags": "_dd.p.dm=-1",
-}
-
-
 @pytest.mark.snapshot()
 def test_sampling_decision_downstream(downstream_tracer):
-    context = HTTPPropagator.extract(CONTEXT_HEADERS)
+    context = HTTPPropagator.extract(
+        {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "1",
+            "x-datadog-tags": "_dd.p.dm=-1",
+        }
+    )
     downstream_tracer.context_provider.activate(context)
 
     with downstream_tracer.trace("p", service="downstream") as span:
         span.set_tag(MANUAL_DROP_KEY)
-
-
-@pytest.fixture
-def tracer_with_single_span_sampling_enabled():
-    rules = '[{"service": "downstream", "name": "p", "sample_rate":1.0, "max_per_second": 50}]'
-    with override_env(dict(DD_SPAN_SAMPLING_RULES=rules)):
-        tracer = Tracer()
-        yield tracer
-        tracer.shutdown()
-
-
-@pytest.mark.snapshot()
-def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(tracer_with_single_span_sampling_enabled):
-    span_sampling_headers = CONTEXT_HEADERS.copy()
-    span_sampling_headers["x-datadog-sampling-priority"] = "-1"
-    kept_trace_context = HTTPPropagator.extract(span_sampling_headers)
-    tracer_with_single_span_sampling_enabled.context_provider.activate(kept_trace_context)
-
-    tracer_with_single_span_sampling_enabled.trace("p", service="downstream").finish()

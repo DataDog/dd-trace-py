@@ -1,11 +1,17 @@
+import pytest
+
+from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import is_single_span_sampled
+from ddtrace.sampler import RateByServiceSampler
 
 from ..utils import DummyTracer
+from ..utils import override_env
 
 
 def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None):
@@ -184,3 +190,61 @@ def test_max_per_sec_3():
             assert_sampling_decision_tags(span, limit=2)
         else:
             assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+@pytest.fixture
+def tracer_with_single_span_sampling_enabled():
+    rules = '[{"service": "test-service", "name": "keep-this-span", "sample_rate":1.0, "max_per_second": 50}]'
+    with override_env(dict(DD_SPAN_SAMPLING_RULES=rules)):
+        tracer = Tracer()
+        tracer._sampler = RateByServiceSampler()
+        tracer._sampler.set_sample_rate(1, "test-service")
+        yield tracer
+        tracer.shutdown()
+
+
+def test_single_span_sampling_tags_are_removed_when_entire_trace_is_sampled(tracer_with_single_span_sampling_enabled):
+    root = tracer_with_single_span_sampling_enabled.start_span("root", service="test-service")
+    root.sampled = True
+    root._context.sampling_priority = -1  # single-span-sampling only happens when sampling priority is negative
+    span_to_keep = tracer_with_single_span_sampling_enabled.start_span("keep-this-span", child_of=root)
+    span_to_keep.finish()
+    assert span_to_keep.sampled is True, "child span should inherit sampled flag from parent"
+    assert is_single_span_sampled(span_to_keep), "child span should have been single-span-sampled"
+    root.finish()
+    assert span_to_keep.sampled is True, "trace finishing should not change child span's sampled flag"
+    assert not is_single_span_sampled(
+        span_to_keep
+    ), "after trace finishes, child span should have single-span-sampling tags removed"
+
+
+def test_single_span_sampling_tags_are_retained_when_trace_is_not_sampled(tracer_with_single_span_sampling_enabled):
+    root = tracer_with_single_span_sampling_enabled.start_span("root", service="test-service")
+    root.sampled = False
+    root._context.sampling_priority = -1  # single-span-sampling only happens when sampling priority is negative
+    span_to_keep = tracer_with_single_span_sampling_enabled.start_span("keep-this-span", child_of=root)
+    span_to_keep.finish()
+    assert span_to_keep.sampled is False, "child span should inherit sampled flag from parent"
+    assert is_single_span_sampled(span_to_keep), "child span should have been single-span-sampled"
+    root.finish()
+    assert span_to_keep.sampled is False, "trace finishing should not change child span's sampled flag"
+    assert is_single_span_sampled(
+        span_to_keep
+    ), "after trace finishes, child span should have retained single-span-sampling tags"
+
+
+def test_single_span_sampling_tags_are_not_added_when_sampling_priority_is_positive(
+    tracer_with_single_span_sampling_enabled,
+):
+    root = tracer_with_single_span_sampling_enabled.start_span("root", service="test-service")
+    root.sampled = True
+    root._context.sampling_priority = 1  # single-span-sampling only happens when sampling priority is negative
+    span_to_keep = tracer_with_single_span_sampling_enabled.start_span("keep-this-span", child_of=root)
+    span_to_keep.finish()
+    assert span_to_keep.sampled is True, "child span should inherit sampled flag from parent"
+    assert not is_single_span_sampled(span_to_keep), "child span should not have been single-span-sampled"
+    root.finish()
+    assert span_to_keep.sampled is True, "trace finishing should not change child span's sampled flag"
+    assert not is_single_span_sampled(
+        span_to_keep
+    ), "after trace finishes, child span should still not have single-span-sampling tags"
