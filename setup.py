@@ -50,12 +50,12 @@ LIBDDWAF_VERSION = "1.6.1"
 
 def verify_libddwaf_checksum(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    checksum_file_contents = open(sha256_filename, "r").read().strip().split(" ")
+    checksum_file_contents = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
     expected_checksum = checksum_file_contents[0]
     expected_filename = checksum_file_contents[-1]
     try:
         assert filename.endswith(expected_filename)
-        assert expected_checksum + "x" == hashlib.sha256(open(filename, "rb").read()).hexdigest()
+        assert expected_checksum == hashlib.sha256(open(filename, "rb").read()).hexdigest()
     except AssertionError as e:
         print("Checksum verification error: Checksum and/or filename don't match")
         raise e
