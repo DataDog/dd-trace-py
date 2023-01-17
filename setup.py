@@ -50,10 +50,15 @@ LIBDDWAF_VERSION = "1.6.1"
 
 def verify_libddwaf_checksum(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    # so the ``filter`` is used to remove an empty string in the middle of the resulting list
-    expected_checksum, expected_filename = filter(None, open(sha256_filename, "r").read().strip().split(" "))
-    assert filename.endswith(expected_filename)
-    assert expected_checksum == hashlib.sha256(open(filename, "rb").read()).hexdigest()
+    checksum_file_contents = open(sha256_filename, "r").read().strip().split(" ")
+    expected_checksum = checksum_file_contents[0]
+    expected_filename = checksum_file_contents[-1]
+    try:
+        assert filename.endswith(expected_filename)
+        assert expected_checksum + "x" == hashlib.sha256(open(filename, "rb").read()).hexdigest()
+    except AssertionError as e:
+        print("Checksum verification error: Checksum and/or filename don't match")
+        raise e
 
 
 def load_module_from_project_file(mod_name, fname):
