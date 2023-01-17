@@ -1,13 +1,15 @@
 IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
     from cpython cimport PyFrameObject
     from cpython.object cimport PyObject
+    from cpython.ref cimport Py_XDECREF
 
     cdef extern from "<Python.h>":
         ctypedef struct PyCodeObject:
             pass
-
+        PyObject* PyDict_GetItem(PyObject *p, PyObject *key)
         PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
         PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
+
         IF PY_MINOR_VERSION >= 11:
             PyObject* PyFrame_GetLocals(PyFrameObject* frame)
             int PyFrame_GetLineNumber(PyFrameObject* frame)
@@ -22,12 +24,14 @@ cpdef _extract_class_name(frame):
     """
     # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
     IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-        code = PyFrame_GetCode(frame)
+        code = PyFrame_GetCode(<PyFrameObject*> frame)
         co_varnames = PyCode_GetVarnames(code)
         if co_varnames:
             argname = co_varnames[0]
             try:
-                value = PyFrame_GetLocals(frame)[argname]
+                f_locals = PyFrame_GetLocals(<PyFrameObject*>frame)
+                value = PyDict_GetItem(f_locals, <str>argname)
+                Py_XDECREF(f_locals)
             except KeyError:
                 return ""
     ELSE:
@@ -39,9 +43,9 @@ cpdef _extract_class_name(frame):
             except KeyError:
                 return ""
     try:
-        if argname == "self":
+        if <str>argname == "self":
             return object.__getattribute__(type(value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
-        if argname == "cls":
+        if <str>argname == "cls":
             return object.__getattribute__(value, "__name__")
     except AttributeError:
         return ""
@@ -63,13 +67,13 @@ cpdef traceback_to_frames(traceback, max_nframes):
             frame = tb.tb_frame
             # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
             IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-                code = PyFrame_GetCode(frame)
-                lineno = PyFrame_GetLineNumber(frame)
+                code = PyFrame_GetCode(<PyFrameObject*> frame)
+                lineno = PyFrame_GetLineNumber(<PyFrameObject*> frame)
                 lineno = 0 if lineno is None else lineno
             ELSE:
                 code = frame.f_code
                 lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.insert(0, (code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+            frames.insert(0, ((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(frame)))
         nframes += 1
         tb = tb.tb_next
     return frames, nframes
@@ -88,11 +92,11 @@ cpdef pyframe_to_frames(frame, max_nframes):
         # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
         IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
             if len(frames) < max_nframes:
-                code = PyFrame_GetCode(frame)
-                lineno = PyFrame_GetLineNumber(frame)
+                code = PyFrame_GetCode(<PyFrameObject*> frame)
+                lineno = PyFrame_GetLineNumber(<PyFrameObject*> frame)
                 lineno = 0 if lineno is None else lineno
-                frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
-            frame = PyFrame_GetBack(frame)
+                frames.append(((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(frame)))
+            frame = PyFrame_GetBack(<PyFrameObject*> frame)
         ELSE:
             if len(frames) < max_nframes:
                 code = frame.f_code
