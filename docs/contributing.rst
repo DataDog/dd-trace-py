@@ -46,6 +46,19 @@ a human. All code style enforcement must be automated to avoid bikeshedding
 and losing time.
 
 
+Logging
+=======
+
+The ddtrace logger should be used to log events in the dd-trace-py library. Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve an instance of the ddtrace logger (DDLogger).
+
+To ensure the ddtrace library produces consistent and secure logs the following best practices should be followed:
+
+* Logs should be generated with the level DEBUG, INFO, WARNING, or ERROR.
+* Log messages are grammatically correct and do not contain spelling errors.
+* Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
+* Log data is sensitive and should not contain application secrets or other sensitive data.
+
+
 Release Notes
 =============
 Release notes are the primary product documentation a user will see when updating the library. Therefore, we must take care to ensure the quality of release notes.
