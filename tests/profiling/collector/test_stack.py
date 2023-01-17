@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
 import collections
+import gc
 import os
 import sys
 import threading
 import time
 import timeit
+from types import FrameType
 import typing
 import uuid
 
@@ -87,6 +89,17 @@ def test_collect_once():
             break
     else:
         pytest.fail("Unable to find MainThread")
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
+def test_collect_once_ensure_all_frames_gc():
+    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+    s._init()
+    all_events = s.collect()
+    assert len(all_events) == 2
+    assert all(not isinstance(_, FrameType) for _ in gc.get_objects)
 
 
 def _find_sleep_event(events, class_name):
