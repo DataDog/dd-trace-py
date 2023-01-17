@@ -88,7 +88,8 @@ def test_sampling_decision_downstream(downstream_tracer):
 
 @pytest.fixture
 def tracer_with_single_span_sampling_enabled():
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
+    rules = '[{"service": "downstream", "name": "p", "sample_rate":1.0, "max_per_second": 50}]'
+    with override_env(dict(DD_SPAN_SAMPLING_RULES=rules)):
         tracer = Tracer()
         yield tracer
         tracer.shutdown()
