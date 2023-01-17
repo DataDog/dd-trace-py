@@ -1,14 +1,17 @@
-from cpython.object cimport PyObject
-
-
-IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 9:
+IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
     from cpython cimport PyFrameObject
+    from cpython.object cimport PyObject
+
     cdef extern from "<Python.h>":
-        PyObject* PyFrame_GetCode(PyFrameObject* frame)
-        PyObject* PyFrame_GetBack(PyFrameObject* frame)
+        ctypedef struct PyCodeObject:
+            pass
+
+        PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
+        PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
         IF PY_MINOR_VERSION >= 11:
             PyObject* PyFrame_GetLocals(PyFrameObject* frame)
             int PyFrame_GetLineNumber(PyFrameObject* frame)
+            PyObject* PyCode_GetVarnames(PyCodeObject* co)
 
 
 cpdef _extract_class_name(frame):
@@ -18,8 +21,9 @@ cpdef _extract_class_name(frame):
     :param frame: The frame object.
     """
     # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-    IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 11:
-        co_varnames = PyFrame_GetCode(frame).co_varnames
+    IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+        code = PyFrame_GetCode(frame)
+        co_varnames = PyCode_GetVarnames(code)
         if co_varnames:
             argname = co_varnames[0]
             try:
@@ -58,7 +62,7 @@ cpdef traceback_to_frames(traceback, max_nframes):
         if nframes < max_nframes:
             frame = tb.tb_frame
             # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-            IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 11:
+            IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
                 code = PyFrame_GetCode(frame)
                 lineno = PyFrame_GetLineNumber(frame)
                 lineno = 0 if lineno is None else lineno
@@ -82,7 +86,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
     while frame is not None:
         nframes += 1
         # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-        IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 11:
+        IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
             if len(frames) < max_nframes:
                 code = PyFrame_GetCode(frame)
                 lineno = PyFrame_GetLineNumber(frame)
