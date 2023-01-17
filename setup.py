@@ -57,8 +57,8 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 
-def verify_checksum(os_architecture, filename):
-    expected_checksum = CHECKSUMS[os_architecture]
+def verify_libddwaf_checksum(os_architecture, filename):
+    expected_checksum = LIBDDWAF_CHECKSUMS[os_architecture]
     assert expected_checksum == hashlib.md5(open(filename, "rb").read()).hexdigest()
 
 
@@ -162,7 +162,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 raise e
 
             # Verify checksum of downloaded file
-            verify_checksum("-".join((CURRENT_OS.lower(), arch)), filename)
+            verify_libddwaf_checksum("-".join((CURRENT_OS.lower(), arch)), filename)
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
