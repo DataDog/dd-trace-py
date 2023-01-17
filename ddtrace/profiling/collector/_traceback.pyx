@@ -30,7 +30,7 @@ cpdef _extract_class_name(frame):
             argname = co_varnames[0]
             try:
                 f_locals = PyFrame_GetLocals(<PyFrameObject*>frame)
-                value = PyDict_GetItem(f_locals, <str>argname)
+                value = PyDict_GetItem(f_locals, argname)
                 Py_XDECREF(f_locals)
             except KeyError:
                 return ""
@@ -96,7 +96,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
                 lineno = PyFrame_GetLineNumber(<PyFrameObject*> frame)
                 lineno = 0 if lineno is None else lineno
                 frames.append(((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(frame)))
-            frame = PyFrame_GetBack(<PyFrameObject*> frame)
+            frame = <object>PyFrame_GetBack(<PyFrameObject*> frame)
         ELSE:
             if len(frames) < max_nframes:
                 code = frame.f_code
