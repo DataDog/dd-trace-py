@@ -291,7 +291,6 @@ def to_bytes_py2(n, length=1, byteorder="big", signed=False):
     return "".join(chr((n >> i * 8) & 0xFF) for i in order)
 
 
-
 NoneType = type(None)
 
 BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])

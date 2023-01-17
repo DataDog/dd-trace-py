@@ -1,16 +1,11 @@
 import base64
 import os
 import sys
-from typing import TYPE_CHECKING
 
 from ddtrace import constants
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.utils.formats import asbool
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Text
 
 
 def _appsec_rc_features_is_enabled():
