@@ -108,6 +108,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.algoliasearch.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not span.sampled:

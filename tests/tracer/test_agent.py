@@ -1,6 +1,8 @@
+import mock
 import pytest
 
 from ddtrace.internal import agent
+from ddtrace.internal.agent import _healthcheck
 
 
 @pytest.mark.parametrize(
@@ -245,3 +247,46 @@ def test_verify_url():
     with pytest.raises(ValueError) as e:
         agent.verify_url("unix://")
     assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+
+
+def _mock_raise(ex):
+    raise ex
+
+
+@pytest.mark.parametrize(
+    "request_response,read_response, status_response, expected",
+    [
+        (None, "{}", 201, {}),
+        (None, '{"result": "ok"}', 200, {"result": "ok"}),
+        (None, "{}", 300, None),
+        (None, "{}", 401, None),
+        (None, "{}", 404, None),
+        (None, "{}", 500, None),
+    ],
+)
+@mock.patch("ddtrace.internal.agent.get_connection")
+def test_healthcheck(mock_connection, request_response, read_response, status_response, expected):
+    class MockResponse(object):
+        def read(self):
+            return read_response
+
+        @property
+        def status(self):
+            return status_response
+
+        @property
+        def reason(self):
+            return ""
+
+    class MockConn:
+        def request(self, *args, **kwargs):
+            return request_response
+
+        def getresponse(self):
+            return MockResponse()
+
+        def close(self):
+            return None
+
+    mock_connection.return_value = MockConn()
+    assert _healthcheck() == expected

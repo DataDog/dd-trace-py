@@ -1,6 +1,7 @@
 from tornado import template
 
 from ddtrace import Pin
+from ddtrace import config
 
 from ...ext import SpanTypes
 
@@ -27,5 +28,8 @@ def generate(func, renderer, args, kwargs):
     with pin.tracer.trace(
         "tornado.template", service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.tornado.integration_name)
+
         span.set_tag_str("tornado.template_name", template_name)
         return func(*args, **kwargs)
