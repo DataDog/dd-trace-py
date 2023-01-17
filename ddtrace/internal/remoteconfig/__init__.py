@@ -36,7 +36,7 @@ class RemoteConfig(object):
 
     @classmethod
     def enable(cls):
-        # type: () -> None
+        # type: () -> bool
         if cls._check_remote_config_enable_in_agent():
             with cls._worker_lock:
                 if cls._worker is None:
@@ -45,6 +45,8 @@ class RemoteConfig(object):
 
                     forksafe.register(cls._restart)
                     atexit.register(cls.disable)
+            return True
+        return False
 
     @classmethod
     def _restart(cls):
@@ -56,8 +58,8 @@ class RemoteConfig(object):
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            cls.enable()
-            cls._worker._client.register_product(product, handler)
+            if cls.enable():
+                cls._worker._client.register_product(product, handler)
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
 
