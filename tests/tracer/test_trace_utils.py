@@ -339,6 +339,8 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
         ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
         ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
