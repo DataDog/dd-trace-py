@@ -1052,7 +1052,11 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pys=["3.6"],
+                    pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.32"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
                 Venv(
@@ -1201,7 +1205,8 @@ venv = Venv(
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                                 "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
+                                # 8.0.32 dropped 3.6 support, but is still installable by 3.6
+                                "mysql-connector-python": "<8.0.32",
                             },
                         ),
                         Venv(
