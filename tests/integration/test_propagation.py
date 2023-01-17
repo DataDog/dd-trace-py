@@ -70,14 +70,13 @@ def downstream_tracer():
 
 @pytest.mark.snapshot()
 def test_sampling_decision_downstream(downstream_tracer):
-    context = HTTPPropagator.extract(
-        {
-            "x-datadog-trace-id": "1234",
-            "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": "1",
-            "x-datadog-tags": "_dd.p.dm=-1",
-        }
-    )
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-tags": "_dd.p.dm=-1",
+    }
+    context = HTTPPropagator.extract(headers)
     downstream_tracer.context_provider.activate(context)
 
     with downstream_tracer.trace("p", service="downstream") as span:
