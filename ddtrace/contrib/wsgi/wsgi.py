@@ -130,25 +130,32 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(self._pin, self._config),
             span_type=SpanTypes.WEB,
         )
-        self._request_span_modifier(req_span, environ)
-
+        blocked = False
         try:
-            app_span = self.tracer.trace(self._application_span_name)
+            self._request_span_modifier(req_span, environ)
+        except BlockedException as e:
+            result = str(e)
+            start_response("403 FORBIDDEN", [])
+            blocked = True
+        if not blocked:
             try:
-                intercept_start_response = functools.partial(
-                    self._traced_start_response, start_response, req_span, app_span
-                )
-                result = self.app(environ, intercept_start_response)
-            except BlockedException as e:
-                result = str(e)
-            self._application_span_modifier(app_span, environ, result)
-            app_span.finish()
-        except BaseException:
-            req_span.set_exc_info(*sys.exc_info())
-            app_span.set_exc_info(*sys.exc_info())
-            app_span.finish()
-            req_span.finish()
-            raise
+                app_span = self.tracer.trace(self._application_span_name)
+                try:
+                    intercept_start_response = functools.partial(
+                        self._traced_start_response, start_response, req_span, app_span
+                    )
+                    log.debug("NOT BLOCKED YET")
+                    result = self.app(environ, intercept_start_response)
+                except BlockedException as e:
+                    result = str(e)
+                self._application_span_modifier(app_span, environ, result)
+                app_span.finish()
+            except BaseException:
+                req_span.set_exc_info(*sys.exc_info())
+                app_span.set_exc_info(*sys.exc_info())
+                app_span.finish()
+                req_span.finish()
+                raise
         # start flask.response span. This span will be finished after iter(result) is closed.
         # start_span(child_of=...) is used to ensure correct parenting.
         resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
@@ -166,17 +173,14 @@ class _DDWSGIMiddlewareBase(object):
     def _request_span_modifier(self, req_span, environ):
         # type: (Span, Dict) -> None
         """Implement to modify span attributes on the request_span"""
-        pass
 
     def _application_span_modifier(self, app_span, environ, result):
         # type: (Span, Dict, Iterable) -> None
         """Implement to modify span attributes on the application_span"""
-        pass
 
     def _response_span_modifier(self, resp_span, response):
         # type: (Span, Dict) -> None
         """Implement to modify span attributes on the request_span"""
-        pass
 
 
 def construct_url(environ):

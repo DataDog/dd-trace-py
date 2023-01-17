@@ -121,7 +121,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         if config._appsec_enabled:
             callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
             if callback:
-                log.debug("Flask WAF call")
+                log.debug("Second Flask WAF call")
                 callback()
             if _context.get_item("http.request.blocked", span=req_span):
                 request = flask.request
@@ -217,6 +217,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
+
+        if config._appsec_enabled:
+            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            if callback:
+                log.debug("First Flask WAF call")
+                callback()
+            if _context.get_item("http.request.blocked", span=span):
+                raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
 
 
 def patch():
