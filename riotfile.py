@@ -111,6 +111,7 @@ venv = Venv(
     },
     env={
         "DD_TESTING_RAISE": "1",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     },
     venvs=[
         Venv(
@@ -291,10 +292,6 @@ venv = Venv(
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
-            # FIXME: DDLoggerTestCase.test_logger_handle_debug fails when remote config is enabled.
-            env={
-                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-            },
         ),
         Venv(
             name="telemetry",
