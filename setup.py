@@ -48,12 +48,20 @@ CURRENT_OS = platform.system()
 LIBDDWAF_VERSION = "1.6.1"
 
 
-def verify_libddwaf_checksum(sha256_filename, filename):
+def verify_libddwaf_checksum(sha256_filename, filename, current_os):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
+    # except for Windows, where the format is completely different, the filename is not even there
     checksum_file_contents = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
-    expected_checksum = checksum_file_contents[0]
-    expected_filename = checksum_file_contents[-1]
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
+
+    if current_os == "Windows":
+        expected_checksum = checksum_file_contents[-2]
+        expected_filename = ""
+        actual_checksum = actual_checksum.upper()
+    else:
+        expected_checksum = checksum_file_contents[0]
+        expected_filename = checksum_file_contents[-1]
+
     try:
         assert filename.endswith(expected_filename)
         assert expected_checksum == actual_checksum
@@ -168,7 +176,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 raise e
 
             # Verify checksum of downloaded file
-            verify_libddwaf_checksum(sha256_filename, filename)
+            verify_libddwaf_checksum(sha256_filename, filename, CURRENT_OS)
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
