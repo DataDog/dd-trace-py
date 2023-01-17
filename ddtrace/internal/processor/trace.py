@@ -85,12 +85,12 @@ class TraceSamplingProcessor(TraceProcessor):
             at_least_one_sampled = False
             for span in trace:
                 # DEV: if the whole trace is being returned, single-span-sampling metrics don't matter anymore
-                if is_single_span_sampled(span):
+                if span.sampled:
+                    at_least_one_sampled = True
+                if at_least_one_sampled and is_single_span_sampled(span):
                     span._remove_metric(_SINGLE_SPAN_SAMPLING_MECHANISM)
                     span._remove_metric(_SINGLE_SPAN_SAMPLING_RATE)
                     span._remove_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC)
-                if span.sampled:
-                    at_least_one_sampled = True
 
             if at_least_one_sampled:
                 return trace
