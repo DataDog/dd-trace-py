@@ -52,7 +52,6 @@ ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "lib
 # Constants
 #
 
-DDWAF_MAX_STRING_LENGTH = 4096
 DDWAF_RUN_TIMEOUT = 5000
 
 
@@ -114,9 +113,9 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: DDWAF_MAX_STRING_LENGTH - 1])
+            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore"))
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct[: DDWAF_MAX_STRING_LENGTH - 1])
+            ddwaf_object_string(self, struct)
         elif isinstance(struct, float):
             res = unicode(struct).encode("UTF-8", errors="ignore")
             ddwaf_object_string(self, res)
@@ -134,9 +133,7 @@ class ddwaf_object(ctypes.Structure):
             for (key, val) in struct.items():
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
-                res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
-                    : DDWAF_MAX_STRING_LENGTH - 1
-                ]
+                res_key = key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key
                 obj = ddwaf_object(val)
                 if obj.type:  # discards invalid objects
                     assert ddwaf_object_map_add(map_o, res_key, obj)
