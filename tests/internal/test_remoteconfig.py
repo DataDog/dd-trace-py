@@ -148,7 +148,8 @@ def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, 
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_ip_blocking(mock_send_request):
+@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+def test_remote_configuration_ip_blocking(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
 
@@ -158,6 +159,7 @@ def test_remote_configuration_ip_blocking(mock_send_request):
     callback = Callback()
 
     with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+        mock_check_remote_config_enable_in_agent.return_value = True
         mock_send_request.return_value = get_mock_encoded_msg(
             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
@@ -165,7 +167,7 @@ def test_remote_configuration_ip_blocking(mock_send_request):
         )
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        sleep(0.2)
+        sleep(0.1)
         mock_send_request.assert_called_once()
         assert callback.features == {
             "rules_data": [
