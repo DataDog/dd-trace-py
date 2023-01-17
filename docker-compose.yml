@@ -103,7 +103,11 @@ services:
         environment:
             - DD_HOSTNAME=github-actions-worker
             - DD_BIND_HOST=0.0.0.0
+            - DD_REMOTE_CONFIGURATION_ENABLED=true
+            - DD_SITE=${DD_SITE-datadoghq.com}
             - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_KEY=${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL=5s
             - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
         ports:
             - "127.0.0.1:8126:8126"
