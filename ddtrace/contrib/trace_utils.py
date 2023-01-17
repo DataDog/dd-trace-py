@@ -436,9 +436,8 @@ def set_http_meta(
     :param url: the HTTP URL
     :param status_code: the HTTP status code
     :param status_msg: the HTTP status message
-    :param query: the HTTP query part of the_context.get_item("http.request.headers", span=span), URI as a string
-    :param parsed_query: the HTTP query part_context.get_item("http.request.headers", span=span), of the URI as parsed
-        by the framework and forwarded to the user code
+    :param query: the HTTP query part of the URI as a string
+    :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)

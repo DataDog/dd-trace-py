@@ -233,20 +233,19 @@ class AppSecSpanProcessor(SpanProcessor):
                 data = {_Addresses.HTTP_CLIENT_IP: ip}
                 ddwaf_result = self._run_ddwaf(data)
 
-                if ddwaf_result and ddwaf_result.actions:
-                    if "block" in ddwaf_result.actions:
-                        res_dict = json.loads(ddwaf_result.data)
-                        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
-                        _context.set_items(
-                            {
-                                "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
-                                "http.request.waf_duration": ddwaf_result.runtime,
-                                "http.request.waf_duration_ext": ddwaf_result.total_runtime,
-                                "http.request.waf_actions": ddwaf_result.actions,
-                                "http.request.blocked": True,
-                            },
-                            span=span,
-                        )
+                if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions:
+                    res_dict = json.loads(ddwaf_result.data)
+                    log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
+                    _context.set_items(
+                        {
+                            "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
+                            "http.request.waf_duration": ddwaf_result.runtime,
+                            "http.request.waf_duration_ext": ddwaf_result.total_runtime,
+                            "http.request.waf_actions": ddwaf_result.actions,
+                            "http.request.blocked": True,
+                        },
+                        span=span,
+                    )
 
     def _mark_needed(self, address):
         # type: (str) -> None

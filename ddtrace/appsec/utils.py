@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import constants
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -17,19 +18,6 @@ def _appsec_rc_features_is_enabled():
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         return APPSEC_ENV not in os.environ
     return False
-
-
-def to_bytes_py2(n, length=1, byteorder="big", signed=False):
-    # type: (int, int, str, bool) -> Text
-    if byteorder == "little":
-        order = range(length)
-    elif byteorder == "big":
-        order = reversed(range(length))  # type: ignore[assignment]
-    else:
-        raise ValueError("byteorder must be either 'little' or 'big'")
-
-    # return bytes((n >> i*8) & 0xff for i in order)
-    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
 
 
 def _appsec_rc_capabilities():
