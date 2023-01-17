@@ -45,21 +45,15 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.6.0"
-
-LIBDDWAF_CHECKSUMS = {
-    "darwin-arm64": "fe8773dbc8ffe5a44517719b9b7db62c",
-    "darwin-x86_64": "6c9ae9294058811add0bcf356acd1946",
-    "linux-aarch64": "7acd4cc79d582d84e5e0c83f360e6b37",
-    "linux-x86_64": "6b913003301dfc6bb4ff0ec6fc64037b",
-    "windows-win32": "26adb5896fc89c2edb4507f55ed2b6de",
-    "windows-x64": "63a67011bc70220f38099adee105bfe6",
-}
+LIBDDWAF_VERSION = "1.6.1"
 
 
-def verify_libddwaf_checksum(os_architecture, filename):
-    expected_checksum = LIBDDWAF_CHECKSUMS[os_architecture]
-    assert expected_checksum == hashlib.md5(open(filename, "rb").read()).hexdigest()
+def verify_libddwaf_checksum(sha256_filename, filename):
+    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
+    # so the ``filter`` is used to remove an empty string in the middle of the resulting list
+    expected_checksum, expected_filename = filter(None, open(sha256_filename, "r").read().strip().split(" "))
+    assert filename.endswith(expected_filename)
+    assert expected_checksum == hashlib.sha256(open(filename, "rb").read()).hexdigest()
 
 
 def load_module_from_project_file(mod_name, fname):
@@ -154,15 +148,17 @@ class LibDDWaf_Download(BuildPyCommand):
                 LIBDDWAF_VERSION,
                 ddwaf_archive_name,
             )
+            ddwaf_sha256_address = ddwaf_download_address + ".sha256"
 
             try:
                 filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+                sha256_filename, http_response = urlretrieve(ddwaf_sha256_address, ddwaf_archive_name + ".sha256")
             except HTTPError as e:
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
 
             # Verify checksum of downloaded file
-            verify_libddwaf_checksum("-".join((CURRENT_OS.lower(), arch)), filename)
+            verify_libddwaf_checksum(sha256_filename, filename)
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
