@@ -1393,8 +1393,6 @@ venv = Venv(
                     pkgs={
                         "rq": [
                             "~=1.0.0",
-                            "~=1.1.0",
-                            "~=1.2.0",
                             "~=1.3.0",
                         ],
                     },
@@ -1404,16 +1402,19 @@ venv = Venv(
                     pkgs={
                         "rq": [
                             "~=1.0.0",
-                            "~=1.1.0",
-                            "~=1.2.0",
-                            "~=1.3.0",
-                            "~=1.4.0",
-                            "~=1.5.0",
-                            "~=1.6.0",
-                            "~=1.7.0",
-                            "~=1.8.0",
-                            "~=1.9.0",
-                            "~=1.10.0",
+                            "~=1.11.0",
+                            # 1.12.0 removed support for Python 3.5
+                        ],
+                        # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
+                        "click": "==7.1.2",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "rq": [
+                            "~=1.0.0",
+                            "~=1.11.0",
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
