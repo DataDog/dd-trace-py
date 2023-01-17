@@ -747,7 +747,7 @@ def test_collect_gevent_threads():
     assert values.pop() > 0
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
 def test_collect_ensure_all_frames_gc():
     # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
     def _foo():
