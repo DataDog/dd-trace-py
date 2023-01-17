@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import mock
 import pytest
@@ -130,6 +131,61 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 {
                     "data": [
                         {"value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+
+
+def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()) - 10000, "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+        assert span.get_tag(APPSEC_JSON) is None
+
+
+def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()), "value": "8.8.4.4"},
                     ],
                     "id": "blocked_ips",
                     "type": "ip_with_expiration",
