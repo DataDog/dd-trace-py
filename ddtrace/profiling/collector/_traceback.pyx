@@ -6,6 +6,7 @@ IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
     cdef extern from "<Python.h>":
         ctypedef struct PyCodeObject:
             pass
+        PyObject* PyTuple_GetItem(PyObject *p, Py_ssize_t pos)
         PyObject* PyDict_GetItem(PyObject *p, PyObject *key)
         PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
         PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
@@ -27,11 +28,13 @@ cpdef _extract_class_name(frame):
         code = PyFrame_GetCode(<PyFrameObject*> frame)
         co_varnames = PyCode_GetVarnames(code)
         if co_varnames:
-            argname = co_varnames[0]
+            argname = PyTuple_GetItem(co_varnames, 0)
             try:
                 f_locals = PyFrame_GetLocals(<PyFrameObject*>frame)
-                value = PyDict_GetItem(f_locals, argname)
+                value = <object>PyDict_GetItem(f_locals, argname)
                 Py_XDECREF(f_locals)
+                Py_XDECREF(argname)
+                Py_XDECREF(co_varnames)
             except KeyError:
                 return ""
     ELSE:
