@@ -41,4 +41,5 @@
 - [ ] Tests provided or description of manual testing performed is included in the code or PR.
 - [ ] Release note has been added and follows the [library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines), or else `changelog/no-changelog` label added.
 - [ ] All relevant GitHub issues are correctly linked.
-- [ ] Backports are identified and tagged with Mergifyio.
+- [ ] Change contains telemetry where appropriate (logs, metrics, etc.).
+- [ ] Telemetry is meaningful, actionable and does not have the potential to leak sensitive data.
