@@ -457,14 +457,6 @@ class Span(object):
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
-    def _remove_exc_info(self):
-        # type: () -> None
-        """Remove all exception related information from the span."""
-        self.error = 0
-        self._remove_tag(ERROR_MSG)
-        self._remove_tag(ERROR_TYPE)
-        self._remove_tag(ERROR_STACK)
-
     def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""

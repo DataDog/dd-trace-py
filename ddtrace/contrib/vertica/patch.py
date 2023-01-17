@@ -207,6 +207,9 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
+                # set component tag equal to name of integration
+                span.set_tag_str("component", config.integration_name)
+
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)
                 span.set_tags(pin.tags)

@@ -76,6 +76,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
         span_type=SpanTypes.REDIS,
     ) as s:
+        s.set_tag_str("component", config.rediscluster.integration_name)
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
