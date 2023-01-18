@@ -104,6 +104,33 @@
       "on_match": [
         "block"
       ]
+    },
+    {
+      "id": "tst-037-007",
+      "name": "Test block on header",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000007",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.path_params"
+              }
+            ],
+            "regex": "AiKfOeRcvG45"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
     }
+
   ]
 }

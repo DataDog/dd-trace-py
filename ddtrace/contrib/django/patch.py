@@ -356,11 +356,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 trace_utils.set_http_meta(
                     span,
                     config.django,
+                    method=request.method,
                     query=query,
                     raw_uri=uri,
                     request_path_params=path,
                     parsed_query=parsed_query,
                     request_body=body,
+                    request_cookies=request.COOKIES,
                 )
                 log.debug("preemptive waf call")
                 waf_callback()
