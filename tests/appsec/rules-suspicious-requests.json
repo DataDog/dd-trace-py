@@ -107,7 +107,7 @@
     },
     {
       "id": "tst-037-007",
-      "name": "Test block on header",
+      "name": "Test block on path params",
       "tags": {
         "type": "lfi",
         "crs_id": "000007",
@@ -130,7 +130,32 @@
       "on_match": [
         "block"
       ]
+    },
+    {
+      "id": "tst-037-008",
+      "name": "Test block on cookies",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000008",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.cookies"
+              }
+            ],
+            "regex": "jdfoSDGFkivRG_234"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
     }
-
   ]
 }

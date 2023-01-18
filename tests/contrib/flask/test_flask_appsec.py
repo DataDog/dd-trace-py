@@ -12,6 +12,7 @@ from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
@@ -425,3 +426,39 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
             assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"
+
+    def test_request_suspicious_request_block_match_method(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/do_not_exist.php")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-006"
+
+    def test_request_suspicious_request_block_match_cookies(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
+            resp = self.client.get("/")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-008"
