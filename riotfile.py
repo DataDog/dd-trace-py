@@ -309,6 +309,7 @@ venv = Venv(
                                 "greenlet": "==0.4.16",
                             },
                             env={"DD_PROFILE_TEST_GEVENT": "1"},
+                            create=True,
                         ),
                         # profiler with latest reqs
                         Venv(
@@ -318,6 +319,7 @@ venv = Venv(
                                 "tenacity": latest,
                             },
                             env={"DD_PROFILE_TEST_GEVENT": "1"},
+                            create=True,
                         ),
                         # profiler with nogevent
                         Venv(
@@ -326,6 +328,7 @@ venv = Venv(
                                 "protobuf": "~=3.17.3",
                                 "tenacity": latest,
                             },
+                            create=True,
                         ),
                     ],
                 ),
