@@ -144,7 +144,6 @@ class _DDWSGIMiddlewareBase(object):
                     intercept_start_response = functools.partial(
                         self._traced_start_response, start_response, req_span, app_span
                     )
-                    log.debug("NOT BLOCKED YET")
                     result = self.app(environ, intercept_start_response)
                 except BlockedException as e:
                     result = str(e)
