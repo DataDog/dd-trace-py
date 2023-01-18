@@ -835,7 +835,7 @@ class Tracer(object):
             resource=resource,
             span_type=span_type,
             activate=True,
-        )  # type: ignore[misc]
+        )
 
     def current_root_span(self):
         # type: () -> Optional[Span]
