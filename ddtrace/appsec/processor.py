@@ -12,6 +12,10 @@ from typing import Union
 import attr
 from six import ensure_binary
 
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
+from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
@@ -213,9 +217,11 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span, *args, **kwargs):
         # type: (Span, Any, Any) -> None
-        peer_ip = kwargs.get("peer_ip")
-        headers = kwargs.get("headers", {})
-        headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
+
+        peer_ip = _DD_EARLY_IP_CONTEXTVAR.get()
+        headers = _DD_EARLY_HEADERS_CONTEXTVAR.get()
+        headers_case_sensitive = _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
+        _reset_contextvars()
 
         _context.set_items(
             {

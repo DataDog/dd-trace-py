@@ -1,5 +1,4 @@
 import abc
-from typing import Any
 from typing import Optional
 
 import attr
@@ -32,8 +31,8 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         log.debug("initialized processor %r", self)
 
     @abc.abstractmethod
-    def on_span_start(self, span, *args, **kwargs):
-        # type: (Span, Any, Any) -> None
+    def on_span_start(self, span):
+        # type: (Span) -> None
         """Called when a span is started.
 
         This method is useful for making upfront decisions on spans.

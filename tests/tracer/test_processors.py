@@ -47,7 +47,7 @@ def test_no_impl():
 def test_default_post_init():
     @attr.s
     class MyProcessor(SpanProcessor):
-        def on_span_start(self, span, *args, **kwargs):  # type: (Span, Any, Any) -> None
+        def on_span_start(self, span):  # type: (Span) -> None
             pass
 
         def on_span_finish(self, data):  # type: (Any) -> Any

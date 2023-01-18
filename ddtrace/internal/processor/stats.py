@@ -26,7 +26,6 @@ from ..writer import _human_size
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
     from typing import DefaultDict
     from typing import Dict
     from typing import List
@@ -124,8 +123,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         )
         self.start()
 
-    def on_span_start(self, span, *args, **kwargs):
-        # type: (Span, Any, Any) -> None
+    def on_span_start(self, span):
+        # type: (Span) -> None
         pass
 
     def on_span_finish(self, span):

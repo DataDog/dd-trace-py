@@ -522,8 +522,6 @@ def test_set_http_meta_case_sensitive_headers_but_dict_type_found(mock_store_hea
     mock_store_headers.assert_called()
 
 
-# XXX add test checking the expected tags for IP given appsec env and IP argument
-# XXX add test for the retrieval of the IP in set_http_meta if the framework didn't pass it
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [

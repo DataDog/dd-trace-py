@@ -262,9 +262,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             return "Ok", 200
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
             self._aux_appsec_prepare_tracer()
-
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.8.8"})
             assert resp.status_code == 200
             if hasattr(resp, "text"):

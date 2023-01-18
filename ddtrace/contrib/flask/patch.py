@@ -20,6 +20,8 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -574,13 +576,12 @@ def request_tracer(name):
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
         request = flask.request
+        _DD_EARLY_IP_CONTEXTVAR.set(request.remote_addr)
+        _DD_EARLY_HEADERS_CONTEXTVAR.set(request.headers)
 
         with pin.tracer.trace(
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
-            peer_ip=request.remote_addr,
-            headers=request.headers,
-            headers_case_sensitive=False,
         ) as request_span:
             # set component tag equal to name of integration
             request_span.set_tag_str("component", config.flask.integration_name)
