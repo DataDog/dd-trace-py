@@ -103,10 +103,16 @@ def test_rules_sample_span_via_env():
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
+        # this combined with MANUAL_DROP_KEY causes TraceSamplingProcessor not to remove the single-span-sampling tags
+        # checked in these tests. if there was a public-API way to disable trace-level sampling decisions entirely, we'd
+        # use that here instead.
         tracer.configure(compute_stats_enabled=True)
         tracer.configure(writer=DummyWriter())
 
         span = traced_function(tracer)
+        # this combined with compute_stats_enabled=True causes TraceSamplingProcessor not to remove the
+        # single-span-sampling tags checked in these tests. if there was a public-API way to disable trace-level
+        # sampling decisions entirely, we'd use that here instead.
         span.set_tag(MANUAL_DROP_KEY)
 
         assert_sampling_decision_tags(span)
