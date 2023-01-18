@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
 import collections
+import gc
 import os
 import sys
 import threading
 import time
 import timeit
+from types import FrameType
 import typing
 import uuid
 
@@ -400,7 +402,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 394, "test_exception_collection", "")]
+    assert e.frames == [(__file__, 396, "test_exception_collection", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -432,7 +434,7 @@ def test_exception_collection_trace(
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 421, "test_exception_collection_trace", "")]
+    assert e.frames == [(__file__, 423, "test_exception_collection_trace", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -743,3 +745,23 @@ def test_collect_gevent_threads():
     # assert (exact_time * 0.7) <= values.pop() <= (exact_time * 1.3)
 
     assert values.pop() > 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
+def test_collect_ensure_all_frames_gc():
+    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
+    def _foo():
+        pass
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+
+    with s:
+        for _ in range(100):
+            _foo()
+
+    gc.collect()  # Make sure we don't race with gc when we check frame objects
+    frametype_objs = [obj for obj in gc.get_objects() if isinstance(obj, FrameType)]
+    for obj in frametype_objs:
+        # Ensure that all frames relating to _foo() have been gc'd already
+        assert obj.f_code.co_name != "_foo"
