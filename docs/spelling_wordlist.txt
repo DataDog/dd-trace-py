@@ -209,6 +209,4 @@ IAST
 programmatically
 DES
 Blowfish
-hsa
-ba
 BA

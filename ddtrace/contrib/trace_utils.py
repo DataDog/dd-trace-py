@@ -159,7 +159,7 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     user_agent = None
 
     for key_pattern in USER_AGENT_PATTERNS:
-        if headers_are_case_sensitive or type(headers) == dict:
+        if headers_are_case_sensitive:
             user_agent = _get_header_value_case_insensitive(headers, key_pattern)
         else:
             user_agent = headers.get(key_pattern)

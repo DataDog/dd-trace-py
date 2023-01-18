@@ -26,8 +26,8 @@ log = get_logger(__name__)
 
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
-    def on_span_start(self, span, *args, **kwargs):
-        # type: (Span, Any, Any) -> None
+    def on_span_start(self, span):
+        # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
         oce.acquire_request()

@@ -829,7 +829,7 @@ class Tracer(object):
             parent2.finish()
         """
         return self.start_span(
-            name=name,
+            name,
             child_of=self.context_provider.active(),
             service=service,
             resource=resource,
