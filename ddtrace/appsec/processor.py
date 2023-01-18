@@ -215,8 +215,8 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (List[Dict[str, Any]]) -> None
         self._ddwaf.update_rules(new_rules)
 
-    def on_span_start(self, span, *args, **kwargs):
-        # type: (Span, Any, Any) -> None
+    def on_span_start(self, span):
+        # type: (Span) -> None
 
         peer_ip = _DD_EARLY_IP_CONTEXTVAR.get()
         headers = _DD_EARLY_HEADERS_CONTEXTVAR.get()

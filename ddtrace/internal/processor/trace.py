@@ -101,7 +101,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, span):
+    def on_span_start(self, _):
         # type: (Span) -> None
         pass
 
