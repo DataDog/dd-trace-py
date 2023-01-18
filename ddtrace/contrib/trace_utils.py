@@ -20,11 +20,10 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace import constants
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -282,6 +281,34 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
+def _sanitized_url(url):
+    # type: (str) -> str
+    """
+    Sanitize url by removing parts with potential auth info
+    """
+    if "@" in url:
+        parsed = parse.urlparse(url)
+        netloc = parsed.netloc
+
+        if "@" not in netloc:
+            # Safe url, `@` not in netloc
+            return url
+
+        netloc = netloc[netloc.index("@") + 1 :]
+        return parse.urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                "",
+                parsed.query,
+                "",
+            )
+        )
+
+    return url
+
+
 def with_traced_module(func):
     """Helper for providing tracing essentials (module and pin) for tracing
     wrappers.
@@ -419,6 +446,8 @@ def set_http_meta(
         span.set_tag_str(http.METHOD, method)
 
     if url is not None:
+        url = _sanitized_url(url)
+
         if integration_config.http_tag_query_string:  # Tagging query string in http.url
             if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
                 span.set_tag_str(http.URL, url)
@@ -596,68 +625,5 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
-
-
-def track_user_login_event(
-    tracer,
-    user_id,
-    success=True,
-    metadata=None,
-    name=None,
-    email=None,
-    scope=None,
-    role=None,
-    session_id=None,
-    propagate=False,
-):
-    # type: (Tracer, str, bool, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None # noqa: E501
-
-    span = tracer.current_root_span()
-    if span:
-        success_str = "success" if success else "failure"
-
-        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str), "true")
-        # usr.id will be set by set_user
-        if metadata is not None:
-            for k, v in six.iteritems(metadata):
-                span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
-
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
-
-        if success:
-            set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
-        else:
-            span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
-    else:
-        log.warning(
-            "No root span in the current execution. Skipping track_user_login tags. "
-            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
-
-
-def track_custom_event(tracer, event_name, metadata):
-    # type: (Tracer, str, dict) -> None
-
-    if not event_name:
-        log.warning("Empty event name given to track_custom_event. Skipping setting tags.")
-        return
-
-    if not metadata:
-        log.warning("Empty metadata given to track_custom_event. Skipping setting tags.")
-        return
-
-    span = tracer.current_root_span()
-    if span:
-        for k, v in six.iteritems(metadata):
-            span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-            span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
-    else:
-        log.warning(
-            "No root span in the current execution. Skipping track_custom_event tags. "
-            "See https://docs.datadoghq.com/security_platform/application_security"
-            "/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )

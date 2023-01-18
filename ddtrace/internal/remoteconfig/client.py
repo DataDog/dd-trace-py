@@ -21,6 +21,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 
@@ -199,15 +200,33 @@ class RemoteConfigClient(object):
             if container_id is not None:
                 self._headers["Datadog-Container-Id"] = container_id
 
+        # The library uses a PEP 440-compliant versioning scheme, but the
+        # RCM spec requires that we use a SemVer-compliant version.
+        #
+        # However, we may have versions like:
+        #
+        #   - 1.7.1.dev3+gf258c7d9
+        #   - 1.7.1rc2.dev3+gf258c7d9
+        #
+        # Which are not Semver-compliant.
+        #
+        # The easiest fix is to replace the first occurrence of "rc" or
+        # ".dev" with "-rc" or "-dev" to make them compliant.
+        #
+        # Other than X.Y.Z, we are allowed `-<dot separated pre-release>+<build identifier>`
+        # https://semver.org/#backusnaur-form-grammar-for-valid-semver-versions
+        #
+        # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
+        tracer_version = ddtrace.__version__
+        if "rc" in tracer_version:
+            tracer_version = tracer_version.replace("rc", "-rc", 1)
+        elif ".dev" in tracer_version:
+            tracer_version = tracer_version.replace(".dev", "-dev", 1)
+
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            # The library uses a PEP 440-compliant versioning scheme, but the
-            # RCM spec requires that we use a SemVer-compliant version. We only
-            # expect that the first occurrence of "rc" in the version string to
-            # break the SemVer format, so we replace it with "-rc" for
-            # simplicity.
-            tracer_version=ddtrace.__version__.replace("rc", "-rc", 1),
+            tracer_version=tracer_version,
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
@@ -245,7 +264,7 @@ class RemoteConfigClient(object):
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
-            self._conn.request("POST", "v0.7/config", payload, self._headers)
+            self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = self._conn.getresponse()
             data = resp.read()
         finally:
