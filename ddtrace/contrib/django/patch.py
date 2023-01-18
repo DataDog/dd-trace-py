@@ -341,7 +341,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     request_headers = utils._get_request_headers(request)
     _DD_EARLY_IP_CONTEXTVAR.set(request.META.get("REMOTE_ADDR"))
     _DD_EARLY_HEADERS_CONTEXTVAR.set(request_headers)
-    _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(django.VERSION < (2,2))
+    _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(django.VERSION < (2, 2))
 
     with pin.tracer.trace(
         "django.request",

@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 
-from ddtrace.context import Context
 from ddtrace.provider import _DD_CONTEXTVAR
 from ddtrace.span import Span
 
@@ -11,6 +10,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
     from typing import Union
+
+    from ddtrace.context import Context
 
 
 def get_item(key, span=None):
