@@ -38,6 +38,7 @@ from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
+from .telemetry.constants import TELEMETRY_TRACER
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -599,15 +600,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                         e.last_attempt.exception(),
                     )
             finally:
-                if self._report_metrics and self.dogstatsd:
-                    # Note that we cannot use the batching functionality of dogstatsd because
-                    # it's not thread-safe.
-                    # https://github.com/DataDog/datadogpy/issues/439
-                    # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
+                if self._report_metrics:
+                    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.bytes", len(encoded), {})
+                    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.traces", n_traces, {})
                     for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+                        telemetry_writer.add_count_metric(
+                            TELEMETRY_TRACER, "%s" % name, metric["count"], metric["tags"]
+                        )
         finally:
             self._set_drop_rate()
             self._metrics_reset()

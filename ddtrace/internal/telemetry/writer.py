@@ -7,6 +7,7 @@ from typing import Optional
 from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
+from ...version import get_version
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -18,12 +19,18 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
+from .constants import TELEMETRY_APPSEC
+from .constants import TELEMETRY_TRACER
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import Metric
+from .metrics import MetricType
 
 
 log = get_logger(__name__)
+
+NamespaceMetricType = Dict[str, Dict[str, Metric]]
 
 
 def _get_interval_or_default():
@@ -52,6 +59,7 @@ class TelemetryWriter(PeriodicService):
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
+        self._namespace = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}  # type: NamespaceMetricType
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
         forksafe.register(self._fork_writer)
@@ -101,6 +109,14 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = []
         return integrations
 
+    def _flush_namespace_metrics(self):
+        # type () -> List[Metric]
+        """Returns a list of all integrations queued by add_integration"""
+        with self._lock:
+            namespace_metrics = self._namespace.copy()
+            self._namespace = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}
+        return namespace_metrics
+
     def _flush_events_queue(self):
         # type: () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
@@ -119,6 +135,10 @@ class TelemetryWriter(PeriodicService):
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        namespace_metrics = self._flush_namespace_metrics()
+        if namespace_metrics:
+            self._app_generate_metrics_event(namespace_metrics)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
@@ -157,6 +177,56 @@ class TelemetryWriter(PeriodicService):
         # type: (...) -> None
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         self.join()
+
+    def add_gauge_metric(self, namespace, name, value, tags):
+        # type: (str,str, int, dict) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("gauge", namespace, name, value, tags)
+
+    def add_rate_metric(self, namespace, name, value, tags):
+        # type: (str,str, int, dict) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("rate", namespace, name, value, tags)
+
+    def add_count_metric(self, namespace, name, value, tags):
+        # type: (str,str, int, dict) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("count", namespace, name, value, tags)
+
+    def _add_metric(self, metric_type, namespace, name, value, tags):
+        # type: (MetricType, str,str, int, dict) -> None
+        """
+        Queues metric
+        """
+        with self._lock:
+            name = "dd.app_telemetry." + namespace + "." + name
+            metric = self._namespace[namespace].get(name, Metric(namespace, name, metric_type, True))
+            if metric_type == "count":
+                metric.interval = (metric.interval or 0) + 1
+            elif metric_type == "gauge":
+                metric.interval = value
+            metric.add_point(value)
+            self._namespace[namespace][name] = metric
+            if tags:
+                self._namespace[namespace][name].set_tags(tags)
+
+    def _app_generate_metrics_event(self, namespace_metrics):
+        # type: (NamespaceMetricType) -> None
+        for namespace, metrics in namespace_metrics.items():
+            if metrics:
+                payload = {
+                    "namespace": namespace,
+                    "lib_language": "python",
+                    "lib_version": get_version(),
+                    "series": [m.to_dict() for m in metrics.values()],
+                }
+                self.add_event(payload, "app-generate-metrics")
 
     def add_event(self, payload, payload_type):
         # type: (Dict, str) -> None

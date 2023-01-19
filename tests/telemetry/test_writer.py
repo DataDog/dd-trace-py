@@ -6,9 +6,13 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_TRACER
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
+from ddtrace.internal.telemetry.data import get_hostname
+from ddtrace.internal.telemetry.data import get_version
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
@@ -187,6 +191,114 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
     assert events[0]["request_type"] == "app-closing"
     assert events[0] == _get_request_body({}, "app-closing", 2)
     assert events[1]["request_type"] == "app-started"
+
+
+def test_send_tracers_count_metric(mock_time, telemetry_writer, test_agent_session):
+    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
+    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    payload = {
+        "namespace": TELEMETRY_TRACER,
+        "lib_language": "python",
+        "lib_version": get_version(),
+        "series": [
+            {
+                "host": get_hostname(),
+                "metric": "dd.app_telemetry.tracers.test-metric",
+                "type": "count",
+                "common": True,
+                "interval": 3,
+                "points": [
+                    [1642544540, 1],
+                    [1642544540, 1],
+                    [1642544540, 1],
+                ],
+                "tags": {
+                    "hi": "HELLO",
+                    "NAME": "CANDY",
+                },
+            }
+        ],
+    }
+
+    assert events[0]["request_type"] == "app-generate-metrics"
+    assert events[0] == _get_request_body(payload, "app-generate-metrics", 1)
+
+
+def test_send_appsec_rate_metric(mock_time, telemetry_writer, test_agent_session):
+    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
+    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    payload = {
+        "namespace": TELEMETRY_APPSEC,
+        "lib_language": "python",
+        "lib_version": get_version(),
+        "series": [
+            {
+                "host": get_hostname(),
+                "metric": "dd.app_telemetry.appsec.test-metric",
+                "type": "rate",
+                "common": True,
+                "interval": None,
+                "points": [
+                    [1642544540, 1],
+                    [1642544540, 1],
+                    [1642544540, 1],
+                ],
+                "tags": {
+                    "hi": "HELLO",
+                    "NAME": "CANDY",
+                },
+            }
+        ],
+    }
+
+    assert events[0]["request_type"] == "app-generate-metrics"
+    assert events[0] == _get_request_body(payload, "app-generate-metrics", 1)
+
+
+def test_send_appsec_gauge_metric(mock_time, telemetry_writer, test_agent_session):
+    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {})
+    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 6, {})
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    payload = {
+        "namespace": TELEMETRY_APPSEC,
+        "lib_language": "python",
+        "lib_version": get_version(),
+        "series": [
+            {
+                "host": get_hostname(),
+                "metric": "dd.app_telemetry.appsec.test-metric",
+                "type": "gauge",
+                "common": True,
+                "interval": 6,
+                "points": [
+                    [1642544540, 5],
+                    [1642544540, 5],
+                    [1642544540, 6],
+                ],
+                "tags": {
+                    "hi": "HELLO",
+                    "NAME": "CANDY",
+                },
+            }
+        ],
+    }
+
+    assert events[0]["request_type"] == "app-generate-metrics"
+    assert events[0] == _get_request_body(payload, "app-generate-metrics", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
