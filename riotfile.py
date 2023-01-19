@@ -401,7 +401,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"pytest-asyncio": latest},
                     command="python -m tests.profiling.run pytest --no-cov --capture=no --verbosity=2"
                     " --benchmark-disable {cmdargs} tests/profiling",
@@ -413,8 +413,8 @@ venv = Venv(
                                 "gunicorn": latest,
                                 "tenacity": "==5.0.1",
                                 "protobuf": "~=3.0",
-                                "gevent": "==21.8.0",
-                                "greenlet": "==1.1.0",
+                                # minimum supported gevent version for py3.11 AND py3.10
+                                "gevent": "==22.08.0",
                             },
                             env={"DD_PROFILE_TEST_GEVENT": "1"},
                         ),
