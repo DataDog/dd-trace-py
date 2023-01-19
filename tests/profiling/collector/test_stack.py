@@ -761,7 +761,4 @@ def test_collect_ensure_all_frames_gc():
             _foo()
 
     gc.collect()  # Make sure we don't race with gc when we check frame objects
-    frametype_objs = [obj for obj in gc.get_objects() if isinstance(obj, FrameType)]
-    for obj in frametype_objs:
-        # Ensure that all frames relating to _foo() have been gc'd already
-        assert obj.f_code.co_name != "_foo"
+    assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0
