@@ -4,6 +4,9 @@ import os.path
 import pytest
 from six import ensure_binary
 
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
+from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
@@ -202,80 +205,100 @@ def test_appsec_body_no_collection_snapshot(tracer):
 
 
 def test_ip_block(tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
-        _enable_appsec(tracer)
-        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
-            set_http_meta(
-                span,
-                Config(),
-            )
+    try:
+        with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+            _enable_appsec(tracer)
+            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
+            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
-        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-        assert _context.get_item("http.request.blocked", span)
-        assert "block" in _context.get_item("http.request.waf_actions", span)
+            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.blocked", span)
+            assert "block" in _context.get_item("http.request.waf_actions", span)
+    finally:
+        _reset_contextvars()
 
 
 def test_ip_not_block(tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
-        _enable_appsec(tracer)
-        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.8.4", headers={}) as span:
-            set_http_meta(
-                span,
-                Config(),
-            )
+    try:
+        with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+            _enable_appsec(tracer)
+            _DD_EARLY_IP_CONTEXTVAR.set("8.8.8.4")
+            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
 
-        assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
-        assert _context.get_item("http.request.blocked", span) is None
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
+            assert _context.get_item("http.request.blocked", span) is None
+    finally:
+        _reset_contextvars()
 
 
 def test_ip_update_rules_and_block(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        _enable_appsec(tracer)
-        tracer._appsec_processor.update_rules(
-            [
-                {
-                    "data": [
-                        {"value": "8.8.4.4"},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
-        )
-        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
-            set_http_meta(
-                span,
-                Config(),
+    try:
+        with override_global_config(dict(_appsec_enabled=True)):
+            _enable_appsec(tracer)
+            tracer._appsec_processor.update_rules(
+                [
+                    {
+                        "data": [
+                            {"value": "8.8.4.4"},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
             )
+            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
+            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
 
-        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-        assert _context.get_item("http.request.blocked", span)
-        assert "block" in _context.get_item("http.request.waf_actions", span)
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.blocked", span)
+            assert "block" in _context.get_item("http.request.waf_actions", span)
+    finally:
+        _reset_contextvars()
 
 
 def test_ip_update_rules_expired_no_block(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        _enable_appsec(tracer)
-        tracer._appsec_processor.update_rules(
-            [
-                {
-                    "data": [
-                        {"expiration": 1662804872, "value": "8.8.4.4"},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
-        )
-        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
-            set_http_meta(
-                span,
-                Config(),
+    try:
+        with override_global_config(dict(_appsec_enabled=True)):
+            _enable_appsec(tracer)
+            tracer._appsec_processor.update_rules(
+                [
+                    {
+                        "data": [
+                            {"expiration": 1662804872, "value": "8.8.4.4"},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
             )
+            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
+            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
 
-        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-        assert _context.get_item("http.request.blocked", span) is None
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.blocked", span) is None
+    finally:
+        _reset_contextvars()
 
 
 @snapshot(

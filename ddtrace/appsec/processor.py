@@ -266,6 +266,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
+        _reset_contextvars()
+
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
