@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from time import sleep
+import warnings
 
 import mock
 import pytest
@@ -14,6 +15,7 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
 from tests.utils import override_env
 
 
@@ -145,6 +147,25 @@ def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_sen
         sleep(0.2)
         mock_send_request.assert_called_once()
         assert callback.features == {"asm": {"enabled": True}}
+
+
+def test_remote_configuration_check_deprecated_var(caplog):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            get_poll_interval_seconds()
+            assert len(capture) == 0
+
+
+def test_remote_configuration_check_deprecated_var_message(caplog):
+    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            get_poll_interval_seconds()
+            assert len(capture) == 1
+            assert str(capture[0].message).startswith("Using environment")
 
 
 def test_remoteconfig_semver():
