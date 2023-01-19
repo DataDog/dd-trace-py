@@ -63,7 +63,7 @@ class TestTracedCursor(TracerTestCase):
 
         spans = self.tracer.pop()
         assert len(spans) == 3
-        dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
         # DBM comment should not be added procedure names
@@ -194,6 +194,7 @@ class TestTracedCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
         assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_cfg_service(self):
         cursor = self.cursor
@@ -427,6 +428,7 @@ class TestFetchTracedCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
         assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor

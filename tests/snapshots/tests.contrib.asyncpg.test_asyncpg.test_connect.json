@@ -10,10 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "5a1df4e03db0475d87991f7c72c53414"
+      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,6 +24,6 @@
       "out.port": 5432,
       "process_id": 95613
     },
-    "duration": 7226000,
-    "start": 1646890621099055000
+    "duration": 11194000,
+    "start": 1666809593831350000
   }]]
