@@ -27,42 +27,33 @@ cpdef _extract_class_name(frame):
     """
     # Python 3.11 moved PyFrameObject members to internal C API and cannot be directly accessed
     IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-        cdef PyFrameObject* pyframe = <PyFrameObject*>frame
-        if pyframe == NULL:
-            return ""
-        code = PyFrame_GetCode(pyframe)
+        code = PyFrame_GetCode(<PyFrameObject*>frame)
         co_varnames = PyCode_GetVarnames(code)
-        if PyTuple_Size(co_varnames) != 0:
-            argname = PyTuple_GetItem(co_varnames, 0)
-            try:
-                f_locals = PyFrame_GetLocals(pyframe)
-                value = PyDict_GetItem(f_locals, argname)
-            except KeyError:
-                return ""
-            try:
-                if <str>argname == "self":
-                    return object.__getattribute__(type(<object>value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
-                if <str>argname == "cls":
-                    return object.__getattribute__(<object>value, "__name__")
-            except AttributeError:
-                return ""
-        return ""
-        # FIXME: need to Py_XDECREF --> code, pyframe, f_locals
+        if PyTuple_Size(co_varnames) == 0:
+            return ""
+        argname = PyTuple_GetItem(co_varnames, 0)
+        try:
+            f_locals = PyFrame_GetLocals(<PyFrameObject*>frame)
+            value = PyDict_GetItem(f_locals, argname)
+        except KeyError:
+            return ""
     ELSE:
-        if frame.f_code.co_varnames:
-            argname = frame.f_code.co_varnames[0]
-            try:
-                value = frame.f_locals[argname]
-            except KeyError:
-                return ""
-            try:
-                if argname == "self":
-                    return object.__getattribute__(type(value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
-                if argname == "cls":
-                    return object.__getattribute__(value, "__name__")
-            except AttributeError:
-                return ""
+        co_varnames = frame.f_code.co_varnames
+        if not co_varnames:
+            return ""
+        argname = co_varnames[0]
+        try:
+            value = frame.f_locals[argname]
+        except KeyError:
+            return ""
+    try:
+        if <str>argname == "self":
+            return object.__getattribute__(type(<object>value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
+        if <str>argname == "cls":
+            return object.__getattribute__(<object>value, "__name__")
+    except AttributeError:
         return ""
+    return ""
 
 
 cpdef traceback_to_frames(traceback, max_nframes):
@@ -114,7 +105,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
                 frames.append(((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(<object>pyframe)))
                 Py_XDECREF(<PyObject*>code)
             pyframe = PyFrame_GetBack(pyframe)
-            # FIXME: Where to Py_XDECREF(cframe)?
+            # FIXME: Where to Py_XDECREF(pyframe)?
     ELSE:
         while frame is not None:
             nframes += 1
