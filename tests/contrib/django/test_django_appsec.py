@@ -445,7 +445,7 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-006"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
 
 
 def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
@@ -460,7 +460,7 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-002"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
 
 
 def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):
@@ -477,7 +477,7 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-007"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
 
 
 def test_request_suspicious_request_block_match_query_value(client, test_spans, tracer):
@@ -492,7 +492,7 @@ def test_request_suspicious_request_block_match_query_value(client, test_spans, 
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-001"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
 
 
 def test_request_suspicious_request_block_match_header(client, test_spans, tracer):
@@ -507,7 +507,7 @@ def test_request_suspicious_request_block_match_header(client, test_spans, trace
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-004"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
 
 
 def test_request_suspicious_request_block_match_body(client, test_spans, tracer):
@@ -524,7 +524,7 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-003"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
 
 
 def test_request_suspicious_request_block_match_response_code(client, test_spans, tracer):
@@ -539,7 +539,7 @@ def test_request_suspicious_request_block_match_response_code(client, test_spans
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
 
 
 def test_request_suspicious_request_block_match_request_cookie(client, test_spans, tracer):
@@ -555,4 +555,19 @@ def test_request_suspicious_request_block_match_request_cookie(client, test_span
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-008"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
+
+
+def test_request_suspicious_request_block_match_response_headers(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/path-params/2022/january/")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
