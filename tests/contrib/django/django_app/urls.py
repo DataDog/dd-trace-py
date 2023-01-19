@@ -49,7 +49,9 @@ def shutdown(request):
 
 def magic_header_key(request):
     # Endpoint used to block request on response headers
-    return HttpResponse(status=200, headers={"Content-Disposition": 'attachment; filename="MagicKey_Al4h7iCFep9s1"'})
+    res = HttpResponse(status=200)
+    res.headers["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+    return res
 
 
 urlpatterns = [
