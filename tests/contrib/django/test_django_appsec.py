@@ -434,6 +434,7 @@ def test_request_ipblock_match_403_json(client, test_spans, tracer):
 
 
 def test_request_suspicious_request_block_match_method(client, test_spans, tracer):
+    # GET must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
@@ -446,9 +447,17 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+    # POST must pass
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", payload="any")
+        assert response.status_code == 200
 
 
 def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
+    # .git must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
@@ -461,9 +470,17 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
+    # legit must pass
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/legit")
+        assert response.status_code == 404
 
 
 def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):
+    # value AiKfOeRcvG45 must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
