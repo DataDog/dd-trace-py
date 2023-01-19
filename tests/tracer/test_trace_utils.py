@@ -509,6 +509,19 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id"]
+    assert not span.get_tag(http.USER_AGENT)
+    mock_store_headers.assert_called()
+
+
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [

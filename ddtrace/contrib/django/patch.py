@@ -17,10 +17,10 @@ from django.http import HttpResponseForbidden
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR, \
-    _reset_contextvars
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
+from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name

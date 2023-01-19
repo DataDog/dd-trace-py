@@ -20,8 +20,9 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR, _reset_contextvars
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
+from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
