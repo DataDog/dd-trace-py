@@ -20,7 +20,7 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR, _reset_contextvars
 from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -579,15 +579,18 @@ def request_tracer(name):
         _DD_EARLY_IP_CONTEXTVAR.set(request.remote_addr)
         _DD_EARLY_HEADERS_CONTEXTVAR.set(request.headers)
 
-        with pin.tracer.trace(
-            ".".join(("flask", name)),
-            service=trace_utils.int_service(pin, config.flask, pin),
-        ) as request_span:
-            # set component tag equal to name of integration
-            request_span.set_tag_str("component", config.flask.integration_name)
+        try:
+            with pin.tracer.trace(
+                ".".join(("flask", name)),
+                service=trace_utils.int_service(pin, config.flask, pin),
+            ) as request_span:
+                # set component tag equal to name of integration
+                request_span.set_tag_str("component", config.flask.integration_name)
 
-            request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            return wrapped(*args, **kwargs)
+                request_span._ignore_exception(werkzeug.exceptions.NotFound)
+                return wrapped(*args, **kwargs)
+        finally:
+            _reset_contextvars()
 
     return _traced_request
 

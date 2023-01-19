@@ -279,8 +279,6 @@ def test_django_path_params(client, test_spans, tracer):
 
 def test_django_useragent(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        tracer._appsec_enabled = True
-        tracer.configure(api_version="v0.4")
         root_span, _ = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_USER_AGENT": "test/1.2.3"}
         )

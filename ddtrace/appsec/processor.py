@@ -15,7 +15,6 @@ from six import ensure_binary
 from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
-from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
@@ -221,7 +220,6 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = _DD_EARLY_IP_CONTEXTVAR.get()
         headers = _DD_EARLY_HEADERS_CONTEXTVAR.get()
         headers_case_sensitive = _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
-        _reset_contextvars()
 
         _context.set_items(
             {
@@ -266,7 +264,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        _reset_contextvars()
 
         if span.span_type != SpanTypes.WEB:
             return

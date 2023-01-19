@@ -17,7 +17,8 @@ from django.http import HttpResponseForbidden
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR
+from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR, \
+    _reset_contextvars
 from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
 from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -366,6 +367,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
+            _reset_contextvars()
             utils._after_request_tags(pin, span, request, response)
 
 
