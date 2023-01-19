@@ -1,2 +1,0 @@
-TELEMETRY_TRACER = "tracers"
-TELEMETRY_APPSEC = "appsec"

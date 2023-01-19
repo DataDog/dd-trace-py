@@ -1,9 +1,11 @@
+import abc
 import time
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 
+import six
 from typing_extensions import Literal
 
 from ..hostname import get_hostname
@@ -12,7 +14,7 @@ from ..hostname import get_hostname
 MetricType = Literal["count", "gauge", "rate"]
 
 
-class Metric:
+class Metric(six.with_metaclass(abc.ABCMeta)):
     """
     stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org
     """
@@ -31,21 +33,22 @@ class Metric:
         self.type = metric_type
         self.common = common
         self.interval = interval
+        self._roll_up_interval = interval
         self.namespace = namespace
         self._points = []  # type: List[Tuple[int, int]]
         self._tags = {}  # type: Dict[str, str]
+        self._count = 0
 
-    def add_point(self, value):
+    @abc.abstractmethod
+    def add_point(self, value=None):
         # type: (int) -> None
         """adds timestamped data point associated with a metric"""
-        timestamp = int(time.time())
-        self._points.append((timestamp, value))
+        pass
 
     def set_tags(self, tags):
         # type: (Dict) -> None
         """sets a metrics tag"""
-        for k, v in tags.items():
-            self.set_tag(k, v)
+        self._tags = tags
 
     def set_tag(self, name, value):
         # type: (str, str) -> None
@@ -64,3 +67,31 @@ class Metric:
             "points": self._points,
             "tags": self._tags,
         }
+
+
+class CountMetric(Metric):
+    def add_point(self, value=None):
+        # type: (int) -> None
+        """adds timestamped data point associated with a metric"""
+        timestamp = int(time.time())
+        self._count += 1.0
+        self._points = [(timestamp, self._count)]
+
+
+class GaugeMetric(Metric):
+    def add_point(self, value=None):
+        # type: (int) -> None
+        """adds timestamped data point associated with a metric"""
+        timestamp = int(time.time())
+        self._points = [(timestamp, value)]
+
+
+class RateMetric(Metric):
+    def add_point(self, value=None):
+        # type: (int) -> None
+        """adds timestamped data point associated with a metric
+        https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
+        """
+        timestamp = int(time.time())
+        self._count += 1.0
+        self._points = [(timestamp, self._count / self.interval)]

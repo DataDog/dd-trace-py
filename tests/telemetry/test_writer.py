@@ -6,8 +6,8 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_APPSEC
-from ddtrace.internal.telemetry.constants import TELEMETRY_TRACER
+from ddtrace.internal.constants import TELEMETRY_APPSEC
+from ddtrace.internal.constants import TELEMETRY_TRACER
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
@@ -194,9 +194,9 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
 
 
 def test_send_tracers_count_metric(mock_time, telemetry_writer, test_agent_session):
+    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
@@ -211,11 +211,9 @@ def test_send_tracers_count_metric(mock_time, telemetry_writer, test_agent_sessi
                 "metric": "dd.app_telemetry.tracers.test-metric",
                 "type": "count",
                 "common": True,
-                "interval": 3,
+                "interval": 60.0,
                 "points": [
-                    [1642544540, 1],
-                    [1642544540, 1],
-                    [1642544540, 1],
+                    [1642544540, 3],
                 ],
                 "tags": {
                     "hi": "HELLO",
@@ -247,16 +245,11 @@ def test_send_appsec_rate_metric(mock_time, telemetry_writer, test_agent_session
                 "metric": "dd.app_telemetry.appsec.test-metric",
                 "type": "rate",
                 "common": True,
-                "interval": None,
+                "interval": 60.0,
                 "points": [
-                    [1642544540, 1],
-                    [1642544540, 1],
-                    [1642544540, 1],
+                    [1642544540, 0.05],
                 ],
-                "tags": {
-                    "hi": "HELLO",
-                    "NAME": "CANDY",
-                },
+                "tags": {},
             }
         ],
     }
@@ -267,7 +260,7 @@ def test_send_appsec_rate_metric(mock_time, telemetry_writer, test_agent_session
 
 def test_send_appsec_gauge_metric(mock_time, telemetry_writer, test_agent_session):
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"})
-    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {})
+    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"a": "b"})
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 6, {})
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
@@ -283,16 +276,11 @@ def test_send_appsec_gauge_metric(mock_time, telemetry_writer, test_agent_sessio
                 "metric": "dd.app_telemetry.appsec.test-metric",
                 "type": "gauge",
                 "common": True,
-                "interval": 6,
+                "interval": 60.0,
                 "points": [
-                    [1642544540, 5],
-                    [1642544540, 5],
                     [1642544540, 6],
                 ],
-                "tags": {
-                    "hi": "HELLO",
-                    "NAME": "CANDY",
-                },
+                "tags": {},
             }
         ],
     }

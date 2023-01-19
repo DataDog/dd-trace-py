@@ -1,8 +1,6 @@
 import os
 import time
 from typing import Dict
-from typing import List
-from typing import Optional
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -11,7 +9,8 @@ from ...version import get_version
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
-from ..compat import httplib
+from ..constants import TELEMETRY_APPSEC
+from ..constants import TELEMETRY_TRACER
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -19,13 +18,14 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
-from .constants import TELEMETRY_APPSEC
-from .constants import TELEMETRY_TRACER
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import CountMetric
+from .metrics import GaugeMetric
 from .metrics import Metric
 from .metrics import MetricType
+from .metrics import RateMetric
 
 
 log = get_logger(__name__)
@@ -63,7 +63,7 @@ class TelemetryWriter(PeriodicService):
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
         forksafe.register(self._fork_writer)
-
+        self.metric_class = {"count": CountMetric, "gauge": GaugeMetric, "rate": RateMetric}
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
@@ -178,42 +178,41 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         self.join()
 
-    def add_gauge_metric(self, namespace, name, value, tags):
+    def add_gauge_metric(self, namespace, name, value, tags=None):
         # type: (str,str, int, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("gauge", namespace, name, value, tags)
 
-    def add_rate_metric(self, namespace, name, value, tags):
+    def add_rate_metric(self, namespace, name, value, tags=None):
         # type: (str,str, int, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("rate", namespace, name, value, tags)
 
-    def add_count_metric(self, namespace, name, value, tags):
+    def add_count_metric(self, namespace, name, value, tags=None):
         # type: (str,str, int, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("count", namespace, name, value, tags)
 
-    def _add_metric(self, metric_type, namespace, name, value, tags):
+    def _add_metric(self, metric_type, namespace, name, value, tags=None):
         # type: (MetricType, str,str, int, dict) -> None
         """
         Queues metric
         """
         with self._lock:
             name = "dd.app_telemetry." + namespace + "." + name
-            metric = self._namespace[namespace].get(name, Metric(namespace, name, metric_type, True))
-            if metric_type == "count":
-                metric.interval = (metric.interval or 0) + 1
-            elif metric_type == "gauge":
-                metric.interval = value
+            metric = self._namespace[namespace].get(
+                name, self.metric_class[metric_type](namespace, name, metric_type, True, _get_interval_or_default())
+            )
+
             metric.add_point(value)
             self._namespace[namespace][name] = metric
-            if tags:
+            if tags is not None:
                 self._namespace[namespace][name].set_tags(tags)
 
     def _app_generate_metrics_event(self, namespace_metrics):
