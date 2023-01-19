@@ -75,7 +75,6 @@ def test_django_request_cookies_attack(client, test_spans, tracer):
             client.cookies.load({"attack": "1' or '1' = '1'"})
             root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer)
             query = dict(_context.get_item("http.request.cookies", span=root_span))
-            print(json.loads(root_span.get_tag(APPSEC_JSON)))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
