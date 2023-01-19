@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Pin the version of cattrs to allow the library to install correctly with
+    Python < 3.7.
