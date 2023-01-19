@@ -185,6 +185,16 @@ def _safe_getattr(obj, name):
         return e
 
 
+def _safe_getitem(obj, index):
+    if isinstance(obj, list):
+        return list.__getitem__(obj, index)
+    elif isinstance(obj, dict):
+        return dict.__getitem__(obj, index)
+    elif isinstance(obj, tuple):
+        return tuple.__getitem__(obj, index)
+    raise TypeError("Type is not indexable collection " + str(type(obj)))
+
+
 @cached()
 def _has_safe_dict(_type):
     # type: (Type) -> bool
