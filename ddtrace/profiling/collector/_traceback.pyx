@@ -1,16 +1,18 @@
 IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
-    from cpython cimport PyFrameObject
-    from cpython.dict cimport PyDict_GetItem
     from cpython.object cimport PyObject
     from cpython.ref cimport Py_XDECREF
-    from cpython.tuple cimport PyTuple_GetItem
 
     cdef extern from "<Python.h>":
         ctypedef struct PyCodeObject:
             pass
+        ctypedef struct PyFrameObject:
+            pass
         PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
         PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
 
+        PyObject* PyDict_GetItem(PyObject* p, PyObject* key)
+        PyObject* PyTuple_GetItem(PyObject* p, Py_ssize_t pos)
+        Py_ssize_t PyTuple_Size(PyObject* p)
         IF PY_MINOR_VERSION >= 11:
             PyObject* PyFrame_GetLocals(PyFrameObject* frame)
             int PyFrame_GetLineNumber(PyFrameObject* frame)
@@ -25,30 +27,27 @@ cpdef _extract_class_name(frame):
     """
     # Python 3.11 moved PyFrameObject members to internal C API and cannot be directly accessed
     IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-        code = PyFrame_GetCode(<PyFrameObject*> frame)
+        cdef PyFrameObject* pyframe = <PyFrameObject*>frame
+        if pyframe == NULL:
+            return ""
+        code = PyFrame_GetCode(pyframe)
         co_varnames = PyCode_GetVarnames(code)
-        if co_varnames:
-            argname = <tuple>PyTuple_GetItem(<object>co_varnames, 0)
+        if PyTuple_Size(co_varnames) != 0:
+            argname = PyTuple_GetItem(co_varnames, 0)
             try:
-                f_locals = PyFrame_GetLocals(<PyFrameObject*>frame)
-                value = <object>PyDict_GetItem(<object>f_locals, argname)
-                Py_XDECREF(f_locals)
-                Py_XDECREF(<PyObject*>code)
+                f_locals = PyFrame_GetLocals(pyframe)
+                value = PyDict_GetItem(f_locals, argname)
             except KeyError:
-                Py_XDECREF(f_locals)
-                Py_XDECREF(co_varnames)
-                Py_XDECREF(<PyObject*>code)
                 return ""
             try:
-                Py_XDECREF(co_varnames)
                 if <str>argname == "self":
-                    return object.__getattribute__(type(value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
+                    return object.__getattribute__(type(<object>value), "__name__")  # use type() and object.__getattribute__ to avoid side-effects
                 if <str>argname == "cls":
-                    return object.__getattribute__(value, "__name__")
+                    return object.__getattribute__(<object>value, "__name__")
             except AttributeError:
                 return ""
-        Py_XDECREF(co_varnames)
         return ""
+        # FIXME: need to Py_XDECREF --> code, pyframe, f_locals
     ELSE:
         if frame.f_code.co_varnames:
             argname = frame.f_code.co_varnames[0]
@@ -103,18 +102,22 @@ cpdef pyframe_to_frames(frame, max_nframes):
     :return: The serialized frames and the number of frames present in the original traceback."""
     frames = []
     nframes = 0
-    while frame is not None:
-        nframes += 1
-        # Python 3.11 moved PyFrameObject members to internal C API and cannot be directly accessed
-        IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+    # Python 3.11 moved PyFrameObject members to internal C API and cannot be directly accessed
+    IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+        cdef PyFrameObject* pyframe = <PyFrameObject*> frame
+        while pyframe != NULL:
+            nframes += 1
             if len(frames) < max_nframes:
-                code = PyFrame_GetCode(<PyFrameObject*> frame)
-                lineno = PyFrame_GetLineNumber(<PyFrameObject*> frame)
+                code = PyFrame_GetCode(pyframe)
+                lineno = PyFrame_GetLineNumber(pyframe)
                 lineno = 0 if lineno is None else lineno
-                frames.append(((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(frame)))
+                frames.append(((<object>code).co_filename, lineno, (<object>code).co_name, _extract_class_name(<object>pyframe)))
                 Py_XDECREF(<PyObject*>code)
-            frame = <object>PyFrame_GetBack(<PyFrameObject*> frame)
-        ELSE:
+            pyframe = PyFrame_GetBack(pyframe)
+            # FIXME: Where to Py_XDECREF(cframe)?
+    ELSE:
+        while frame is not None:
+            nframes += 1
             if len(frames) < max_nframes:
                 code = frame.f_code
                 lineno = 0 if frame.f_lineno is None else frame.f_lineno
