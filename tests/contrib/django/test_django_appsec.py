@@ -580,7 +580,7 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/path-params/2022/january/")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
         assert response.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON

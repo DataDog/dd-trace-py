@@ -1,6 +1,7 @@
 import json
 import logging
 
+from flask import Response
 from flask import request
 import pytest
 
@@ -483,13 +484,15 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
 
     def test_request_suspicious_request_block_match_response_headers(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
+        @self.app.route("/response-header/")
+        def specific_reponse():
+            resp = Response("Foo bar baz", 200)
+            resp.headers["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+            return resp
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/params/all_ok")
+            resp = self.client.get("/response-header/")
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON

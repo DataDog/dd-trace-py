@@ -173,7 +173,7 @@
                 "address": "server.response.headers.no_cookies"
               }
             ],
-            "regex": "text/html; charset=utf-8"
+            "regex": "MagicKey_Al4h7iCFep9s1"
           },
           "operator": "match_regex"
         }
