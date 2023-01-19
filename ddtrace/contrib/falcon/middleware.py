@@ -28,6 +28,9 @@ class TraceMiddleware(object):
             service=self.service,
             span_type=SpanTypes.WEB,
         )
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.falcon.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         # set analytics sample rate with global config enabled

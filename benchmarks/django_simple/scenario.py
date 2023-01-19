@@ -5,6 +5,8 @@ import utils
 class DjangoSimple(bm.Scenario):
     tracer_enabled = bm.var_bool()
     profiler_enabled = bm.var_bool()
+    appsec_enabled = bm.var_bool()
+    iast_enabled = bm.var_bool()
 
     def run(self):
         with utils.server(self) as get_response:

@@ -89,6 +89,9 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
+            # set component tag equal to name of integration
+            s.set_tag_str("component", self._self_config.integration_name)
+
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
@@ -273,6 +276,9 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+            # set component tag equal to name of integration
+            s.set_tag_str("component", self._self_config.integration_name)
+
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

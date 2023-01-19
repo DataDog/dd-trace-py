@@ -198,6 +198,9 @@ def _create_sanic_request_span(request):
         resource=resource,
         span_type=SpanTypes.WEB,
     )
+    # set component tag equal to name of integration
+    span.set_tag_str("component", config.sanic.integration_name)
+
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)

@@ -32,6 +32,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
+         "component": "snowflake",
          "db.application": "PythonConnector",
          "db.name": "mock-db-name",
          "db.schema": "mock-schema-name",
