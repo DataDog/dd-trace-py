@@ -179,28 +179,28 @@ class TelemetryWriter(PeriodicService):
         self.join()
 
     def add_gauge_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, int, dict) -> None
+        # type: (str,str, float, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("gauge", namespace, name, value, tags)
 
-    def add_rate_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, int, dict) -> None
+    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
+        # type: (str,str, float, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("rate", namespace, name, value, tags)
 
-    def add_count_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, int, dict) -> None
+    def add_count_metric(self, namespace, name, value=1.0, tags=None):
+        # type: (str,str, float, dict) -> None
         """
         Queues count metric
         """
         self._add_metric("count", namespace, name, value, tags)
 
-    def _add_metric(self, metric_type, namespace, name, value, tags=None):
-        # type: (MetricType, str,str, int, dict) -> None
+    def _add_metric(self, metric_type, namespace, name, value=1.0, tags=None):
+        # type: (MetricType, str,str, float, dict) -> None
         """
         Queues metric
         """
@@ -209,7 +209,6 @@ class TelemetryWriter(PeriodicService):
             metric = self._namespace[namespace].get(
                 name, self.metric_class[metric_type](namespace, name, metric_type, True, _get_interval_or_default())
             )
-
             metric.add_point(value)
             self._namespace[namespace][name] = metric
             if tags is not None:
@@ -222,10 +221,10 @@ class TelemetryWriter(PeriodicService):
                 payload = {
                     "namespace": namespace,
                     "lib_language": "python",
-                    "lib_version": get_version(),
+                    "lib_version": "1.7.0",
                     "series": [m.to_dict() for m in metrics.values()],
                 }
-                self.add_event(payload, "app-generate-metrics")
+                self.add_event(payload, "generate-metrics")
 
     def add_event(self, payload, payload_type):
         # type: (Dict, str) -> None
@@ -323,6 +322,7 @@ class TelemetryWriter(PeriodicService):
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": sequence_id,
+            "debug": True,
             "application": get_application(config.service, config.version, config.env),
             "host": get_host_info(),
             "payload": payload,

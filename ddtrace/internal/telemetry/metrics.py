@@ -37,11 +37,11 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.namespace = namespace
         self._points = []  # type: List[Tuple[int, int]]
         self._tags = {}  # type: Dict[str, str]
-        self._count = 0
+        self._count = 0.0
 
     @abc.abstractmethod
-    def add_point(self, value=None):
-        # type: (int) -> None
+    def add_point(self, value=1.0):
+        # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         pass
 
@@ -63,35 +63,38 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "metric": self.metric,
             "type": self.type,
             "common": self.common,
-            "interval": self.interval,
+            "interval": int(self.interval),
             "points": self._points,
             "tags": self._tags,
         }
 
 
 class CountMetric(Metric):
-    def add_point(self, value=None):
-        # type: (int) -> None
+    def add_point(self, value=1.0):
+        # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         timestamp = int(time.time())
-        self._count += 1.0
-        self._points = [(timestamp, self._count)]
+        # self._count += 1.0
+        # self._points = [(timestamp, self._count)]
+        self._points.append((timestamp, float(value)))
 
 
 class GaugeMetric(Metric):
-    def add_point(self, value=None):
-        # type: (int) -> None
+    def add_point(self, value=1.0):
+        # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         timestamp = int(time.time())
-        self._points = [(timestamp, value)]
+        self._points = [(timestamp, float(value))]
+        # self._points.append((timestamp, value))
 
 
 class RateMetric(Metric):
-    def add_point(self, value=None):
-        # type: (int) -> None
+    def add_point(self, value=1.0):
+        # type: (float) -> None
         """adds timestamped data point associated with a metric
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
         timestamp = int(time.time())
-        self._count += 1.0
-        self._points = [(timestamp, self._count / self.interval)]
+        self._count += value
+        self._points = [(timestamp, self._count / float(self.interval))]
+        # self._points.append((timestamp, value))
