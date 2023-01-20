@@ -24,6 +24,7 @@ try:
     from .ddwaf_types import ddwaf_object
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
+    from .ddwaf_types import ddwaf_toggle_rules
     from .ddwaf_types import ddwaf_update_rule_data
     from .ddwaf_types import py_ddwaf_required_addresses
     from .ddwaf_types import py_ddwaf_run
@@ -107,6 +108,12 @@ if _DDWAF_LOADED:
             # type: (DDWafRulesType) -> int
             rules = ddwaf_object(new_rules)
             result = ddwaf_update_rule_data(self._handle, rules)
+            return result
+
+        def toggle_rules(self, rules_config):
+            # type: (dict) -> int
+            ddwaf_rules_config = ddwaf_object(rules_config)
+            result = ddwaf_toggle_rules(self._handle, ddwaf_rules_config)
             return result
 
         def run(

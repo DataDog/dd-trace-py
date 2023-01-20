@@ -1,5 +1,6 @@
 import os
 
+import mock
 import pytest
 
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
@@ -89,3 +90,37 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value):
 def test_rc_capabilities(rc_enabled, capability):
     with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
         assert _appsec_rc_capabilities() == capability
+
+
+def test_rules_override(tracer):
+    result = _set_and_get_appsec_tags(tracer)
+    assert result is None
+
+    with override_env({APPSEC_ENV: "false"}), mock.patch(
+        "ddtrace.appsec.ddwaf.DDWaf.toggle_rules"
+    ) as ddwaf_toggle_rules:
+        appsec_rc_reload_features(tracer)(
+            None, {"rules_override": [{"id": "xxx", "enabled": "true"}, {"id": "yyy", "enabled": "false"}]}
+        )
+
+        # APPSEC not enabled so toggle rules not called
+        ddwaf_toggle_rules.assert_not_called()
+
+    tracer.configure(appsec_enabled=True)
+    with override_env({APPSEC_ENV: "true"}), mock.patch(
+        "ddtrace.appsec.ddwaf.DDWaf.toggle_rules"
+    ) as ddwaf_toggle_rules:
+        appsec_rc_reload_features(tracer)(
+            None, {"rules_override": [{"id": "xxx", "enabled": "true"}, {"id": "yyy", "enabled": "false"}]}
+        )
+
+        # APPSEC enabled and overridden rules so toggle rules called appropriately
+        ddwaf_toggle_rules.assert_called_once_with({"xxx": True, "yyy": False})
+
+    with override_env({APPSEC_ENV: "true"}), mock.patch(
+        "ddtrace.appsec.ddwaf.DDWaf.toggle_rules"
+    ) as ddwaf_toggle_rules:
+        appsec_rc_reload_features(tracer)(None, {"rules_override": []})
+
+        # APPSEC enabled and overridden rules empty so toggle rules not called
+        ddwaf_toggle_rules.assert_not_called()

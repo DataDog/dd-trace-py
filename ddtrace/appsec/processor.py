@@ -193,6 +193,10 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (List[Dict[str, Any]]) -> None
         self._ddwaf.update_rules(new_rules)
 
+    def toggle_rules(self, rules_config):
+        # type: (Dict[str, Any]) -> None
+        self._ddwaf.toggle_rules(rules_config)
+
     def on_span_start(self, span, *args, **kwargs):
         # type: (Span, Any, Any) -> None
         if span.span_type != SpanTypes.WEB:

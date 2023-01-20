@@ -28,6 +28,7 @@ RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
 RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
+RULES_OVERRIDE = os.path.join(ROOT_DIR, "rules-override.json")
 
 
 @pytest.fixture

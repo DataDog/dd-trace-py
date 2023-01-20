@@ -46,6 +46,16 @@ def enable_appsec_rc():
         RemoteConfig.register(ASM_DD_PRODUCT, appsec_rc_reload_features(tracer))  # DD Rules
 
 
+def _override_rules(features, message):
+    try:
+        override_rules = features.get("rules_override", [])
+        if override_rules:
+            return {item.get("id"): asbool(item.get("enabled", "true")) for item in override_rules}
+    except json.decoder.JSONDecodeError:
+        log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
+    return {}
+
+
 def _loading_rules(features, feature, message, rule_list):
     # type: (Mapping[str, Any], str, str, list[Any]) -> None
     rules = features.get(feature, [])
@@ -67,6 +77,9 @@ def _appsec_rules_data(tracer, features):
         _loading_rules(features, "rules", "Datadog rules", rule_list)
         if rule_list:
             tracer._appsec_processor.update_rules(json.dumps(rule_list))
+        rules_config = _override_rules(features, "rules config")
+        if rules_config:
+            tracer._appsec_processor.toggle_rules(rules_config)
 
 
 def _appsec_1click_actication(tracer, features):
