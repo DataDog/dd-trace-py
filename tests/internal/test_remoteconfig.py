@@ -149,7 +149,7 @@ def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_sen
         assert callback.features == {"asm": {"enabled": True}}
 
 
-def test_remote_configuration_check_deprecated_var(caplog):
+def test_remote_configuration_check_deprecated_var():
     with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         with warnings.catch_warnings(record=True) as capture:
 
@@ -158,7 +158,7 @@ def test_remote_configuration_check_deprecated_var(caplog):
             assert len(capture) == 0
 
 
-def test_remote_configuration_check_deprecated_var_message(caplog):
+def test_remote_configuration_check_deprecated_var_message():
     with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         with warnings.catch_warnings(record=True) as capture:
 
@@ -168,13 +168,12 @@ def test_remote_configuration_check_deprecated_var_message(caplog):
             assert str(capture[0].message).startswith("Using environment")
 
 
-def test_remote_configuration_check_deprecated_override(caplog):
+@mock.patch("ddtrace.internal.remoteconfig.worker.deprecate")
+def test_remote_configuration_check_deprecated_override(mock_deprecate):
     with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.5")):
-        with warnings.catch_warnings(record=True) as capture:
-
-            # Hack: need to pass an argument to configure so that the processors are recreated
-            assert get_poll_interval_seconds() == 0.1
-            assert str(capture[0].message).startswith("Using environment")
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        assert get_poll_interval_seconds() == 0.1
+        mock_deprecate.assert_called_once()
 
 
 def test_remoteconfig_semver():
