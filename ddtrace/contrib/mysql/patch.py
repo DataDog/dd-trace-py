@@ -23,7 +23,7 @@ config._add(
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "server_host",
-    net.TARGET_PORT: "server_port",
+    "network.destination.port": "server_port",
     db.USER: "user",
     db.NAME: "database",
 }
