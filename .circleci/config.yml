@@ -160,7 +160,7 @@ commands:
                 command: |
                   mv .riot .ddriot
                   riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
-                  docker-compose exec -it testagent python ./tests/test_span_validations/test_span_validation_run.py
+                  docker-compose exec -it testagent python check_span_validation_results.py
       - unless:
           condition:
               << parameters.snapshot >>
