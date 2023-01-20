@@ -35,7 +35,7 @@ def get_mock_encoded_msg(msg):
     expires_date = datetime.datetime.strftime(
         datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
     )
-    path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
+    path = "datadog/2/%s/asm_features_activation/thisisarandomstring" % ASM_FEATURES_PRODUCT
     data = {
         "signatures": [{"keyid": "", "sig": ""}],
         "signed": {
