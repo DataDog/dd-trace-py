@@ -1,3 +1,5 @@
+import sys
+
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
@@ -6,22 +8,26 @@ def test_wrap_unwrap():
     channel = []
 
     def wrapper(f, args, kwargs):
-        channel[:] = []
         channel.append((args, kwargs))
         retval = f(*args, **kwargs)
         channel.append(retval)
-        return channel
+        return retval
 
     def f(a, b, c=None):
         return (a, b, c)
 
     wrap(f, wrapper)
 
-    assert f(1, 2, 3) == [((1, 2, 3), {}), (1, 2, 3)]
-    assert f(1, b=2, c=3) == [((1, 2, 3), {}), (1, 2, 3)]
+    assert f(1, 2, 3) == (1, 2, 3)
+    assert channel == [((1, 2, 3), {}), (1, 2, 3)]
+
+    assert f(1, b=2, c=3) == (1, 2, 3)
+    assert channel == [((1, 2, 3), {}), (1, 2, 3), ((1, 2, 3), {}), (1, 2, 3)]
 
     channel[:] = []
+
     unwrap(f, wrapper)
+
     assert f(1, 2, 3) == (1, 2, 3)
     assert not channel
 
@@ -110,3 +116,56 @@ def test_wrap_generator_send():
         pass
 
     assert list(range(10)) == channel
+
+
+def test_wrap_generator_throw_close():
+    def wrapper_maker(channel):
+        def wrapper(f, args, kwargs):
+            channel.append(True)
+
+            __ddgen = f(*args, **kwargs)
+            __ddgensend = __ddgen.send
+            try:
+                value = next(__ddgen)
+                channel.append(value)
+            except StopIteration:
+                return
+            while True:
+                try:
+                    tosend = yield value
+                except GeneratorExit:
+                    channel.append("GeneratorExit")
+                    return __ddgen.close()
+                except:  # noqa
+                    channel.append(sys.exc_info()[0])
+                    value = __ddgen.throw(*sys.exc_info())
+                    channel.append(value)
+                else:
+                    try:
+                        value = __ddgensend(tosend)
+                        channel.append(value)
+                    except StopIteration:
+                        return
+
+        return wrapper
+
+    channel = []
+
+    def g():
+        while True:
+            try:
+                yield 0
+            except ValueError:
+                yield 1
+
+    wrap(g, wrapper_maker(channel))
+
+    gen = g()
+
+    for _ in range(10):
+        assert next(gen) == 0
+        assert gen.throw(ValueError) == 1
+
+    gen.close()
+
+    assert channel == [True] + [0, ValueError, 1] * 10 + ["GeneratorExit"]
