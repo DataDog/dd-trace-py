@@ -51,6 +51,17 @@ def track_user_login_success_event(
     propagate=False,
 ):
     # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None # noqa: E501
+    """
+    Add a new login success tracking event. The parameters after metadata (name, email,
+    scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
+    by this one, see:
+    https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
+    https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
+
+    :param tracer: tracer instance to use
+    :param user_id: a string with the UserId
+    :param metadata: a dictionary with additional metadata information to be stored with the event
+    """
 
     span = _track_user_login_common(tracer, user_id, True, metadata)
     if not span:
@@ -62,6 +73,13 @@ def track_user_login_success_event(
 
 def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     # type: (Tracer, str, bool, Optional[dict]) -> None
+    """
+    Add a new login failure tracking event.
+    :param tracer: tracer instance to use
+    :param user_id: a string with the UserId if exists=True or the username if not
+    :param exists: a boolean indicating if the user exists in the system
+    :param metadata: a dictionary with additional metadata information to be stored with the event
+    """
 
     span = _track_user_login_common(tracer, user_id, False, metadata)
     if not span:
@@ -74,6 +92,13 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
 
 def track_custom_event(tracer, event_name, metadata):
     # type: (Tracer, str, dict) -> None
+    """
+    Add a new custom tracking event.
+
+    :param tracer: tracer instance to use
+    :param event_name: the name of the custom event
+    :param metadata: a dictionary with additional metadata information to be stored with the event
+    """
 
     if not event_name:
         log.warning("Empty event name given to track_custom_event. Skipping setting tags.")

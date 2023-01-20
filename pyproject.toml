@@ -32,6 +32,7 @@ exclude = '''
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/vendor/
   | \.eggs
   | \.git
