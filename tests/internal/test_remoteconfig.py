@@ -169,11 +169,11 @@ def test_remote_configuration_check_deprecated_var_message(caplog):
 
 
 def test_remote_configuration_check_deprecated_override(caplog):
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.2", DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         with warnings.catch_warnings(record=True) as capture:
 
             # Hack: need to pass an argument to configure so that the processors are recreated
-            assert get_poll_interval_seconds() == 0.2
+            assert get_poll_interval_seconds() == 0.1
             assert len(capture) == 1
             assert str(capture[0].message).startswith("Using environment")
 
