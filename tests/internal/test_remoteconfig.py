@@ -167,6 +167,7 @@ def test_remote_configuration_check_deprecated_var_message(caplog):
             assert len(capture) == 1
             assert str(capture[0].message).startswith("Using environment")
 
+
 def test_remote_configuration_check_deprecated_override(caplog):
     with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.2", DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         with warnings.catch_warnings(record=True) as capture:
@@ -175,6 +176,8 @@ def test_remote_configuration_check_deprecated_override(caplog):
             assert get_poll_interval_seconds() == 0.2
             assert len(capture) == 1
             assert str(capture[0].message).startswith("Using environment")
+
+
 def test_remoteconfig_semver():
     assert re.match(
         r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*["
