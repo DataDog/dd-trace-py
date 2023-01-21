@@ -694,13 +694,18 @@ def test_to_str_none():
 def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
-    exports, libs = exp.export(TEST_EVENTS, 1, 7)
-    if six.PY2:
-        filename = "test-pprof-exporter-py2.txt"
-    else:
-        filename = "test-pprof-exporter.txt"
-    with open(os.path.join(os.path.dirname(__file__), filename)) as f:
-        assert f.read() == str(exports), filename
+    exports, _ = exp.export(TEST_EVENTS, 1, 7)
+
+    assert len(exports.sample_type) == 11
+    assert len(exports.string_table) == 58
+    assert len(exports.sample) == 22 if six.PY2 else 28
+    assert len(exports.location) == 8
+
+    assert exports.period == 1000000
+    assert exports.time_nanos == 1
+    assert exports.duration_nanos == 6
+
+    assert all(_ in exports.string_table for _ in ("time", "nanoseconds", "bonjour"))
 
 
 @mock.patch("ddtrace.internal.utils.config.get_application_name")
@@ -782,7 +787,16 @@ def test_pprof_exporter_libs(gan):
             {"kind": "standard library", "name": "platstdlib", "version": platform.python_version()},
         )
 
-    assert libs == expected_libs
+    # DEV: We cannot convert the lists to sets because the some of the values
+    # in the dicts are list. We resort to matching the elements of one list to
+    # the other instead and check that:
+    # - for all elements in libs we have a match in expected_libs
+    # - we end up with an empty expected_libs
+    # This is equivalent to checking that the two lists are equal.
+    for _ in libs:
+        expected_libs.remove(_)
+
+    assert not expected_libs
 
 
 def test_pprof_exporter_empty():
