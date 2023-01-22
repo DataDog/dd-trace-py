@@ -354,12 +354,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
         response = None
 
-        if _context.get_item("http.request.blocked", span=span):
-            func = HttpResponseForbidden
-            args = [appsec_utils._get_blocked_template(request_headers.get("Accept"))]
-
         try:
-            response = func(*args, **kwargs)
+            if _context.get_item("http.request.blocked", span=span):
+                response = HttpResponseForbidden(
+                    appsec_utils._get_blocked_template(request_headers.get("Accept")),
+                )
+            else:
+                response = func(*args, **kwargs)
             return response
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
