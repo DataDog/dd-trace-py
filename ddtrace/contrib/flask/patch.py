@@ -6,7 +6,7 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 import xmltodict
 
-from ...appsec import utils
+from ...appsec import utils, _asm_context
 from ...internal import _context
 
 
@@ -20,9 +20,6 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
-from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
-from ddtrace.appsec.context_vars import _reset_contextvars
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -577,8 +574,8 @@ def request_tracer(name):
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
         request = flask.request
-        _DD_EARLY_IP_CONTEXTVAR.set(request.remote_addr)
-        _DD_EARLY_HEADERS_CONTEXTVAR.set(request.headers)
+        _asm_context.set_ip(request.remote_addr)
+        _asm_context.set_headers(request.headers)
 
         try:
             with pin.tracer.trace(
@@ -591,7 +588,7 @@ def request_tracer(name):
                 request_span._ignore_exception(werkzeug.exceptions.NotFound)
                 return wrapped(*args, **kwargs)
         finally:
-            _reset_contextvars()
+            _asm_context.reset()
 
     return _traced_request
 

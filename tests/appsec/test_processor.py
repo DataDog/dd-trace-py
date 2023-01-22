@@ -4,9 +4,7 @@ import os.path
 import pytest
 from six import ensure_binary
 
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
-from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
-from ddtrace.appsec.context_vars import _reset_contextvars
+from ddtrace.appsec import _asm_context
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
@@ -208,8 +206,8 @@ def test_ip_block(tracer):
     try:
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
             _enable_appsec(tracer)
-            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
-            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            _asm_context.set_ip("8.8.4.4")
+            _asm_context.set_headers({})
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -221,15 +219,15 @@ def test_ip_block(tracer):
             assert _context.get_item("http.request.blocked", span)
             assert "block" in _context.get_item("http.request.waf_actions", span)
     finally:
-        _reset_contextvars()
+        _asm_context.reset()
 
 
 def test_ip_not_block(tracer):
     try:
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
             _enable_appsec(tracer)
-            _DD_EARLY_IP_CONTEXTVAR.set("8.8.8.4")
-            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            _asm_context.set_ip("8.8.8.4")
+            _asm_context.set_headers({})
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -239,7 +237,7 @@ def test_ip_not_block(tracer):
             assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
             assert _context.get_item("http.request.blocked", span) is None
     finally:
-        _reset_contextvars()
+        _asm_context.reset()
 
 
 def test_ip_update_rules_and_block(tracer):
@@ -257,8 +255,8 @@ def test_ip_update_rules_and_block(tracer):
                     },
                 ]
             )
-            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
-            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            _asm_context.set_ip("8.8.4.4")
+            _asm_context.set_headers({})
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -269,7 +267,7 @@ def test_ip_update_rules_and_block(tracer):
             assert _context.get_item("http.request.blocked", span)
             assert "block" in _context.get_item("http.request.waf_actions", span)
     finally:
-        _reset_contextvars()
+        _asm_context.reset()
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -287,8 +285,8 @@ def test_ip_update_rules_expired_no_block(tracer):
                     },
                 ]
             )
-            _DD_EARLY_IP_CONTEXTVAR.set("8.8.4.4")
-            _DD_EARLY_HEADERS_CONTEXTVAR.set({})
+            _asm_context.set_ip("8.8.4.4")
+            _asm_context.set_headers({})
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -298,7 +296,7 @@ def test_ip_update_rules_expired_no_block(tracer):
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
             assert _context.get_item("http.request.blocked", span) is None
     finally:
-        _reset_contextvars()
+        _asm_context.reset()
 
 
 @snapshot(

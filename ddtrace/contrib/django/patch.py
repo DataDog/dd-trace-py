@@ -16,11 +16,7 @@ from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR
-from ddtrace.appsec.context_vars import _DD_EARLY_HEADERS_CONTEXTVAR
-from ddtrace.appsec.context_vars import _DD_EARLY_IP_CONTEXTVAR
-from ddtrace.appsec.context_vars import _reset_contextvars
+from ddtrace.appsec import utils as appsec_utils, _asm_context
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -340,9 +336,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
-    _DD_EARLY_IP_CONTEXTVAR.set(request.META.get("REMOTE_ADDR"))
-    _DD_EARLY_HEADERS_CONTEXTVAR.set(request_headers)
-    _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(django.VERSION < (2, 2))
+    _asm_context.set_ip(request.META.get("REMOTE_ADDR"))
+    _asm_context.set_headers(request.headers)
+    _asm_context.set_headers_case_sensitive(django.VERSION < (2, 2))
 
     with pin.tracer.trace(
         "django.request",
@@ -367,7 +363,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
-            _reset_contextvars()
+            _asm_context.reset()
             utils._after_request_tags(pin, span, request, response)
 
 
