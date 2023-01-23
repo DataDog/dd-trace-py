@@ -338,7 +338,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
     _asm_context.set_ip(request.META.get("REMOTE_ADDR"))
-    _asm_context.set_headers(request.headers)
+    _asm_context.set_headers(request_headers)
     _asm_context.set_headers_case_sensitive(django.VERSION < (2, 2))
 
     with pin.tracer.trace(
