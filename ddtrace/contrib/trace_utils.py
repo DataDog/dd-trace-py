@@ -156,15 +156,17 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     """
+    user_agent = ""
+
     for key_pattern in USER_AGENT_PATTERNS:
-        if not headers_are_case_sensitive:
-            user_agent = headers.get(key_pattern)
-        else:
+        if headers_are_case_sensitive or type(headers) == dict:
             user_agent = _get_header_value_case_insensitive(headers, key_pattern)
+        else:
+            user_agent = headers.get(key_pattern)
 
         if user_agent:
-            return user_agent
-    return ""
+            break
+    return user_agent
 
 
 # Used to cache the last header used for the cache. From the same server/framework
@@ -178,10 +180,12 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
-        if not headers_are_case_sensitive:
-            return headers.get(key)
+        # Sanic client will use a dict for headers even if under Django headers are case
+        # insensitive so we need to check against dict type.
+        if headers_are_case_sensitive or type(headers) == dict:
+            return _get_header_value_case_insensitive(headers, key)
 
-        return _get_header_value_case_insensitive(headers, key)
+        return headers.get(key)
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
