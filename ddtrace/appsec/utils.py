@@ -1,6 +1,7 @@
 import base64
 import os
 import sys
+from typing import Optional
 
 from ddtrace import constants
 from ddtrace.constants import APPSEC_ENV
@@ -48,8 +49,15 @@ def _appsec_rc_capabilities():
     return result
 
 
+_HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+
+
 def _get_blocked_template(accept_header_value):
     # type: (str) -> str
+
+    global _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE
+    global _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE
 
     need_html_template = False
 
@@ -62,9 +70,19 @@ def _get_blocked_template(accept_header_value):
         template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
     if template_path and os.path.exists(template_path) and os.path.isfile(template_path):
+        if need_html_template and _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE:
+            return _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE
+
+        if not need_html_template and _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE:
+            return _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE
         try:
             with open(template_path, "r") as template_file:
-                return template_file.read()
+                content = template_file.read()
+            if need_html_template:
+                _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE = content
+            else:
+                _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE = content
+            return content
         except OSError:
             pass
 
