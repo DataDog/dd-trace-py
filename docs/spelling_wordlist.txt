@@ -127,6 +127,7 @@ mysqlclient
 mysqldb
 namespace
 obfuscator
+opensearch
 opentracer
 opentracing
 parameterized

@@ -10,21 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/chunked",
-      "runtime-id": "95c79fa6df0d4378985caf03beebf928"
+      "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 55611
+      "process_id": 41758
     },
-    "duration": 1533000,
-    "start": 1631829206122936000
+    "duration": 939000,
+    "start": 1669654618334778000
   },
      {
        "name": "wsgi.application",
@@ -35,9 +36,27 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 20000,
-       "start": 1631829206122994000
+       "meta": {
+         "component": "wsgi"
+       },
+       "duration": 17000,
+       "start": 1669654618334872000
      },
+        {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "component": "wsgi"
+          },
+          "duration": 31000,
+          "start": 1669654618334960000
+        },
      {
        "name": "wsgi.response",
        "service": "wsgi",
@@ -48,20 +67,9 @@
        "type": "",
        "error": 0,
        "meta": {
+         "component": "wsgi",
          "result_class": "generator"
        },
-       "duration": 1342000,
-       "start": 1631829206123038000
-     },
-        {
-          "name": "wsgi.start_response",
-          "service": "wsgi",
-          "resource": "wsgi.start_response",
-          "trace_id": 0,
-          "span_id": 4,
-          "parent_id": 3,
-          "type": "web",
-          "error": 0,
-          "duration": 39000,
-          "start": 1631829206123121000
-        }]]
+       "duration": 795000,
+       "start": 1669654618334913000
+     }]]
