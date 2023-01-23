@@ -260,6 +260,31 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
 
+    def test_request_ipblock_match_overridden_200(self):
+        # Same as iblock_match_403 below, but with the rule overriden, so the result is as ipblock_nomatch_200 below
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+
+            self._aux_appsec_prepare_tracer()
+
+            from ddtrace.appsec._remoteconfiguration import _appsec_rules_override_data
+
+            _appsec_rules_override_data(self.tracer, {"rules_override": [{"id": "blk-001-001", "enabled": "false"}]})
+
+            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
+            assert resp.status_code == 200
+            if hasattr(resp, "text"):
+                assert resp.text == "Ok"
+            else:
+                assert resp.data == six.ensure_binary("Ok")
+
+            root = self.pop_spans()[0]
+            assert root.get_tag("actor.ip") is None
+            assert root.get_tag(APPSEC_JSON) is None
+
     def test_request_ipblock_nomatch_200(self):
         @self.app.route("/")
         def test_route():
@@ -501,24 +526,3 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
-
-    def test_request_ipblock_match_overridden_200(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
-            self._aux_appsec_prepare_tracer()
-
-            from ddtrace.appsec._remoteconfiguration import _appsec_rules_override_data
-
-            _appsec_rules_override_data(self.tracer, {"rules_override": [{"id": "blk-001-001", "enabled": "false"}]})
-
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
-            assert resp.status_code == 200
-            assert resp.text == "Ok"
-
-            root = self.pop_spans()[0]
-            assert root.get_tag("actor.ip") is None
-            assert root.get_tag(APPSEC_JSON) is None
