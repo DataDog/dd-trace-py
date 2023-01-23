@@ -1,3 +1,4 @@
+import inspect
 import sys
 
 from ddtrace.internal.wrapping import unwrap
@@ -135,7 +136,8 @@ def test_wrap_generator_throw_close():
                     tosend = yield value
                 except GeneratorExit:
                     channel.append("GeneratorExit")
-                    return __ddgen.close()
+                    __ddgen.close()
+                    raise GeneratorExit()
                 except:  # noqa
                     channel.append(sys.exc_info()[0])
                     value = __ddgen.throw(*sys.exc_info())
@@ -159,8 +161,10 @@ def test_wrap_generator_throw_close():
                 yield 1
 
     wrap(g, wrapper_maker(channel))
+    inspect.isgeneratorfunction(g)
 
     gen = g()
+    inspect.isgenerator(gen)
 
     for _ in range(10):
         assert next(gen) == 0

@@ -123,6 +123,8 @@ def _wrap_generator(instrs, code, lineno):
         Instr("RETURN_VALUE", lineno=lineno),
         propagate,
         _end_finally(lineno),
+        Instr("LOAD_CONST", None, lineno=lineno),
+        Instr("RETURN_VALUE", lineno=lineno),
         genexit,  # except GeneratorExit:
         Instr("DUP_TOP", lineno=lineno),
         Instr("LOAD_CONST", GeneratorExit, lineno=lineno),
@@ -146,135 +148,19 @@ def _wrap_generator(instrs, code, lineno):
         Instr("LOAD_CONST", sys.exc_info, lineno=lineno),
         Instr("CALL_FUNCTION", 0, lineno=lineno),
         Instr("CALL_FUNCTION_VAR" if PY < (3, 6) else "CALL_FUNCTION_EX", 0, lineno=lineno),
-        Instr("ROT_FOUR", lineno=lineno),
-        Instr("POP_EXCEPT", lineno=lineno),
+        # DEV: We cannot use ROT_FOUR because it was removed in 3.5 and added
+        # back in 3.8
+        Instr("STORE_FAST", "__value", lineno=lineno),
+        Instr("POP_EXCEPT" if PY >= (3,) else "NOP", lineno=lineno),
+        Instr("LOAD_FAST", "__value", lineno=lineno),
         Instr("JUMP_ABSOLUTE", _yield, lineno=lineno),
     ]
 
 
-def p(lineno, msg):
-    return [
-        Instr("LOAD_CONST", print, lineno=lineno),
-        Instr("LOAD_CONST", msg, lineno=lineno),
-        Instr("CALL_FUNCTION", 1, lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-    ]
-
-
-def tos(lineno):
-    return [
-        Instr("DUP_TOP", lineno=lineno),
-        Instr("STORE_FAST", "__tos", lineno=lineno),
-        Instr("LOAD_CONST", print, lineno=lineno),
-        Instr("LOAD_CONST", "TOS =", lineno=lineno),
-        Instr("LOAD_FAST", "__tos", lineno=lineno),
-        Instr("LOAD_CONST", type, lineno=lineno),
-        Instr("LOAD_FAST", "__tos", lineno=lineno),
-        Instr("CALL_FUNCTION", 1, lineno=lineno),
-        Instr("CALL_FUNCTION", 3, lineno=lineno),
-        Instr("STORE_FAST", "__tos", lineno=lineno),
-    ]
-
-
-def print_stack(lineno, n=1):
-    return [
-        Instr("COPY", n, lineno=lineno),
-        Instr("STORE_FAST", "__tos", lineno=lineno),
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("LOAD_CONST", print, lineno=lineno),
-        Instr("LOAD_CONST", f"STACK({n}) =", lineno=lineno),
-        Instr("LOAD_FAST", "__tos", lineno=lineno),
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("LOAD_CONST", type, lineno=lineno),
-        Instr("LOAD_FAST", "__tos", lineno=lineno),
-        Instr("PRECALL", 1, lineno=lineno),
-        Instr("CALL", 1, lineno=lineno),
-        Instr("PRECALL", 3, lineno=lineno),
-        Instr("CALL", 3, lineno=lineno),
-        Instr("STORE_FAST", "__tos", lineno=lineno),
-    ]
-
-
 def _wrap_generator_py311(instrs, code, lineno):
-    from bytecode import TryBegin
-    from bytecode import TryEnd
-
-    stopiter = Label()
-    loop = Label()
-    genexit = Label()
-    exc = Label()
-    propagate = Label()
-    _yield = Label()
-
-    try_next = TryBegin(stopiter, False)
-    try_yield = TryBegin(genexit, False)
-
-    prelineno = lineno - 1
-
-    instrs[0:0] = [
-        Instr("RETURN_GENERATOR", lineno=prelineno),
-        Instr("POP_TOP", lineno=prelineno),
-        Instr("RESUME", 0, lineno=prelineno),
-    ]
-
-    instrs[-1:] = [
-        Instr("COPY", 1, lineno=lineno),
-        Instr("STORE_FAST", "__ddgen", lineno=lineno),
-        Instr("LOAD_ATTR", "send", lineno=lineno),
-        Instr("STORE_FAST", "__ddgensend", lineno=lineno),
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("LOAD_CONST", next, lineno=lineno),
-        Instr("LOAD_FAST", "__ddgen", lineno=lineno),
-        loop,
-        try_next,  # -> stopiter
-        Instr("PRECALL", 1, lineno=lineno),
-        Instr("CALL", 1, lineno=lineno),
-        TryEnd(try_next),
-        _yield,
-        try_yield,  # -> genexit
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("SWAP", 2, lineno=lineno),
-        Instr("YIELD_VALUE", lineno=lineno),
-        TryEnd(try_yield),
-        Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
-        Instr("SWAP", 2, lineno=lineno),
-        Instr("JUMP_BACKWARD", loop, lineno=lineno),
-        stopiter,  # except StpIteration:
-        Instr("PUSH_EXC_INFO", lineno=lineno),
-        Instr("LOAD_CONST", StopIteration, lineno=lineno),
-        Instr("CHECK_EXC_MATCH", lineno=lineno),
-        Instr("POP_JUMP_FORWARD_IF_FALSE", propagate, lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-        Instr("POP_EXCEPT", lineno=lineno),
-        Instr("LOAD_CONST", None, lineno=lineno),
-        Instr("RETURN_VALUE", lineno=lineno),
-        propagate,
-        Instr("RERAISE", 0, lineno=lineno),
-        genexit,  # except GeneratorExit:
-        Instr("PUSH_EXC_INFO", lineno=lineno),
-        Instr("LOAD_CONST", GeneratorExit, lineno=lineno),
-        Instr("CHECK_EXC_MATCH", lineno=lineno),
-        Instr("POP_JUMP_FORWARD_IF_FALSE", exc, lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-        Instr("POP_EXCEPT", lineno=lineno),
-        Instr("LOAD_FAST", "__ddgen", lineno=lineno),
-        Instr("LOAD_METHOD", "close", lineno=lineno),
-        Instr("PRECALL", 0, lineno=lineno),
-        Instr("CALL", 0, lineno=lineno),
-        Instr("RETURN_VALUE", lineno=lineno),
-        exc,  # except:
-        Instr("POP_TOP", lineno=lineno),
-        Instr("LOAD_FAST", "__ddgen", lineno=lineno),
-        Instr("LOAD_ATTR", "throw", lineno=lineno),
-        Instr("PUSH_NULL", lineno=lineno),
-        Instr("LOAD_CONST", sys.exc_info, lineno=lineno),
-        Instr("PRECALL", 0, lineno=lineno),
-        Instr("CALL", 0, lineno=lineno),
-        Instr("CALL_FUNCTION_EX", 0, lineno=lineno),
-        Instr("SWAP", 2, lineno=lineno),
-        Instr("POP_EXCEPT", lineno=lineno),
-        Instr("JUMP_BACKWARD", _yield, lineno=lineno),
-    ]
+    # With the latest changes to the Python opcode we don't seem to need any
+    # special handling for generators
+    pass
 
 
 wrap_generator = _wrap_generator_py311 if PY >= (3, 11) else _wrap_generator
@@ -387,13 +273,18 @@ def _wrap_special_function_py3(instrs, code, lineno):
             Instr("GET_AWAITABLE", lineno=lineno),
             Instr("LOAD_CONST", None, lineno=lineno),
             Instr("YIELD_FROM", lineno=lineno),
-            Instr("ROT_FOUR", lineno=lineno),
+            # DEV: We cannot use ROT_FOUR because it was removed in 3.5 and added
+            # back in 3.8
+            Instr("STORE_FAST", "__value", lineno=lineno),
             Instr("POP_EXCEPT", lineno=lineno),
+            Instr("LOAD_FAST", "__value", lineno=lineno),
             Instr("JUMP_ABSOLUTE", _yield, lineno=lineno),
         ]
 
 
 def _wrap_special_function_py311(instrs, code, lineno):
+    # With the latest changes to the Python opcode we don't seem to need any
+    # special handling for generators
     pass
 
 
