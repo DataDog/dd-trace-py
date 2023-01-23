@@ -1,3 +1,4 @@
+import contextlib
 from typing import Any
 
 from ddtrace.vendor import contextvars
@@ -41,3 +42,14 @@ def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
 
 def get_headers_case_sensitive():  # type: () -> bool
     return _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
+
+
+@contextlib.contextmanager
+def asm_request_context(remote_ip=None, headers=None, headers_case_sensitive=False):
+    set_ip(remote_ip)
+    set_headers(headers)
+    set_headers_case_sensitive(headers_case_sensitive)
+    try:
+        yield
+    finally:
+        reset()

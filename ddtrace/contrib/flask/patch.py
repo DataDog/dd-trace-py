@@ -570,10 +570,8 @@ def request_tracer(name):
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
         request = flask.request
-        _asm_context.set_ip(request.remote_addr)
-        _asm_context.set_headers(request.headers)
 
-        try:
+        with _asm_context.asm_request_context(request.remote_addr, request.headers):
             with pin.tracer.trace(
                 ".".join(("flask", name)),
                 service=trace_utils.int_service(pin, config.flask, pin),
@@ -586,8 +584,6 @@ def request_tracer(name):
                     ctype = request.headers.get("Accept") or "text/json"
                     abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
                 return wrapped(*args, **kwargs)
-        finally:
-            _asm_context.reset()
 
     return _traced_request
 

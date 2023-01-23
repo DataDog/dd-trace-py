@@ -120,32 +120,29 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    try:
-        with override_env({APPSEC_ENV: "true"}):
-            tracer.configure(appsec_enabled=True, api_version="v0.4")
-            rc_config = {
-                "rules_data": [
-                    {
-                        "data": [{"expiration": 1755346879, "value": "user8"}],
-                        "id": "blocked_users",
-                        "type": "data_with_expiration",
-                    },
-                    {
-                        "data": [
-                            {"value": "8.8.4.4"},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
-                    },
-                ]
-            }
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [{"expiration": 1755346879, "value": "user8"}],
+                    "id": "blocked_users",
+                    "type": "data_with_expiration",
+                },
+                {
+                    "data": [
+                        {"value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
 
-            assert not RemoteConfig._worker
+        assert not RemoteConfig._worker
 
-            appsec_rc_reload_features(tracer)(None, rc_config)
-            _asm_context.set_ip("8.8.4.4")
-            _asm_context.set_headers({})
-
+        appsec_rc_reload_features(tracer)(None, rc_config)
+        with _asm_context.asm_request_context("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -153,64 +150,56 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-    finally:
-        _asm_context.reset()
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
-    try:
-        with override_env({APPSEC_ENV: "true"}):
-            tracer.configure(appsec_enabled=True, api_version="v0.4")
-            rc_config = {
-                "rules_data": [
-                    {
-                        "data": [
-                            {"expiration": int(time.time()) - 10000, "value": "8.8.4.4"},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
-                    },
-                ]
-            }
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()) - 10000, "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
 
-            assert not RemoteConfig._worker
+        assert not RemoteConfig._worker
 
-            appsec_rc_reload_features(tracer)(None, rc_config)
+        appsec_rc_reload_features(tracer)(None, rc_config)
 
-            _asm_context.set_ip("8.8.4.4")
-            _asm_context.set_headers({})
+        with _asm_context.asm_request_context("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
             assert span.get_tag(APPSEC_JSON) is None
-    finally:
-        _asm_context.reset()
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    try:
-        with override_env({APPSEC_ENV: "true"}):
-            tracer.configure(appsec_enabled=True, api_version="v0.4")
-            rc_config = {
-                "rules_data": [
-                    {
-                        "data": [
-                            {"expiration": int(time.time()), "value": "8.8.4.4"},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
-                    },
-                ]
-            }
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()), "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
 
-            assert not RemoteConfig._worker
+        assert not RemoteConfig._worker
 
-            appsec_rc_reload_features(tracer)(None, rc_config)
+        appsec_rc_reload_features(tracer)(None, rc_config)
 
-            _asm_context.set_ip("8.8.4.4")
-            _asm_context.set_headers({})
+        with _asm_context.asm_request_context("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -218,5 +207,3 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
-    finally:
-        _asm_context.reset()

@@ -337,36 +337,32 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
-    _asm_context.set_ip(request.META.get("REMOTE_ADDR"))
-    _asm_context.set_headers(request_headers)
-    _asm_context.set_headers_case_sensitive(django.VERSION < (2, 2))
 
-    with pin.tracer.trace(
-        "django.request",
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
-        span_type=SpanTypes.WEB,
-    ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.django.integration_name)
+    with _asm_context.asm_request_context(request.META.get("REMOTE_ADDR"), request_headers, django.VERSION < (2, 2)):
+        with pin.tracer.trace(
+            "django.request",
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.WEB,
+        ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.django.integration_name)
 
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+            utils._before_request_tags(pin, span, request)
+            span._metrics[SPAN_MEASURED_KEY] = 1
 
-        response = None
+            response = None
 
-        try:
-            if _context.get_item("http.request.blocked", span=span):
-                response = HttpResponseForbidden(
-                    appsec_utils._get_blocked_template(request_headers.get("Accept")), **kwargs
-                )
-            else:
-                response = func(*args, **kwargs)
-            return response
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            _asm_context.reset()
-            utils._after_request_tags(pin, span, request, response)
+            try:
+                if _context.get_item("http.request.blocked", span=span):
+                    response = HttpResponseForbidden(
+                        appsec_utils._get_blocked_template(request_headers.get("Accept")), **kwargs
+                    )
+                else:
+                    response = func(*args, **kwargs)
+                return response
+            finally:
+                utils._after_request_tags(pin, span, request, response)
 
 
 @trace_utils.with_traced_module
