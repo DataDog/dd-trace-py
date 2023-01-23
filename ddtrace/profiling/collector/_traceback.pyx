@@ -1,4 +1,4 @@
-IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
+IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
     from cpython.object cimport PyObject
     from cpython.ref cimport Py_XDECREF
 
@@ -7,16 +7,15 @@ IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 9):
             pass
         ctypedef struct PyFrameObject:
             pass
-        PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
-        PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
-
         PyObject* PyDict_GetItem(PyObject* p, PyObject* key)
         PyObject* PyTuple_GetItem(PyObject* p, Py_ssize_t pos)
         Py_ssize_t PyTuple_Size(PyObject* p)
-        IF PY_MINOR_VERSION >= 11:
-            PyObject* PyFrame_GetLocals(PyFrameObject* frame)
-            int PyFrame_GetLineNumber(PyFrameObject* frame)
-            PyObject* PyCode_GetVarnames(PyCodeObject* co)
+
+        PyCodeObject* PyFrame_GetCode(PyFrameObject* frame)
+        PyFrameObject* PyFrame_GetBack(PyFrameObject* frame)
+        PyObject* PyFrame_GetLocals(PyFrameObject* frame)
+        int PyFrame_GetLineNumber(PyFrameObject* frame)
+        PyObject* PyCode_GetVarnames(PyCodeObject* co)
 
 
 cpdef _extract_class_name(frame):
