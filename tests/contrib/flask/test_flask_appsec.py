@@ -20,6 +20,9 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+BAD_ACTOR_IP = "8.8.4.4"
+
+
 class FlaskAppSecTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, caplog):
@@ -261,7 +264,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert "Failed to parse werkzeug request body" in self._caplog.text
 
     def test_request_ipblock_match_overridden_200(self):
-        # Same as iblock_match_403 below, but with the rule overriden, so the result is as ipblock_nomatch_200 below
+        # Same as iblock_match_403 below, but with the rule overridden, so the result is as ipblock_nomatch_200 below
         @self.app.route("/")
         def test_route():
             return "Ok", 200
@@ -274,7 +277,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             _appsec_rules_override_data(self.tracer, {"rules_override": [{"id": "blk-001-001", "enabled": "false"}]})
 
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
+            resp = self.client.get("/", headers={"X-REAL-IP": BAD_ACTOR_IP, "ACCEPT": "text/html"})
             assert resp.status_code == 200
             if hasattr(resp, "text"):
                 assert resp.text == "Ok"
@@ -308,7 +311,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
 
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
+            resp = self.client.get("/", headers={"X-REAL-IP": BAD_ACTOR_IP, "ACCEPT": "text/html"})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
@@ -316,7 +319,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_HTML)
 
             root = self.pop_spans()[0]
-            assert root.get_tag("actor.ip") == "8.8.4.4"
+            assert root.get_tag("actor.ip") == BAD_ACTOR_IP
             loaded = json.loads(root.get_tag(APPSEC_JSON))
             assert loaded == {
                 "triggers": [
@@ -335,8 +338,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                                     {
                                         "address": "http.client_ip",
                                         "key_path": [],
-                                        "value": "8.8.4.4",
-                                        "highlight": ["8.8.4.4"],
+                                        "value": BAD_ACTOR_IP,
+                                        "highlight": [BAD_ACTOR_IP],
                                     }
                                 ],
                             }
@@ -353,7 +356,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
 
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
+            resp = self.client.get("/", headers={"X-REAL-IP": BAD_ACTOR_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
