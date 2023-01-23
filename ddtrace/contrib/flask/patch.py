@@ -6,7 +6,8 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 import xmltodict
 
-from ...appsec import utils, _asm_context
+from ...appsec import _asm_context
+from ...appsec import utils
 from ...internal import _context
 
 

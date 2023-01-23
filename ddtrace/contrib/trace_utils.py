@@ -180,9 +180,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
-        # Sanic client will use a dict for headers even if under Django headers are case
-        # insensitive so we need to check against dict type.
-        if headers_are_case_sensitive or type(headers) == dict:
+        if headers_are_case_sensitive:
             return _get_header_value_case_insensitive(headers, key)
         return headers.get(key)
 
@@ -445,7 +443,6 @@ def set_http_meta(
     :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
          { "id": <int_value> }
     """
-
     if method is not None:
         span.set_tag_str(http.METHOD, method)
 

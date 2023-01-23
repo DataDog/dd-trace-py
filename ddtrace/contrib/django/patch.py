@@ -16,7 +16,8 @@ from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import utils as appsec_utils, _asm_context
+from ddtrace.appsec import _asm_context
+from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
