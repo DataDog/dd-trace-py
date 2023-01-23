@@ -343,7 +343,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
         response = None
         if config._appsec_enabled:
-            waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+            try:
+                waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+            except ValueError:
+                log.debug("no context on first waf call")
+                waf_callback = None
             if waf_callback:
                 # set context information for waf with uri, params and query
                 query = request.META.get("QUERY_STRING", "")
@@ -375,7 +379,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             utils._after_request_tags(pin, span, request, response)
             # calling the waf again if the request was not blocked at first with additional information (response)
             if config._appsec_enabled:
-                waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+                try:
+                    waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+                except ValueError:
+                    log.debug("no context on second waf call")
+                    waf_callback = None
+                waf_callback = None
                 if waf_callback:
                     log.debug("post response computation waf call")
                     waf_callback()
