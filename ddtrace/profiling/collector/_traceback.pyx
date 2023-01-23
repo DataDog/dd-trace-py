@@ -77,7 +77,7 @@ cpdef traceback_to_frames(traceback, max_nframes):
             IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
                 code = <object>PyFrame_GetCode(<PyFrameObject*> frame)
                 lineno = PyFrame_GetLineNumber(<PyFrameObject*> frame)
-                lineno = 0 if lineno is None else lineno
+                lineno = 0 if lineno <= 0 else lineno
                 frames.insert(0, (code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
                 Py_XDECREF(<PyObject*>code)
             ELSE:
@@ -105,10 +105,10 @@ cpdef pyframe_to_frames(frame, max_nframes):
             if len(frames) < max_nframes:
                 code = <object>PyFrame_GetCode(pyframe)
                 lineno = PyFrame_GetLineNumber(pyframe)
-                lineno = 0 if lineno is None else lineno
+                lineno = 0 if lineno <= 0 else lineno
                 frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(<object>pyframe)))
+            Py_XDECREF(<PyObject*>pyframe)
             pyframe = PyFrame_GetBack(pyframe)
-            # FIXME: Where to Py_XDECREF(pyframe)?
     ELSE:
         while frame is not None:
             nframes += 1
