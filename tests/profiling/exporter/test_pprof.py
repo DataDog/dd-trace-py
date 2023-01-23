@@ -8,6 +8,7 @@ from ddtrace import ext
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.exporter import pprof
 
 
@@ -709,6 +710,7 @@ def test_pprof_exporter(gan):
 
 @mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter_libs(gan):
+    _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     TEST_EVENTS = {
