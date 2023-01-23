@@ -1,0 +1,5 @@
+---
+issues:
+  - |
+    profiling: There is currently a known Python 3.11 compatibility issue where the stack collector does not properly 
+    access ``PyFrameObject`` member values, as ``PyFrameObject`` is now created and computed lazily in Python 3.11.
