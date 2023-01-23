@@ -343,7 +343,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
         response = None
         if config._appsec_enabled:
-            waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+            try:
+                waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            except ValueError:
+                log.debug("no context for first Django WAF call", exc_info=True)
+                waf_callback = None
             if waf_callback:
                 # set context information for waf with uri, params and query
                 query = request.META.get("QUERY_STRING", "")
@@ -364,7 +368,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     request_body=body,
                     request_cookies=request.COOKIES,
                 )
-                log.debug("preemptive waf call")
+                log.debug("first Django WAF call")
                 waf_callback()
             if _context.get_item("http.request.blocked", span=span):
                 return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
@@ -375,9 +379,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             utils._after_request_tags(pin, span, request, response)
             # calling the waf again if the request was not blocked at first with additional information (response)
             if config._appsec_enabled:
-                waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK)
+                try:
+                    waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+                except ValueError:
+                    log.debug("no context for second Django WAF call")
+                    waf_callback = None
                 if waf_callback:
-                    log.debug("post response computation waf call")
+                    log.debug("second Django WAF call")
                     waf_callback()
                 if _context.get_item("http.request.blocked", span=span):
                     return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))

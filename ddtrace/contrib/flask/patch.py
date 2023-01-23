@@ -125,14 +125,18 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         res = start_response(status_code, headers)
 
         if config._appsec_enabled:
-            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
+            try:
+                callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
+            except ValueError:
+                log.debug("no context for second Flask WAF call", exc_info=True)
+                callback = None
             if callback:
-                log.debug("Second Flask WAF call")
+                log.debug("second Flask WAF call")
                 callback()
-            if _context.get_item("http.request.blocked", span=req_span):
-                request = flask.request
-                start_response("403 FORBIDDEN", request.headers)
-                raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
+                if _context.get_item("http.request.blocked", span=req_span):
+                    request = flask.request
+                    start_response("403 FORBIDDEN", request.headers)
+                    raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
 
         return res
 
@@ -225,12 +229,16 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         )
 
         if config._appsec_enabled:
-            callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            try:
+                callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+            except ValueError:
+                log.debug("no context for first Flask WAF call", exc_info=True)
+                callback = None
             if callback:
-                log.debug("First Flask WAF call")
+                log.debug("first Flask WAF call")
                 callback()
-            if _context.get_item("http.request.blocked", span=span):
-                raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
+                if _context.get_item("http.request.blocked", span=span):
+                    raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
 
 
 def patch():
