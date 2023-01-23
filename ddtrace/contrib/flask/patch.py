@@ -1,9 +1,11 @@
 import json
 
 import flask
+from flask import Response
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import abort
 import xmltodict
 
 from ...appsec import _asm_context
@@ -26,7 +28,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...contrib.wsgi.wsgi import IPBlockedException
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
@@ -118,11 +119,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
-            request = flask.request
-            start_response("403 FORBIDDEN", request.headers)
-            raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
-
         return start_response(status_code, headers)
 
     def _extract_body(self, request, environ):
@@ -199,7 +195,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = self._extract_body(request, environ)
-
         trace_utils.set_http_meta(
             span,
             config.flask,
@@ -587,6 +582,9 @@ def request_tracer(name):
                 request_span.set_tag_str("component", config.flask.integration_name)
 
                 request_span._ignore_exception(werkzeug.exceptions.NotFound)
+                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                    ctype = request.headers.get("Accept") or "text/json"
+                    abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
                 return wrapped(*args, **kwargs)
         finally:
             _asm_context.reset()
