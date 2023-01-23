@@ -156,17 +156,15 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     """
-    user_agent = None
-
     for key_pattern in USER_AGENT_PATTERNS:
-        if headers_are_case_sensitive:
-            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
-        else:
+        if not headers_are_case_sensitive:
             user_agent = headers.get(key_pattern)
-        if user_agent:
-            break
+        else:
+            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
 
-    return user_agent if user_agent else ""
+        if user_agent:
+            return user_agent
+    return ""
 
 
 # Used to cache the last header used for the cache. From the same server/framework
