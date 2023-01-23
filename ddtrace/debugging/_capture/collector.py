@@ -92,10 +92,14 @@ class CapturedEventCollector(object):
         if event.state == CaptureState.SKIP_COND:
             meter.increment("skip", tags={"cause": "cond", "probe_id": event.probe.probe_id})
         elif event.state == CaptureState.SKIP_COND_ERROR:
-            meter.increment("skip", tags={"cause": "cond_exc", "probe_id": event.probe.probe_id})
+            meter.increment("skip", tags={"cause": "cond_error", "probe_id": event.probe.probe_id})
+        elif event.state == CaptureState.COND_ERROR_AND_COMMIT:
+            meter.increment("skip", tags={"cause": "cond_error", "probe_id": event.probe.probe_id})
+            self._enqueue(event)
         elif event.state == CaptureState.SKIP_RATE:
             meter.increment("skip", tags={"cause": "rate", "probe_id": event.probe.probe_id})
         elif event.state == CaptureState.DONE_AND_COMMIT:
+            meter.increment("capture", tags={"probe_id": event.probe.probe_id})
             self._enqueue(event)
 
     def attach(self, event):

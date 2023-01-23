@@ -18,6 +18,7 @@ from ddtrace.debugging import safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 @attr.s
@@ -31,6 +32,7 @@ class CaptureState(object):
     NONE = "NONE"
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
+    COND_ERROR_AND_COMMIT = "COND_ERROR_AND_COMMIT"
     SKIP_RATE = "SKIP_RATE"
     DONE = "DONE"
     DONE_AND_COMMIT = "COMMIT"
@@ -67,7 +69,10 @@ class CapturedEvent(six.with_metaclass(abc.ABCMeta)):
                 return True
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            self.state = CaptureState.SKIP_COND_ERROR
+            if probe.condition_error_limiter.limit() is RateLimitExceeded:
+                self.state = CaptureState.SKIP_COND_ERROR
+            else:
+                self.state = CaptureState.COND_ERROR_AND_COMMIT
         else:
             self.state = CaptureState.SKIP_COND
 

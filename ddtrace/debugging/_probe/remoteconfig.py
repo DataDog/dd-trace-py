@@ -13,6 +13,8 @@ from ddtrace.debugging._config import config
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DDExpression
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import DDExpression

@@ -100,11 +100,11 @@ class Snapshot(CapturedEvent):
         if not self._eval_condition(dict(_args)):
             return
 
-        if probe.take_snapshot:
-            if probe.limiter.limit() is RateLimitExceeded:
-                self.state = CaptureState.SKIP_RATE
-                return
+        if probe.limiter.limit() is RateLimitExceeded:
+            self.state = CaptureState.SKIP_RATE
+            return
 
+        if probe.take_snapshot:
             self.entry_capture = _capture_context(
                 _args,
                 [],
@@ -126,10 +126,9 @@ class Snapshot(CapturedEvent):
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             if not self._eval_condition(_args):
                 return
-            if probe.take_snapshot:
-                if probe.limiter.limit() is RateLimitExceeded:
-                    self.state = CaptureState.SKIP_RATE
-                    return
+            if probe.limiter.limit() is RateLimitExceeded:
+                self.state = CaptureState.SKIP_RATE
+                return
         elif self.state != CaptureState.NONE:
             return
 
