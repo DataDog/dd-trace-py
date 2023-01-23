@@ -108,6 +108,8 @@ class ddwaf_object(ctypes.Structure):
         # type: (ddwaf_object, DDWafRulesType|None, int, int) -> None
         if struct is None or max_objects == 0:
             ddwaf_object_invalid(self)
+        elif isinstance(struct, bool):
+            ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
