@@ -14,6 +14,7 @@ from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -33,6 +34,7 @@ def _aux_appsec_get_root_span(
 
 
 def test_django_simple_attack(client, test_spans, tracer):
+    """test simple attack with a rule using server.response.status and server.request.uri.raw"""
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git?q=1")
         assert response.status_code == 404
@@ -67,6 +69,7 @@ def test_django_request_cookies(client, test_spans, tracer):
 
 
 def test_django_request_cookies_attack(client, test_spans, tracer):
+    """test simple attack with a rule using server.request.cookies"""
     with override_global_config(dict(_appsec_enabled=True)):
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             client.cookies.load({"attack": "1' or '1' = '1'"})
@@ -429,6 +432,70 @@ def test_request_ipblock_match_403_json(client, test_spans, tracer):
         assert result.content == as_bytes
 
 
+def test_request_suspicious_request_block_match_method(client, test_spans, tracer):
+    # GET must be blocked
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+    # POST must pass
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", payload="any")
+        assert response.status_code == 200
+
+
+def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
+    # .git must be blocked
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
+    # legit must pass
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/legit")
+        assert response.status_code == 404
+
+
+def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):
+    # value AiKfOeRcvG45 must be blocked
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/path-params/2022/AiKfOeRcvG45/"
+        )
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
+
+
 def test_request_suspicious_request_block_match_query_value(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         tracer._appsec_enabled = True
@@ -441,22 +508,22 @@ def test_request_suspicious_request_block_match_query_value(client, test_spans, 
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-001"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
 
 
-def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
+def test_request_suspicious_request_block_match_header(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", agent="01972498723465")
         assert response.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-002"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
 
 
 def test_request_suspicious_request_block_match_body(client, test_spans, tracer):
@@ -473,22 +540,7 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-003"
-
-
-def test_request_suspicious_request_block_match_header(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", agent="01972498723465")
-        assert response.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
-        )
-        assert response.content == as_bytes
-        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-004"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
 
 
 def test_request_suspicious_request_block_match_response_code(client, test_spans, tracer):
@@ -503,4 +555,35 @@ def test_request_suspicious_request_block_match_response_code(client, test_spans
         )
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-        assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
+
+
+def test_request_suspicious_request_block_match_request_cookie(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        client.cookies.load({"mytestingcookie_key": "jdfoSDGFkivRG_234"})
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
+
+
+def test_request_suspicious_request_block_match_response_headers(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
+        assert response.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]

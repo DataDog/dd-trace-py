@@ -153,7 +153,7 @@ def get_request_uri(request):
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
-    for (k, v) in urlparts.items():
+    for k, v in urlparts.items():
         if isinstance(v, SimpleLazyObject):
             if issubclass(v.__class__, str):
                 v = str(v)
@@ -390,7 +390,7 @@ def _after_request_tags(pin, span, request, response):
                 request_headers=request_headers,
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+                request_path_params=request.resolver_match.kwargs if request.resolver_match else None,
                 request_body=_extract_body(request),
                 peer_ip=_context.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),

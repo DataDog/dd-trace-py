@@ -1,6 +1,7 @@
 import json
 import logging
 
+from flask import Response
 from flask import request
 import pytest
 
@@ -12,6 +13,7 @@ from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
@@ -349,7 +351,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-001"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
 
     def test_request_suspicious_request_block_match_uri(self):
         @self.app.route("/")
@@ -367,7 +369,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-002"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
 
     def test_request_suspicious_request_block_match_body(self):
         @self.app.route("/")
@@ -388,7 +390,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-003"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
 
     def test_request_suspicious_request_block_match_header(self):
         @self.app.route("/")
@@ -406,7 +408,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-004"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
 
     def test_request_suspicious_request_block_match_response_code(self):
         @self.app.route("/")
@@ -424,4 +426,78 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-037-005"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
+
+    def test_request_suspicious_request_block_match_method(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/do_not_exist.php")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+
+    def test_request_suspicious_request_block_match_cookies(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
+            resp = self.client.get("/")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
+
+    def test_request_suspicious_request_block_match_path_params(self):
+        @self.app.route("/params/<item>")
+        def dynamic_url(item):
+            return item
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/params/AiKfOeRcvG45")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            flask_args = root_span.get_tag("flask.view_args.item")
+            assert flask_args == "AiKfOeRcvG45"
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
+
+    def test_request_suspicious_request_block_match_response_headers(self):
+        @self.app.route("/response-header/")
+        def specific_reponse():
+            resp = Response("Foo bar baz", 200)
+            resp.headers["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+            return resp
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/response-header/")
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]

@@ -1,8 +1,16 @@
 from django.conf.urls import url
+from django.http import HttpResponse
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
 from .. import views
+
+
+def magic_header_key(request):
+    # Endpoint used to block request on response headers
+    res = HttpResponse(status=200)
+    res["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+    return res
 
 
 urlpatterns = [
@@ -32,4 +40,5 @@ urlpatterns = [
     url(r"^identify/$", views.identify, name="identify"),
     url(r"^body/$", views.body_view, name="body_view"),
     url(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
+    url(r"^response-header/$", magic_header_key, name="response-header"),
 ]

@@ -115,8 +115,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span.resource = " ".join((flask.request.method, code))
 
         trace_utils.set_http_meta(
-            req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
+            req_span,
+            config.flask,
+            status_code=code,
+            response_headers=headers,
+            route=req_span.get_tag(FLASK_URL_RULE),
         )
+
+        res = start_response(status_code, headers)
 
         if config._appsec_enabled:
             callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=req_span)
@@ -128,7 +134,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 start_response("403 FORBIDDEN", request.headers)
                 raise IPBlockedException(utils._get_blocked_template(request.headers.get("Accept")))
 
-        return start_response(status_code, headers)
+        return res
 
     def _extract_body(self, request, environ):
         req_body = None
