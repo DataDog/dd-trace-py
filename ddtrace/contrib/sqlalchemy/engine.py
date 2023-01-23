@@ -137,7 +137,7 @@ def _set_tags_from_url(span, url):
     if url.host:
         span.set_tag_str(netx.TARGET_HOST, url.host)
     if url.port:
-        span.set_tag(netx.TARGET_PORT, url.port)
+        span.set_tag("network.destination.port", url.port)
     if url.database:
         span.set_tag_str(sqlx.DB, url.database)
 
@@ -153,4 +153,4 @@ def _set_tags_from_cursor(span, vendor, cursor):
                 d = sqlx.parse_pg_dsn(dsn)
                 span.set_tag_str(sqlx.DB, d.get("dbname"))
                 span.set_tag_str(netx.TARGET_HOST, d.get("host"))
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                span.set_metric("network.destination.port", int(d.get("port")))
