@@ -69,7 +69,8 @@ def _appsec_1click_actication(tracer, features):
         else:
             RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 
-        tracer.configure(appsec_enabled=_appsec_enabled)
+        if tracer._appsec_enabled != _appsec_enabled:
+            tracer.configure(appsec_enabled=_appsec_enabled)
 
 
 def appsec_rc_reload_features(tracer):
