@@ -7,6 +7,10 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Type
 
+from ddtrace.debugging._probe.model import MAXLEVEL
+from ddtrace.debugging._probe.model import MAXSIZE
+from ddtrace.debugging._probe.model import MAXLEN
+from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging.safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
@@ -22,12 +26,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.compat import Collection
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
-
-
-MAXLEVEL = 2
-MAXSIZE = 100
-MAXLEN = 255
-MAXFIELDS = 20
 
 
 @cached()
