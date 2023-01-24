@@ -11,9 +11,12 @@ from typing import cast
 from ddtrace.context import Context
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
-from ddtrace.debugging._probe.model import ConditionalProbe
+from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.debugging._probe.model import SnapshotProbeMixin
 from ddtrace.debugging._snapshot.model import ConditionEvaluationError
 from ddtrace.debugging._snapshot.model import Snapshot
+from ddtrace.debugging._snapshot.model import _capture_context
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -39,13 +42,14 @@ class SnapshotContext(object):
     def __init__(
         self,
         collector,  # type: SnapshotCollector
-        probe,  # type: ConditionalProbe
+        probe,  # type: Probe
         frame,  # type: FrameType
         thread,  # type: Thread
         args,  # type: List[Tuple[str, Any]]
         context,  # type: Optional[Context]
     ):
         # type: (...) -> None
+        self.probe = probe
         self.collector = collector
         self.args = args
         self.return_value = NO_RETURN_VALUE
@@ -53,7 +57,7 @@ class SnapshotContext(object):
         self._snapshot_encoder = collector._encoder._encoders[Snapshot]  # type: ignore[attr-defined]
 
         snapshot = Snapshot(
-            probe=probe,
+            probe=cast(ProbeConditionMixin, probe),
             frame=frame,
             thread=thread,
             exc_info=(None, None, None),
@@ -61,12 +65,13 @@ class SnapshotContext(object):
             timestamp=time.time(),
         )
 
-        snapshot.entry_capture = self._snapshot_encoder.capture_context(
-            args,
-            [],
-            (None, None, None),
-            level=1,  # TODO: Retrieve from probe
-        )
+        if isinstance(probe, SnapshotProbeMixin):
+            snapshot.entry_capture = _capture_context(
+                args,
+                [],
+                (None, None, None),
+                probe.limits,
+            )
 
         self.snapshot = snapshot
 
@@ -91,7 +96,7 @@ class SnapshotContext(object):
             if not self.snapshot.evaluate(dict(self.args)):
                 return
         except ConditionEvaluationError:
-            probe_id = cast(Snapshot, self.snapshot).probe.probe_id
+            probe_id = self.probe.probe_id
             log.error("Failed to evaluate condition for probe %s", probe_id, exc_info=True)
             meter.increment("skip", tags={"cause": "cond_exc", "probe_id": probe_id})
             return
@@ -103,15 +108,13 @@ class SnapshotContext(object):
             [("@return", self.return_value)] if self.return_value is not NO_RETURN_VALUE and exc_info[1] is None else []
         )  # type: List[Tuple[str, Any]]
 
-        self.snapshot.return_capture = self._snapshot_encoder.capture_context(
-            args,
-            _locals,
-            exc_info,
-            level=1,  # TODO: Retrieve from probe
-        )
+        probe = self.probe
+        if isinstance(probe, SnapshotProbeMixin):
+            self.snapshot.return_capture = _capture_context(args, _locals, exc_info, probe.limits)
+
         self.snapshot.duration = self.duration
         self.collector._enqueue(self.snapshot)
-        meter.increment("encoded", tags={"probe_id": self.snapshot.probe.probe_id})
+        meter.increment("encoded", tags={"probe_id": self.probe.probe_id})
         log.debug("Encoded %r", self.snapshot)
 
 
@@ -140,16 +143,20 @@ class SnapshotCollector(object):
             meter.increment("encoder.buffer.full")
 
     def push(self, probe, frame, thread, exc_info, context=None):
-        # type: (ConditionalProbe, FrameType, Thread, ExcInfoType, Optional[Context]) -> None
+        # type: (Probe, FrameType, Thread, ExcInfoType, Optional[Context]) -> None
         """Push hook data to the collector."""
         snapshot = Snapshot(
-            probe=probe,
+            probe=cast(ProbeConditionMixin, probe),
             frame=frame,
             thread=thread,
             exc_info=exc_info,
             context=context,
             timestamp=time.time(),
         )
+
+        if not isinstance(probe, SnapshotProbeMixin):
+            return
+
         try:
             if snapshot.evaluate():
                 # DEV: Ideally we would want to lock the frame.f_locals *data*
@@ -170,6 +177,6 @@ class SnapshotCollector(object):
             meter.increment("skip", tags={"cause": "cond_exc", "probe_id": snapshot.probe.probe_id})
 
     def collect(self, probe, frame, thread, args, context=None):
-        # type: (ConditionalProbe, FrameType, Thread, List[Tuple[str, Any]], Optional[Context]) -> SnapshotContext
+        # type: (Probe, FrameType, Thread, List[Tuple[str, Any]], Optional[Context]) -> SnapshotContext
         """Collect via a snapshot context."""
         return SnapshotContext(self, probe, frame, thread, args, context)
