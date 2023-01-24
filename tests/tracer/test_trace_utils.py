@@ -582,48 +582,45 @@ def test_set_http_meta_headers_ip(
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_appsec_enabled=False)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_ENABLED="foo")):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers={"via": "8.8.8.8"},
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == ["runtime-id"]
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_ENABLED="foo")):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers={"via": "8.8.8.8"},
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == ["runtime-id"]
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_ENABLED="true")):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers={"via": "8.8.8.8"},
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
-            assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=True)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
+        assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
 
 
 def test_ip_subnet_regression():
