@@ -183,7 +183,7 @@ def test_remote_configuration_ip_blocking(mock_check_remote_config_enable_in_age
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         mock_check_remote_config_enable_in_agent.return_value = True
         mock_send_request.return_value = get_mock_encoded_msg(
             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
@@ -192,6 +192,7 @@ def test_remote_configuration_ip_blocking(mock_check_remote_config_enable_in_age
         )
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+        sleep(0.15)
         assert callback.features == {
             "rules_data": [
                 {
