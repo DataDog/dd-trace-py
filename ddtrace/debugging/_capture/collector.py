@@ -23,7 +23,7 @@ NO_RETURN_VALUE = object()
 
 
 class CapturedEventWithContext(object):
-    """Snapshot context manager.
+    """CapturedEvent with context.
 
     This is used to capture snapshot data for function invocation, whose return
     value needs to be captured as well.
@@ -31,11 +31,11 @@ class CapturedEventWithContext(object):
 
     def __init__(
         self,
-        collector,  # type: CapturedEventCollector
         event,  # type: CapturedEvent
+        commit,  # type: Callable[[CapturedEvent],None]
     ):
         # type: (...) -> None
-        self.collector = collector
+        self._commit = commit
         self.event = event
         self.return_value = NO_RETURN_VALUE  # type: Any
         self.duration = None  # type: Optional[int]
@@ -60,7 +60,7 @@ class CapturedEventWithContext(object):
     def __exit__(self, *exc_info):
         # type: (ExcInfoType) -> None
         self.event.exit(self.return_value, exc_info, self.duration)
-        self.collector.push(self.event)
+        self._commit(self.event)
 
 
 class CapturedEventCollector(object):
@@ -105,4 +105,4 @@ class CapturedEventCollector(object):
     def attach(self, event):
         # type: (CapturedEvent) -> CapturedEventWithContext
         """Collect via a snapshot context."""
-        return CapturedEventWithContext(self, event)
+        return CapturedEventWithContext(event, lambda e: self.push(e))

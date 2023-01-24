@@ -284,7 +284,7 @@ class Debugger(Service):
 
                 snapshot = Snapshot(
                     probe=probe,
-                    frame=actual_frame,  # type: ignore[union-attr]
+                    frame=actual_frame,
                     thread=threading.current_thread(),
                     context=self._tracer.current_trace_context(),
                 )
@@ -333,7 +333,7 @@ class Debugger(Service):
                 elif isinstance(probe, LogFunctionProbe):
                     snapshot = Snapshot(
                         probe=probe,
-                        frame=actual_frame,  # type: ignore[arg-type]
+                        frame=actual_frame,
                         thread=thread,
                         args=allargs,
                         context=trace_context,

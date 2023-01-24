@@ -6,7 +6,6 @@ import typing as t
 from _config import config
 
 from ddtrace.debugging._capture.collector import CapturedEventCollector
-from ddtrace.debugging._capture.collector import CapturedEventWithContext
 from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config as debugger_config
 import ddtrace.debugging._debugger as _debugger
@@ -195,10 +194,6 @@ class ExplorationCapturedEventCollector(CapturedEventCollector):
         self._probes.append(snapshot.probe)
         if self.on_snapshot:
             self.on_snapshot(snapshot)
-
-    def attach(self, event):
-        # type: (...) -> CapturedEventWithContext
-        return CapturedEventWithContext(self, event)
 
     @property
     def snapshots(self):
