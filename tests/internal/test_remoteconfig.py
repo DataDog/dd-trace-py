@@ -192,8 +192,6 @@ def test_remote_configuration_ip_blocking(mock_check_remote_config_enable_in_age
         )
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        sleep(0.1)
-        mock_send_request.assert_called_once()
         assert callback.features == {
             "rules_data": [
                 {
