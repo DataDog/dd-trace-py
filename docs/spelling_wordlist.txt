@@ -141,6 +141,7 @@ profiler
 protobuf
 psycopg
 py
+PyFrameObject
 pylibmc
 pymemcache
 pymongo
