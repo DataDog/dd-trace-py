@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Added three new functions for the Application Security Events Tracking API in the `appsec.trace_utils` module; `track_user_login_success_event`, `appsec.track_user_login_failure_event` and `track_custom_event`.

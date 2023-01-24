@@ -10,9 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "aioredis",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
-      "runtime-id": "55384aedd6884a468bb6ff9db9567598"
+      "runtime-id": "3c07c67132904e49a34823e7ddadd05d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,6 +26,6 @@
       "process_id": 65658,
       "redis.pipeline_length": 4
     },
-    "duration": 2112000,
-    "start": 1638887092109469000
+    "duration": 1700000,
+    "start": 1666808673552223000
   }]]

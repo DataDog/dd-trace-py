@@ -120,6 +120,9 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
+        # set component tag equal to name of integration
+        span.set_tag_str("component", self.integration_config.integration_name)
+
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}
         else:

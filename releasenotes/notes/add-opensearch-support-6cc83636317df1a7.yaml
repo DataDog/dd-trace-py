@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    elasticsearch: Update ``elasticsearch`` integration to add support for ``opensearch-py``. See `the elasticsearch documentation <https://ddtrace.readthedocs.io/en/stable/integrations.html#elasticsearch>`_
+    for more information.

@@ -24,6 +24,7 @@ def _set_and_get_appsec_tags(tracer):
 
 
 def test_rc_enabled_by_default(tracer):
+    os.environ.pop("DD_REMOTE_CONFIGURATION_ENABLED", None)
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     assert _appsec_rc_features_is_enabled()

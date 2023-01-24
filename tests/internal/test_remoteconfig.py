@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from time import sleep
+import warnings
 
 import mock
 import pytest
@@ -13,6 +14,8 @@ from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
 from tests.utils import override_env
 
 
@@ -86,10 +89,12 @@ def get_mock_encoded_msg(msg):
     }
 
 
-def test_remote_config_register_auto_enable():
+@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+def test_remote_config_register_auto_enable(mock_check_remote_config_enable_in_agent):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
     assert RemoteConfig._worker is None
 
+    mock_check_remote_config_enable_in_agent.return_value = True
     RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
 
     assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
@@ -101,23 +106,31 @@ def test_remote_config_register_auto_enable():
 
 @pytest.mark.subprocess
 def test_remote_config_forksafe():
-    import os
+    import mock
 
     from ddtrace.internal.remoteconfig import RemoteConfig
 
-    RemoteConfig.enable()
+    with mock.patch.object(
+        RemoteConfig, "_check_remote_config_enable_in_agent"
+    ) as mock_check_remote_config_enable_in_agent:
+        mock_check_remote_config_enable_in_agent.return_value = True
 
-    parent_worker = RemoteConfig._worker
-    assert parent_worker is not None
+        import os
 
-    if os.fork() == 0:
-        assert RemoteConfig._worker is not None
-        assert RemoteConfig._worker is not parent_worker
-        exit(0)
+        RemoteConfig.enable()
+
+        parent_worker = RemoteConfig._worker
+        assert parent_worker is not None
+
+        if os.fork() == 0:
+            assert RemoteConfig._worker is not None
+            assert RemoteConfig._worker is not parent_worker
+            exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration(mock_send_request):
+@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
 
@@ -126,7 +139,8 @@ def test_remote_configuration(mock_send_request):
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        mock_check_remote_config_enable_in_agent.return_value = True
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
@@ -135,9 +149,50 @@ def test_remote_configuration(mock_send_request):
         assert callback.features == {"asm": {"enabled": True}}
 
 
+def test_remote_configuration_check_deprecated_var():
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+            get_poll_interval_seconds()
+            assert len(capture) == 0
+
+
+def test_remote_configuration_check_deprecated_var_message():
+    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+            get_poll_interval_seconds()
+            assert len(capture) == 1
+            assert str(capture[0].message).startswith("Using environment")
+
+
+def test_remote_configuration_check_deprecated_override():
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.5")):
+        with warnings.catch_warnings(record=True) as capture:
+            assert get_poll_interval_seconds() == 0.1
+            assert len(capture) == 1
+            assert str(capture[0].message).startswith("Using environment")
+
+
 def test_remoteconfig_semver():
     assert re.match(
         r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*["
         r"a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
         RemoteConfigClient()._client_tracer["tracer_version"],
     )
+
+
+@pytest.mark.parametrize(
+    "result,expected",
+    [
+        (None, False),
+        ({}, False),
+        ({"endpoints": []}, False),
+        ({"endpoints": ["/info"]}, False),
+        ({"endpoints": ["/info", "/errors"]}, False),
+        ({"endpoints": ["/info", "/errors", REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
+        ({"endpoints": ["/info", "/errors", "/" + REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
+    ],
+)
+@mock.patch("ddtrace.internal.agent._healthcheck")
+def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
+    mock_healthcheck.return_value = result
+    assert RemoteConfig._check_remote_config_enable_in_agent() is expected

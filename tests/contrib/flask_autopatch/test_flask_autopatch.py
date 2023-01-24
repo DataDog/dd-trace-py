@@ -109,6 +109,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/")
         self.assertEqual(req_span.get_tag("http.method"), "GET")
         self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
+        self.assertEqual(req_span.get_tag("component"), "flask")
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
