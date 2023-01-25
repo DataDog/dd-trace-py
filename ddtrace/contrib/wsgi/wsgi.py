@@ -2,6 +2,8 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec import _asm_context
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -115,41 +117,44 @@ class _DDWSGIMiddlewareBase(object):
         # type: (Iterable, Callable) -> _TracedIterable
         trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
 
-        req_span = self.tracer.trace(
-            self._request_span_name,
-            service=trace_utils.int_service(self._pin, self._config),
-            span_type=SpanTypes.WEB,
-        )
-
-        # set component tag equal to name of integration
-        req_span.set_tag_str("component", self._config.integration_name)
-
-        self._request_span_modifier(req_span, environ)
         try:
-            app_span = self.tracer.trace(self._application_span_name)
-            # set component tag equal to name of integration
-            app_span.set_tag_str("component", self._config.integration_name)
-            intercept_start_response = functools.partial(
-                self._traced_start_response, start_response, req_span, app_span
+            req_span = self.tracer.trace(
+                self._request_span_name,
+                service=trace_utils.int_service(self._pin, self._config),
+                span_type=SpanTypes.WEB,
             )
-            result = self.app(environ, intercept_start_response)
-            self._application_span_modifier(app_span, environ, result)
-            app_span.finish()
-        except BaseException:
-            req_span.set_exc_info(*sys.exc_info())
-            app_span.set_exc_info(*sys.exc_info())
-            app_span.finish()
-            req_span.finish()
-            raise
-        # start flask.response span. This span will be finished after iter(result) is closed.
-        # start_span(child_of=...) is used to ensure correct parenting.
-        resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
 
-        # set component tag equal to name of integration
-        resp_span.set_tag_str("component", self._config.integration_name)
-        self._response_span_modifier(resp_span, result)
+            # set component tag equal to name of integration
+            req_span.set_tag_str("component", self._config.integration_name)
 
-        return _TracedIterable(iter(result), resp_span, req_span)
+            self._request_span_modifier(req_span, environ)
+            try:
+                app_span = self.tracer.trace(self._application_span_name)
+                # set component tag equal to name of integration
+                app_span.set_tag_str("component", self._config.integration_name)
+                intercept_start_response = functools.partial(
+                    self._traced_start_response, start_response, req_span, app_span
+                )
+                result = self.app(environ, intercept_start_response)
+                self._application_span_modifier(app_span, environ, result)
+                app_span.finish()
+            except BaseException:
+                req_span.set_exc_info(*sys.exc_info())
+                app_span.set_exc_info(*sys.exc_info())
+                app_span.finish()
+                req_span.finish()
+                raise
+            # start flask.response span. This span will be finished after iter(result) is closed.
+            # start_span(child_of=...) is used to ensure correct parenting.
+            resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+
+            # set component tag equal to name of integration
+            resp_span.set_tag_str("component", self._config.integration_name)
+            self._response_span_modifier(resp_span, result)
+
+            return _TracedIterable(iter(result), resp_span, req_span)
+        finally:
+            _asm_context.reset()
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None

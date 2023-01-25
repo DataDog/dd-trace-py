@@ -571,19 +571,19 @@ def request_tracer(name):
         _set_request_tags(span)
         request = flask.request
 
-        with _asm_context.asm_request_context(request.remote_addr, request.headers):
-            with pin.tracer.trace(
-                ".".join(("flask", name)),
-                service=trace_utils.int_service(pin, config.flask, pin),
-            ) as request_span:
-                # set component tag equal to name of integration
-                request_span.set_tag_str("component", config.flask.integration_name)
+        _asm_context.asm_request_context_set(request.remote_addr, request.headers)
+        with pin.tracer.trace(
+            ".".join(("flask", name)),
+            service=trace_utils.int_service(pin, config.flask, pin),
+        ) as request_span:
+            # set component tag equal to name of integration
+            request_span.set_tag_str("component", config.flask.integration_name)
 
-                request_span._ignore_exception(werkzeug.exceptions.NotFound)
-                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
-                    ctype = request.headers.get("Accept") or "text/json"
-                    abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
-                return wrapped(*args, **kwargs)
+            request_span._ignore_exception(werkzeug.exceptions.NotFound)
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                ctype = request.headers.get("Accept") or "text/json"
+                abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
+            return wrapped(*args, **kwargs)
 
     return _traced_request
 

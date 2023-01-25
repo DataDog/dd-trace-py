@@ -218,7 +218,6 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = _asm_context.get_ip()
         headers = _asm_context.get_headers()
         headers_case_sensitive = _asm_context.get_headers_case_sensitive()
-
         _context.set_items(
             {
                 "http.request.headers": headers,
@@ -227,12 +226,13 @@ class AppSecSpanProcessor(SpanProcessor):
             span=span,
         )
 
-        if peer_ip or headers:
+        if peer_ip and headers:
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
                 data = {_Addresses.HTTP_CLIENT_IP: ip}
+                log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
                 ddwaf_result = self._run_ddwaf(data)
 
                 if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions:
@@ -346,6 +346,7 @@ class AppSecSpanProcessor(SpanProcessor):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
+
         if blocked_request or ddwaf_result.data is not None:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events

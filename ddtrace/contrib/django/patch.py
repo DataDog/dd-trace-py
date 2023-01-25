@@ -338,7 +338,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
 
-    with _asm_context.asm_request_context(request.META.get("REMOTE_ADDR"), request_headers, django.VERSION < (2, 2)):
+    with _asm_context.asm_request_context_manager(request.META.get("REMOTE_ADDR"), request_headers,
+                                                  django.VERSION < (2, 2)):
         with pin.tracer.trace(
             "django.request",
             resource=utils.REQUEST_DEFAULT_RESOURCE,
