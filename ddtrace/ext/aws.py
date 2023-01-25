@@ -53,31 +53,31 @@ def _add_api_param_span_tags(span, endpoint_name, params):
     if endpoint_name == "cloudwatch":
         log_group_name = params.get("logGroupName")
         if log_group_name:
-            span.set_tag_str("aws.cloudwatch.logs.log_group_name", log_group_name)
+            span.set_tag("aws.cloudwatch.logs.log_group_name", log_group_name)
     elif endpoint_name == "dynamodb":
         table_name = params.get("TableName")
         if table_name:
-            span.set_tag_str("aws.dynamodb.table_name", table_name)
+            span.set_tag("aws.dynamodb.table_name", table_name)
     elif endpoint_name == "kinesis":
         stream_name = params.get("StreamName")
         if stream_name:
-            span.set_tag_str("aws.kinesis.stream_name", stream_name)
+            span.set_tag("aws.kinesis.stream_name", stream_name)
     elif endpoint_name == "redshift":
         cluster_identifier = params.get("ClusterIdentifier")
         if cluster_identifier:
-            span.set_tag_str("aws.redshift.cluster_identifier", cluster_identifier)
+            span.set_tag("aws.redshift.cluster_identifier", cluster_identifier)
     elif endpoint_name == "s3":
         bucket_name = params.get("Bucket")
         if bucket_name:
-            span.set_tag_str("aws.s3.bucket_name", bucket_name)
+            span.set_tag("aws.s3.bucket_name", bucket_name)
     elif endpoint_name == "sns":
         topic_arn = params.get("TopicArn")
         if topic_arn:
-            span.set_tag_str("aws.sns.topic_arn", topic_arn)
+            span.set_tag("aws.sns.topic_arn", topic_arn)
     elif endpoint_name == "sqs":
         queue_name = params.get("QueueName") or params.get("QueueUrl")
         if queue_name:
-            span.set_tag_str("aws.sqs.queue_name", queue_name)
+            span.set_tag("aws.sqs.queue_name", queue_name)
 
 
 REGION = "aws.region"
