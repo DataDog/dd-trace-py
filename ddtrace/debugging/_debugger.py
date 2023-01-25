@@ -370,7 +370,7 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[LineProbe]]
+        probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[Probe]]
         for probe in self._probe_registry.get_pending(origin(module)):
             if not isinstance(probe, LineLocationMixin):
                 continue
@@ -391,7 +391,7 @@ class Debugger(Service):
 
         for function, probes in probes_for_function.items():
             failed = self._function_store.inject_hooks(
-                function, [(self._dd_debugger_hook, probe.line, probe) for probe in probes]
+                function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
             )
             for probe in probes:
                 if probe.probe_id in failed:

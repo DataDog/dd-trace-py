@@ -110,7 +110,7 @@ class SnapshotContext(object):
 
         probe = self.probe
         if isinstance(probe, SnapshotProbeMixin):
-            self.snapshot.return_capture = _capture_context(args, _locals, exc_info, probe.limits)
+            self.snapshot.return_capture = _capture_context(args, _locals, cast(ExcInfoType, exc_info), probe.limits)
 
         self.snapshot.duration = self.duration
         self.collector._enqueue(self.snapshot)
@@ -171,10 +171,10 @@ class SnapshotCollector(object):
                 meter.increment("encoded", tags={"probe_id": probe.probe_id})
                 log.debug("Encoded %r", snapshot)
             else:
-                meter.increment("skip", tags={"cause": "cond", "probe_id": snapshot.probe.probe_id})
+                meter.increment("skip", tags={"cause": "cond", "probe_id": probe.probe_id})
         except ConditionEvaluationError:
-            log.error("Failed to evaluate condition for probe %s", snapshot.probe.probe_id, exc_info=True)
-            meter.increment("skip", tags={"cause": "cond_exc", "probe_id": snapshot.probe.probe_id})
+            log.error("Failed to evaluate condition for probe %s", probe.probe_id, exc_info=True)
+            meter.increment("skip", tags={"cause": "cond_exc", "probe_id": probe.probe_id})
 
     def collect(self, probe, frame, thread, args, context=None):
         # type: (Probe, FrameType, Thread, List[Tuple[str, Any]], Optional[Context]) -> SnapshotContext
