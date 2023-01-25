@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import traceback
 import typing
 from typing import List
 from typing import Optional

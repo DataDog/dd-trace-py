@@ -1,17 +1,12 @@
 """
-``ddtrace`` supports `Gunicorn <https://gunicorn.org>`__.
+**Note:** ``ddtrace-run`` is not supported with `Gunicorn <https://gunicorn.org>`__.
 
-If the application is using the ``gevent`` worker class, ``gevent`` monkey patching must be performed before loading the
-``ddtrace`` library.
+``ddtrace`` only supports Gunicorn when configured as follows:
 
-There are different options to ensure this happens:
-
-- If using ``ddtrace-run``, set the environment variable ``DD_GEVENT_PATCH_ALL=1``.
-
-- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize`` as the first import of the application.
-
-- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
-  hook to import ``ddtrace.bootstrap.sitecustomize``.
+- `ddtrace-run` is not used
+- The `DD_GEVENT_PATCH_ALL=1` environment variable is set
+- Gunicorn's ```post_fork`` <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`__ hook does not attempt to start any threads
+- ``import ddtrace.bootstrap.sitecustomize`` must be called either in the application's main process or in the ```post_worker_init`` <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`__ hook.
 """
 
 
