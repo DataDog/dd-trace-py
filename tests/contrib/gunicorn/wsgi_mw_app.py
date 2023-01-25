@@ -15,9 +15,6 @@ from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from ddtrace.debugging import DynamicInstrumentation
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.profiling import bootstrap
-
-# starting the profiler here allows test cases to exercise the code paths that
-# restart threads preexisting a forked process
 import ddtrace.profiling.auto  # noqa
 from tests.webclient import PingFilter
 
