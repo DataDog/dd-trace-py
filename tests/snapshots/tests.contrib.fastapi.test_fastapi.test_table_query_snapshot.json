@@ -16,6 +16,7 @@
       "http.url": "http://testserver/items/",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "24fbd75d53b04b9d802a1d4b87383722"
     },
     "metrics": {
@@ -58,6 +59,7 @@
       "http.url": "http://testserver/items/test_id",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "24fbd75d53b04b9d802a1d4b87383722"
     },
     "metrics": {

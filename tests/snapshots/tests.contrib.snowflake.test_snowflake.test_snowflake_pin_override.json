@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "component": "snowflake",
       "custom": "tag",
+      "language": "python",
       "runtime-id": "1658e263f3084eaca410818e944d7d7e",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },

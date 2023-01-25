@@ -17,6 +17,7 @@
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://testserver/404-view/",
+      "language": "python",
       "runtime-id": "771ab9d0147b4fa282ea8b1a6b7e0e3a"
     },
     "metrics": {

@@ -13,6 +13,7 @@
       "component": "aiomysql",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "2d4ffb74337c4013b010a0d017279826",
       "sql.query": "select 'dba4x4'"
