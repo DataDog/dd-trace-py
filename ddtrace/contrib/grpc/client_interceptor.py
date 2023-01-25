@@ -3,6 +3,7 @@ import collections
 import grpc
 
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
@@ -15,6 +16,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -182,6 +184,9 @@ class _ClientInterceptor(
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.grpc.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

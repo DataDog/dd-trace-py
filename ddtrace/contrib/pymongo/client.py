@@ -11,7 +11,9 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import ObjectProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
@@ -107,6 +109,9 @@ class TracedServer(ObjectProxy):
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.pymongo.integration_name)
+
+        # set span.kind to the operation type being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(mongox.DB, cmd.db)
@@ -220,6 +225,9 @@ class TracedSocket(ObjectProxy):
 
         # set component tag equal to name of integration
         s.set_tag_str("component", config.pymongo.integration_name)
+
+        # set span.kind to the type of operation being performed
+        s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:

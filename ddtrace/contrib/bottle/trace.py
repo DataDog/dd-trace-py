@@ -8,7 +8,9 @@ from ddtrace import config
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.utils.formats import asbool
 
@@ -50,6 +52,9 @@ class TracePlugin(object):
             ) as s:
                 # set component tag equal to name of integration
                 s.set_tag_str("component", config.bottle.integration_name)
+
+                # set span.kind to the type of request being performed
+                s.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled

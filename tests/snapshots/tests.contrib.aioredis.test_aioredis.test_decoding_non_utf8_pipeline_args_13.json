@@ -14,7 +14,8 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET \\x80blah boo\nSET foo \\x80abc\nGET \\x80blah\nGET foo",
-      "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"
+      "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,6 +28,6 @@
       "process_id": 60927,
       "redis.pipeline_length": 4
     },
-    "duration": 885000,
-    "start": 1666808667669396000
+    "duration": 1022000,
+    "start": 1667241175475996000
   }]]

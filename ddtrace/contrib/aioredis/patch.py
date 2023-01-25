@@ -10,7 +10,9 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
@@ -119,6 +121,10 @@ def traced_13_execute_command(func, instance, args, kwargs):
         child_of=parent,
     )
     span.set_tag_str("component", config.aioredis.integration_name)
+
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
     span.set_tag(SPAN_MEASURED_KEY)
     query = stringify_cache_args(args)
     span.resource = query
@@ -176,6 +182,10 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str("component", config.aioredis.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],

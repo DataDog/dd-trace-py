@@ -14,7 +14,8 @@
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"
+      "runtime-id": "b160e3d7c2ad48acb38c5da8ebc038b6",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,6 +28,6 @@
       "process_id": 572,
       "redis.args_length": 2
     },
-    "duration": 5613000,
-    "start": 1666795795367003000
+    "duration": 2943000,
+    "start": 1667241319304454000
   }]]

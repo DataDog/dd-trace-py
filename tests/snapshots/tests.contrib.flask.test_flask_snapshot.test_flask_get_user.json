@@ -21,6 +21,7 @@
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
       "runtime-id": "e570c58e790e4c8091138b999f8e9b09",
+      "span.kind": "server",
       "usr.email": "usr.email",
       "usr.id": "usr.id",
       "usr.name": "usr.name",

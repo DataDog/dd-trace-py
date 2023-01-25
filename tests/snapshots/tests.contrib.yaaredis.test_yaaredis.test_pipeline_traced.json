@@ -14,7 +14,8 @@
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
-      "runtime-id": "657552856ab8420dac8010e8cad5736c"
+      "runtime-id": "5547e917355d4080b87142160fa8bf83",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,6 +28,6 @@
       "process_id": 627,
       "redis.pipeline_length": 3
     },
-    "duration": 3823000,
-    "start": 1666810188704001000
+    "duration": 1161000,
+    "start": 1667244350102233000
   }]]

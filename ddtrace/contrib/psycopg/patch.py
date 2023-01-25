@@ -5,9 +5,11 @@ from psycopg2.sql import Composable
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -148,6 +150,9 @@ def patched_connect(connect_func, _, args, kwargs):
         ) as span:
             # set component tag equal to name of integration
             span.set_tag_str("component", config.psycopg.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

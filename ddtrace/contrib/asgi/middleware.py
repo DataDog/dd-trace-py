@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 
@@ -122,6 +124,9 @@ class TraceMiddleware:
 
         # set component tag equal to name of integration
         span.set_tag_str("component", self.integration_config.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}

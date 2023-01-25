@@ -19,7 +19,8 @@
       "http.status_code": "200",
       "http.url": "http://testserver/partial-view/",
       "language": "python",
-      "runtime-id": "b527629f069c46a0b05ad2664effeeed"
+      "runtime-id": "b527629f069c46a0b05ad2664effeeed",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

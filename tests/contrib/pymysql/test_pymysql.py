@@ -68,6 +68,7 @@ class PyMySQLCore(object):
         assert span.error == 0
         assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         assert span.get_tag("component") == "pymysql"
+        assert span.get_tag("span.kind") == "client"
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.get_tags(), meta)
@@ -91,6 +92,7 @@ class PyMySQLCore(object):
             assert span.error == 0
             assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
             assert span.get_tag("component") == "pymysql"
+            assert span.get_tag("span.kind") == "client"
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.get_tags(), meta)

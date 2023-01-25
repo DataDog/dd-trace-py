@@ -15,7 +15,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 7512000,
-    "start": 1666809594117032000
+    "duration": 3460000,
+    "start": 1667241403674481000
   }],
 [
   {
@@ -45,7 +46,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -56,8 +58,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 3554000,
-    "start": 1666809594125298000
+    "duration": 770000,
+    "start": 1667241403678491000
   }],
 [
   {
@@ -76,7 +78,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -87,8 +90,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 1234000,
-    "start": 1666809594134036000
+    "duration": 982000,
+    "start": 1667241403681491000
   }],
 [
   {
@@ -107,7 +110,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -118,8 +122,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 2280000,
-    "start": 1666809594135392000
+    "duration": 935000,
+    "start": 1667241403682546000
   }],
 [
   {
@@ -138,7 +142,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -149,8 +154,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 2656000,
-    "start": 1666809594137746000
+    "duration": 1122000,
+    "start": 1667241403683593000
   }],
 [
   {
@@ -169,7 +174,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -180,6 +186,6 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 1627000,
-    "start": 1666809594140486000
+    "duration": 1130000,
+    "start": 1667241403684787000
   }]]

@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "78889425fa434f88a0dbd3ce725a2f06"
+      "runtime-id": "aaaa5501985e44f38570a5b204209686"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,8 +20,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 37340
     },
-    "duration": 5316000,
-    "start": 1666795740594552000
+    "duration": 2439000,
+    "start": 1667243591997185000
   },
      {
        "name": "redis.command",
@@ -36,7 +36,8 @@
          "component": "redis",
          "out.host": "127.0.0.1",
          "redis.client_name": "testing-client-name",
-         "redis.raw_command": "GET blah"
+         "redis.raw_command": "GET blah",
+         "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -45,6 +46,6 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 5049000,
-       "start": 1666795740594795000
+       "duration": 2151000,
+       "start": 1667243591997435000
      }]]

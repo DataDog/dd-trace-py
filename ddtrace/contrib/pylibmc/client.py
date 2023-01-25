@@ -7,8 +7,10 @@ import pylibmc
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import memcached
 from ddtrace.ext import net
@@ -142,6 +144,9 @@ class TracedClient(ObjectProxy):
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.pylibmc.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

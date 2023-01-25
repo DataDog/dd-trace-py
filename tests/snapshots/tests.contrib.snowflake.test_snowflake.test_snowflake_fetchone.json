@@ -18,8 +18,9 @@
       "db.warehouse": "mock-warehouse-name",
       "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
-      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
+      "runtime-id": "f82097569d3141b8ba61409269818dec",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,6 +33,6 @@
       "process_id": 88705,
       "sql.rows": 1
     },
-    "duration": 3723000,
-    "start": 1660069779876100000
+    "duration": 1675000,
+    "start": 1667243931406312000
   }]]

@@ -80,8 +80,10 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 
 from .. import trace_utils
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -133,6 +135,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.rq.integration_name)
 
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
         span.set_tag_str("queue.name", instance.name)
         span.set_tag_str("job.id", job.get_id())
         span.set_tag_str("job.func_name", job.func_name)
@@ -175,6 +180,8 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             # set component tag equal to name of integration
             span.set_tag_str("component", config.rq.integration_name)
 
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             span.set_tag_str("job.id", job.get_id())
             try:
                 return func(*args, **kwargs)

@@ -13,8 +13,9 @@
       "component": "snowflake",
       "custom": "tag",
       "language": "python",
-      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
-      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
+      "runtime-id": "f82097569d3141b8ba61409269818dec",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,6 +27,6 @@
       "process_id": 88705,
       "sql.rows": 1
     },
-    "duration": 3361000,
-    "start": 1660069787100011000
+    "duration": 1473000,
+    "start": 1667243937591746000
   }]]

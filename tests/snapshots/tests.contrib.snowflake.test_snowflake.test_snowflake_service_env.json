@@ -19,7 +19,8 @@
       "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
       "runtime-id": "2ca2eba8ca9b4ae199c9732fc4f1a16d",
-      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

@@ -4,7 +4,9 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
@@ -77,6 +79,9 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.asyncpg.integration_name)
 
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
         span.set_tags(_get_connection_tags(conn))
@@ -89,6 +94,9 @@ async def _traced_query(pin, method, query, args, kwargs):
     ) as span:
         # set component tag equal to name of integration
         span.set_tag_str("component", config.asyncpg.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)

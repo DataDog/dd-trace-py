@@ -60,6 +60,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -89,6 +90,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             s = spans[0]
             assert s.get_tag(http.METHOD) == "GET"
             assert s.get_tag("component") == "requests"
+            assert s.get_tag("span.kind") == "server"
             assert_span_http_status_code(s, 200)
 
     def test_untraced_request(self):
@@ -124,6 +126,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
@@ -151,6 +154,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
@@ -174,6 +178,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
 
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
@@ -189,6 +194,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert_is_measured(s)
             assert s.get_tag(http.METHOD) == "GET"
             assert s.get_tag("component") == "requests"
+            assert s.get_tag("span.kind") == "server"
             assert_span_http_status_code(s, 200)
             assert s.error == 0
             assert s.span_type == "http"
@@ -204,6 +210,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "POST"
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
 
@@ -222,6 +229,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
         assert s.error == 1
         assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
         assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
@@ -239,6 +247,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "server"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
 

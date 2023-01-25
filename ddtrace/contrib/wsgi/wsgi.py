@@ -19,6 +19,7 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation._utils import from_wsgi_header
@@ -26,6 +27,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
+from ...constants import SPAN_KIND
 
 
 log = get_logger(__name__)
@@ -123,6 +125,9 @@ class _DDWSGIMiddlewareBase(object):
 
         # set component tag equal to name of integration
         req_span.set_tag_str("component", self._config.integration_name)
+
+        # set span.kind to the type of operation being performed
+        req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         self._request_span_modifier(req_span, environ)
 
@@ -251,6 +256,9 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         ) as span:
             # set component tag equal to name of integration
             span.set_tag_str("component", self._config.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             return start_response(status, environ, exc_info)
 

@@ -16,6 +16,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "d3f10746b2a042468b3a6ca5a8b5106d",
+      "span.kind": "client",
       "sql.query": "SELECT 1"
     },
     "metrics": {

@@ -4,11 +4,13 @@ import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
@@ -78,6 +80,9 @@ def _connect(func, instance, args, kwargs):
         ) as span:
             # set component tag equal to name of integration
             span.set_tag_str("component", config.mysqldb.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)

@@ -18,7 +18,9 @@ from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
 from ...propagation.http import HTTPPropagator
@@ -100,6 +102,9 @@ class _ClientInterceptor:
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.grpc_aio_client.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

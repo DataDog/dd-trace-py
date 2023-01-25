@@ -14,7 +14,9 @@ from ddtrace.internal.compat import iteritems
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import reraise
@@ -86,6 +88,9 @@ class PylonsTraceMiddleware(object):
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
             # set component tag equal to name of integration
             span.set_tag_str("component", ddconfig.pylons.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be

@@ -71,6 +71,7 @@ def test_simple_query(connection, tracer):
             "db.name": u"test",
             "db.user": u"test",
             "component": u"mariadb",
+            "span.kind": "client",
         },
     )
 

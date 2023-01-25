@@ -15,7 +15,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 4070000,
-    "start": 1666809594042635000
+    "duration": 3696000,
+    "start": 1667241403608572000
   }],
 [
   {
@@ -48,7 +49,8 @@
       "error.type": "asyncpg.exceptions.PostgresSyntaxError",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -59,6 +61,6 @@
       "out.port": 5432,
       "process_id": 377
     },
-    "duration": 1606000,
-    "start": 1666809594047341000
+    "duration": 1353000,
+    "start": 1667241403612860000
   }]]

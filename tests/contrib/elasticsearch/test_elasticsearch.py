@@ -79,6 +79,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
@@ -114,6 +115,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         # search data
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
@@ -141,6 +143,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
         assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 

@@ -5,6 +5,8 @@ import sanic
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
@@ -200,6 +202,9 @@ def _create_sanic_request_span(request):
     )
     # set component tag equal to name of integration
     span.set_tag_str("component", config.sanic.integration_name)
+
+    # set span.kind to the type of operation being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:

@@ -8,7 +8,9 @@ from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
@@ -80,6 +82,9 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             # set component tag equal to name of integration
             span.set_tag_str("component", config.aiobotocore.integration_name)
 
+            # set span.kind tag equal to type of request
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
@@ -116,6 +121,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
         # set component tag equal to name of integration
         span.set_tag_str("component", config.aiobotocore.integration_name)
+
+        # set span.kind tag equal to type of request
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

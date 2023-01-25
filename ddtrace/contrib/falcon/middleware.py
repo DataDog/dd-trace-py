@@ -1,11 +1,13 @@
 import sys
 
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.compat import iteritems
 
@@ -30,6 +32,9 @@ class TraceMiddleware(object):
         )
         # set component tag equal to name of integration
         span.set_tag_str("component", config.falcon.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

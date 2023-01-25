@@ -15,7 +15,8 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

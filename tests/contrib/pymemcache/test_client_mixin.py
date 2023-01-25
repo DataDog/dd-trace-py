@@ -46,6 +46,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
             self.assertEqual(span.get_tag(memcachedx.QUERY), query)
             self.assertEqual(span.resource, resource)
             self.assertEqual(span.get_tag("component"), "pymemcache")
+            self.assertEqual(span.get_tag("span.kind"), "client")
 
         return spans
 

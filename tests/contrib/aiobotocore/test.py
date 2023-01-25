@@ -43,6 +43,7 @@ async def test_traced_client(tracer):
     assert span.span_type == "http"
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -75,6 +76,7 @@ async def test_s3_client(tracer):
     assert span.resource == "s3.listbuckets"
     assert span.name == "s3.command"
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 async def _test_s3_put(tracer):
@@ -146,6 +148,7 @@ async def test_s3_client_error(tracer):
     assert span.error == 1
     assert span.get_tag("component") == "aiobotocore"
     assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
+    assert span.get_tag("span.kind"), "client"
 
 
 @pytest.mark.asyncio
@@ -178,6 +181,7 @@ async def test_s3_client_read(tracer):
     assert span.service == "aws.s3"
     assert span.resource == "s3.getobject"
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
     if pre_08:
         read_span = traces[1][0]
@@ -209,6 +213,7 @@ async def test_sqs_client(tracer):
     assert span.service == "aws.sqs"
     assert span.resource == "sqs.listqueues"
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -229,6 +234,7 @@ async def test_kinesis_client(tracer):
     assert span.service == "aws.kinesis"
     assert span.resource == "kinesis.liststreams"
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -250,6 +256,7 @@ async def test_lambda_client(tracer):
     assert span.service == "aws.lambda"
     assert span.resource == "lambda.listfunctions"
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -272,6 +279,7 @@ async def test_kms_client(tracer):
     # checking for protection on STS against security leak
     assert span.get_tag("params") is None
     assert span.get_tag("component") == "aiobotocore"
+    assert span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -328,6 +336,7 @@ async def test_opentraced_client(tracer):
     assert dd_span.resource == "ec2.describeinstances"
     assert dd_span.name == "ec2.command"
     assert dd_span.get_tag("component") == "aiobotocore"
+    assert dd_span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -454,3 +463,4 @@ async def test_response_context_manager(tracer):
         assert span.resource == "s3.getobject"
         assert span.name == "s3.command"
         assert span.get_tag("component") == "aiobotocore"
+        assert span.get_tag("span.kind") == "client"

@@ -16,7 +16,8 @@
       "http.url": "http://localhost:8001/status/200",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "3ce63df244b845219a02fcf92464ae00"
+      "runtime-id": "ed5d4610c6c04210b54dcd43a0b8767f",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,6 +27,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 85267
     },
-    "duration": 8836000,
-    "start": 1666809521456872000
+    "duration": 13840000,
+    "start": 1667242897599408000
   }]]

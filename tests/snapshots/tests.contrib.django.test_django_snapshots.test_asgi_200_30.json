@@ -21,7 +21,8 @@
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "297a43c910e946bf9f3b05835e8e5677"
+      "runtime-id": "f17de80096684a7e88c8c18bdcd981da",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

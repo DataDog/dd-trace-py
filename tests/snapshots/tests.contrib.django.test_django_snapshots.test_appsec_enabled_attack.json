@@ -31,7 +31,8 @@
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "0cff567142fd465e9983446f9f2d044c"
+      "runtime-id": "b51c06180eb9473c90462901d4ad2642",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
