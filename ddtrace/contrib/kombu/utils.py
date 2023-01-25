@@ -18,7 +18,7 @@ def extract_conn_tags(connection):
         host, port = connection.host.split(":")
         return {
             net.TARGET_HOST: host,
-            net.TARGET_PORT: port,
+            "network.destination.port": port,
             kombux.VHOST: connection.virtual_host,
         }
     except AttributeError:
