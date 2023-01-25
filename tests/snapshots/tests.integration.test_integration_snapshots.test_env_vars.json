@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "env": "prod",
+      "language": "python",
       "runtime-id": "616ec77c69174ae8820935b9a733027c",
       "version": "1234"
     },

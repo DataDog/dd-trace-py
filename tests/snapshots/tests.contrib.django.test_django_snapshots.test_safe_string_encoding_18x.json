@@ -20,6 +20,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/safe-template/",
+      "language": "python",
       "runtime-id": "b527629f069c46a0b05ad2664effeeed"
     },
     "metrics": {

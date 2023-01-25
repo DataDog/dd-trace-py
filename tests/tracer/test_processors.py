@@ -524,3 +524,16 @@ def assert_span_sampling_decision_tags(
 
     if trace_sampling_priority:
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+
+
+def test_trace_tag_processor_adds_chunk_root_tags():
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child") as child:
+            pass
+
+    # test that parent span gets required chunk root span tags and child does not get language tag
+    assert parent.get_tag("language") == "python"
+    assert child.get_tag("language") is None

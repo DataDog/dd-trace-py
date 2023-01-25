@@ -16,6 +16,7 @@
       "db.schema": "mock-schema-name",
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
+      "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
       "runtime-id": "1658e263f3084eaca410818e944d7d7e",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"

@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
     "metrics": {
@@ -32,6 +33,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "language": "python",
          "runtime-id": "da86c61045c247d78f3484fe9e693377"
        },
        "metrics": {
@@ -53,6 +55,7 @@
           "type": "",
           "error": 0,
           "meta": {
+            "language": "python",
             "runtime-id": "9181d9085f7e47f5a3eb66709923c2f6"
           },
           "metrics": {

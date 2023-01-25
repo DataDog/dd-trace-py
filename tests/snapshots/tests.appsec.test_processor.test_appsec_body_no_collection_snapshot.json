@@ -16,6 +16,7 @@
       "_dd.runtime_family": "python",
       "appsec.event": "true",
       "http.status_code": "404",
+      "language": "python",
       "runtime-id": "f2d92db5b6544220bd85b0f8c943e669"
     },
     "metrics": {

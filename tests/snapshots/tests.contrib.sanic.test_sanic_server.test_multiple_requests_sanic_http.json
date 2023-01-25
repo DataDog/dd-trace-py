@@ -15,6 +15,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
+      "language": "python",
       "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
       "sanic.route.name": "test_sanic_server.hello"
     },
@@ -57,6 +58,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
+      "language": "python",
       "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
       "sanic.route.name": "test_sanic_server.hello"
     },

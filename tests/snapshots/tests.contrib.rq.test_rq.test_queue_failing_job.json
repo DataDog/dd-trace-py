@@ -13,6 +13,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "1a233305-fe5e-4fc6-9750-ed92067a1e57",
+      "language": "python",
       "queue.name": "sync-q",
       "runtime-id": "6cd7389b7d314440a4f7f3c7477cdb35"
     },
