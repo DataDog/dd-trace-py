@@ -104,7 +104,6 @@ class TraceTool(cherrypy.Tool):
 
     def _close_span(self, span):
         # Let users specify their own resource in middleware if they so desire.
-        # See case https://github.com/DataDog/dd-trace-py/issues/353
         if span.resource == SPAN_NAME:
             # In the future, mask virtual path components in a
             # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
