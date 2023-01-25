@@ -316,10 +316,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         assert len(spans) == 1
 
     def test_multiple_connect_no_double_patching(self):
-        """Ensure we do not double patch client._topology
-
-        Regression test for https://github.com/DataDog/dd-trace-py/issues/2474
-        """
+        """Ensure we do not double patch client._topology"""
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
         assert isinstance(client, TracedMongoClient)
         assert not isinstance(client.__wrapped__, TracedMongoClient)

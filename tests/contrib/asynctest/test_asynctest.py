@@ -32,9 +32,7 @@ class TestPytest(TracerTestCase):
         "attribute 'coroutine'",
     )
     def test_asynctest_not_raise_attribute_error_exception(self):
-        """Test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py` when try to import asynctest package.
-        Issue: https://github.com/DataDog/dd-trace-py/issues/4484
-        """
+        """Test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py` when try to import asynctest package."""
         py_file = self.testdir.makepyfile(
             """
         import asynctest

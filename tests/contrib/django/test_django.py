@@ -1425,8 +1425,7 @@ def test_template_name(test_spans):
     # prepare a base template using the default engine
     template = django.template.Template("Hello {{name}}!")
 
-    # DEV: template.name can be an instance of PosixPath (see
-    # https://github.com/DataDog/dd-trace-py/issues/2418)
+    # template.name can be an instance of PosixPath
     template.name = PosixPath("/my-template")
     template.render(django.template.Context({"name": "Django"}))
 

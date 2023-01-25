@@ -57,5 +57,4 @@ class TestPsycopgPatch(AsyncioTestCase):
     @mark_asyncio
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
-        # https://github.com/DataDog/dd-trace-py/issues/228
         yield from self._test_cursor_ctx_manager()
