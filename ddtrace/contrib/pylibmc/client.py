@@ -157,7 +157,7 @@ class TracedClient(ObjectProxy):
         if self._addresses:
             _, host, port, _ = random.choice(self._addresses)
             span.set_tag_str(net.TARGET_HOST, host)
-            span.set_tag("network.destination.port", port)
+            span.set_tag(net.TARGET_PORT, port)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pylibmc.get_analytics_sample_rate())

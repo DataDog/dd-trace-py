@@ -45,7 +45,7 @@ def _get_connection_tags(conn):
         host, port = addr
     return {
         net.TARGET_HOST: host,
-        "network.destination.port": port,
+        net.TARGET_PORT: port,
         db.USER: params.user,
         db.NAME: params.database,
     }

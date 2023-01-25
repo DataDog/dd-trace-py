@@ -63,7 +63,7 @@ class TracedConnection(connection):
         dsn = sql.parse_pg_dsn(self.dsn)
         self._datadog_tags = {
             net.TARGET_HOST: dsn.get("host"),
-            "network.destination.port": dsn.get("port"),
+            net.TARGET_PORT: dsn.get("port"),
             db.NAME: dsn.get("dbname"),
             db.USER: dsn.get("user"),
             "db.application": dsn.get("application_name"),

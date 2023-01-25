@@ -62,7 +62,7 @@ def patched_connect(connect_func, _, args, kwargs):
     # Add default tags to each query
     tags = {
         net.TARGET_HOST: conn.host,
-        "network.destination.port": conn.port,
+        net.TARGET_PORT: conn.port,
         db.NAME: conn.database,
         db.USER: conn.user,
         "db.application": conn.application,

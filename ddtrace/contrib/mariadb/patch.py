@@ -39,7 +39,7 @@ def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
     tags = {
         net.TARGET_HOST: kwargs["host"],
-        "network.destination.port": kwargs["port"],
+        net.TARGET_PORT: kwargs["port"],
         db.USER: kwargs["user"],
         db.NAME: kwargs["database"],
     }

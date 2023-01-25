@@ -88,7 +88,7 @@ def patch_conn(conn, *args, **kwargs):
     tags = {
         t: kwargs[k] if k in kwargs else args[p] for t, (k, p) in KWPOS_BY_TAG.items() if k in kwargs or len(args) > p
     }
-    tags["network.destination.port"] = conn.port
+    tags[net.TARGET_PORT] = conn.port
     pin = Pin(tags=tags)
 
     # grab the metadata from the conn

@@ -20,7 +20,7 @@ def _extract_conn_tags(conn_kwargs):
     try:
         conn_tags = {
             net.TARGET_HOST: conn_kwargs["host"],
-            "network.destination.port": conn_kwargs["port"],
+            net.TARGET_PORT: conn_kwargs["port"],
             redisx.DB: conn_kwargs.get("db") or 0,
         }
         client_name = conn_kwargs.get("client_name")

@@ -129,7 +129,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     span.set_tags(
         {
             net.TARGET_HOST: instance.address[0],
-            "network.destination.port": instance.address[1],
+            net.TARGET_PORT: instance.address[1],
             redisx.DB: instance.db or 0,
         }
     )
@@ -179,7 +179,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],
-                "network.destination.port": instance._pool_or_conn.address[1],
+                net.TARGET_PORT: instance._pool_or_conn.address[1],
                 redisx.DB: instance._pool_or_conn.db or 0,
             }
         )
