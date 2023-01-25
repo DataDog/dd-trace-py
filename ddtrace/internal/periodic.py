@@ -75,9 +75,11 @@ class PeriodicThread(threading.Thread):
         Under ddtrace-run, because it triggers an additional fork to which gevent's post-fork logic responds, the
         thread ends up being restarted twice in the child process. This means that there are a bunch of instances of
         the thread running simultaneously:
-          * the "correct" one started by ddtrace's _restart_on_fork
-          * the copy of the pre-fork one restarted by gevent after the fork done by gunicorn
-          * the copy of the pre-fork one restarted by gevent after the fork done by ddtrace-run
+
+        the "correct" one started by ddtrace's _restart_on_fork
+        the copy of the pre-fork one restarted by gevent after the fork done by gunicorn
+        the copy of the pre-fork one restarted by gevent after the fork done by ddtrace-run
+
         This causes even more problems for PeriodicThread uses like the Profiler that rely on running as singletons per
         process.
 
