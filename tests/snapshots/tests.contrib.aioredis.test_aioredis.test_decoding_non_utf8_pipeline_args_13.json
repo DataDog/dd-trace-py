@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aioredis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET \\x80blah boo\nSET foo \\x80abc\nGET \\x80blah\nGET foo",
       "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"

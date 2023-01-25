@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aredis",
+      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
       "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"

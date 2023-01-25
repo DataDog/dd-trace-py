@@ -31,7 +31,8 @@
       "http.url": "http://localhost:8000/.git",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
-      "network.client.ip": "",
+      "language": "python",
+      "network.client.ip": "",     
       "runtime-id": "0cff567142fd465e9983446f9f2d044c"
     },
     "metrics": {

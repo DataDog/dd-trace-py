@@ -15,6 +15,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
+      "language": "python",
       "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
     },
     "metrics": {
@@ -56,6 +57,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
+      "language": "python",
       "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
     },
     "metrics": {
