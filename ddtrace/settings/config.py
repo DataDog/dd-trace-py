@@ -195,6 +195,7 @@ class Config(object):
         legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
 
         self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
+        self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
         self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
 

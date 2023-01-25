@@ -178,9 +178,10 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
-        if headers_are_case_sensitive:
-            return _get_header_value_case_insensitive(headers, key)
-        return headers.get(key)
+        if not headers_are_case_sensitive:
+            return headers.get(key)
+
+        return _get_header_value_case_insensitive(headers, key)
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
@@ -479,7 +480,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if config._appsec_enabled:
+        if config._appsec_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = _context.get_item("http.request.remote_ip", span=span)
 
