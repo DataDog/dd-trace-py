@@ -270,7 +270,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=True, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )
 
 
@@ -444,7 +444,7 @@ def test_exception_collection_trace(
 @pytest.fixture
 def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=tracer)
+    c = stack.StackCollector(r, endpoint_collection_enabled=True, tracer=tracer)
     c.start()
     try:
         yield tracer, c
@@ -567,9 +567,8 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
 
 
 def test_resource_not_collected(monkeypatch, tracer):
-    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
     r = recorder.Recorder()
-    collector = stack.StackCollector(r, tracer=tracer)
+    collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)
     collector.start()
     try:
         resource = str(uuid.uuid4())
