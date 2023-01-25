@@ -72,6 +72,11 @@ class Jinja2Test(TracerTestCase):
         assert_is_measured(spans[1])
 
     def test_custom_template_name(self):
+        """
+        Regression test for #4008
+
+        https://github.com/DataDog/dd-trace-py/issues/4008
+        """
         # pytest.mark.parametrize is not supported for unittest test methods
         cases = [
             ("custom-name", "custom-name"),

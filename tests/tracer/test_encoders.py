@@ -647,6 +647,8 @@ def test_custom_msgpack_encode_thread_safe(encoding):
 @pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2"]})
 def test_json_encoder_traces_bytes():
     """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
+
     Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
     """
     import json

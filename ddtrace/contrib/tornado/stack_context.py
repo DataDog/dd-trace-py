@@ -26,6 +26,9 @@ if _USE_STACK_CONTEXT:
         Every time a new manager is initialized, a new ``Context()`` is created for
         this execution flow. A context created in a ``TracerStackContext`` is not
         shared between different threads.
+
+        This implementation follows some suggestions provided here:
+        https://github.com/tornadoweb/tornado/issues/1063
         """
 
         def __init__(self):

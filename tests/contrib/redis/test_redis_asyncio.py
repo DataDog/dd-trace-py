@@ -154,6 +154,8 @@ async def test_pipeline_traced(redis_client):
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced_context_manager_transaction(redis_client):
     """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
+
     Example::
 
         async def main():
