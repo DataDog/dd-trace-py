@@ -17,6 +17,7 @@
       "http.url": "http://localhost:8000/traced-simple-asgi-app/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "b7f25d44d01b41139e1065c8f7f065da"
     },
     "metrics": {

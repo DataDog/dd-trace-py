@@ -585,3 +585,16 @@ def test_endpoint_call_counter_processor_real_tracer():
         pass
 
     assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
+
+
+def test_trace_tag_processor_adds_chunk_root_tags():
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child") as child:
+            pass
+
+    # test that parent span gets required chunk root span tags and child does not get language tag
+    assert parent.get_tag("language") == "python"
+    assert child.get_tag("language") is None
