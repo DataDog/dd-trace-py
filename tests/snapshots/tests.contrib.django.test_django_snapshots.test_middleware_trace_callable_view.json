@@ -19,6 +19,7 @@
       "http.route": "^feed-view/$",
       "http.status_code": "200",
       "http.url": "http://testserver/feed-view/",
+      "language": "python",
       "runtime-id": "3a330969456446cd8d36553672a50858"
     },
     "metrics": {

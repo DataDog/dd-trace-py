@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "graphql",
+      "language": "python",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {
