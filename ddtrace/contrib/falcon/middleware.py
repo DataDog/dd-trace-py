@@ -55,9 +55,6 @@ class TraceMiddleware(object):
 
         status = resp.status.partition(" ")[0]
 
-        # FIXME[matt] falcon does not map errors or unmatched routes
-        # to proper status codes, so we we have to try to infer them
-        # here. See https://github.com/falconry/falcon/issues/606
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method
