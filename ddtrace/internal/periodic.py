@@ -54,15 +54,44 @@ class PeriodicThread(threading.Thread):
             self.quit.set()
 
     def _is_proper_class(self):
-        # DEV: Some frameworks, like e.g. gevent, seem to resuscitate some
-        # of the threads that were running prior to the fork of the worker
-        # processes. These threads are normally created via the native API
-        # and are exposed to the child process as _DummyThreads. We check
-        # whether the current thread is no longer an instance of the
-        # original thread class to prevent it from running in the child
-        # process while the state copied over from the parent is being
-        # cleaned up. The restarting of the thread is responsibility to the
-        # registered forksafe hooks.
+        """
+        Picture this: you're running a gunicorn server under ddtrace-run (`ddtrace-run gunicorn...`).
+        Profiler._profiler() (a PeriodicThread) is running in the main process.
+        Gunicorn forks the process and sets up the resulting child process as a "gevent worker".
+        Because of the Profiler's _restart_on_fork hook, inside the child process, the Profiler is stopped, copied, and
+        started for the purpose of profiling the child process.
+        In _restart_on_fork, the Profiler being stopped is the one that was running before the fork, ie the one in the
+        main process. Copying that Profiler takes place in the child process. Inside the child process, we've now got
+        *one* process-local Profiler running in a thread, and that's the only Profiler running.
+
+        ...or is it?
+
+        As it turns out, gevent has some of its own post-fork logic that complicates things. All of the above is
+        accurate, except for the bit about the child process' Profiler being the only one alive. In fact, gunicorn's
+        "gevent worker" notices that there was a Profiler (PeriodicThread) running before the fork, and attempts to
+        bring it back to life after the fork.
+
+        Outside of ddtrace-run, the only apparent problem this causes is duplicated work and decreased performance.
+        Under ddtrace-run, because it triggers an additional fork to which gevent's post-fork logic responds, the
+        thread ends up being restarted twice in the child process. This means that there are a bunch of instances of
+        the thread running simultaneously:
+          * the "correct" one started by ddtrace's _restart_on_fork
+          * the copy of the pre-fork one restarted by gevent after the fork done by gunicorn
+          * the copy of the pre-fork one restarted by gevent after the fork done by ddtrace-run
+        This causes even more problems for PeriodicThread uses like the Profiler that rely on running as singletons per
+        process.
+
+        In these situations where there are many copies of the restarted thread, the copies are conveniently marked as
+        such by being instances of gevent.threading._DummyThread.
+
+        This function _is_proper_class exists as a thread-local release valve that lets these _DummyThreads stop
+        themselves, because there's no other sane way to join all _DummyThreads from outside of those threads
+        themselves. Not doing this causes the _DummyThreads to be orphaned and hang, which can degrade performance
+        and cause crashes in threads that assume they're singletons.
+
+        That's why it's hard to write a test for - doing so requires waiting for the threads to die on their own, which
+        can make tests take a really long time.
+        """
         return isinstance(threading.current_thread(), self.__class__)
 
     def run(self):
