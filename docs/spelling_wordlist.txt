@@ -127,6 +127,7 @@ mysqlclient
 mysqldb
 namespace
 obfuscator
+opensearch
 opentracer
 opentracing
 parameterized
@@ -140,6 +141,7 @@ profiler
 protobuf
 psycopg
 py
+PyFrameObject
 pylibmc
 pymemcache
 pymongo

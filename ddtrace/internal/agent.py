@@ -1,9 +1,11 @@
+import json
 import os
 import socket
 from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
+from ddtrace.internal.logger import get_logger
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
@@ -21,6 +23,8 @@ DEFAULT_TIMEOUT = 2.0
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 T = TypeVar("T")
+
+log = get_logger(__name__)
 
 
 # This method returns if a hostname is an IPv6 address
@@ -142,3 +146,24 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
         return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
 
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+
+
+def _healthcheck():
+    agent_url = get_trace_url()
+    _conn = get_connection(agent_url, timeout=get_trace_agent_timeout())
+    try:
+        _conn.request("GET", "info", {}, {"content-type": "application/json"})
+        resp = _conn.getresponse()
+        data = resp.read()
+    finally:
+        _conn.close()
+
+    if resp.status == 404:
+        # Remote configuration is not enabled or unsupported by the agent
+        return None
+
+    if resp.status < 200 or resp.status >= 300:
+        log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
+        return None
+
+    return json.loads(data)

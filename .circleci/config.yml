@@ -678,7 +678,7 @@ jobs:
       - run_test:
           pattern: 'elasticsearch'
           snapshot: true
-          docker_services: 'elasticsearch'
+          docker_services: 'elasticsearch opensearch'
 
   falcon:
     <<: *contrib_job

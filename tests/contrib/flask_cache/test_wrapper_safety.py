@@ -150,6 +150,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         assert span.span_type == "cache"
         assert span.get_tag(CACHE_BACKEND) == "redis"
         assert span.get_tag(net.TARGET_HOST) == "127.0.0.1"
+        assert span.get_tag("component") == "flask_cache"
         assert span.get_metric(net.TARGET_PORT) == 2230
         assert span.error == 1
 
@@ -179,6 +180,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         assert span.span_type == "cache"
         assert span.get_tag(CACHE_BACKEND) == "memcached"
         assert span.get_tag(net.TARGET_HOST) == "localhost"
+        assert span.get_tag("component") == "flask_cache"
         assert span.get_metric(net.TARGET_PORT) == 2230
 
         # the pylibmc backend raises an exception and memcached backend does

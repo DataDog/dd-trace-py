@@ -1,8 +1,9 @@
 # -*- encoding: utf-8 -*-
-import enum
 import logging
 import os
 import sys
+
+from ddtrace.internal.utils.formats import asbool
 
 
 try:
@@ -90,11 +91,19 @@ def _build_package_file_mapping():
     return mapping
 
 
-class _load_status(enum.Enum):
-    FAILED = "failed"
-
-
-_FILE_PACKAGE_MAPPING = None  # type: typing.Optional[typing.Union[typing.Dict[str, Distribution], _load_status]]
+_FILE_PACKAGE_MAPPING = None  # type: typing.Optional[typing.Dict[str, Distribution]]
+if asbool(os.getenv("DD_PROFILING_ENABLE_CODE_PROVENANCE", False)):
+    # DEV: If code provenance is enabled, create the mapping as soon as this
+    # module is imported. This should happen in the parent process to
+    # guarantee that the work is not repeated in child worker processes.
+    try:
+        _FILE_PACKAGE_MAPPING = _build_package_file_mapping()
+    except Exception:
+        LOG.error(
+            "Unable to build package file mapping, "
+            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            exc_info=True,
+        )
 
 
 def filename_to_package(
@@ -102,18 +111,8 @@ def filename_to_package(
 ):
     # type: (...) -> typing.Optional[Distribution]
     global _FILE_PACKAGE_MAPPING
+
     if _FILE_PACKAGE_MAPPING is None:
-        try:
-            _FILE_PACKAGE_MAPPING = _build_package_file_mapping()
-        except Exception:
-            _FILE_PACKAGE_MAPPING = _load_status.FAILED
-            LOG.error(
-                "Unable to build package file mapping, "
-                "please report this to https://github.com/DataDog/dd-trace-py/issues",
-                exc_info=True,
-            )
-            return None
-    elif _FILE_PACKAGE_MAPPING is _load_status.FAILED:
         return None
 
     if filename not in _FILE_PACKAGE_MAPPING and filename.endswith(".pyc"):

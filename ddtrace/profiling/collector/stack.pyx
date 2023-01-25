@@ -257,6 +257,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                                 if exc_tb:
                                     current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
                                 Py_XDECREF(exc_tb)
+                            Py_XDECREF(frame)
                         ELSE:
                             frame = tstate.frame
                             if frame:

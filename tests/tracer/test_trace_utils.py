@@ -336,6 +336,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             {"id": "val", "name": "vlad"},
             None,
         ),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -376,10 +381,16 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        if query and int_config.trace_query_string:
-            assert span.get_tag(http.URL) == stringify(url + "?" + query)
+        if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
+            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
         else:
-            assert span.get_tag(http.URL) == stringify(url)
+            expected_url = url
+
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -567,6 +578,49 @@ def test_set_http_meta_headers_ip(
             assert result_keys == expected_keys
             assert span.get_tag(http.CLIENT_IP) == expected
             mock_store_headers.assert_called()
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=True)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
+        assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
 
 
 def test_ip_subnet_regression():

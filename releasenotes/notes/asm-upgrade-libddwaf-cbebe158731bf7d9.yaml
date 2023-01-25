@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ASM: libddwaf upgraded to version 1.6.1 using a new library loading mechanism

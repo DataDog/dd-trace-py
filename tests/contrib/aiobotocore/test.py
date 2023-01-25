@@ -42,6 +42,7 @@ async def test_traced_client(tracer):
     assert span.name == "ec2.command"
     assert span.span_type == "http"
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -73,6 +74,7 @@ async def test_s3_client(tracer):
     assert span.service == "aws.s3"
     assert span.resource == "s3.listbuckets"
     assert span.name == "s3.command"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 async def _test_s3_put(tracer):
@@ -103,6 +105,7 @@ async def _test_s3_put(tracer):
 async def test_s3_put(tracer):
     span = await _test_s3_put(tracer)
     assert span.get_tag("aws.s3.bucket_name") == "mybucket"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -113,6 +116,7 @@ async def test_s3_put_no_params(tracer):
         assert span.get_tag("params.Key") is None
         assert span.get_tag("params.Bucket") is None
         assert span.get_tag("params.Body") is None
+        assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -122,6 +126,7 @@ async def test_s3_put_all_params(tracer):
         assert span.get_tag("params.Key") == "foo"
         assert span.get_tag("params.Bucket") == "mybucket"
         assert span.get_tag("params.Body") is None
+        assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -139,6 +144,7 @@ async def test_s3_client_error(tracer):
     assert_is_measured(span)
     assert span.resource == "s3.listobjects"
     assert span.error == 1
+    assert span.get_tag("component") == "aiobotocore"
     assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
 
 
@@ -171,6 +177,7 @@ async def test_s3_client_read(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.s3"
     assert span.resource == "s3.getobject"
+    assert span.get_tag("component") == "aiobotocore"
 
     if pre_08:
         read_span = traces[1][0]
@@ -201,6 +208,7 @@ async def test_sqs_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.sqs"
     assert span.resource == "sqs.listqueues"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -220,6 +228,7 @@ async def test_kinesis_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.kinesis"
     assert span.resource == "kinesis.liststreams"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -240,6 +249,7 @@ async def test_lambda_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.lambda"
     assert span.resource == "lambda.listfunctions"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -261,6 +271,7 @@ async def test_kms_client(tracer):
     assert span.resource == "kms.listkeys"
     # checking for protection on STS against security leak
     assert span.get_tag("params") is None
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -316,6 +327,7 @@ async def test_opentraced_client(tracer):
     assert dd_span.service == "aws.ec2"
     assert dd_span.resource == "ec2.describeinstances"
     assert dd_span.name == "ec2.command"
+    assert dd_span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -364,6 +376,7 @@ async def test_opentraced_s3_client(tracer):
     assert dd_span2.service == "aws.s3"
     assert dd_span2.resource == "s3.listbuckets"
     assert dd_span2.name == "s3.command"
+    assert dd_span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -428,6 +441,7 @@ async def test_response_context_manager(tracer):
         # enforce parenting
         assert read_span.parent_id == span.span_id
         assert read_span.trace_id == span.trace_id
+        assert read_span.get_tag("component") == "aiobotocore"
     else:
         assert len(traces[0]) == 1
         assert len(traces[0]) == 1
@@ -439,3 +453,4 @@ async def test_response_context_manager(tracer):
         assert span.service == "aws.s3"
         assert span.resource == "s3.getobject"
         assert span.name == "s3.command"
+        assert span.get_tag("component") == "aiobotocore"
