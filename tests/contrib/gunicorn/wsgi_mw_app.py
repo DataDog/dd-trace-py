@@ -14,15 +14,12 @@ from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from ddtrace.debugging import DynamicInstrumentation
 from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.profiling.collector.memalloc import MemoryCollector
-from ddtrace.profiling.profiler import Profiler
-from tests.webclient import PingFilter
-
+from ddtrace.profiling import bootstrap
 
 # starting the profiler here allows test cases to exercise the code paths that
 # restart threads preexisting a forked process
-Profiler._profiler = Profiler()
-Profiler._profiler.start()
+import ddtrace.profiling.auto  # noqa
+from tests.webclient import PingFilter
 
 
 tracer.configure(
@@ -36,8 +33,8 @@ def aggressive_shutdown():
     tracer.shutdown(timeout=1)
     RemoteConfig.disable()
     DynamicInstrumentation.disable()
-    Profiler._profiler._scheduler.stop()
-    Profiler._profiler.stop()
+    bootstrap.profiler._scheduler.stop()
+    bootstrap.profiler.stop()
 
 
 def simple_app(environ, start_response):
@@ -46,15 +43,10 @@ def simple_app(environ, start_response):
         data = bytes("goodbye", encoding="utf-8")
     else:
         has_config_worker = hasattr(RemoteConfig._worker, "_worker")
-        memory_collector = [c for c in Profiler._profiler._collectors if isinstance(c, MemoryCollector)][0]
         payload = {
             "remoteconfig": {
                 "worker_alive": has_config_worker and RemoteConfig._worker._worker.is_alive(),
                 "enabled_after_gevent_monkeypatch": RemoteConfig._was_enabled_after_gevent_monkeypatch,
-            },
-            "profiler": {
-                "worker_alive": memory_collector._worker.is_alive(),
-                "enabled_after_gevent_monkeypatch": Profiler._was_enabled_after_gevent_monkeypatch,
             },
         }
         data = bytes(json.dumps(payload), encoding="utf-8")
