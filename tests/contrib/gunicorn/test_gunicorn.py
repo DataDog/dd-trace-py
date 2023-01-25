@@ -5,6 +5,7 @@ import subprocess
 import time
 from typing import Dict
 from typing import NamedTuple
+from typing import Optional  # noqa
 
 import pytest
 import tenacity
