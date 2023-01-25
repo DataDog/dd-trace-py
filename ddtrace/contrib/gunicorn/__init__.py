@@ -5,8 +5,10 @@
 
 - `ddtrace-run` is not used
 - The `DD_GEVENT_PATCH_ALL=1` environment variable is set
-- Gunicorn's ```post_fork`` <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`__ hook does not import from ``ddtrace``
-- ``import ddtrace.bootstrap.sitecustomize`` is called either in the application's main process or in the ```post_worker_init`` <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`__ hook.
+- Gunicorn's ```post_fork`` <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`__ hook does not import from
+``ddtrace``
+- ``import ddtrace.bootstrap.sitecustomize`` is called either in the application's main process or in the
+```post_worker_init`` <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`__ hook.
 """
 
 
