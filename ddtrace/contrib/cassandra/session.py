@@ -200,7 +200,7 @@ def _extract_cluster_metas(cluster):
     if deep_getattr(cluster, "metadata.cluster_name"):
         metas[cassx.CLUSTER] = cluster.metadata.cluster_name
     if getattr(cluster, "port", None):
-        metas[net.TARGET_PORT] = cluster.port
+        metas["network.destination.port"] = cluster.port
 
     return metas
 
@@ -219,7 +219,7 @@ def _extract_result_metas(result):
             host, _, port = host.partition(":")
             metas[net.TARGET_HOST] = host
             if port:
-                metas[net.TARGET_PORT] = int(port)
+                metas["network.destination.port"] = int(port)
         elif hasattr(future, "_current_host"):
             address = deep_getattr(future, "_current_host.address")
             if address:
