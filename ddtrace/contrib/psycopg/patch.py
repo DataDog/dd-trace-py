@@ -105,7 +105,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     dsn = sql.parse_pg_dsn(conn.dsn)
     tags = {
         net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port"),
+        "network.destination.port": dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
         "db.application": dsn.get("application_name"),
