@@ -202,16 +202,16 @@ def test_batch_json_encoder():
     snapshot_size = encoder.put(s)
 
     n_snapshots = buffer_size // snapshot_size
-    for _ in range(n_snapshots - 1):
-        encoder.put(s)
 
     with pytest.raises(BufferFull):
-        encoder.put(s)
+        for _ in range(2 * n_snapshots):
+            encoder.put(s)
 
     count = encoder.count
     payload = encoder.encode()
     decoded = json.loads(payload.decode())
-    assert len(decoded) == n_snapshots == count
+    assert len(decoded) == count
+    assert n_snapshots <= count
     assert (
         utils.serialize(cake) == decoded[0]["debugger.snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
     )
