@@ -29,7 +29,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -577,20 +576,19 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
 def test_set_http_meta_headers_ip(
     mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
 ):
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers=headers_dict,
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == expected_keys
-            assert span.get_tag(http.CLIENT_IP) == expected
-            mock_store_headers.assert_called()
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers=headers_dict,
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == expected_keys
+        assert span.get_tag(http.CLIENT_IP) == expected
+        mock_store_headers.assert_called()
 
 
 @pytest.mark.parametrize(

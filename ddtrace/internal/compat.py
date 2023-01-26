@@ -321,6 +321,7 @@ def ip_is_global(ip):
     is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
     """
     parsed_ip = ipaddress.ip_address(six.text_type(ip))
+
     if PY3:
         return parsed_ip.is_global
 

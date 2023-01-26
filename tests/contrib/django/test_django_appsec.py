@@ -302,9 +302,7 @@ def test_django_client_ip_asm_disabled_not_reported(client, test_spans, tracer):
 
 
 def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
         root_span, _ = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "8.8.8.8"}
         )
@@ -313,9 +311,7 @@ def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer
 
 
 def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
         root_span, _ = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -328,7 +324,7 @@ def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, trac
 
 
 def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="X-Use-This")):
         root_span, _ = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -362,9 +358,7 @@ def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
 
 
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
         root_span, response = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"}
         )

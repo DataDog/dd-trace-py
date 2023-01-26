@@ -3,7 +3,6 @@ This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
 import ipaddress
-import os
 import re
 from typing import Any
 from typing import Callable
@@ -193,7 +192,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
         return peer_ip
 
     ip_header_value = ""
-    user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
+    user_configured_ip_header = config.client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
         ip_header_value = headers.get(user_configured_ip_header)
@@ -210,7 +209,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     else:
         # No configured IP header, go through the IP_PATTERNS headers in order
         if _USED_IP_HEADER:
-            # Check first the catched header that previously contained an IP
+            # Check first the caught header that previously contained an IP
             ip_header_value = get_header_value(_USED_IP_HEADER)
 
         if not ip_header_value:
@@ -243,8 +242,11 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     # At this point we have none or maybe one private ip from the headers: check the peer ip in
     # case it's public and, if not, return either the private_ip from the headers (if we have one)
     # or the peer private ip
-    if ip_is_global(peer_ip) or not private_ip_from_headers:
-        return peer_ip
+    try:
+        if ip_is_global(peer_ip) or not private_ip_from_headers:
+            return peer_ip
+    except ValueError:
+        pass
 
     return private_ip_from_headers
 
