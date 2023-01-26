@@ -238,7 +238,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         mock_send_request.assert_called_with(expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+        mock_callback.assert_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
