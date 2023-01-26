@@ -12,8 +12,6 @@ from ddtrace.internal.compat import PY3
 from ddtrace.internal.remoteconfig import RemoteConfig
 
 
-# pretend RemoteConfig will work under CI because the tests depend on the RemoteConfig thread at least being created
-RemoteConfig._check_remote_config_enable_in_agent = lambda cls=None: True
 PYTHON_VERSION = tuple(int(v) for v in platform.python_version_tuple())
 
 

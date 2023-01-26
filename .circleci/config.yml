@@ -763,6 +763,7 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
+          docker_services: ddagent
           pattern: "gunicorn"
           snapshot: true
 

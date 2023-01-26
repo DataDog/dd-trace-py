@@ -2597,10 +2597,6 @@ venv = Venv(
             name="gunicorn",
             command="pytest {cmdargs} -s tests/contrib/gunicorn",
             pkgs={"requests": latest, "gevent": latest},
-            env={
-                "DD_TRACE_AGENT_URL": "http://localhost:9126",
-                "AGENT_VERSION": "testagent",
-            },
             venvs=[
                 Venv(
                     pys="2.7",
