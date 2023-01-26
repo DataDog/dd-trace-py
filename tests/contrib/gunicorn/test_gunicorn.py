@@ -140,7 +140,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     try:
         client = Client("http://%s" % gunicorn_server_settings.bind)
         try:
-            client.wait(max_tries=20, delay=0.5)
+            client.wait(max_tries=150, delay=0.1)
         except tenacity.RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         time.sleep(SERVICE_INTERVAL)
