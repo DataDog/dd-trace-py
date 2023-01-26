@@ -109,6 +109,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+loopback
 macOS
 mako
 mariadb

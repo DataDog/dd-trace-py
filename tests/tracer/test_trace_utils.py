@@ -20,6 +20,7 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import six
@@ -28,7 +29,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -540,6 +540,18 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
         ),
         (
             "",
+            {"x-forwarded-for": "192.168.144.2"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            "192.168.144.2",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            "127.0.0.1",
+        ),
+        (
+            "",
             {"x-forwarded-for": "192.168.1.14,8.8.8.8,127.0.0.1"},
             ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
@@ -564,20 +576,107 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
 def test_set_http_meta_headers_ip(
     mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
 ):
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers=headers_dict,
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == expected_keys
-            assert span.get_tag(http.CLIENT_IP) == expected
-            mock_store_headers.assert_called()
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers=headers_dict,
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == expected_keys
+        assert span.get_tag(http.CLIENT_IP) == expected
+        mock_store_headers.assert_called()
+
+
+@pytest.mark.parametrize(
+    "headers_dict,peer_ip,expected",
+    [
+        # Public IP in headers should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "127.0.0.1",
+            "8.8.8.8",
+        ),
+        # Public IP in headers only should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over loopback IP in headers
+        (
+            {"x-forwarded-for": "127.0.0.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over private IP in headers
+        (
+            {"x-forwarded-for": "192.168.1.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public IP on both, headers selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "8.8.4.4",
+            "8.8.8.8",
+        ),
+        # Empty header IP, peer should be selected
+        (
+            {"x-forwarded-for": ""},
+            "8.8.4.4",
+            "8.8.4.4",
+        ),
+        # Empty header IP, peer should be selected even if loopback
+        (
+            {"x-forwarded-for": ""},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # Empty headers, peer should be selected even if loopback
+        (
+            {},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None headers, peer should be selected even if loopback
+        (
+            None,
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None everything, empty IP returned
+        (
+            None,
+            None,
+            "",
+        ),
+        # None headers, invalid peer IP, empty IP returned
+        (
+            None,
+            "invalid",
+            "",
+        ),
+        # Both invalid, empty IP returned
+        (
+            {"x-forwarded-for": "invalid"},
+            "invalid",
+            "",
+        ),
+        # Invalid IP in headers, peer ip should be selected even if loopback
+        (
+            {"x-forwarded-for": "invalid"},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+    ],
+)
+def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
+    ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
+    assert ip == expected
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
