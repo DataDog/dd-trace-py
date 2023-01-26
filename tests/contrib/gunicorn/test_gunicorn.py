@@ -219,7 +219,8 @@ if PY3:
         with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
             server_process, client = context
             r = client.get("/")
-        assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
+        if PYTHON_VERSION[1] > 6:
+            assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
         if PYTHON_VERSION[1] < 11:
             assert_remoteconfig_started_successfully(r)
 

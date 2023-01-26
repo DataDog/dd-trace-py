@@ -41,7 +41,6 @@ def aggressive_shutdown():
     if PY3:
         tracer.shutdown(timeout=1)
         if hasattr(bootstrap, "profiler"):
-            bootstrap.profiler._scheduler.stop()
             bootstrap.profiler.stop()
 
 
