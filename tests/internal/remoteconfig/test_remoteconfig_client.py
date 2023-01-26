@@ -18,6 +18,8 @@ def _expected_payload(
     cached_target_files=[],
     error_msg=None,
 ):
+    config_states.sort(key=lambda x: x["id"], reverse=False)
+    cached_target_files.sort(key=lambda x: x["path"], reverse=False)
     payload = {
         "client": {
             "id": rc_client.id,
@@ -26,7 +28,7 @@ def _expected_payload(
             "client_tracer": {
                 "runtime_id": runtime.get_runtime_id(),
                 "language": "python",
-                "tracer_version": "1.7.0-rc2.dev78+g40665999d.d20230125",
+                "tracer_version": RemoteConfigClient._get_version(),
                 "service": None,
                 "env": None,
                 "app_version": None,
@@ -45,7 +47,7 @@ def _expected_payload(
         payload["client"]["state"]["backend_client_state"] = backend_client_state
     if has_errors:
         payload["client"]["state"]["error"] = error_msg
-    return json.dumps(payload)
+    return json.dumps(payload, sort_keys=True)
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
