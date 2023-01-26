@@ -1,0 +1,3 @@
+---
+prelude: >
+  gunicorn: known issue: ddtrace-run does not work with gunicorn
