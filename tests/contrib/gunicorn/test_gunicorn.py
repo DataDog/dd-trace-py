@@ -135,12 +135,15 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     if PY2:
         cmd += ["--no-sendfile"]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
+    import sys
 
     server_process = subprocess.Popen(
         cmd,
         env=gunicorn_server_settings.env,
         cwd=gunicorn_server_settings.directory,
-        stderr=subprocess.PIPE,
+        stderr=sys.stderr,
+        stdout=sys.stdout,
+        # stderr=subprocess.PIPE,
         close_fds=True,
         preexec_fn=os.setsid,
     )
