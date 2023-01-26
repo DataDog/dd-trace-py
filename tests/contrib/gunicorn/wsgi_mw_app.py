@@ -12,6 +12,7 @@ from ddtrace.internal.compat import PY3
 from ddtrace.internal.remoteconfig import RemoteConfig
 
 
+RemoteConfig._check_remote_config_enable_in_agent = lambda cls: True
 PYTHON_VERSION = tuple(int(v) for v in platform.python_version_tuple())
 
 

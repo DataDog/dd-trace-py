@@ -79,7 +79,6 @@ def _gunicorn_settings_factory(
         env["DD_GEVENT_PATCH_ALL"] = str(patch_gevent)
     if import_sitecustomize_in_app is not None:
         env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
     env["DD_REMOTECONFIG_POLL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     return GunicornServerSettings(
