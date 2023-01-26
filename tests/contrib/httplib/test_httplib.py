@@ -1,5 +1,6 @@
 import contextlib
 import sys
+import time
 
 import pytest
 
@@ -186,10 +187,19 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         # TODO: figure out how to use https in our local httpbin container
         conn = self.get_https_connection("httpbin.org")
         with contextlib.closing(conn):
-            conn.request("GET", "/status/200")
-            resp = conn.getresponse()
-            self.assertEqual(self.to_str(resp.read()), "")
-            self.assertEqual(resp.status, 200)
+            # Workaround for directly calling httpbin.org is flaky, so try multiple times to get proper 200 response
+            for i in range(50):
+                try:
+                    conn.request("GET", "/status/200")
+                    resp = conn.getresponse()
+                    if resp.status == 200:
+                        self.assertEqual(self.to_str(resp.read()), "")
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                pytest.fail("Expected 200 status response.")
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
