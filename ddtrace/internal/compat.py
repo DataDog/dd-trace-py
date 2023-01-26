@@ -315,12 +315,13 @@ except ImportError:
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
 
 
-def ip_is_global(ip):  # type: (str) -> bool
+def ip_is_global(ip):
+    # type: (str) -> bool
     """
     is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
     """
-    ip_obj = ipaddress.ip_address(six.text_type(ip))
+    parsed_ip = ipaddress.ip_address(six.text_type(ip))
     if PY3:
-        return ip_obj.is_global
+        return parsed_ip.is_global
 
-    return not (ip_obj.is_loopback or ip_obj.is_private)
+    return not (parsed_ip.is_loopback or parsed_ip.is_private)

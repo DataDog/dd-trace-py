@@ -176,6 +176,7 @@ _USED_IP_HEADER = ""
 
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Mapping[str, str], Optional[str], bool) -> str
+
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
@@ -183,6 +184,13 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return headers.get(key)
 
         return _get_header_value_case_insensitive(headers, key)
+
+    if not headers:
+        try:
+            _ = ipaddress.ip_address(peer_ip)
+        except ValueError:
+            return ""
+        return peer_ip
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
@@ -200,14 +208,12 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return ""
 
     else:
-        # No configured IP header, go through the list defined in:
-        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if _USED_IP_HEADER and headers:
+        # No configured IP header, go through the IP_PATTERNS headers in order
+        if _USED_IP_HEADER:
+            # Check first the catched header that previously contained an IP
             ip_header_value = get_header_value(_USED_IP_HEADER)
 
-        # For some reason request uses other header or the specified header is empty, do the
-        # search
-        if not ip_header_value and headers:
+        if not ip_header_value:
             for ip_header in IP_PATTERNS:
                 tmp_ip_header_value = get_header_value(ip_header)
                 if tmp_ip_header_value:
@@ -215,10 +221,10 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
                     _USED_IP_HEADER = ip_header
                     break
 
-    # At this point, we have one IP header, check its value and retrieve the first public IP
     private_ip_from_headers = ""
 
     if ip_header_value:
+        # At this point, we have one IP header, check its value and retrieve the first public IP
         ip_list = ip_header_value.split(",")
         for ip in ip_list:
             ip = ip.strip()
@@ -228,21 +234,17 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             try:
                 if ip_is_global(ip):
                     return ip
-                elif not private_ip_from_headers:  # store the private IP if we didn't already have one
+                elif not private_ip_from_headers:
+                    # IP is private, store it just in case we don't find a public one later
                     private_ip_from_headers = ip
             except ValueError:  # invalid IP
                 continue
-            # else: it's private, but we already have one: continue in case we find a public one
 
-    # So we have none or maybe one private ip, check the peer ip in case it's public and if not
-    # return either the private_ip from the headers (if we have one) or the peer private ip
-    if peer_ip:
-        try:
-            # peer_ip is public or we dont have a private_ip to we return the private peer_ip
-            if ip_is_global(peer_ip) or not private_ip_from_headers:
-                return peer_ip
-        except ValueError:
-            pass
+    # At this point we have none or maybe one private ip from the headers: check the peer ip in
+    # case it's public and, if not, return either the private_ip from the headers (if we have one)
+    # or the peer private ip
+    if ip_is_global(peer_ip) or not private_ip_from_headers:
+        return peer_ip
 
     return private_ip_from_headers
 
