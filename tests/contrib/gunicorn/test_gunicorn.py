@@ -57,6 +57,8 @@ def parse_payload(data):
 
 
 def assert_remoteconfig_started_successfully(response, check_patch=True):
+    if PYTHON_VERSION[1] == (5, 11):
+        return
     assert response.status_code == 200
     payload = parse_payload(response.content)
     assert payload["remoteconfig"]["worker_alive"] is True
@@ -211,8 +213,7 @@ if PY3:
             server_process, client = context
             r = client.get("/")
         assert_no_profiler_error(server_process)
-        if PYTHON_VERSION[1] < 11:
-            assert_remoteconfig_started_successfully(r)
+        assert_remoteconfig_started_successfully(r)
 
     @pytest.mark.parametrize(
         "gunicorn_server_settings",
@@ -226,8 +227,7 @@ if PY3:
             r = client.get("/")
         if PYTHON_VERSION[1] > 7:
             assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
-        if PYTHON_VERSION[1] < 11:
-            assert_remoteconfig_started_successfully(r)
+        assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(
@@ -243,7 +243,7 @@ def test_services_run_successfully_under_sync_worker(gunicorn_server_settings, t
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
-    if not PY2 and PYTHON_VERSION[1] < 11:
+    if not PY2:
         assert_remoteconfig_started_successfully(r, check_patch=False)
 
 
