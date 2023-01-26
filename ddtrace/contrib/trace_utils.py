@@ -480,7 +480,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if config._appsec_enabled:
+        if config._appsec_enabled or config.retrieve_client_ip:
             ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
             if ip:
                 span.set_tag_str(http.CLIENT_IP, ip)
