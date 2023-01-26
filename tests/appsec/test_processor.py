@@ -206,8 +206,6 @@ def test_ip_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         with _asm_context.asm_request_context_manager("8.8.4.4", {}):
-            _asm_context.set_ip("8.8.4.4")
-            _asm_context.set_headers({})
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
