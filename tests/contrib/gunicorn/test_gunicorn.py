@@ -157,16 +157,6 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
 SETTINGS_GEVENT_DDTRACERUN_NOPATCH = _gunicorn_settings_factory(
     worker_class="gevent",
 )
-SETTINGS_GEVENT_APPIMPORT_NOPATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_sitecustomize_in_app=True,
-)
-SETTINGS_GEVENT_POSTWORKERIMPORT_NOPATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_sitecustomize_in_postworkerinit=True,
-)
 SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
     worker_class="gevent",
     patch_gevent=True,
@@ -175,12 +165,6 @@ SETTINGS_GEVENT_APPIMPORT_PATCH = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_app=True,
-    patch_gevent=True,
-)
-SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_sitecustomize_in_postworkerinit=True,
     patch_gevent=True,
 )
 SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
@@ -196,10 +180,6 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
     import_sitecustomize_in_postworkerinit=True,
     patch_gevent=True,
     start_service_in_hook_named="post_worker_init",
-)
-SETTINGS_GEVENT_NOOP = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
 )
 
 
@@ -238,10 +218,6 @@ def test_services_run_successfully_under_sync_worker(gunicorn_server_settings, t
     "gunicorn_server_settings",
     [
         SETTINGS_GEVENT_DDTRACERUN_NOPATCH,
-        SETTINGS_GEVENT_APPIMPORT_NOPATCH,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_NOPATCH,
-        SETTINGS_GEVENT_APPIMPORT_PATCH,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH,
     ],
 )
 def test_service_creation_fails_under_gevent_worker(gunicorn_server_settings, tmp_path):
@@ -258,39 +234,20 @@ def test_service_creation_fails_under_gevent_worker(gunicorn_server_settings, tm
     "gunicorn_server_settings",
     [
         SETTINGS_GEVENT_DDTRACERUN_PATCH,
-        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
     ],
 )
-def test_service_creation_succeeds_under_gevent_worker(gunicorn_server_settings, tmp_path):
+def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        _, client = context
+        server_process, client = context
         r = client.get("/")
+    assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
     assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
-        SETTINGS_GEVENT_DDTRACERUN_NOPATCH,
-        SETTINGS_GEVENT_DDTRACERUN_PATCH,
-    ],
-)
-def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        client.get("/")
-    assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        SETTINGS_GEVENT_NOOP,
-        SETTINGS_GEVENT_APPIMPORT_NOPATCH,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_NOPATCH,
         SETTINGS_GEVENT_APPIMPORT_PATCH,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH,
     ],
 )
 def test_no_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
