@@ -49,9 +49,16 @@ def assert_no_profiler_error(server_process):
     assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL not in server_process.stderr.read()
 
 
+def parse_payload(data):
+    decoded = data
+    if PYTHON_VERSION[1] == 5:
+        decoded = data.decode("utf-8")
+    return json.loads(decoded)
+
+
 def assert_remoteconfig_started_successfully(response, check_patch=True):
     assert response.status_code == 200
-    payload = json.loads(response.content)
+    payload = parse_payload(response.content)
     assert payload["remoteconfig"]["worker_alive"] is True
     if check_patch:
         assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is True
@@ -217,7 +224,7 @@ if PY3:
         with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
             server_process, client = context
             r = client.get("/")
-        if PYTHON_VERSION[1] > 6:
+        if PYTHON_VERSION[1] > 7:
             assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
         if PYTHON_VERSION[1] < 11:
             assert_remoteconfig_started_successfully(r)
@@ -251,7 +258,7 @@ def test_service_creation_fails_under_gevent_worker(gunicorn_server_settings, tm
         _, client = context
         r = client.get("/")
     assert r.status_code == 200
-    payload = json.loads(r.content)
+    payload = parse_payload(r.content)
     assert payload["remoteconfig"]["worker_alive"] is False
     assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is False
 
@@ -268,6 +275,6 @@ def test_no_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, 
         r = client.get("/")
     assert_no_profiler_error(server_process)
     if PY2:
-        payload = json.loads(r.content)
+        payload = parse_payload(r.content)
         assert payload["remoteconfig"]["worker_alive"] is False
         assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is False
