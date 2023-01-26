@@ -23,6 +23,7 @@ from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
@@ -173,8 +174,8 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 _USED_IP_HEADER = ""
 
 
-def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
-    # type: (Span, Mapping[str, str], Optional[str], bool) -> str
+def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
+    # type: (Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
@@ -201,12 +202,12 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     else:
         # No configured IP header, go through the list defined in:
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if _USED_IP_HEADER:
+        if _USED_IP_HEADER and headers:
             ip_header_value = get_header_value(_USED_IP_HEADER)
 
         # For some reason request uses other header or the specified header is empty, do the
         # search
-        if not ip_header_value:
+        if not ip_header_value and headers:
             for ip_header in IP_PATTERNS:
                 tmp_ip_header_value = get_header_value(ip_header)
                 if tmp_ip_header_value:
@@ -215,7 +216,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
                     break
 
     # At this point, we have one IP header, check its value and retrieve the first public IP
-    private_ip = ""
+    private_ip_from_headers = ""
 
     if ip_header_value:
         ip_list = ip_header_value.split(",")
@@ -225,32 +226,25 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
                 continue
 
             try:
-                ip_obj = ipaddress.ip_address(six.text_type(ip))
-            except ValueError:
+                if ip_is_global(ip):
+                    return ip
+                elif not private_ip_from_headers:  # store the private IP if we didn't already have one
+                    private_ip_from_headers = ip
+            except ValueError:  # invalid IP
                 continue
-
-            if not ip_obj.is_private:  # is_global is Python3+ only
-                return ip
-            elif not private_ip and not ip_obj.is_loopback:
-                private_ip = ip
             # else: it's private, but we already have one: continue in case we find a public one
 
     # So we have none or maybe one private ip, check the peer ip in case it's public and if not
     # return either the private_ip from the headers (if we have one) or the peer private ip
     if peer_ip:
         try:
-            peer_ip_obj = ipaddress.ip_address(six.text_type(peer_ip))
-            if not peer_ip_obj.is_loopback:
-                # If we have a private_ip and the peer_ip is not public, prefer the one we have
-                if private_ip:
-                    if peer_ip_obj.is_loopback or peer_ip_obj.is_private:
-                        return private_ip
-                # peer_ip is public or we dont have a private_ip to we return the private peer_ip
+            # peer_ip is public or we dont have a private_ip to we return the private peer_ip
+            if ip_is_global(peer_ip) or not private_ip_from_headers:
                 return peer_ip
         except ValueError:
             pass
 
-    return private_ip
+    return private_ip_from_headers
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -481,7 +475,7 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
-            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
+            ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
             if ip:
                 span.set_tag_str(http.CLIENT_IP, ip)
                 span.set_tag_str("network.client.ip", ip)
