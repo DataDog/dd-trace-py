@@ -188,7 +188,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         conn = self.get_https_connection("httpbin.org")
         with contextlib.closing(conn):
             # Workaround for directly calling httpbin.org is flaky, so try multiple times to get proper 200 response
-            for i in range(50):
+            for i in range(5):
                 try:
                     conn.request("GET", "/status/200")
                     resp = conn.getresponse()
@@ -196,7 +196,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                         break
                 except Exception as e:
                     raise e
-                time.sleep(0.1)
+                time.sleep(0.5)
             else:
                 pytest.fail("Expected 200 status response.")
 
