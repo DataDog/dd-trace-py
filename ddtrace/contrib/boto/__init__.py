@@ -1,17 +1,47 @@
 """
 Boto integration will trace all AWS calls made via boto2.
-This integration is automatically patched when using ``patch_all()``::
 
-    import boto.ec2
+Enabling
+~~~~~~~~
+
+The boto integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or ``ddtrace.patch_all()``.
+
+Or use ``ddtrace.patch()`` to manually enable the integration::
+
     from ddtrace import patch
-
-    # If not patched yet, you can patch boto specifically
     patch(boto=True)
 
-    # This will report spans with the default instrumentation
-    ec2 = boto.ec2.connect_to_region("us-west-2")
-    # Example of instrumented query
-    ec2.get_all_instances()
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.boto['tag_no_params']
+
+    This opts out of the default behavior of collecting a narrow set of API
+    parameters as span tags.
+
+    To not collect any API parameters, ``ddtrace.config.boto.tag_no_params =
+    True`` or by setting the environment variable ``DD_AWS_TAG_NO_PARAMS=true``.
+
+
+    Default: ``False``
+
+.. py:data:: ddtrace.config.boto['tag_all_params']
+
+    **Deprecated**: This retains the deprecated behavior of adding span tags for
+    all API parameters that are not explicitly excluded by the integration.
+    These deprecated span tags will be added along with the API parameters
+    enabled by default.
+
+    This configuration is ignored if ``tag_no_parms`` (``DD_AWS_TAG_NO_PARAMS``)
+    is set to ``True``.
+
+    To collect all API parameters, ``ddtrace.config.botocore.tag_all_params =
+    True`` or by setting the environment variable ``DD_AWS_TAG_ALL_PARAMS=true``.
+
+
+    Default: ``False``
+
 """
 
 from ...internal.utils.importlib import require_modules

@@ -1,4 +1,5 @@
 import inspect
+import os
 
 import boto.connection
 
@@ -10,9 +11,11 @@ from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 
 
 # Original boto client class
@@ -30,6 +33,22 @@ AWS_AUTH_ARGS_NAME = (
 )
 AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
 AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
+
+
+if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
+    debtcollector.deprecate(
+        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
+        message="The boto integration no longer includes all API parameters by default.",
+        removal_version="2.0.0",
+    )
+
+config._add(
+    "boto",
+    {
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+    },
+)
 
 
 def patch():
@@ -72,11 +91,17 @@ def patched_query_request(original_func, instance, args, kwargs):
         operation_name = None
         if args:
             operation_name = get_argument_value(args, kwargs, 0, "action")
+            params = get_argument_value(args, kwargs, 1, "params")
+
             span.resource = "%s.%s" % (endpoint_name, operation_name.lower())
+
+            if params and not config.boto["tag_no_params"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS)
+        if not config.boto["tag_no_params"] and config.boto["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)
@@ -140,7 +165,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
+        if not config.boto["tag_no_params"] and config.boto["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)

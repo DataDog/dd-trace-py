@@ -1,6 +1,9 @@
+import os
+
 import aiobotocore.client
 
 from ddtrace import config
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 
@@ -18,6 +21,7 @@ from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
@@ -25,6 +29,22 @@ from ..trace_utils import unwrap
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+
+if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
+    debtcollector.deprecate(
+        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
+        message="The aiobotocore integration no longer includes all API parameters by default.",
+        removal_version="2.0.0",
+    )
+
+config._add(
+    "aiobotocore",
+    {
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+    },
+)
 
 
 def patch():
@@ -90,13 +110,20 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
+
             operation = get_argument_value(args, kwargs, 0, "operation_name")
+            params = get_argument_value(args, kwargs, 1, "params")
+
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
+
+            if params and not config.aiobotocore["tag_no_params"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
         except ArgumentError:
             operation = None
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.aiobotocore["tag_no_params"] and config.aiobotocore["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
