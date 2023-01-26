@@ -193,14 +193,14 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                     conn.request("GET", "/status/200")
                     resp = conn.getresponse()
                     if resp.status == 200:
-                        self.assertEqual(self.to_str(resp.read()), "")
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise e
                 time.sleep(0.1)
             else:
                 pytest.fail("Expected 200 status response.")
 
+        self.assertEqual(self.to_str(resp.read()), "")
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
