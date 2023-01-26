@@ -170,6 +170,7 @@ serializable
 sql
 sqlalchemy
 sqlite
+stacktrace
 starlette
 stringable
 subdomains
