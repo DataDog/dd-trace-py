@@ -50,7 +50,7 @@ class TracedCursor(cursor):
 
 
 class TracedConnection(connection):
-    """Wrapper around psycopg2  for tracing"""
+    """Wrapper around psycopg2 for tracing"""
 
     def __init__(self, *args, **kwargs):
 
@@ -66,6 +66,7 @@ class TracedConnection(connection):
             net.TARGET_PORT: dsn.get("port"),
             db.NAME: dsn.get("dbname"),
             db.USER: dsn.get("user"),
+            db.SYSTEM: "postgresql",
             "db.application": dsn.get("application_name"),
         }
 
