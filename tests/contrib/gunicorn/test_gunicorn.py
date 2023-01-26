@@ -206,6 +206,19 @@ if PY3:
         assert_no_profiler_error(server_process)
         assert_remoteconfig_started_successfully(r)
 
+    @pytest.mark.parametrize(
+        "gunicorn_server_settings",
+        [
+            SETTINGS_GEVENT_DDTRACERUN_PATCH,
+        ],
+    )
+    def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
+        with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+            server_process, client = context
+            r = client.get("/")
+        assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
+        assert_remoteconfig_started_successfully(r)
+
 
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
@@ -238,21 +251,6 @@ def test_service_creation_fails_under_gevent_worker(gunicorn_server_settings, tm
     payload = json.loads(r.content)
     assert payload["remoteconfig"]["worker_alive"] is False
     assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is False
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        SETTINGS_GEVENT_DDTRACERUN_PATCH,
-    ],
-)
-def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        r = client.get("/")
-    assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
-    if not PY2:
-        assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(

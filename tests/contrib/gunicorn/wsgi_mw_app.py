@@ -7,6 +7,7 @@ import os
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from ddtrace.debugging import DynamicInstrumentation
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.remoteconfig import RemoteConfig
 
@@ -40,7 +41,10 @@ def aggressive_shutdown():
 def simple_app(environ, start_response):
     if environ["RAW_URI"] == "/shutdown":
         aggressive_shutdown()
-        data = bytes("goodbye").encode("utf-8")
+        if PY2:
+            data = bytes("goodbye").encode("utf-8")
+        elif PY3:
+            data = bytes("goodbye", encoding="utf-8")
     else:
         has_config_worker = hasattr(RemoteConfig._worker, "_worker")
         payload = {
@@ -49,7 +53,11 @@ def simple_app(environ, start_response):
                 "enabled_after_gevent_monkeypatch": RemoteConfig._was_enabled_after_gevent_monkeypatch,
             },
         }
-        data = bytes(json.dumps(payload)).encode("utf-8")
+        json_payload = json.dumps(payload)
+        if PY2:
+            data = bytes(json_payload).encode("utf-8")
+        elif PY3:
+            data = bytes(json_payload, encoding="utf-8")
 
     start_response("200 OK", [("Content-Type", "text/plain"), ("Content-Length", str(len(data)))])
     return iter([data])
