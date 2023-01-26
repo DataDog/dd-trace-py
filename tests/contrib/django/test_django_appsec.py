@@ -408,6 +408,7 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
         assert result.content == as_bytes
         root = test_spans.spans[0]
         assert root.get_tag("actor.ip") == "8.8.4.4"
+        assert root.get_tag("appsec.event") == "true"
         loaded = json.loads(root.get_tag(APPSEC_JSON))
         assert loaded == {
             "triggers": [
