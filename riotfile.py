@@ -2597,6 +2597,9 @@ venv = Venv(
             name="gunicorn",
             command="pytest {cmdargs} tests/contrib/gunicorn",
             pkgs={"requests": latest, "gevent": latest},
+            env={
+                "AGENT_VERSION": "latest",
+            },
             venvs=[
                 Venv(
                     pys="2.7",
