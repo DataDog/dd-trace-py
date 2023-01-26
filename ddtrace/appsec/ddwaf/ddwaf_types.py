@@ -108,8 +108,8 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(self, struct=None):
         # type: (ddwaf_object, DDWafRulesType|None) -> None
-        if struct is None:
-            ddwaf_object_invalid(self)
+        if isinstance(struct, bool):
+            ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
@@ -138,7 +138,10 @@ class ddwaf_object(ctypes.Structure):
                 if obj.type:  # discards invalid objects
                     assert ddwaf_object_map_add(map_o, res_key, obj)
         else:
-            raise TypeError("ddwaf_object : unknown type in structure. " + repr(type(struct)))
+            if struct is not None:
+                log.warning("DDWAF object init called with unknown data structure")
+
+            ddwaf_object_invalid(self)
 
     @property
     def struct(self):
@@ -151,17 +154,18 @@ class ddwaf_object(ctypes.Structure):
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
             return self.value.uintValue
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            return self.value.stringValue.decode("UTF-8")
+            return self.value.stringValue.decode("UTF-8", errors="ignore")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
             return [self.value.array[i].struct for i in range(self.nbEntries)]
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
             return {
-                self.value.array[i].parameterName.decode("UTF-8"): self.value.array[i].struct
+                self.value.array[i].parameterName.decode("UTF-8", errors="ignore"): self.value.array[i].struct
                 for i in range(self.nbEntries)
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
-        raise ValueError("ddwaf_object: unknown object")
+        log.warning("ddwaf_object struct: unknown object type")
+        return None
 
     def __repr__(self):
         return repr(self.struct)
@@ -372,14 +376,6 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
 ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
     ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
 )
-
-
-def py_ddwaf_run(context, object_p, timeout):
-    # type : (...) -> tuple[int, ddwaf_result]
-    res = ddwaf_result()
-    err = ddwaf_run(context, object_p, ctypes.byref(res), timeout)
-    return err, res
-
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ("ddwaf_context_destroy", ddwaf),
