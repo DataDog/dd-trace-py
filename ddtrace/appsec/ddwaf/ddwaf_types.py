@@ -41,7 +41,7 @@ ARCHI = machine().lower()
 if system() == "Windows" and ARCHI == "amd64":
     from sys import maxsize
 
-    if not (maxsize > 2 ** 32):
+    if not (maxsize > 2**32):
         ARCHI = "x86"
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
@@ -108,9 +108,7 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(self, struct=None):
         # type: (ddwaf_object, DDWafRulesType|None) -> None
-        if isinstance(struct, bool):
-            ddwaf_object_bool(self, struct)
-        elif isinstance(struct, (int, long)):
+        if isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore"))
@@ -130,7 +128,7 @@ class ddwaf_object(ctypes.Structure):
             map_o = ddwaf_object_map(self)
             assert map_o
             # order is unspecified and could lead to problems if max_objects is reached
-            for (key, val) in struct.items():
+            for key, val in struct.items():
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
                 res_key = key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key
