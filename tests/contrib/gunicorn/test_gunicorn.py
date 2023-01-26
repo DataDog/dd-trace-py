@@ -271,7 +271,3 @@ def test_no_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, 
         payload = json.loads(r.content)
         assert payload["remoteconfig"]["worker_alive"] is False
         assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is False
-
-
-# XXX update these? https://docs.datadoghq.com/
-# XXX update these? https://app.datadoghq.com/apm/service-setup?architecture=host-based&language=python
