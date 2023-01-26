@@ -174,7 +174,7 @@ _USED_IP_HEADER = ""
 
 
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
-    # type: (Mapping[str, str], Optional[str], bool) -> str
+    # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
 
     global _USED_IP_HEADER
 
@@ -186,7 +186,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if not headers:
         try:
-            _ = ipaddress.ip_address(peer_ip)
+            _ = ipaddress.ip_address(six.text_type(peer_ip))
         except ValueError:
             return ""
         return peer_ip

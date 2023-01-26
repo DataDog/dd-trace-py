@@ -675,7 +675,6 @@ def test_set_http_meta_headers_ip(
     ],
 )
 def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
-
     ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
     assert ip == expected
 
