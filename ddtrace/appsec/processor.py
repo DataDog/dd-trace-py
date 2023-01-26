@@ -306,8 +306,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
             if remote_ip:
-                # Note that if the ip collection is disabled by the env var
-                # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
+                # Note that if the ip collection is disabled by not having ASM or
+                # DD_TRACE_CLIENT_IP_ENABLED actor.ip won't be sent
                 span.set_tag_str("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's

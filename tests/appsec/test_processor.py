@@ -111,7 +111,7 @@ def test_valid_json(tracer_appsec):
 def test_header_attack(tracer_appsec):
     tracer = tracer_appsec
 
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    with override_global_config(dict(retrieve_client_ip=True)):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
