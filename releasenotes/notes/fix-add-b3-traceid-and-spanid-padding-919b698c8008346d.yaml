@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    tracing: This fix resolves an edge case where Datadog trace_id and span_ids that were not standard length
-    would result in incorrect b3 header length for propagation.
+    tracing: Pads trace_id and span_ids in b3 headers to have a minimum length of 16.
