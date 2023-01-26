@@ -21,6 +21,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
@@ -36,7 +37,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
 
