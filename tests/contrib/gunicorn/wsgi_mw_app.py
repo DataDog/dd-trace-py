@@ -4,12 +4,15 @@ gunicorn
 """
 import json
 import os
+import platform
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
-from ddtrace.debugging import DynamicInstrumentation
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.remoteconfig import RemoteConfig
+
+
+PYTHON_VERSION = tuple(int(v) for v in platform.python_version_tuple())
 
 
 if PY3:
@@ -27,10 +30,14 @@ if PY3:
         }
     )
 
+if PYTHON_VERSION[1] < 11:
+    from ddtrace.debugging import DynamicInstrumentation
+
 
 def aggressive_shutdown():
     RemoteConfig.disable()
-    DynamicInstrumentation.disable()
+    if PYTHON_VERSION[1] < 11:
+        DynamicInstrumentation.disable()
     if PY3:
         tracer.shutdown(timeout=1)
         if hasattr(bootstrap, "profiler"):
