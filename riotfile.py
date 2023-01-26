@@ -2595,7 +2595,7 @@ venv = Venv(
         ),
         Venv(
             name="gunicorn",
-            command="pytest {cmdargs} tests/contrib/gunicorn",
+            command="pytest {cmdargs} -s tests/contrib/gunicorn",
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
