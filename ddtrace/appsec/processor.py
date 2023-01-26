@@ -270,7 +270,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        ddwaf_result = None
+        try:
+            ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        except UnboundLocalError:
+            log.exception("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
 
         try:
             info = self._ddwaf.info
