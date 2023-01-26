@@ -264,15 +264,14 @@ class RemoteConfigClient(object):
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
-            try:
-                self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
-                resp = self._conn.getresponse()
-                data = resp.read()
-            finally:
-                self._conn.close()
+            self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
+            resp = self._conn.getresponse()
+            data = resp.read()
         except OSError as e:
             log.warning("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
+        finally:
+            self._conn.close()
 
         if resp.status == 404:
             # Remote configuration is not enabled or unsupported by the agent
