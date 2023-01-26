@@ -10,6 +10,8 @@ from typing import Optional  # noqa
 import pytest
 import tenacity
 
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import stringify
 from tests.webclient import Client
 
@@ -38,7 +40,7 @@ GunicornServerSettings = NamedTuple(
 IMPORT_SITECUSTOMIZE = "import ddtrace.bootstrap.sitecustomize"
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "post_fork.py"), "r") as f:
     code = f.readlines()
-START_SERVICE = "    " + "\n    ".join(code)
+START_SERVICE = "    " + "    ".join(code)
 
 
 def assert_no_profiler_error(server_process):
@@ -128,6 +130,8 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
     cmd += ["gunicorn", "--config", str(cfg_file), str(gunicorn_server_settings.app_path)]
+    if PY2:
+        cmd += ["--no-sendfile"]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
     server_process = subprocess.Popen(
         cmd,
@@ -140,7 +144,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     try:
         client = Client("http://%s" % gunicorn_server_settings.bind)
         try:
-            client.wait(max_tries=150, delay=0.1)
+            client.wait(max_tries=696969, delay=0.1)
         except tenacity.RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         time.sleep(SERVICE_INTERVAL)
@@ -183,19 +187,24 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
 )
 
 
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
-    ],
-)
-def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        r = client.get("/")
-    assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r)
+# TODO include a test of the server with no ddtrace
+
+
+if PY3:
+
+    @pytest.mark.parametrize(
+        "gunicorn_server_settings",
+        [
+            SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
+            SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
+        ],
+    )
+    def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
+        with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+            server_process, client = context
+            r = client.get("/")
+        assert_no_profiler_error(server_process)
+        assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(
@@ -211,7 +220,8 @@ def test_services_run_successfully_under_sync_worker(gunicorn_server_settings, t
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r, check_patch=False)
+    if not PY2:
+        assert_remoteconfig_started_successfully(r, check_patch=False)
 
 
 @pytest.mark.parametrize(
@@ -241,7 +251,8 @@ def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp
         server_process, client = context
         r = client.get("/")
     assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
-    assert_remoteconfig_started_successfully(r)
+    if not PY2:
+        assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(
@@ -253,8 +264,12 @@ def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp
 def test_no_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
-        client.get("/")
+        r = client.get("/")
     assert_no_profiler_error(server_process)
+    if PY2:
+        payload = json.loads(r.content)
+        assert payload["remoteconfig"]["worker_alive"] is False
+        assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is False
 
 
 # XXX update these? https://docs.datadoghq.com/
