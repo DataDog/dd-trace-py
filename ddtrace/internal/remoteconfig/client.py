@@ -2,7 +2,6 @@ import base64
 from datetime import datetime
 import hashlib
 import json
-import logging
 import re
 import sys
 from typing import Any
