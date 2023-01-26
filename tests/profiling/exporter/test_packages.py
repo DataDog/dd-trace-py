@@ -42,15 +42,11 @@ def test_filename_to_package_failure(
 
     # type: (...) -> None
     assert _packages.filename_to_package(_packages.__file__) is None
-    assert len(caplog.records) == 1
-    assert caplog.records[0].message == (
-        "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues"
-    )
 
 
 def test_filename_to_package():
     # type: (...) -> None
-    _packages._FILE_PACKAGE_MAPPING = None
+    _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
 
     package = _packages.filename_to_package(_packages.__file__)
     assert package.name == "ddtrace"

@@ -169,9 +169,6 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: flit install --symlink
-      - name: Pin SQLAlchemy
-        # https://github.com/encode/databases/issues/512
-        run: pip install "SQLAlchemy==1.4.41"
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test

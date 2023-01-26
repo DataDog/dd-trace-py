@@ -234,7 +234,6 @@ async def test_kinesis_client(tracer):
 @pytest.mark.asyncio
 async def test_lambda_client(tracer):
     async with aiobotocore_client("lambda", tracer) as lambda_client:
-        # https://github.com/spulec/moto/issues/906
         await lambda_client.list_functions(MaxItems=5)
 
     traces = tracer.pop_traces()

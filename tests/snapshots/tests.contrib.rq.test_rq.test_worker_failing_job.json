@@ -13,6 +13,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -41,6 +42,7 @@
          "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
          "job.origin": "q",
          "job.status": "failed",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
