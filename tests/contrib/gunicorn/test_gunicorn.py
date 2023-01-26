@@ -3,7 +3,6 @@ import json
 import os
 import platform
 import subprocess
-import sys
 import time
 from typing import Dict
 from typing import NamedTuple
@@ -141,8 +140,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         cmd,
         env=gunicorn_server_settings.env,
         cwd=gunicorn_server_settings.directory,
-        stderr=sys.stderr,
-        # stderr=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         close_fds=True,
         preexec_fn=os.setsid,
     )
