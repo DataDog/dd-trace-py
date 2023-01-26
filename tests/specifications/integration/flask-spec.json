@@ -1,0 +1,13 @@
+[
+    {
+        "name": "flask.*",
+        "specification": {
+            "tags": {
+                "flask.endpoint": {
+                    "type": "str",
+                    "required": false
+                }
+            }
+        }
+    }
+]

@@ -1,0 +1,34 @@
+[
+    {
+        "name": "redis.*",
+        "type": "redis",
+        "specification": {
+            "tags": {
+                "flask.endpoint": {
+                    "type": "str",
+                    "required": false
+                }
+            }
+        }
+    },
+    {
+        "name": "redis.command",
+        "type": "redis",
+        "specification": {
+            "tags": {
+                "redis.raw_command": {
+                    "type": "str",
+                    "required": true
+                },
+                "out.host": {
+                    "type": "str",
+                    "required": true
+                },
+                "out.port": {
+                    "type": "int",
+                    "required": true
+                }
+            }
+        }
+    }
+]
