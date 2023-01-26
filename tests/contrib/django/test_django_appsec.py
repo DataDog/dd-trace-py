@@ -342,7 +342,8 @@ def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer
 def test_django_client_ip_nothing(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d")
-        assert not root_span.get_tag(http.CLIENT_IP)
+        ip = root_span.get_tag(http.CLIENT_IP)
+        assert not ip or ip == "127.0.0.1"  # this varies when running under PyCharm or CI
 
 
 @pytest.mark.parametrize(
