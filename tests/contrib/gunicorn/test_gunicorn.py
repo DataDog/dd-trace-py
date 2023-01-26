@@ -57,7 +57,7 @@ def parse_payload(data):
 
 
 def assert_remoteconfig_started_successfully(response, check_patch=True):
-    if PYTHON_VERSION[1] == (5, 11):
+    if PYTHON_VERSION[1] in (5, 11):
         return
     assert response.status_code == 200
     payload = parse_payload(response.content)
