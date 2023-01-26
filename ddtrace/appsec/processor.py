@@ -270,7 +270,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        ddwaf_result = None
+        try:
+            ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        except Exception:
+            log.warning("Error executing Appsec In-App WAF")
 
         try:
             info = self._ddwaf.info
@@ -281,13 +285,15 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
-            span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
+            if ddwaf_result:
+                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
-        if ddwaf_result.data is not None:
+
+        if ddwaf_result and ddwaf_result.data is not None:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
