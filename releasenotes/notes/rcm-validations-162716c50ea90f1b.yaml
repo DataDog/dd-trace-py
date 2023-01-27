@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Add missing validation to Remote Config response from agent.
+    Fix incorrect target file validation of Remote Config responses from the agent.
