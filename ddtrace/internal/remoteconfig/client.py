@@ -286,8 +286,6 @@ class RemoteConfigClient(object):
 
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
-        self.cached_target_files.sort(key=lambda x: x["path"], reverse=False)
-        state["config_states"].sort(key=lambda x: x["id"], reverse=False)
         return dict(
             client=dict(
                 id=self.id,
@@ -432,7 +430,7 @@ class RemoteConfigClient(object):
         # type: () -> None
         try:
             state = self._build_state()
-            payload = json.dumps(self._build_payload(state), sort_keys=True)
+            payload = json.dumps(self._build_payload(state))
 
             response = self._send_request(payload)
             if response is None:
