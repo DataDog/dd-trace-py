@@ -820,6 +820,8 @@ def test_debugger_function_probe_eval_on_enter():
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
+            assert 0 == snapshot.entry_capture["arguments"]["arg"]["size"]
+            assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
 def test_debugger_function_probe_eval_on_exit():
@@ -840,6 +842,8 @@ def test_debugger_function_probe_eval_on_exit():
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
+            assert not snapshot.entry_capture
+            assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
 def test_debugger_lambda_fuction_access_locals():
@@ -913,3 +917,5 @@ def test_debugger_log_live_probe_generate_messages():
         assert "foo" == msg1["debugger.snapshot"]["evaluationErrors"][0]["expr"], msg1
         # not amazing error message for a missing variable
         assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
+
+        assert not msg1["debugger.snapshot"]["captures"]

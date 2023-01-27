@@ -22,6 +22,7 @@ from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
+from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
@@ -111,14 +112,16 @@ def _snapshot_data(snapshot):
     frame = snapshot.frame
     probe = snapshot.probe
 
-    captures = {
-        "entry": snapshot.entry_capture or _EMPTY_CAPTURED_CONTEXT,
-        "return": snapshot.return_capture or _EMPTY_CAPTURED_CONTEXT,
-    }
-    if isinstance(probe, LineLocationMixin):
-        captures["lines"] = {
-            probe.line: snapshot.line_capture or _EMPTY_CAPTURED_CONTEXT,
-        }
+    captures = None
+    if isinstance(probe, LogProbeMixin) and probe.take_snapshot:
+        if isinstance(probe, LineLocationMixin):
+            captures = {"lines": {probe.line: snapshot.line_capture or _EMPTY_CAPTURED_CONTEXT}}
+        elif isinstance(probe, FunctionLocationMixin):
+            captures = {
+                "entry": snapshot.entry_capture or _EMPTY_CAPTURED_CONTEXT,
+                "return": snapshot.return_capture or _EMPTY_CAPTURED_CONTEXT,
+            }
+
     return {
         "id": snapshot.event_id,
         "timestamp": int(snapshot.timestamp * 1e3),  # milliseconds
