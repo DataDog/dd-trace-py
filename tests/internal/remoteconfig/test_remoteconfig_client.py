@@ -5,6 +5,7 @@ import os
 import mock
 
 from ddtrace.internal import runtime
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from tests.utils import override_env
 
@@ -57,6 +58,7 @@ MOCK_AGENT_RESPONSES_FILE = os.path.join(ROOT_DIR, "rc_mocked_responses_asm_feat
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
+    RemoteConfig.disable()
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
