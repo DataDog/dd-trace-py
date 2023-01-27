@@ -19,8 +19,7 @@ def _expected_payload(
     cached_target_files=[],
     error_msg=None,
 ):
-    config_states.sort(key=lambda x: x["id"], reverse=False)
-    cached_target_files.sort(key=lambda x: x["path"], reverse=False)
+
     payload = {
         "client": {
             "id": rc_client.id,
@@ -48,7 +47,7 @@ def _expected_payload(
         payload["client"]["state"]["backend_client_state"] = backend_client_state
     if has_errors:
         payload["client"]["state"]["error"] = error_msg
-    return json.dumps(payload, sort_keys=True)
+    return payload
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,9 +69,10 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
         rc_client.request()
+        expected_response = _expected_payload(rc_client)
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(_expected_payload(rc_client))
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -84,7 +84,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -112,7 +112,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -140,7 +140,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, False)
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -157,7 +157,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -198,7 +198,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -239,7 +239,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -291,7 +291,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -332,7 +332,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -375,7 +375,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -417,7 +417,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -470,7 +470,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error is None
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -524,7 +524,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         )
 
         assert rc_client._last_error == "Not all client configurations have target files"
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -584,7 +584,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
             "not exists in client_config and signed targets"
         )
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
@@ -644,7 +644,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
             "not exists in client_config and signed targets"
         )
-        mock_send_request.assert_called_with(expected_response)
+        assert json.loads(mock_send_request.call_args.args[0]) == expected_response
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
