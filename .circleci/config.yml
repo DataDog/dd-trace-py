@@ -283,7 +283,7 @@ jobs:
           command: riot run -s flake8
       - run:
           name: "Slots check"
-          command: riot run -s slotscheck
+          command: riot run slotscheck
       - run:
           name: "Mypy check"
           command: riot run -s mypy
