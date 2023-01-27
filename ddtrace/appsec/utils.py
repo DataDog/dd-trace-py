@@ -82,12 +82,11 @@ def _get_blocked_template(accept_header_value):
         try:
             with open(template_path, "r") as template_file:
                 content = template_file.read()
+
             if need_html_template:
                 _HTML_BLOCKED_TEMPLATE_CACHE = content
-                return _HTML_BLOCKED_TEMPLATE_CACHE
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
-                return _JSON_BLOCKED_TEMPLATE_CACHE
             return content
         except OSError as e:
             log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
