@@ -190,7 +190,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 assert_sampling_decision_tags(
                     sample,
                     agent=sample_rate,
-                    trace_tag=f"-{SamplingMechanism.AGENT_RATE}",
+                    trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
                 )
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
@@ -730,7 +730,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
         limit=None,
         rule=None,
         sampling_priority=AUTO_KEEP,
-        trace_tag=f"-{SamplingMechanism.DEFAULT}",
+        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
     )
 
     # Default RateByServiceSampler() is applied
@@ -900,7 +900,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag=f"-{SamplingMechanism.TRACE_SAMPLING_RULE}",
+        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
     )
 
 
@@ -949,7 +949,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         limit=None,
         sampling_priority=USER_KEEP,
         # sampling decision from user sampling rule
-        trace_tag=f"-{SamplingMechanism.TRACE_SAMPLING_RULE}",
+        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
     )
     assert_sampling_decision_tags(
         spans[1],
@@ -957,7 +957,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         rule=None,
         limit=None,
         # DEV: the trace tag check is on the context which is shared between parent and child
-        trace_tag=f"-{SamplingMechanism.TRACE_SAMPLING_RULE}",
+        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
     )
 
 
@@ -978,7 +978,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
         limit=None,
         sampling_priority=USER_KEEP,
         # sampling decision from user sampling rule
-        trace_tag=f"-{SamplingMechanism.TRACE_SAMPLING_RULE}",
+        trace_tag="-{SamplingMechanism.TRACE_SAMPLING_RULE}",
     )
 
 
