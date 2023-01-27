@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add missing validation to Remote Config response from agent.
