@@ -3,6 +3,7 @@ from typing import Dict
 
 # tags
 QUERY = "sql.query"  # the query text
+ROWS = "sql.rows"  # number of rows returned by a query
 DB = "sql.db"  # the name of the database
 
 
