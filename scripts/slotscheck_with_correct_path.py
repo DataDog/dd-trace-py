@@ -35,7 +35,7 @@ def call_slotscheck(filenames: list[str]) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog=__file__,
-        description="Check one python with slotscheck by adjusting the adequate path",
+        description="Check python files with slotscheck by adjusting the adequate path",
     )
     print(sys.argv[1:])
     parser.add_argument("filenames", type=str, nargs="*")
