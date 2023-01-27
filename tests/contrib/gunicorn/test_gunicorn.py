@@ -170,19 +170,6 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
-SETTINGS_GEVENT_DDTRACERUN_NOPATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-)
-SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    patch_gevent=True,
-)
-SETTINGS_GEVENT_APPIMPORT_PATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_sitecustomize_in_app=True,
-    patch_gevent=True,
-)
 SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
