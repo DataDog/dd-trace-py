@@ -339,7 +339,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     request_headers = utils._get_request_headers(request)
 
     with _asm_context.asm_request_context_manager(
-        request.META.get("REMOTE_ADDR"), request_headers, django.VERSION < (2, 2)
+        request.META.get("REMOTE_ADDR"), request_headers, headers_are_case_sensitive=django.VERSION < (2, 2)
     ):
         with pin.tracer.trace(
             "django.request",
@@ -356,7 +356,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             try:
-                if _context.get_item("http.request.blocked", span=span):
+                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
                     response = HttpResponseForbidden(
                         appsec_utils._get_blocked_template(request_headers.get("Accept")), **kwargs
                     )
