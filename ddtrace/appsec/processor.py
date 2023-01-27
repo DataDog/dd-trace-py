@@ -33,6 +33,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
@@ -180,7 +185,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
-            except json.decoder.JSONDecodeError:
+            except JSONDecodeError:
                 log.error(
                     "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
                 )
@@ -287,7 +292,7 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
             span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
             span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
-        except (json.decoder.JSONDecodeError, ValueError):
+        except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
