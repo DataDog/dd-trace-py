@@ -136,7 +136,7 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         worker_service_name,
     )
     num_traces_expected = None
-    if sys.version_info.major == 3 and sys.version_info.minor != 5:
+    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
         num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
