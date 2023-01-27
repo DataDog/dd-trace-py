@@ -121,6 +121,7 @@ services:
             - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
+            - ./tests/specifications:/specifications
         environment:
             - LOG_LEVEL=INFO
             - SNAPSHOT_DIR=/snapshots
