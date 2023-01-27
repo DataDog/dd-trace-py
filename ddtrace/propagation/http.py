@@ -116,7 +116,7 @@ def _dd_id_to_b3_id(dd_id):
     """Helper to convert Datadog trace/span int ids into hex ids"""
     # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
     # DEV: this gives us lowercase hex, which is what we want
-    return "{:x}".format(dd_id)
+    return "{:016x}".format(dd_id)
 
 
 class _DatadogMultiHeader:
