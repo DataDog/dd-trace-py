@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Pads trace_id and span_ids in b3 headers to have a minimum length of 16.
