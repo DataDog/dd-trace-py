@@ -978,7 +978,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
         limit=None,
         sampling_priority=USER_KEEP,
         # sampling decision from user sampling rule
-        trace_tag="-{SamplingMechanism.TRACE_SAMPLING_RULE}",
+        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
     )
 
 
