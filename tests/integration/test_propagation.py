@@ -71,8 +71,9 @@ def downstream_tracer():
 @pytest.mark.snapshot()
 def test_sampling_decision_downstream(downstream_tracer):
     """
-        Ensures that set_tag(MANUAL_DROP_KEY) on a span causes the sampling decision meta and sampling priority metric
+    Ensures that set_tag(MANUAL_DROP_KEY) on a span causes the sampling decision meta and sampling priority metric
     to be set appropriately indicating rejection
+
     """
     headers_indicating_kept_trace = {
         "x-datadog-trace-id": "1234",
