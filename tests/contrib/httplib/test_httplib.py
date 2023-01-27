@@ -188,11 +188,15 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         with contextlib.closing(conn):
             conn.request(
                 "GET",
-                "/",
-                headers={"Content-type": "application/json", "Accept": "text/plain", "User-Agent": "ddtrace-test"},
+                "/j/R7UfaahVfFd",
+                headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
             )
             resp = conn.getresponse()
             self.assertEqual(resp.status, 200)
+            self.assertEqual(
+                self.to_str(resp.read()),
+                "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
+            )
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -205,7 +209,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert_span_http_status_code(span, 200)
-        assert span.get_tag("http.url") == "https://icanhazdadjoke.com/"
+        assert span.get_tag("http.url") == "https://icanhazdadjoke.com/j/R7UfaahVfFd"
 
     def test_httplib_request_post_request(self):
         """
@@ -416,15 +420,19 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                we capture a span for the request
         """
         # TODO: figure out how to use https in our local httpbin container
-        url = "https://icanhazdadjoke.com/"
+        url = "https://icanhazdadjoke.com/j/R7UfaahVfFd"
         req = Request(
             url,
-            headers={"Content-type": "application/json", "Accept": "text/plain", "User-Agent": "ddtrace-test"},
+            headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
         )
         with override_global_tracer(self.tracer):
             resp = urlopen(req)
 
         self.assertEqual(resp.getcode(), 200)
+        self.assertEqual(
+            self.to_str(resp.read()),
+            "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
+        )
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -437,7 +445,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.get_tag("http.url"), "https://icanhazdadjoke.com/")
+        self.assertEqual(span.get_tag("http.url"), url)
 
     def test_urllib_request_object(self):
         """
@@ -618,15 +626,20 @@ if PY2:
                    we capture a span for the request
             """
             # TODO: figure out how to use https in our local httpbin container
-            url = "https://icanhazdadjoke.com"
-            req = Request(
-                url,
-                headers={"Content-type": "application/json", "Accept": "text/plain", "User-Agent": "ddtrace-test"},
-            )
-            with override_global_tracer(self.tracer):
-                resp = urllib.urlopen(req)
+            class DDAPPopener(urllib.FancyURLopener):
+                # Specify different user agent than urllib's default URLopener:
+                # https://python.readthedocs.io/en/v2.7.2/library/urllib.html#urllib._urlopener
+                version = "ddtrace-test"
 
-            self.assertEqual(resp.read(), "")
+            urllib._urlopener = DDAPPopener()
+            url = "https://icanhazdadjoke.com/j/R7UfaahVfFd"
+            with override_global_tracer(self.tracer):
+                resp = urllib.urlopen(url)
+
+            self.assertIn(
+                "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
+                resp.read(),
+            )
             self.assertEqual(resp.getcode(), 200)
 
             spans = self.pop_spans()
