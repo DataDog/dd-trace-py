@@ -52,20 +52,26 @@ def _appsec_rc_capabilities():
     return result
 
 
-_HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
-_JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
 
 
 def _get_blocked_template(accept_header_value):
     # type: (str) -> str
 
-    global _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE
-    global _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE
+    global _HTML_BLOCKED_TEMPLATE_CACHE
+    global _JSON_BLOCKED_TEMPLATE_CACHE
 
     need_html_template = False
 
     if accept_header_value and "text/html" in accept_header_value.lower():
         need_html_template = True
+
+    if need_html_template and _HTML_BLOCKED_TEMPLATE_CACHE:
+        return _HTML_BLOCKED_TEMPLATE_CACHE
+
+    if not need_html_template and _JSON_BLOCKED_TEMPLATE_CACHE:
+        return _JSON_BLOCKED_TEMPLATE_CACHE
 
     if need_html_template:
         template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
@@ -73,24 +79,23 @@ def _get_blocked_template(accept_header_value):
         template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
     if template_path and os.path.exists(template_path) and os.path.isfile(template_path):
-        if need_html_template and _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE:
-            return _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE
-
-        if not need_html_template and _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE:
-            return _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE
         try:
             with open(template_path, "r") as template_file:
                 content = template_file.read()
             if need_html_template:
-                _HTML_USERDEFINED_BLOCKED_TEMPLATE_CACHE = content
+                _HTML_BLOCKED_TEMPLATE_CACHE = content
+                return _HTML_BLOCKED_TEMPLATE_CACHE
             else:
-                _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE = content
+                _JSON_BLOCKED_TEMPLATE_CACHE = content
+                return _JSON_BLOCKED_TEMPLATE_CACHE
             return content
         except OSError as e:
             log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
 
     # No user-defined template at this point
     if need_html_template:
+        _HTML_BLOCKED_TEMPLATE_CACHE = constants.APPSEC_BLOCKED_RESPONSE_HTML
         return constants.APPSEC_BLOCKED_RESPONSE_HTML
 
+    _JSON_BLOCKED_TEMPLATE_CACHE = constants.APPSEC_BLOCKED_RESPONSE_JSON
     return constants.APPSEC_BLOCKED_RESPONSE_JSON
