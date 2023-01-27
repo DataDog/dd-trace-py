@@ -1,13 +1,34 @@
-* @DataDog/apm-python
+# Order matters, the last matched is what is used
 
-ddtrace/contrib/pytest/         @DataDog/apm-python @DataDog/ci-app-libraries
-ddtrace/contrib/pytest-bdd/     @DataDog/apm-python @DataDog/ci-app-libraries
-ddtrace/ext/ci.py               @DataDog/apm-python @DataDog/ci-app-libraries
-ddtrace/ext/test.py             @DataDog/apm-python @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py  @DataDog/apm-python @datadog/ci-app-libraries
-tests/contrib/pytest/           @DataDog/apm-python @DataDog/ci-app-libraries
-tests/contrib/pytest-bdd/       @DataDog/apm-python @DataDog/ci-app-libraries
-ddtrace/debugging/              @DataDog/debugger-python
-tests/debugging/                @DataDog/debugger-python
-ddtrace/appsec/                 @DataDog/asm-python
-tests/appsec/                   @DataDog/asm-python
+# APM Core Python is the default owner of all files
+*                                   @DataDog/apm-core-python
+
+# Files which can be approved by anyone
+# DEV: This helps not requiring apm-core-python to review new files added
+#      or files which changes often with most PRs
+releasenotes/                       @DataDog/apm-python
+tests/snapshots/                    @DataDog/apm-python
+riotfile.py                         @DataDog/apm-python
+
+# CI App
+ddtrace/contrib/pytest/             @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/contrib/pytest_bdd/         @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/contrib/pytest                @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/contrib/pytest_bdd            @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+
+# Debugger
+ddtrace/debugging/                  @DataDog/debugger-python
+tests/debugging/                    @DataDog/debugger-python
+
+# ASM
+ddtrace/appsec/                     @DataDog/asm-python
+tests/appsec/                       @DataDog/asm-python
+ddtrace/internal/remoteconfig       @DataDog/apm-core-python @DataDog/asm-python
+tests/internal/remoteconfig         @DataDog/apm-core-python @DataDog/asm-python
+
+# Profiling
+ddtrace/profiling                   @DataDog/apm-core-python @DataDog/debugger-python
+tests/profiling                     @DataDog/apm-core-python @DataDog/debugger-python
