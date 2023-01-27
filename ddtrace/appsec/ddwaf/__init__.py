@@ -113,14 +113,12 @@ if _DDWAF_LOADED:
                 LOGGER.error("DDWaf failure to create the context")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
 
-            result = ddwaf_result()
-            wrapper = ddwaf_object(data)
-            error = ddwaf_run(ctx, wrapper, ctypes.byref(result), timeout_ms * 1000)
-            if error:
-                LOGGER.warning("DDWAF error: %d", error)
-
             try:
                 result = ddwaf_result()
+                wrapper = ddwaf_object(data)
+                error = ddwaf_run(ctx, wrapper, ctypes.byref(result), timeout_ms * 1000)
+                if error:
+                    LOGGER.warning("DDWAF error: %d", error)
                 try:
                     return DDWaf_result(
                         result.data.decode("UTF-8", errors="ignore")
