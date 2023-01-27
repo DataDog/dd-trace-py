@@ -1,5 +1,4 @@
 import collections
-import itertools
 import operator
 import platform
 import sysconfig
@@ -143,16 +142,23 @@ class _StringTable(object):
         return len(self._strings)
 
 
-def _none_to_str(value: typing.Any) -> str:
-    if value is None:
-        return ""
-    return str(value)
+cdef str _none_to_str(object value):
+    return "" if value is None else str(value)
 
 
 def _get_thread_name(thread_id: typing.Optional[int], thread_name: typing.Optional[str]) -> str:
     if thread_name is None:
         return "Anonymous Thread %s" % ("?" if thread_id is None else str(thread_id))
     return thread_name
+
+
+cdef groupby(object collection, object key):
+    cdef dict groups = {}
+
+    for item in collection:
+        groups.setdefault(key(item), []).append(item)
+
+    return groups.items()
 
 
 class pprof_LocationType(object):
@@ -457,23 +463,18 @@ class _PprofConverter(object):
                     "name": lib.name,
                     "kind": "library",
                     "version": lib.version,
-                    "paths": sorted(lib_and_filename[1] for lib_and_filename in libs_and_filenames),
+                    "paths": [lib_and_filename[1] for lib_and_filename in libs_and_filenames],
                 }
             )
-            for lib, libs_and_filenames in itertools.groupby(
-                sorted(
-                    set(
-                        filter(
-                            lambda p: p[0] is not None,
-                            (
-                                (_packages.filename_to_package(filename), filename)
-                                for filename, lineno, funcname in self._locations
-                            ),
-                        )
-                    ),
-                    key=_ITEMGETTER_ZERO,
-                ),
-                key=_ITEMGETTER_ZERO,
+            for lib, libs_and_filenames in groupby(
+                {
+                    _
+                    for _ in (
+                        (_packages.filename_to_package(filename), filename)
+                        for filename, lineno, funcname in self._locations
+                    )
+                    if _[0] is not None
+                }, _ITEMGETTER_ZERO
             )
         ] + STDLIB
 
@@ -495,7 +496,7 @@ class _PprofConverter(object):
                 value=[values.get(sample_type_name, 0) for sample_type_name, unit in sample_types],
                 label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],
             )
-            for (locations, labels), values in sorted(six.iteritems(self._location_values), key=_ITEMGETTER_ZERO)
+            for (locations, labels), values in six.iteritems(self._location_values)
         ]
 
         period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))
@@ -511,9 +512,8 @@ class _PprofConverter(object):
                     filename=self._str(program_name),
                 ),
             ],
-            # Sort location and function by id so the output is reproducible
-            location=sorted(self._locations.values(), key=_ATTRGETTER_ID),
-            function=sorted(self._functions.values(), key=_ATTRGETTER_ID),
+            location=self._locations.values(),
+            function=self._functions.values(),
             string_table=list(self._string_table),
             time_nanos=start_time_ns,
             duration_nanos=duration_ns,
@@ -601,10 +601,7 @@ class PprofExporter(exporter.Exporter):
     def _group_stack_events(
         self, events: typing.Iterable[event.StackBasedEvent]
     ) -> typing.Iterator[typing.Tuple[StackEventGroupKey, typing.Iterator[event.StackBasedEvent]]]:
-        return itertools.groupby(
-            sorted(events, key=self._stack_event_group_key),
-            key=self._stack_event_group_key,
-        )
+        return groupby(events, self._stack_event_group_key)
 
     def _lock_event_group_key(
         self,
@@ -627,10 +624,7 @@ class PprofExporter(exporter.Exporter):
     def _group_lock_events(
         self, events: typing.Iterable[_lock.LockEventBase]
     ) -> typing.Iterator[typing.Tuple[LockEventGroupKey, typing.Iterator[_lock.LockEventBase]]]:
-        return itertools.groupby(
-            sorted(events, key=self._lock_event_group_key),
-            key=self._lock_event_group_key,
-        )
+        return groupby(events, self._lock_event_group_key)
 
     def _stack_exception_group_key(self, event: stack_event.StackExceptionSampleEvent) -> StackExceptionEventGroupKey:
         exc_type = event.exc_type
@@ -654,10 +648,7 @@ class PprofExporter(exporter.Exporter):
     ) -> typing.Iterator[
         typing.Tuple[StackExceptionEventGroupKey, typing.Iterator[stack_event.StackExceptionSampleEvent]]
     ]:
-        return itertools.groupby(
-            sorted(events, key=self._stack_exception_group_key),
-            key=self._stack_exception_group_key,
-        )
+        return groupby(events, self._stack_exception_group_key)
 
     def _get_event_trace_resource(self, event: event.StackBasedEvent) -> str:
         trace_resource = ""

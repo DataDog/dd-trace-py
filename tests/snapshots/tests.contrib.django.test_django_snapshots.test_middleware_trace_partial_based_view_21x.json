@@ -18,6 +18,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/partial-view/",
+      "language": "python",
       "runtime-id": "54fcb6332fb64604a63577be804e6d35"
     },
     "metrics": {

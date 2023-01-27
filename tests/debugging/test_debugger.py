@@ -503,7 +503,7 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
 
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER, dd_compile("#bar")))
+        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER, dd_compile({"ref": "bar"})))
         sleep(0.5)
         Stuff().instancestuff(40)
         assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
@@ -511,7 +511,7 @@ def test_debugger_metric_probe_count_value(mock_metrics):
 
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_line_metric_probe(MetricProbeKind.GAUGE, dd_compile("#bar")))
+        d.add_probes(create_line_metric_probe(MetricProbeKind.GAUGE, dd_compile({"ref": "bar"})))
         sleep(0.5)
         Stuff().instancestuff(41)
         assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
@@ -519,7 +519,7 @@ def test_debugger_metric_probe_guage_value(mock_metrics):
 
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile("#bar")))
+        d.add_probes(create_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile({"ref": "bar"})))
         sleep(0.5)
         Stuff().instancestuff(42)
         assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
@@ -527,7 +527,7 @@ def test_debugger_metric_probe_histogram_value(mock_metrics):
 
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile("#bar")))
+        d.add_probes(create_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile({"ref": "bar"})))
         sleep(0.5)
         Stuff().instancestuff(43)
         assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
@@ -668,7 +668,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 def test_probe_status_logging(mock_check_remote_config_enable_in_agent, monkeypatch):
     mock_check_remote_config_enable_in_agent.return_value = True
 
-    monkeypatch.setenv("DD_REMOTECONFIG_POLL_SECONDS", "0.1")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
     RemoteConfig.disable()
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -743,7 +743,7 @@ def test_debugger_condition_eval_then_rate_limit():
                 probe_id="foo",
                 source_file="tests/submod/stuff.py",
                 line=36,
-                condition=dd_compile({"eq": ["#bar", 42]}),
+                condition=dd_compile({"eq": [{"ref": "bar"}, 42]}),
             ),
         )
 
@@ -770,7 +770,7 @@ def test_debugger_function_probe_eval_on_exit():
                 probe_id="duration-probe",
                 module="tests.submod.stuff",
                 func_qname="mutator",
-                condition=dd_compile({"contains": ["#arg", 42]}),
+                condition=dd_compile({"contains": [{"ref": "arg"}, 42]}),
             )
         )
 
@@ -794,7 +794,9 @@ def test_debugger_lambda_fuction_access_locals():
                 probe_id="duration-probe",
                 module="tests.submod.stuff",
                 func_qname="age_checker",
-                condition=dd_compile({"any": ["#people", {"eq": ["#name", "@it.name"]}]}),
+                condition=dd_compile(
+                    {"any": [{"ref": "people"}, {"eq": [{"ref": "name"}, {"getmember": [{"ref": "@it"}, "name"]}]}]}
+                ),
             )
         )
 

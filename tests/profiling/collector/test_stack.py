@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
 import collections
+import gc
 import os
 import sys
 import threading
 import time
 import timeit
+from types import FrameType
 import typing
 import uuid
 
@@ -268,7 +270,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=True, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )
 
 
@@ -400,7 +402,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 394, "test_exception_collection", "")]
+    assert e.frames == [(__file__, 396, "test_exception_collection", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -432,7 +434,7 @@ def test_exception_collection_trace(
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 421, "test_exception_collection_trace", "")]
+    assert e.frames == [(__file__, 423, "test_exception_collection_trace", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -442,7 +444,7 @@ def test_exception_collection_trace(
 @pytest.fixture
 def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=tracer)
+    c = stack.StackCollector(r, endpoint_collection_enabled=True, tracer=tracer)
     c.start()
     try:
         yield tracer, c
@@ -565,9 +567,8 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
 
 
 def test_resource_not_collected(monkeypatch, tracer):
-    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
     r = recorder.Recorder()
-    collector = stack.StackCollector(r, tracer=tracer)
+    collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)
     collector.start()
     try:
         resource = str(uuid.uuid4())
@@ -743,3 +744,20 @@ def test_collect_gevent_threads():
     # assert (exact_time * 0.7) <= values.pop() <= (exact_time * 1.3)
 
     assert values.pop() > 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
+def test_collect_ensure_all_frames_gc():
+    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
+    def _foo():
+        pass
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+
+    with s:
+        for _ in range(100):
+            _foo()
+
+    gc.collect()  # Make sure we don't race with gc when we check frame objects
+    assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0

@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "redis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET \ud83d\ude10",
       "runtime-id": "78889425fa434f88a0dbd3ce725a2f06"

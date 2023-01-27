@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "1.4.2",
-      "_dd.appsec.waf.version": "1.6.0",
+      "_dd.appsec.waf.version": "1.6.1",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",
       "asgi.version": "3.0",
@@ -19,12 +19,15 @@
       "django.response.class": "django.http.response.HttpResponse",
       "django.user.is_authenticated": "False",
       "django.view": "tests.contrib.django.views.index",
+      "http.client_ip": "127.0.0.1",
       "http.method": "GET",
       "http.route": "^$",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "language": "python",
+      "network.client.ip": "127.0.0.1",
       "runtime-id": "6cfa6e93465041189d3d09f3415aa5e6"
     },
     "metrics": {

@@ -16,6 +16,7 @@
       "error.type": "exceptions.BaseException",
       "http.method": "GET",
       "http.url": "http://localhost:80/baseException",
+      "language": "python",
       "runtime-id": "530d4be5ac874cc8b3ebc38e2dd5af19"
     },
     "metrics": {

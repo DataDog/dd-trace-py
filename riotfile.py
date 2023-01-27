@@ -102,7 +102,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": "<7.0.0",
+        "pytest": latest,
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -1295,8 +1295,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "requests": latest,
                 "aiofiles": latest,
-                # Pinned until https://github.com/encode/databases/issues/298 is resolved.
-                "sqlalchemy": "~=1.3.0",
+                "sqlalchemy": latest,
                 "aiosqlite": latest,
                 "databases": latest,
             },
