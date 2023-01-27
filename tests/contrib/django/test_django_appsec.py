@@ -3,6 +3,7 @@ import json
 import logging
 
 import pytest
+from ddtrace.appsec import _asm_context
 
 from ddtrace import constants
 from ddtrace._monkey import patch_iast
@@ -439,14 +440,44 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
 
 def test_request_ipblock_match_403_json(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
-
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP)
         assert result.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+
+
+def _assert_context_is(ip, headers, case_sensitive):
+    assert _asm_context.get_ip() == ip
+    assert _asm_context.get_headers() == headers
+    assert _asm_context.get_headers_case_sensitive() == case_sensitive
+
+
+def test_asm_request_context(client, test_spans, tracer):
+    test_ip = "1.1.1.1"
+    test_headers = {"foo": "bar"}
+
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        with _asm_context.asm_request_context_manager(test_ip, test_headers, False):
+            tracer._appsec_enabled = True
+            # # Hack: need to pass an argument to configure so that the processors are recreated
+            tracer.configure(api_version="v0.4")
+
+            # Check that the context vars are what we set at the start since the request has
+            # not yet started
+            _assert_context_is(test_ip, test_headers, False)
+
+            # Do a call and check that is blocked (thus the new context values set inside the
+            # request are working)
+            assert client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP).status_code == 403
+
+            # Check that it's reset at the end of the request
+            _assert_context_is(None, None, False)
+            _asm_context.set_ip(test_ip)
+
+    # Check that it should also be reset outside the first one
+    _assert_context_is(None, None, False)

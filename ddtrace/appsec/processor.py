@@ -235,7 +235,7 @@ class AppSecSpanProcessor(SpanProcessor):
             )
 
             if peer_ip is not None:
-                ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
+                ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
                 # Save the IP and headers in the context so the retrieval can be skipped later
                 _context.set_item("http.request.remote_ip", ip, span=span)
                 if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):

@@ -1,6 +1,7 @@
 import json
 import logging
 
+from ddtrace.appsec import _asm_context
 from flask import request
 import pytest
 
@@ -11,9 +12,14 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.contrib.django.test_django_appsec import _assert_context_is
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+_BLOCKED_IP = "8.8.4.4"
+_ALLOWED_IP = "8.8.8.8"
 
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
@@ -261,7 +267,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.8.8"})
+            resp = self.client.get("/", headers={"X-REAL-IP": _ALLOWED_IP})
             assert resp.status_code == 200
             if hasattr(resp, "text"):
                 assert resp.text == "Ok"
@@ -275,7 +281,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
+            resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP, "ACCEPT": "text/html"})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
@@ -283,7 +289,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_HTML)
 
             root = self.pop_spans()[0]
-            assert root.get_tag("actor.ip") == "8.8.4.4"
+            assert root.get_tag("actor.ip") == _BLOCKED_IP
             assert root.get_tag("appsec.event") == "true"
             loaded = json.loads(root.get_tag(APPSEC_JSON))
             assert loaded == {
@@ -303,8 +309,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                                     {
                                         "address": "http.client_ip",
                                         "key_path": [],
-                                        "value": "8.8.4.4",
-                                        "highlight": ["8.8.4.4"],
+                                        "value": _BLOCKED_IP,
+                                        "highlight": [_BLOCKED_IP],
                                     }
                                 ],
                             }
@@ -320,9 +326,37 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
+            resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
             else:
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+
+    def test_asm_request_context(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        test_ip = "1.1.1.1"
+        test_headers = {"foo": "bar"}
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            with _asm_context.asm_request_context_manager(test_ip, test_headers, False):
+                self._aux_appsec_prepare_tracer()
+
+                # Check that the context vars are what we set at the start since the request has
+                # not yet started
+                _assert_context_is(test_ip, test_headers, False)
+
+                # Do a call and check that is blocked (thus the new context values set inside the
+                # request are working)
+                resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP})
+                assert resp.status_code == 403
+
+                # Check that it's reset at the end of the request
+                _assert_context_is(None, None, False)
+                _asm_context.set_ip(test_ip)
+
+        # Check that it should also be reset outside the first one
+        _assert_context_is(None, None, False)
