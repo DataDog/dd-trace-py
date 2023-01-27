@@ -8,7 +8,6 @@ import sys
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa
@@ -32,11 +31,10 @@ def aggressive_shutdown():
     RemoteConfig.disable()
     if sys.version_info < (3, 11):
         DynamicInstrumentation.disable()
-    if PY3:
-        tracer.shutdown(timeout=1)
-        if hasattr(bootstrap, "profiler"):
-            bootstrap.profiler._scheduler.stop()
-            bootstrap.profiler.stop()
+    tracer.shutdown(timeout=1)
+    if hasattr(bootstrap, "profiler"):
+        bootstrap.profiler._scheduler.stop()
+        bootstrap.profiler.stop()
 
 
 def simple_app(environ, start_response):
