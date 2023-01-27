@@ -356,7 +356,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             try:
-                if _context.get_item("http.request.blocked", span=span):
+                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
                     response = HttpResponseForbidden(
                         appsec_utils._get_blocked_template(request_headers.get("Accept")), **kwargs
                     )
