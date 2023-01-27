@@ -1,6 +1,9 @@
+from typing import Iterable
+
 import dogpile
 
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.utils import get_argument_value
@@ -21,7 +24,10 @@ def _wrap_get_create(func, instance, args, kwargs):
         span.set_tag("key", key)
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)
-        return func(*args, **kwargs)
+
+        response = func(*args, **kwargs)
+        span.set_metric(db.ROWCOUNT, 1)
+        return response
 
 
 def _wrap_get_create_multi(func, instance, args, kwargs):
@@ -38,4 +44,8 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         span.set_tag("keys", keys)
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)
-        return func(*args, **kwargs)
+        response = func(*args, **kwargs)
+        if isinstance(response, Iterable):
+            span.set_metric(db.ROWCOUNT, len(response))
+
+        return response

@@ -24,7 +24,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 1,
+      "db.row_count": 1,
       "db.rownumber": 0,
       "out.port": 3306,
       "process_id": 89502

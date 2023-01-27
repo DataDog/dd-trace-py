@@ -22,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 1,
+      "db.row_count": 1,
       "process_id": 11891,
       "sql.rows": 1
     },
@@ -48,7 +48,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "db.rowcount": 1,
+         "db.row_count": 1,
          "out.port": 5432,
          "sql.rows": 1
        },

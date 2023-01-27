@@ -42,7 +42,7 @@ class TracedCursor(cursor):
             try:
                 return super(TracedCursor, self).execute(query, vars)
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric(db.ROWCOUNT, self.rowcount)
 
     def callproc(self, procname, vars=None):  # noqa: A002
         """just wrap the execution in a span"""

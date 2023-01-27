@@ -13,6 +13,7 @@ from ddtrace.vendor.wrapt import ObjectProxy
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.compat import iteritems
@@ -211,7 +212,7 @@ class TracedSocket(ObjectProxy):
         with self.__trace(cmd) as s:
             result = self.__wrapped__.write_command(*args, **kwargs)
             if result:
-                s.set_metric(mongox.ROWS, result.get("n", -1))
+                s.set_metric(db.ROWCOUNT, result.get("n", -1))
             return result
 
     def __trace(self, cmd):
