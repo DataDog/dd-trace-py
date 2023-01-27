@@ -14,7 +14,6 @@ from ddtrace.debugging._debugger import DebuggerModuleWatchdog
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin

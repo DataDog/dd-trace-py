@@ -6,7 +6,6 @@ from typing import Dict
 from typing import Iterable
 from typing import Optional
 from typing import Type
-from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import config
@@ -17,9 +16,6 @@ from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
-from ddtrace.debugging._probe.model import DDExpression
-from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
-from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
@@ -124,23 +120,7 @@ def probe(_id, _type, attribs):
     """
     Create a new Probe instance.
     """
-
-    if _type == "metricProbes":
-        args = dict(
-            probe_id=_id,
-            condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
-            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
-            name=attribs["metricName"],
-            kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
-            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
-            value=_compile_expression(attribs.get("value")),
-        )
-
-        return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
-
-    elif _type == "logProbes":
+    if _type == "logProbes":
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
@@ -155,6 +135,21 @@ def probe(_id, _type, attribs):
         )
 
         return _create_probe_based_on_location(args, attribs, LogLineProbe, LogFunctionProbe)
+
+    elif _type == "metricProbes":
+        args = dict(
+            probe_id=_id,
+            condition=_compile_expression(attribs.get("when")),
+            active=attribs["active"],
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+            name=attribs["metricName"],
+            kind=attribs["kind"],
+            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
+            value=_compile_expression(attribs.get("value")),
+        )
+
+        return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
 
     raise ValueError("Unknown probe type: %s" % _type)
 
