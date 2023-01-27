@@ -70,6 +70,7 @@ exclude-modules = '''
   | ddtrace.profiling.auto
   # protobuf file fails to import
   | ddtrace.profiling.exporter.pprof_pre312_pb2
+  | ddtrace.profiling.exporter.pprof_pre319_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
 )
