@@ -38,6 +38,7 @@ if __name__ == "__main__":
         description="Check one python with slotscheck by adjusting the adequate path",
     )
     print(sys.argv[1:])
-    parser.add_argument("filenames", type=str, nargs="+")
+    parser.add_argument("filenames", type=str, nargs="*")
     args = parser.parse_args()
-    call_slotscheck(args.filenames)
+    if args.filenames:
+        call_slotscheck(args.filenames)
