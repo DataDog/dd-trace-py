@@ -30,7 +30,7 @@ if sys.version_info[1] < 11:
 
 def aggressive_shutdown():
     RemoteConfig.disable()
-    if sys.version_info[1] < 11:
+    if sys.version_info < (3, 11):
         DynamicInstrumentation.disable()
     if PY3:
         tracer.shutdown(timeout=1)
