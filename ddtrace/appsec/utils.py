@@ -6,7 +6,10 @@ from typing import Optional
 from ddtrace import constants
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_bytes_py2
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+
+log = get_logger(__name__)
 
 
 def _appsec_rc_features_is_enabled():
@@ -83,8 +86,8 @@ def _get_blocked_template(accept_header_value):
             else:
                 _JSON_USERDEFINED_BLOCKED_TEMPLATE_CACHE = content
             return content
-        except OSError:
-            pass
+        except OSError as e:
+            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
 
     # No user-defined template at this point
     if need_html_template:

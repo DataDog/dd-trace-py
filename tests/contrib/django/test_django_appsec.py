@@ -382,13 +382,17 @@ def test_django_weak_hash(client, test_spans, tracer):
         assert vulnerability["evidence"]["value"] == "md5"
 
 
+_BLOCKED_IP = "8.8.4.4"
+_ALLOWED_IP = "8.8.8.8"
+
+
 def test_request_ipblock_nomatch_200(client, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         tracer._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
 
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_ALLOWED_IP)
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
 
@@ -400,14 +404,14 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
 
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4", HTTP_ACCEPT="text/html")
+        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP, HTTP_ACCEPT="text/html")
         assert result.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
         )
         assert result.content == as_bytes
         root = test_spans.spans[0]
-        assert root.get_tag("actor.ip") == "8.8.4.4"
+        assert root.get_tag("actor.ip") == _BLOCKED_IP
         assert root.get_tag("appsec.event") == "true"
         loaded = json.loads(root.get_tag(APPSEC_JSON))
         assert loaded == {
@@ -427,8 +431,8 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
                                 {
                                     "address": "http.client_ip",
                                     "key_path": [],
-                                    "value": "8.8.4.4",
-                                    "highlight": ["8.8.4.4"],
+                                    "value": _BLOCKED_IP,
+                                    "highlight": [_BLOCKED_IP],
                                 }
                             ],
                         }
@@ -445,7 +449,7 @@ def test_request_ipblock_match_403_json(client, test_spans, tracer):
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
 
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
+        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP)
         assert result.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON

@@ -202,10 +202,14 @@ def test_appsec_body_no_collection_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
+_BLOCKED_IP = "8.8.4.4"
+_ALLOWED_IP = "1.1.1.1"
+
+
 def test_ip_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -213,7 +217,7 @@ def test_ip_block(tracer):
                 )
 
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
             assert _context.get_item("http.request.blocked", span)
             assert "block" in _context.get_item("http.request.waf_actions", span)
 
@@ -221,14 +225,14 @@ def test_ip_block(tracer):
 def test_ip_not_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_context.asm_request_context_manager("8.8.8.4", {}):
+        with _asm_context.asm_request_context_manager(_ALLOWED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
+            assert _context.get_item("http.request.remote_ip", span) == _ALLOWED_IP
             assert _context.get_item("http.request.blocked", span) is None
 
 
@@ -239,21 +243,21 @@ def test_ip_update_rules_and_block(tracer):
             [
                 {
                     "data": [
-                        {"value": "8.8.4.4"},
+                        {"value": _BLOCKED_IP},
                     ],
                     "id": "blocked_ips",
                     "type": "ip_with_expiration",
                 },
             ]
         )
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
             assert _context.get_item("http.request.blocked", span)
             assert "block" in _context.get_item("http.request.waf_actions", span)
 
@@ -265,21 +269,21 @@ def test_ip_update_rules_expired_no_block(tracer):
             [
                 {
                     "data": [
-                        {"expiration": 1662804872, "value": "8.8.4.4"},
+                        {"expiration": 1662804872, "value": _BLOCKED_IP},
                     ],
                     "id": "blocked_ips",
                     "type": "ip_with_expiration",
                 },
             ]
         )
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
             assert _context.get_item("http.request.blocked", span) is None
 
 

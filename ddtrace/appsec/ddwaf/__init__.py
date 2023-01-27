@@ -101,7 +101,7 @@ if _DDWAF_LOADED:
 
         def run(
             self,  # type: DDWaf
-            data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
+            data,  # type: DDWafRulesType
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
             # type: (...) -> DDWaf_result

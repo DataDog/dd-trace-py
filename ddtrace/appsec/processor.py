@@ -2,6 +2,7 @@ import errno
 import json
 import os
 import os.path
+
 from typing import Any
 from typing import List
 from typing import Set
@@ -40,6 +41,8 @@ from ddtrace.internal.rate_limiter import RateLimiter
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
 
+    from ddtrace.appsec.ddwaf import DDWaf_result
+    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
     from ddtrace.span import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -210,7 +213,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def update_rules(self, new_rules):
         # type: (List[Dict[str, Any]]) -> None
-        self._ddwaf.update_rules(new_rules)
+        try:
+            self._ddwaf.update_rules(new_rules)
+        except TypeError as e:
+            log.debug("Error updating RCM rules: %s", str(e))  # noqa: G200
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -218,36 +224,38 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = _asm_context.get_ip()
         headers = _asm_context.get_headers()
         headers_case_sensitive = _asm_context.get_headers_case_sensitive()
-        _context.set_items(
-            {
-                "http.request.headers": headers,
-                "http.request.headers_case_sensitive": headers_case_sensitive,
-            },
-            span=span,
-        )
 
-        if peer_ip is not None and headers is not None:
-            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
-            # Save the IP and headers in the context so the retrieval can be skipped later
-            _context.set_item("http.request.remote_ip", ip, span=span)
-            if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
-                data = {_Addresses.HTTP_CLIENT_IP: ip}
-                log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-                ddwaf_result = self._run_ddwaf(data)
+        if headers is not None:
+            _context.set_items(
+                {
+                    "http.request.headers": headers,
+                    "http.request.headers_case_sensitive": headers_case_sensitive,
+                },
+                span=span,
+            )
 
-                if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions:
-                    res_dict = json.loads(ddwaf_result.data)
-                    log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
-                    _context.set_items(
-                        {
-                            "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
-                            "http.request.waf_duration": ddwaf_result.runtime,
-                            "http.request.waf_duration_ext": ddwaf_result.total_runtime,
-                            "http.request.waf_actions": ddwaf_result.actions,
-                            "http.request.blocked": True,
-                        },
-                        span=span,
-                    )
+            if peer_ip is not None:
+                ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
+                # Save the IP and headers in the context so the retrieval can be skipped later
+                _context.set_item("http.request.remote_ip", ip, span=span)
+                if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
+                    data = {_Addresses.HTTP_CLIENT_IP: ip}
+                    log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+                    ddwaf_result = self._run_ddwaf(data)
+
+                    if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions:
+                        res_dict = json.loads(ddwaf_result.data)
+                        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
+                        _context.set_items(
+                            {
+                                "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
+                                "http.request.waf_duration": ddwaf_result.runtime,
+                                "http.request.waf_duration_ext": ddwaf_result.total_runtime,
+                                "http.request.waf_actions": ddwaf_result.actions,
+                                "http.request.blocked": True,
+                            },
+                            span=span,
+                        )
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -258,6 +266,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def _run_ddwaf(self, data):
+        # type: (DDWafRulesType) -> DDWaf_result
         return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
     def on_span_finish(self, span):
