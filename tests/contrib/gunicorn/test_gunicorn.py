@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 import json
 import os
-import platform
 import subprocess
+import sys
 import time
 from typing import Dict
 from typing import NamedTuple
@@ -11,13 +11,10 @@ from typing import Optional  # noqa
 import pytest
 import tenacity
 
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import stringify
 from tests.webclient import Client
 
 
-PYTHON_VERSION = tuple(int(v) for v in platform.python_version_tuple())
 SERVICE_INTERVAL = 1
 # this is the most direct manifestation i can find of a bug caused by misconfigured gunicorn+ddtrace
 MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL = b"RuntimeError: the memalloc module is already started"
@@ -51,13 +48,13 @@ def assert_no_profiler_error(server_process):
 
 def parse_payload(data):
     decoded = data
-    if PYTHON_VERSION[1] == 5:
+    if sys.version_info[1] == 5:
         decoded = data.decode("utf-8")
     return json.loads(decoded)
 
 
 def assert_remoteconfig_started_successfully(response, check_patch=True):
-    if PYTHON_VERSION[1] in (5, 11):
+    if sys.version_info[1] in (5, 11):
         return
     assert response.status_code == 200
     payload = parse_payload(response.content)
@@ -141,8 +138,6 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
     cmd += ["gunicorn", "--config", str(cfg_file), str(gunicorn_server_settings.app_path)]
-    if PY2:
-        cmd += ["--no-sendfile"]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
 
     server_process = subprocess.Popen(
@@ -186,18 +181,16 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
 )
 
 
-if PY3:
-
-    @pytest.mark.parametrize(
-        "gunicorn_server_settings",
-        [
-            SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-            SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
-        ],
-    )
-    def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
-        with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-            server_process, client = context
-            r = client.get("/")
-        assert_no_profiler_error(server_process)
-        assert_remoteconfig_started_successfully(r)
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
+    ],
+)
+def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
+    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+        server_process, client = context
+        r = client.get("/")
+    assert_no_profiler_error(server_process)
+    assert_remoteconfig_started_successfully(r)
