@@ -2602,11 +2602,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys="2.7",
-                    # Gunicorn ended Python 2 support after 19.10.0
-                    pkgs={"gunicorn": "==19.10.0", "gevent": "==1.1.0"},
-                ),
-                Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
