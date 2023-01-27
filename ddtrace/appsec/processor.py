@@ -279,8 +279,10 @@ class AppSecSpanProcessor(SpanProcessor):
         ddwaf_result = None
         try:
             ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-        except Exception:
-            log.warning("Error executing Appsec In-App WAF")
+        except OSError:
+            log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
+        except Exception as e:
+            log.warning("Error executing Appsec In-App WAF: %s", repr(e))
 
         try:
             info = self._ddwaf.info

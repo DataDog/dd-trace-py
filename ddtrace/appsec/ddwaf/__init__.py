@@ -119,15 +119,21 @@ if _DDWAF_LOADED:
             if error:
                 LOGGER.warning("DDWAF error: %d", error)
 
-            libddwaf_result = DDWaf_result(
-                result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
-                [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
-                result.total_runtime / 1e3,
-                (time.time() - start) * 1e6,
-            )
-            ddwaf_result_free(ctypes.byref(result))
-            ddwaf_context_destroy(ctx)
-            return libddwaf_result
+            try:
+                result = ddwaf_result()
+                try:
+                    return DDWaf_result(
+                        result.data.decode("UTF-8", errors="ignore")
+                        if hasattr(result, "data") and result.data
+                        else None,
+                        [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
+                        result.total_runtime / 1e3,
+                        (time.time() - start) * 1e6,
+                    )
+                finally:
+                    ddwaf_result_free(ctypes.byref(result))
+            finally:
+                ddwaf_context_destroy(ctx)
 
         def __dealloc__(self):
             ddwaf_destroy(self._handle)
