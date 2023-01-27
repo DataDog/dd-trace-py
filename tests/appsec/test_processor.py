@@ -504,7 +504,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
             )
 
     assert span.get_tag(APPSEC_JSON) is None
-    assert "Error executing Appsec In-App WAF: TypeError('expected c_long instead of int')" in caplog.text
+    assert "Error executing Appsec In-App WAF: TypeError('expected c_long instead of int'" in caplog.text
 
 
 def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
