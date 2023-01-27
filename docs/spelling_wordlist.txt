@@ -109,6 +109,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+loopback
 macOS
 mako
 mariadb
@@ -170,6 +171,7 @@ serializable
 sql
 sqlalchemy
 sqlite
+stacktrace
 starlette
 stringable
 subdomains

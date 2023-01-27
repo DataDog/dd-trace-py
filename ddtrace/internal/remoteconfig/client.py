@@ -2,7 +2,6 @@ import base64
 from datetime import datetime
 import hashlib
 import json
-import logging
 import re
 import sys
 from typing import Any
@@ -21,6 +20,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
@@ -36,7 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ProductCallback = Optional[Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]]
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
 
@@ -272,6 +272,9 @@ class RemoteConfigClient(object):
             self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = self._conn.getresponse()
             data = resp.read()
+        except OSError as e:
+            log.warning("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
+            return None
         finally:
             self._conn.close()
 

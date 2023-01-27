@@ -128,9 +128,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
     def test_flask_client_ip_header_set_by_env_var_valid(self):
-        with override_global_config(dict(_appsec_enabled=True)), override_env(
-            dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")
-        ):
+        with override_global_config(dict(_appsec_enabled=True, client_ip_header="X-Use-This")):
             self.client.get("/?a=1&b&c=d", headers={"HTTP_CLIENT_IP": "8.8.8.8", "X-Use-This": "4.4.4.4"})
             spans = self.pop_spans()
             root_span = spans[0]
