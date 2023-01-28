@@ -345,7 +345,8 @@ class RemoteConfigClient(object):
         paths = {_.path for _ in payload.target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
 
-        if set(payload.client_configs) > paths:
+        # !(payload.client_configs is a subset of paths or payload.client_configs is equal to paths)
+        if not set(payload.client_configs) <= paths:
             raise RemoteConfigError("Not all client configurations have target files")
 
         # 1. Deserialize targets
