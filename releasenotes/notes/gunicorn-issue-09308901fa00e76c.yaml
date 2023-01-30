@@ -1,3 +1,4 @@
 ---
-prelude: >
-  gunicorn: known issue: ddtrace-run does not work with gunicorn
+issues:
+  - |
+    gunicorn: ddtrace-run does not work with gunicorn
