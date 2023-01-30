@@ -25,17 +25,19 @@ NO_RETURN_VALUE = object()
 class CapturedEventWithContext(object):
     """CapturedEvent with context.
 
-    This is used to capture snapshot data for function invocation, whose return
-    value needs to be captured as well.
+    This is used to capture event for function invocation. the CapturedEventWithContext
+    would call the event.enter() and event.exit() when the function starts and ends.
+
+    The handler is triggered just after event.exit() is completed.
     """
 
     def __init__(
         self,
         event,  # type: CapturedEvent
-        commit,  # type: Callable[[CapturedEvent],None]
+        handler,  # type: Callable[[CapturedEvent],None]
     ):
         # type: (...) -> None
-        self._commit = commit
+        self._on_exit_handler = handler
         self.event = event
         self.return_value = NO_RETURN_VALUE  # type: Any
         self.duration = None  # type: Optional[int]
@@ -46,7 +48,7 @@ class CapturedEventWithContext(object):
         # type: (Any, ExcInfoType, int) -> None
         """Exit the snapshot context.
 
-        The arguments can be used to record a return value or an exception, and
+        The arguments are used to record either the return value or the exception, and
         the duration of the wrapped call.
         """
         self.return_value = retval
@@ -60,7 +62,7 @@ class CapturedEventWithContext(object):
     def __exit__(self, *exc_info):
         # type: (ExcInfoType) -> None
         self.event.exit(self.return_value, exc_info, self.duration)
-        self._commit(self.event)
+        self._on_exit_handler(self.event)
 
 
 class CapturedEventCollector(object):
