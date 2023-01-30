@@ -38,6 +38,12 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
 
@@ -187,7 +193,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
-            except json.decoder.JSONDecodeError:
+            except JSONDecodeError:
                 log.error(
                     "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
                 )
@@ -329,15 +335,22 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.HTTP_CLIENT_IP] = remote_ip
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+        ddwaf_result = None
+        total_runtime = 0
+        total_overall_runtime = 0
         blocked_request = _context.get_item("http.request.blocked", span=span)
         if not blocked_request:
-            ddwaf_result = self._run_ddwaf(data)
-            total_runtime = ddwaf_result.runtime
-            total_overall_runtime = ddwaf_result.total_runtime
+            try:
+                ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+                total_runtime = ddwaf_result.runtime
+                total_overall_runtime = ddwaf_result.total_runtime
+            except OSError:
+                log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
+            except Exception as e:
+                log.warning("Error executing Appsec In-App WAF: %s", repr(e))
         else:
             # Blocked requests call ddwaf earlier, so we already have the data
             total_runtime = _context.get_item("http.request.waf_duration", span=span)
-            total_overall_runtime = _context.get_item("http.request.waf_duration_ext", span=span)
 
         try:
             info = self._ddwaf.info
@@ -351,12 +364,12 @@ class AppSecSpanProcessor(SpanProcessor):
             if not blocked_request:
                 span.set_metric(APPSEC_WAF_DURATION, total_runtime)
                 span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
-        except (json.decoder.JSONDecodeError, ValueError):
+        except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if blocked_request or ddwaf_result.data is not None:
+        if blocked_request or (ddwaf_result and ddwaf_result.data is not None):
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)

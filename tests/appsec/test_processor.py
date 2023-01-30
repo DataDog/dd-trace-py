@@ -1,6 +1,8 @@
 import json
+import logging
 import os.path
 
+import mock
 import pytest
 from six import ensure_binary
 
@@ -21,6 +23,12 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
@@ -510,3 +518,115 @@ def test_ddwaf_info_with_3_errors():
         assert info.loaded == 1
         assert info.failed == 2
         assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+
+
+def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
+    tracer = tracer_appsec
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")), mock.patch(
+        "ddtrace.appsec.processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
+    ), mock.patch.object(DDWaf, "info"):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert "Error parsing data AppSec In-App WAF metrics report" in caplog.text
+
+
+def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
+    tracer = tracer_appsec
+
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), mock.patch(
+        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert span.get_tag(APPSEC_JSON) is None
+    assert "Error executing Appsec In-App WAF: TypeError('expected c_long instead of int'" in caplog.text
+
+
+def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
+    tracer = tracer_appsec
+
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), mock.patch(
+        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert span.get_tag(APPSEC_JSON) is None
+    assert "Error executing Appsec In-App WAF: \nTraceback (" in caplog.text

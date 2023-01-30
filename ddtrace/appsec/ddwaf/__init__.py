@@ -24,11 +24,12 @@ try:
     from .ddwaf_types import ddwaf_get_version
     from .ddwaf_types import ddwaf_init
     from .ddwaf_types import ddwaf_object
+    from .ddwaf_types import ddwaf_result
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
+    from .ddwaf_types import ddwaf_run
     from .ddwaf_types import ddwaf_update_rule_data
     from .ddwaf_types import py_ddwaf_required_addresses
-    from .ddwaf_types import py_ddwaf_run
 
     _DDWAF_LOADED = True
 except OSError:
@@ -109,18 +110,27 @@ if _DDWAF_LOADED:
 
             ctx = ddwaf_context_init(self._handle)
             if ctx == 0:
-                raise RuntimeError
+                LOGGER.error("DDWaf failure to create the context")
+                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
+
             try:
+                result = ddwaf_result()
                 wrapper = ddwaf_object(data)
-                error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
-                return DDWaf_result(
-                    result.data.decode("UTF-8") if result.data else None,
-                    [result.actions.array[i].decode("UTF-8") for i in range(result.actions.size)],
-                    result.total_runtime / 1e3,
-                    (time.time() - start) * 1e6,
-                )
+                error = ddwaf_run(ctx, wrapper, ctypes.byref(result), timeout_ms * 1000)
+                if error:
+                    LOGGER.warning("DDWAF error: %d", error)
+                try:
+                    return DDWaf_result(
+                        result.data.decode("UTF-8", errors="ignore")
+                        if hasattr(result, "data") and result.data
+                        else None,
+                        [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
+                        result.total_runtime / 1e3,
+                        (time.time() - start) * 1e6,
+                    )
+                finally:
+                    ddwaf_result_free(ctypes.byref(result))
             finally:
-                ddwaf_result_free(ctypes.byref(result))
                 ddwaf_context_destroy(ctx)
 
         def __dealloc__(self):
