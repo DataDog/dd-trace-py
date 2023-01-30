@@ -187,19 +187,9 @@ class RemoteConfigClient(object):
     and dispatches configurations to registered products.
     """
 
-    def __init__(self):
-        # type: () -> None
-        self.id = str(uuid.uuid4())
-        self.agent_url = agent_url = agent.get_trace_url()
-        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
-        self._headers = {"content-type": "application/json"}
-
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
-
+    @staticmethod
+    def _get_version():
+        # type: () -> str
         # The library uses a PEP 440-compliant versioning scheme, but the
         # RCM spec requires that we use a SemVer-compliant version.
         #
@@ -222,11 +212,25 @@ class RemoteConfigClient(object):
             tracer_version = tracer_version.replace("rc", "-rc", 1)
         elif ".dev" in tracer_version:
             tracer_version = tracer_version.replace(".dev", "-dev", 1)
+        return tracer_version
+
+    def __init__(self):
+        # type: () -> None
+        self.id = str(uuid.uuid4())
+        self.agent_url = agent_url = agent.get_trace_url()
+        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
+        self._headers = {"content-type": "application/json"}
+
+        container_info = container.get_container_info()
+        if container_info is not None:
+            container_id = container_info.container_id
+            if container_id is not None:
+                self._headers["Datadog-Container-Id"] = container_id
 
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            tracer_version=tracer_version,
+            tracer_version=self._get_version(),
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
@@ -341,6 +345,7 @@ class RemoteConfigClient(object):
         paths = {_.path for _ in payload.target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
 
+        # !(payload.client_configs is a subset of paths or payload.client_configs is equal to paths)
         if not set(payload.client_configs) <= paths:
             raise RemoteConfigError("Not all client configurations have target files")
 
@@ -353,7 +358,15 @@ class RemoteConfigClient(object):
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug("Retrieved client configs: %s", client_configs)
+        log.debug("Retrieved client configs last version %s: %s", last_targets_version, client_configs)
+
+        for target in payload.target_files:
+            if (payload.targets.signed.targets and not payload.targets.signed.targets.get(target.path)) and (
+                client_configs and not client_configs.get(target.path)
+            ):
+                raise RemoteConfigError(
+                    "target file %s not exists in client_config and signed targets" % (target.path,)
+                )
 
         # 2. Remove previously applied configurations
         applied_configs = dict()
@@ -418,8 +431,8 @@ class RemoteConfigClient(object):
         # type: () -> None
         try:
             state = self._build_state()
-            payload = json.dumps(self._build_payload(state), indent=2)
-            # log.debug("request payload: %r", payload)
+            payload = json.dumps(self._build_payload(state))
+
             response = self._send_request(payload)
             if response is None:
                 return
