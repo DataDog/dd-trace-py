@@ -82,7 +82,7 @@ def _wrap_request(func, instance, args, kwargs):
         span.set_tag_str("component", config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         setattr(instance, "_datadog_span", span)
 
@@ -128,7 +128,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span.set_tag_str("component", config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             setattr(instance, "_datadog_span", span)
 

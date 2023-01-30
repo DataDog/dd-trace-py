@@ -156,22 +156,22 @@ venv = Venv(
                 ),
             ],
         ),
-        # Venv(
-        #     pys=["3"],
-        #     name="mypy",
-        #     command="mypy {cmdargs}",
-        #     create=True,
-        #     pkgs={
-        #         "mypy": latest,
-        #         "envier": latest,
-        #         "types-attrs": latest,
-        #         "types-docutils": latest,
-        #         "types-protobuf": latest,
-        #         "types-PyYAML": latest,
-        #         "types-setuptools": latest,
-        #         "types-six": latest,
-        #     },
-        # ),
+        Venv(
+            pys=["3"],
+            name="mypy",
+            command="mypy {cmdargs}",
+            create=True,
+            pkgs={
+                "mypy": latest,
+                "envier": latest,
+                "types-attrs": latest,
+                "types-docutils": latest,
+                "types-protobuf": latest,
+                "types-PyYAML": latest,
+                "types-setuptools": latest,
+                "types-six": latest,
+            },
+        ),
         Venv(
             pys=["3"],
             pkgs={"codespell": "==2.1.0"},
@@ -186,16 +186,16 @@ venv = Venv(
                 ),
             ],
         ),
-        # Venv(
-        #     pys=["3"],
-        #     pkgs={"slotscheck": latest},
-        #     venvs=[
-        #         Venv(
-        #             name="slotscheck",
-        #             command="python -m slotscheck -v {cmdargs}",
-        #         ),
-        #     ],
-        # ),
+        Venv(
+            pys=["3"],
+            pkgs={"slotscheck": latest},
+            venvs=[
+                Venv(
+                    name="slotscheck",
+                    command="python -m slotscheck -v {cmdargs}",
+                ),
+            ],
+        ),
         Venv(
             pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},

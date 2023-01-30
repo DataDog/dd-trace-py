@@ -17,7 +17,7 @@
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
       "runtime-id": "49de64d4fd224f0f8f0298746c2cdee8",
-      "span.kind": "server"
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

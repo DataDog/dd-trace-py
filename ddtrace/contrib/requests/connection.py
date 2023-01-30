@@ -85,7 +85,7 @@ def _wrap_send(func, instance, args, kwargs):
         span.set_tag_str("component", config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

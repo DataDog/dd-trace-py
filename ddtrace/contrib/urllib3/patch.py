@@ -102,7 +102,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         span.set_tag_str("component", config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         if config.urllib3.split_by_domain:
             span.service = hostname
