@@ -24,4 +24,4 @@ if __name__ == "__main__":
     p = multiprocessing.Process(target=f)
     p.start()
     print(p.pid)
-    p.join()
+    p.join(120)
