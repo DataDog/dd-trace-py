@@ -13,6 +13,7 @@
       "component": "django-postgres",
       "django.db.alias": "postgres",
       "django.db.vendor": "postgresql",
+      "language": "python",
       "runtime-id": "f651afcdae8b4270b432fbff4ad63ca2"
     },
     "metrics": {

@@ -15,6 +15,7 @@
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:64246/template/",
       "http.useragent": "Python/3.8 aiohttp/3.8.3",
+      "language": "python",
       "runtime-id": "b1d89180ca5f4de1a9160d70e7149e78"
     },
     "metrics": {

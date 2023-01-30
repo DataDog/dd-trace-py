@@ -16,6 +16,7 @@
       "error.type": "exceptions.Exception",
       "http.method": "GET",
       "http.url": "http://localhost:80/error",
+      "language": "python",
       "runtime-id": "c8fcd5c1faf945f0ae5f194a3992723e"
     },
     "metrics": {

@@ -13,6 +13,7 @@
       "component": "rq",
       "job.func_name": "__call__",
       "job.id": "d0b994f5-b88e-4bcb-a0de-831410fee528",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -41,6 +42,7 @@
          "job.id": "d0b994f5-b88e-4bcb-a0de-831410fee528",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
@@ -83,6 +85,7 @@
       "component": "rq",
       "job.func_name": "job_on_class",
       "job.id": "db11d9d5-5d72-498e-b941-4bdfe6a8572b",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -111,6 +114,7 @@
          "job.id": "db11d9d5-5d72-498e-b941-4bdfe6a8572b",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
