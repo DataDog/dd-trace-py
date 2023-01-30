@@ -5,32 +5,28 @@ from typing import Dict
 from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
-from ...version import get_version
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
-from ..constants import TELEMETRY_APPSEC
-from ..constants import TELEMETRY_TRACER
+from ..constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
+from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
+from ..utils.version import _get_version_agent_format
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
-from .metrics import CountMetric
-from .metrics import GaugeMetric
-from .metrics import Metric
+from .metrics import MetricTagType
 from .metrics import MetricType
-from .metrics import RateMetric
+from .metrics_namespaces import MetricNamespace
 
 
 log = get_logger(__name__)
-
-NamespaceMetricType = Dict[str, Dict[str, Metric]]
 
 
 def _get_interval_or_default():
@@ -59,16 +55,16 @@ class TelemetryWriter(PeriodicService):
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
-        self._namespace = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}  # type: NamespaceMetricType
+        self._namespace = MetricNamespace()  # type: NamespaceMetricType
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
         forksafe.register(self._fork_writer)
-        self.metric_class = {"count": CountMetric, "gauge": GaugeMetric, "rate": RateMetric}
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
+        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEGUG", "false"))
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
@@ -111,10 +107,10 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_namespace_metrics(self):
         # type () -> List[Metric]
-        """Returns a list of all integrations queued by add_integration"""
+        """Returns a list of all generate-metrics"""
         with self._lock:
-            namespace_metrics = self._namespace.copy()
-            self._namespace = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}
+            namespace_metrics = self._namespace.get()
+            self._namespace._flush()
         return namespace_metrics
 
     def _flush_events_queue(self):
@@ -199,20 +195,13 @@ class TelemetryWriter(PeriodicService):
         """
         self._add_metric("count", namespace, name, value, tags)
 
-    def _add_metric(self, metric_type, namespace, name, value=1.0, tags=None):
-        # type: (MetricType, str,str, float, dict) -> None
+    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}):
+        # type: (MetricType, str,str, float, MetricTagType) -> None
         """
         Queues metric
         """
         with self._lock:
-            name = "dd.app_telemetry." + namespace + "." + name
-            metric = self._namespace[namespace].get(
-                name, self.metric_class[metric_type](namespace, name, metric_type, True, _get_interval_or_default())
-            )
-            metric.add_point(value)
-            self._namespace[namespace][name] = metric
-            if tags is not None:
-                self._namespace[namespace][name].set_tags(tags)
+            self._namespace._add_metric(metric_type, namespace, name, value, tags, interval=_get_interval_or_default())
 
     def _app_generate_metrics_event(self, namespace_metrics):
         # type: (NamespaceMetricType) -> None
@@ -221,10 +210,10 @@ class TelemetryWriter(PeriodicService):
                 payload = {
                     "namespace": namespace,
                     "lib_language": "python",
-                    "lib_version": "1.7.0",
+                    "lib_version": _get_version_agent_format(),
                     "series": [m.to_dict() for m in metrics.values()],
                 }
-                self.add_event(payload, "generate-metrics")
+                self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def add_event(self, payload, payload_type):
         # type: (Dict, str) -> None
@@ -322,7 +311,7 @@ class TelemetryWriter(PeriodicService):
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": sequence_id,
-            "debug": True,
+            "debug": self._debug,
             "application": get_application(config.service, config.version, config.env),
             "host": get_host_info(),
             "payload": payload,

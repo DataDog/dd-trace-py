@@ -6,6 +6,7 @@ from typing import Generator
 from typing import Tuple
 
 import attr
+import mock
 import pytest
 
 from ddtrace.internal.compat import httplib
@@ -56,7 +57,7 @@ class TelemetryTestSession(object):
         """
         status, body = self._request("GET", "/test/session/requests?test_session_token=%s" % self.token)
         if status != 200:
-            pytest.fail("Failed to fetch session requests: %s" % self.token)
+            pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = json.loads(body.decode("utf-8"))
         for req in requests:
             body_str = base64.b64decode(req["body"]).decode("utf-8")
@@ -79,7 +80,9 @@ class TelemetryTestSession(object):
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request)
-
+    telemetry_writer._flush_namespace_metrics()
+    telemetry_writer._flush_events_queue()
+    telemetry_writer._flush_integrations_queue()
     telemetry_writer._headers["X-Datadog-Test-Session-Token"] = token
 
     # Also add a header to the environment for subprocesses test cases that might use snapshotting.
@@ -103,6 +106,13 @@ def test_agent_session(telemetry_writer, request):
         yield requests
     finally:
         # Force a flush
-        telemetry_writer.periodic()
+        requests.clear()
         del telemetry_writer._headers["X-Datadog-Test-Session-Token"]
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
+
+
+@pytest.fixture(autouse=True)
+def mock_time():
+    with mock.patch("time.time") as mt:
+        mt.return_value = 1642544540
+        yield mt

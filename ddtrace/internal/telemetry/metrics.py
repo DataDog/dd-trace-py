@@ -12,6 +12,7 @@ from ..hostname import get_hostname
 
 
 MetricType = Literal["count", "gauge", "rate"]
+MetricTagType = Dict[str, str]
 
 
 class Metric(six.with_metaclass(abc.ABCMeta)):
@@ -21,23 +22,33 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
 
     HOST_NAME = get_hostname()
 
-    def __init__(self, namespace, metric, metric_type, common, interval=None):
-        # type: (str, str, MetricType, bool, Optional[int]) -> None
+    def __init__(self, namespace, name, metric_type, tags, common, interval=None):
+        # type: (str, str, MetricType, MetricTagType, bool, Optional[int]) -> None
         """
-        metric: metric name
+        name: metric name
         metric_type: type of metric (count/gauge/rate)
         common: set to True if a metric is common to all tracers, false if it is python specific
         interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
         """
-        self.metric = metric
+        self.name = name
         self.type = metric_type
         self.common = common
         self.interval = interval
         self._roll_up_interval = interval
         self.namespace = namespace
         self._points = []  # type: List[Tuple[int, int]]
-        self._tags = {}  # type: Dict[str, str]
+        self._tags = tags  # type: MetricTagType
         self._count = 0.0
+
+    @property
+    def id(self):
+        """
+        https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
+        """
+        return "".join([self.name, str(self._tags)])
+
+    def __hash__(self):
+        return self.id
 
     @abc.abstractmethod
     def add_point(self, value=1.0):
@@ -60,7 +71,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
         return {
             "host": self.HOST_NAME,
-            "metric": self.metric,
+            "name": self.name,
             "type": self.type,
             "common": self.common,
             "interval": int(self.interval),
@@ -70,6 +81,9 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
 
 
 class CountMetric(Metric):
+    """A count type adds up all the submitted values in a time interval. This would be suitable for a
+    metric tracking the number of website hits, for instance."""
+
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
@@ -80,6 +94,13 @@ class CountMetric(Metric):
 
 
 class GaugeMetric(Metric):
+    """
+    A gauge type takes the last value reported during the interval. This type would make sense for tracking RAM or
+    CPU usage, where taking the last value provides a representative picture of the host’s behavior during the time
+    interval. In this case, using a different type such as count would probably lead to inaccurate and extreme values.
+    Choosing the correct metric type ensures accurate data.
+    """
+
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
@@ -89,12 +110,16 @@ class GaugeMetric(Metric):
 
 
 class RateMetric(Metric):
+    """
+    The rate type takes the count and divides it by the length of the time interval. This is useful if you’re
+    interested in the number of hits per second.
+    """
+
     def add_point(self, value=1.0):
         # type: (float) -> None
-        """adds timestamped data point associated with a metric
+        """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
         timestamp = int(time.time())
         self._count += value
         self._points = [(timestamp, self._count / float(self.interval))]
-        # self._points.append((timestamp, value))
