@@ -56,10 +56,26 @@ services:
         image: redis:4.0-alpine
         ports:
             - "127.0.0.1:6379:6379"
+    zookeeper:
+      image: confluentinc/cp-zookeeper:7.3.1
+      environment:
+        - ZOOKEEPER_CLIENT_PORT=2181
+        - ZOOKEEPER_TICK_TIME=2000
+      ports:
+        - "127.0.0.1:22181:2181"
     kafka:
-        image: bitnami/kafka:3.3.2-debian-11-r2
-        ports:
-            - "127.0.0.1:9092:9092"
+      image: confluentinc/cp-kafka:7.3.1
+      ports:
+        - "127.0.0.1:29092:29092"
+      environment:
+        - KAFKA_BROKER_ID=1
+        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+        - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+        - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      depends_on:
+        - zookeeper
     rediscluster:
         image: grokzen/redis-cluster:6.2.0
         environment:

@@ -1,36 +1,34 @@
 # -*- coding: utf-8 -*-
 
-import ddtrace
-from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.redis.patch import patch
-from ddtrace.contrib.redis.patch import unpatch
-from tests.opentracer.utils import init_tracer
-from tests.utils import DummyTracer
+import confluent_kafka
+
+from ddtrace.contrib.kafka.patch import patch
+from ddtrace.contrib.kafka.patch import unpatch
 from tests.utils import TracerTestCase
-from tests.utils import snapshot
 
-from ..config import REDIS_CONFIG
+from ..config import KAFKA_CONFIG
 
 
-class TestRedisPatch(TracerTestCase):
-
-    TEST_PORT = REDIS_CONFIG["port"]
+class TestKafkaPatch(TracerTestCase):
+    TEST_PORT = KAFKA_CONFIG["port"]
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super(TestKafkaPatch, self).setUp()
         patch()
-        r = redis.Redis(port=self.TEST_PORT)
-        r.flushall()
-        Pin.override(r, tracer=self.tracer)
-        self.r = r
+        self.producer = confluent_kafka.Producer({"bootstrap.servers": "localhost:{}".format(self.TEST_PORT)})
+        self.consumer = confluent_kafka.Consumer({"bootstrap.servers": "localhost:{}".format(self.TEST_PORT)})
+        self.consumer.subscribe(["test_topic"])
 
     def tearDown(self):
+        self.consumer.close()
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super(TestKafkaPatch, self).tearDown()
 
-    def test_long_command(self):
-        self.r.mget(*range(1000))
+    def test_produce(self):
+        self.producer.produce("test_topic", bytes("hueh hueh hueh", encoding="utf-8"))
+        self.producer.flush()
+        message = self.consumer.poll(1.0)
+        assert message is not None
 
         spans = self.get_spans()
         assert len(spans) == 1

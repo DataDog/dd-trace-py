@@ -29,6 +29,7 @@ LATEST_VERSIONS = {
     "cherrypy": "18.8.0",
     "click": "8.1.3",
     "codespell": "2.2.2",
+    "confluent-kafka": "2.0.2",
     "coverage": "6.5.0",
     "cryptography": "38.0.4",
     "cython": "0.29.32",
