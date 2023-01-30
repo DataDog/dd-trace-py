@@ -70,14 +70,19 @@ def downstream_tracer():
 
 @pytest.mark.snapshot()
 def test_sampling_decision_downstream(downstream_tracer):
-    headers = {
+    """
+    Ensures that set_tag(MANUAL_DROP_KEY) on a span causes the sampling decision meta and sampling priority metric
+    to be set appropriately indicating rejection
+
+    """
+    headers_indicating_kept_trace = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
         "x-datadog-sampling-priority": "1",
         "x-datadog-tags": "_dd.p.dm=-1",
     }
-    context = HTTPPropagator.extract(headers)
-    downstream_tracer.context_provider.activate(context)
+    kept_trace_context = HTTPPropagator.extract(headers_indicating_kept_trace)
+    downstream_tracer.context_provider.activate(kept_trace_context)
 
-    with downstream_tracer.trace("p", service="downstream") as span:
-        span.set_tag(MANUAL_DROP_KEY)
+    with downstream_tracer.trace("p", service="downstream") as span_to_reject:
+        span_to_reject.set_tag(MANUAL_DROP_KEY)
