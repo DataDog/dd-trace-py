@@ -52,7 +52,7 @@ class SetHttpMeta(bm.Scenario):
     url = bm.var(type=str)
     querystring = bm.var(type=str)
     ip_header = bm.var(type=str)
-    ip_disabled = bm.var_bool()
+    ip_enabled = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
@@ -85,7 +85,7 @@ class SetHttpMeta(bm.Scenario):
         def bm(loops):
             with utils.override_env(
                 dict(
-                    DD_TRACE_CLIENT_IP_HEADER_DISABLED=str(self.ip_disabled),
+                    DD_TRACE_CLIENT_IP_ENABLED=str(self.ip_enabled),
                     DD_TRACE_CLIENT_IP_HEADER=self.ip_header,
                 )
             ):

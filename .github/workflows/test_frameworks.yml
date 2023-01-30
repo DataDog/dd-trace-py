@@ -53,11 +53,22 @@ jobs:
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1:
+    strategy:
+      matrix:
+        expl_profiler: [0, 1]
+        expl_coverage: [0 ,1]
+        exclude:
+          - expl_profiler: 1
+            expl_coverage: 1
+          - expl_profiler: 0
+            expl_coverage: 0
     runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
+      DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
@@ -97,6 +108,7 @@ jobs:
           sed -i'' 's/test_avoid_infinite_loop_on_too_many_subqueries/avoid_infinite_loop_on_too_many_subqueries/' tests/queries/tests.py
           sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
           sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
+          sed -i'' 's/test_django_admin_py_equivalent_main/django_admin_py_equivalent_main/' tests/admin_scripts/test_django_admin_py.py
 
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
