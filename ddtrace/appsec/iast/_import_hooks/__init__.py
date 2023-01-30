@@ -93,8 +93,6 @@ def _create_and_load_module_from_source(
 
 
 class _ImportHookPy3Loader(Loader):
-    __slots__ = ["_loader"]
-
     def __init__(self, loader):  # type: (Any) -> None
         self._loader = loader
 
@@ -182,8 +180,6 @@ class ImportHookFinder(MetaPathFinder):
 
     See PEP 302 (Python 2.3+).
     """
-
-    __slots__ = ["_skip"]
 
     def __init__(self):  # type: () -> None
         self._skip = set()  # type: Set[str]
