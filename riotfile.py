@@ -2608,6 +2608,18 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="kafka",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    command="pytest {cmdargs} tests/contrib/kafka",
+                    pkgs={
+                        "confluent-kafka": latest,
+                    },
+                ),
+            ],
+        ),
     ],
 )
 

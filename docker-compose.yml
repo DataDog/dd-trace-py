@@ -56,6 +56,10 @@ services:
         image: redis:4.0-alpine
         ports:
             - "127.0.0.1:6379:6379"
+    kafka:
+        image: bitnami/kafka:3.3.2-debian-11-r2
+        ports:
+            - "127.0.0.1:9092:9092"
     rediscluster:
         image: grokzen/redis-cluster:6.2.0
         environment:
