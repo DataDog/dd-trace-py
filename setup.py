@@ -363,7 +363,7 @@ setup(
         "opentracing": ["opentracing>=2.0.0"],
     },
     # plugin tox
-    tests_require=["tox", "flake8"],
+    tests_require=["tox", "flake8", "astunparse"],
     cmdclass={
         "test": Tox,
         "build_ext": BuildExtCommand,

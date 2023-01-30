@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+import sys
+
+import astunparse
 import pytest
 
-from ddtrace.appsec.iast.ast.ast_patching import visit_ast
 from ddtrace.appsec.iast.ast.ast_patching import astpatch_source
+from ddtrace.appsec.iast.ast.ast_patching import visit_ast
 
 
 @pytest.mark.parametrize(
@@ -51,7 +54,11 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     ],
 )
 def test_astpatch_source_changed(module_path, module_name):
-    assert ("", "") != astpatch_source(module_path, module_name)
+    module_path, new_source = astpatch_source(module_path, module_name)
+    assert ("", "") != (module_path, new_source)
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith("\nimport ddtrace.appsec.iast.ast.aspects as ddtrace_aspects")
+    assert "ddtrace_aspects.str_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
@@ -59,11 +66,20 @@ def test_astpatch_source_changed(module_path, module_name):
     [
         ("tests/appsec/iast/fixtures/aspects/str/function_no_str.py", "function_str"),
         ("tests/appsec/iast/fixtures/aspects/str/class_no_str.py", "class_str"),
+        ("tests/appsec/iast/fixtures/aspects/str/non_existent_invented_extension.cppy", "class_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str.class_no_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str.function_no_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str"),  # Empty __init__.py
-        (None, "tests.appsec.iast.fixtures.aspects.str.non_utf8_content"),  # Empty __init__.py
+        (None, "tests.appsec.iast.fixtures.aspects.str.non_utf8_content"),  # EUC-JP file content
     ],
 )
 def test_astpatch_source_unchanged(module_path, module_name):
     assert ("", "") == astpatch_source(module_path, module_name)
+
+
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+def test_astpatch_source_raises_exception():
+    with pytest.raises(Exception) as e:
+        astpatch_source(None, None)
+
+    assert e.value.args == ("Implementation Error: You must pass module_name and, optionally, module_path",)
