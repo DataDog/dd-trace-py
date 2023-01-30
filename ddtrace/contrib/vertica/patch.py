@@ -69,7 +69,7 @@ config._add(
                     },
                 },
             },
-            "h.vertica.cursor.Cursor": {
+            "vertica_python.vertica.cursor.Cursor": {
                 "routines": {
                     "execute": {
                         "operation_name": "vertica.query",
