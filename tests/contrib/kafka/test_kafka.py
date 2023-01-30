@@ -16,7 +16,13 @@ class TestKafkaPatch(TracerTestCase):
         super(TestKafkaPatch, self).setUp()
         patch()
         self.producer = confluent_kafka.Producer({"bootstrap.servers": "localhost:{}".format(self.TEST_PORT)})
-        self.consumer = confluent_kafka.Consumer({"bootstrap.servers": "localhost:{}".format(self.TEST_PORT)})
+        self.consumer = confluent_kafka.Consumer(
+            {
+                "bootstrap.servers": "localhost:{}".format(self.TEST_PORT),
+                "group.id": "test_group",
+                "auto.offset.reset": "earliest",
+            }
+        )
         self.consumer.subscribe(["test_topic"])
 
     def tearDown(self):
@@ -27,7 +33,10 @@ class TestKafkaPatch(TracerTestCase):
     def test_produce(self):
         self.producer.produce("test_topic", bytes("hueh hueh hueh", encoding="utf-8"))
         self.producer.flush()
-        message = self.consumer.poll(1.0)
+        message = None
+        while message is None:
+            message = self.consumer.poll(1.0)
+        print(message)
         assert message is not None
 
         spans = self.get_spans()
