@@ -146,7 +146,7 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 class _ImportHookChainedLoader(Loader):
     def __init__(self, loader, module_spec=None):
-        # type: (Loader) -> None
+        # type: (Loader, Optional[ModuleSpec]) -> None
         self.loader = loader
         self.module_spec = module_spec
 
