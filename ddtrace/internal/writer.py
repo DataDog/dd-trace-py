@@ -604,9 +604,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.bytes", len(encoded), {})
                     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.traces", n_traces, {})
                     for name, metric in self._metrics.items():
-                        telemetry_writer.add_count_metric(
-                            TELEMETRY_TRACER, "%s" % name, metric["count"], metric["tags"]
-                        )
+                        telemetry_writer.add_count_metric(TELEMETRY_TRACER, name, metric["count"], metric["tags"])
         finally:
             self._set_drop_rate()
             self._metrics_reset()

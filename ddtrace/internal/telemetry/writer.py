@@ -1,6 +1,9 @@
 import os
 import time
+from typing import Any
 from typing import Dict
+from typing import List
+from typing import Optional
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -8,6 +11,7 @@ from ...settings import _config as config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
+from ..compat import httplib
 from ..constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
@@ -24,6 +28,7 @@ from .data import get_host_info
 from .metrics import MetricTagType
 from .metrics import MetricType
 from .metrics_namespaces import MetricNamespace
+from .metrics_namespaces import NamespaceMetricType
 
 
 log = get_logger(__name__)
@@ -55,7 +60,7 @@ class TelemetryWriter(PeriodicService):
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
-        self._namespace = MetricNamespace()  # type: NamespaceMetricType
+        self._namespace = MetricNamespace()
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
         forksafe.register(self._fork_writer)
@@ -174,22 +179,22 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         self.join()
 
-    def add_gauge_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, float, dict) -> None
+    def add_gauge_metric(self, namespace, name, value, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
         self._add_metric("gauge", namespace, name, value, tags)
 
-    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, dict) -> None
+    def add_rate_metric(self, namespace, name, value=1.0, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
         self._add_metric("rate", namespace, name, value, tags)
 
-    def add_count_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, dict) -> None
+    def add_count_metric(self, namespace, name, value=1.0, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
@@ -216,7 +221,7 @@ class TelemetryWriter(PeriodicService):
                 self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def add_event(self, payload, payload_type):
-        # type: (Dict, str) -> None
+        # type: (Dict[str, Any], str) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 

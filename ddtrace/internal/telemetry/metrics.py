@@ -23,7 +23,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     HOST_NAME = get_hostname()
 
     def __init__(self, namespace, name, metric_type, tags, common, interval=None):
-        # type: (str, str, MetricType, MetricTagType, bool, Optional[int]) -> None
+        # type: (str, str, MetricType, MetricTagType, bool, Optional[float]) -> None
         """
         name: metric name
         metric_type: type of metric (count/gauge/rate)
@@ -36,7 +36,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.interval = interval
         self._roll_up_interval = interval
         self.namespace = namespace
-        self._points = []  # type: List[Tuple[int, int]]
+        self._points = []  # type: List[Tuple[int, float]]
         self._tags = tags  # type: MetricTagType
         self._count = 0.0
 
@@ -74,15 +74,17 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "name": self.name,
             "type": self.type,
             "common": self.common,
-            "interval": int(self.interval),
+            "interval": int(self.interval) if self.interval else None,
             "points": self._points,
             "tags": self._tags,
         }
 
 
 class CountMetric(Metric):
-    """A count type adds up all the submitted values in a time interval. This would be suitable for a
-    metric tracking the number of website hits, for instance."""
+    """
+    A count type adds up all the submitted values in a time interval. This would be suitable for a
+    metric tracking the number of website hits, for instance.
+    """
 
     def add_point(self, value=1.0):
         # type: (float) -> None
@@ -122,4 +124,5 @@ class RateMetric(Metric):
         """
         timestamp = int(time.time())
         self._count += value
-        self._points = [(timestamp, self._count / float(self.interval))]
+        rate = (self._count / float(self.interval)) if self.interval else 0.0
+        self._points = [(timestamp, rate)]
