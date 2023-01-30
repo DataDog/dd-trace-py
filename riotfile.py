@@ -242,6 +242,7 @@ venv = Venv(
             pkgs={
                 "pycryptodome": latest,
                 "cryptography": latest,
+                "astunparse": latest,
             },
         ),
         Venv(
