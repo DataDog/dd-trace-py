@@ -172,7 +172,6 @@ def _create_span(pin, handler_call_details, method_kind):
         resource=handler_call_details.method,
     )
 
-    # set component tag equal to name of integration
     span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
 
     span.set_tag(SPAN_MEASURED_KEY)

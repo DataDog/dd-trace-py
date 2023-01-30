@@ -39,7 +39,6 @@ def execute(func, handler, args, kwargs):
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
         request_span.set_tag_str(COMPONENT, config.tornado.integration_name)
 
         request_span.set_tag(SPAN_MEASURED_KEY)

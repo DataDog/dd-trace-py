@@ -122,7 +122,6 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
         req_span.set_tag_str(COMPONENT, self._config.integration_name)
 
         self._request_span_modifier(req_span, environ)
@@ -130,7 +129,6 @@ class _DDWSGIMiddlewareBase(object):
         try:
             app_span = self.tracer.trace(self._application_span_name)
 
-            # set component tag equal to name of integration
             app_span.set_tag_str(COMPONENT, self._config.integration_name)
 
             intercept_start_response = functools.partial(
@@ -149,7 +147,6 @@ class _DDWSGIMiddlewareBase(object):
         # start_span(child_of=...) is used to ensure correct parenting.
         resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
 
-        # set component tag equal to name of integration
         resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
         self._response_span_modifier(resp_span, result)
@@ -250,7 +247,6 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             span_type=SpanTypes.WEB,
             activate=True,
         ) as span:
-            # set component tag equal to name of integration
             span.set_tag_str(COMPONENT, self._config.integration_name)
 
             return start_response(status, environ, exc_info)

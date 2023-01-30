@@ -80,7 +80,6 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     with tracer.trace("requests.request", service=service, span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.requests.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)

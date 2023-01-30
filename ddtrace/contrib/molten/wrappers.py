@@ -20,7 +20,6 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
     with pin.tracer.trace(
         func_name(wrapped), service=trace_utils.int_service(pin, config.molten), resource=resource
     ) as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         return wrapped(*args, **kwargs)
@@ -39,7 +38,6 @@ def trace_func(resource):
         with pin.tracer.trace(
             func_name(wrapped), service=trace_utils.int_service(pin, config.molten, pin), resource=resource
         ) as span:
-            # set component tag equal to name of integration
             span.set_tag_str(COMPONENT, config.molten.integration_name)
 
             return wrapped(*args, **kwargs)

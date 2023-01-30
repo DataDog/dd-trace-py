@@ -29,7 +29,6 @@ def generate(func, renderer, args, kwargs):
     with pin.tracer.trace(
         "tornado.template", service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE
     ) as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.tornado.integration_name)
 
         span.set_tag_str("tornado.template_name", template_name)

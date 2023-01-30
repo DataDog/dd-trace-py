@@ -31,7 +31,6 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     template_meta = "%s/%s" % (template_prefix, template_name)
 
     with pin.tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.aiohttp_jinja2.integration_name)
 
         span.set_tag_str("aiohttp.template", template_meta)

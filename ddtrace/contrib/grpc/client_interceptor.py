@@ -181,7 +181,6 @@ class _ClientInterceptor(
             resource=client_call_details.method,
         )
 
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.grpc.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)

@@ -55,7 +55,6 @@ def patched_api_call(original_func, instance, args, kwargs):
         "pynamodb.command", service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), span_type=SpanTypes.HTTP
     ) as span:
 
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)

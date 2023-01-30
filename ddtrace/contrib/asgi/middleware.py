@@ -121,7 +121,6 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, self.integration_config.integration_name)
 
         if "datadog" not in scope:

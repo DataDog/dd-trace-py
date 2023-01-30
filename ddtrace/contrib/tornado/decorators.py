@@ -59,7 +59,6 @@ def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=No
     """
     span = tracer.trace(span_name, service=service, resource=resource, span_type=span_type)
 
-    # set component tag equal to name of integration
     span.set_tag_str(COMPONENT, config.tornado.integration_name)
 
     # catch standard exceptions raised in synchronous executions

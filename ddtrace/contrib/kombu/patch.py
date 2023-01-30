@@ -94,7 +94,6 @@ def traced_receive(func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
     with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
-        # set component tag equal to name of integration
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         s.set_tag(SPAN_MEASURED_KEY)
@@ -116,7 +115,6 @@ def traced_publish(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
-        # set component tag equal to name of integration
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         s.set_tag(SPAN_MEASURED_KEY)

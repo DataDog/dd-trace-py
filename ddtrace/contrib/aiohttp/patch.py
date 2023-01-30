@@ -71,7 +71,6 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
 
         # Params can be included separate of the URL so the URL has to be constructed

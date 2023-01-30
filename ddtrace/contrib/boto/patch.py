@@ -87,7 +87,6 @@ def patched_query_request(original_func, instance, args, kwargs):
         service="{}.{}".format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
@@ -192,7 +191,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         return result

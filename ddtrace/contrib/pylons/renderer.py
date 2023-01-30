@@ -34,7 +34,6 @@ def _traced_renderer(wrapped, instance, args, kwargs):
     """Traced renderer"""
     tracer = config[CONFIG_MIDDLEWARE]._tracer
     with tracer.trace("pylons.render") as span:
-        # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, ddconfig.pylons.integration_name)
 
         template_name = get_argument_value(args, kwargs, 0, "template_name")

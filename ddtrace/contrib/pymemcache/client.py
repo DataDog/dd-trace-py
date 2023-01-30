@@ -148,7 +148,6 @@ class WrappedClient(wrapt.ObjectProxy):
             span_type=SpanTypes.CACHE,
         ) as span:
 
-            # set component tag equal to name of integration
             span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)

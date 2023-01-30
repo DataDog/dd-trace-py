@@ -35,7 +35,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
-            # set component tag equal to name of integration
             s.set_tag_str(COMPONENT, config.aiopg.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
