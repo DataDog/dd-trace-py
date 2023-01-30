@@ -12,7 +12,6 @@ PY27_37 = sys.version_info < (3, 8, 0)
 class AstVisitor(ast.NodeTransformer):
     def __init__(
         self,
-        avoid_check_funcs=False,
         filename="",
         module_name="",
     ):
@@ -26,19 +25,10 @@ class AstVisitor(ast.NodeTransformer):
             },
         }
         self._aspect_functions = self._aspects_spec["functions"]
-        self._avoid_check_funcs = avoid_check_funcs
 
         self.ast_modified = False
         self.filename = filename
         self.module_name = module_name
-
-        # Save import as original names (Scope: file)
-        self.as_names = dict()
-        self._current_function_name = None
-
-        # This will be enabled when we find a module and function where we avoid doing
-        # replacements and enabled again on all the others
-        self.replacements_disabled_for_functiondef = False
 
     def _node(self, type_, pos_from_node, **kwargs):  # type: (Any, Any, Any) -> Any
         """

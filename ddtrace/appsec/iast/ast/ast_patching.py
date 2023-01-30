@@ -34,10 +34,8 @@ def get_encoding(module_path):  # type: (str) -> str
 
 def visit_ast(
     source_text,  # type: str
-    avoid_check_funcs,  # type: bool
     module_path,  # type: str
     module_name="",  # type: str
-    debug_mode=False,  # type: bool
 ):  # type: (...) -> str
     parsed_ast = ast.parse(source_text, module_path)
 
@@ -45,7 +43,6 @@ def visit_ast(
         from ddtrace.appsec.iast.ast.visitor import AstVisitor
 
         visitor = AstVisitor(
-            avoid_check_funcs,
             filename=module_path,
             module_name=module_name,
         )
@@ -63,7 +60,6 @@ def visit_ast(
 def astpatch_source(
     module_path="",  # type: str
     module_name="",  # type: str
-    avoid_check_funcs=False,  # type: bool
 ):  # type: (...) -> Tuple[str, str]
 
     if not module_path and not module_name:
@@ -112,7 +108,6 @@ def astpatch_source(
 
     new_source = visit_ast(
         source_text,
-        avoid_check_funcs,
         module_path,
         module_name=module_name,
     )
