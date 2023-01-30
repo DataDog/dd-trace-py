@@ -15,7 +15,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Tracer
     from ddtrace.settings import Config
 
-
 from six.moves.urllib.parse import quote
 
 import ddtrace
@@ -121,10 +120,18 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(self._pin, self._config),
             span_type=SpanTypes.WEB,
         )
+
+        # set component tag equal to name of integration
+        req_span.set_tag_str("component", self._config.integration_name)
+
         self._request_span_modifier(req_span, environ)
 
         try:
             app_span = self.tracer.trace(self._application_span_name)
+
+            # set component tag equal to name of integration
+            app_span.set_tag_str("component", self._config.integration_name)
+
             intercept_start_response = functools.partial(
                 self._traced_start_response, start_response, req_span, app_span
             )
@@ -140,6 +147,10 @@ class _DDWSGIMiddlewareBase(object):
         # start flask.response span. This span will be finished after iter(result) is closed.
         # start_span(child_of=...) is used to ensure correct parenting.
         resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+
+        # set component tag equal to name of integration
+        resp_span.set_tag_str("component", self._config.integration_name)
+
         self._response_span_modifier(resp_span, result)
 
         return _TracedIterable(iter(result), resp_span, req_span)
@@ -237,7 +248,10 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             service=trace_utils.int_service(None, self._config),
             span_type=SpanTypes.WEB,
             activate=True,
-        ):
+        ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", self._config.integration_name)
+
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ):

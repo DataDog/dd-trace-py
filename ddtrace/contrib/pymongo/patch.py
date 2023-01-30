@@ -69,6 +69,9 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pymongo.integration_name)
+
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
             span.set_tag(SPAN_MEASURED_KEY)

@@ -77,6 +77,9 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         operation_name = "{}.read".format(self._self_parent_span.name)
 
         with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.aiobotocore.integration_name)
+
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
@@ -111,6 +114,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.aiobotocore.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
