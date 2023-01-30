@@ -4,8 +4,8 @@ import sys
 import astunparse
 import pytest
 
-from ddtrace.appsec.iast.ast.ast_patching import astpatch_source
-from ddtrace.appsec.iast.ast.ast_patching import visit_ast
+from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
+from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
 
 @pytest.mark.parametrize(
@@ -57,7 +57,7 @@ def test_astpatch_source_changed(module_path, module_name):
     module_path, new_source = astpatch_source(module_path, module_name)
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
-    assert new_code.startswith("\nimport ddtrace.appsec.iast.ast.aspects as ddtrace_aspects")
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
     assert "ddtrace_aspects.str_aspect(" in new_code
 
 

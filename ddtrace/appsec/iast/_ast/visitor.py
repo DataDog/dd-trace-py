@@ -18,7 +18,7 @@ class AstVisitor(ast.NodeTransformer):
 
         # Offset caused by inserted lines. Will be adjusted in visit_Generic
         self._aspects_spec = {
-            "definitions_module": "ddtrace.appsec.iast.ast.aspects",
+            "definitions_module": "ddtrace.appsec.iast._ast.aspects",
             "alias_module": "ddtrace_aspects",
             "functions": {
                 "str": "ddtrace_aspects.str_aspect",

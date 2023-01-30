@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 import pytest
 
-from ddtrace.appsec.iast.ast.aspects import str_aspect
+from ddtrace.appsec.iast._ast.aspects import str_aspect
 
 
 @pytest.mark.parametrize(
-    "obj, encoding, errors",
+    "obj, kwargs",
     [
-        (3.5, None, None),
-        (u"Hi", None, None),
-        (b"Hi", None, None),
-        ("🙀", None, None),
-        ({"a": "b", "c": "d"}, None, None),
-        ({"a", "b", "c", "d"}, None, None),
-        (("a", "b", "c", "d"), None, None),
-        (["a", "b", "c", "d"], None, None),
-
+        (3.5, {}),
+        (u"Hi", {}),
+        ("🙀", {}),
+        (b"Hi", {}),
+        (b"Hi", {"encoding": "utf-8", "errors": "strict"}),
+        (b"Hi", {"encoding": "utf-8", "errors": "ignore"}),
+        ({"a": "b", "c": "d"}, {}),
+        ({"a", "b", "c", "d"}, {}),
+        (("a", "b", "c", "d"), {}),
+        (["a", "b", "c", "d"], {}),
     ],
 )
-def test_str_aspect(obj, encoding, errors):
-    assert str_aspect(obj, encoding, errors) == str(obj, encoding, errors)
+def test_str_aspect(obj, kwargs):
+    assert str_aspect(obj, **kwargs) == str(obj, **kwargs)

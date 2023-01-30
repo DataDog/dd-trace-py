@@ -40,7 +40,7 @@ def visit_ast(
     parsed_ast = ast.parse(source_text, module_path)
 
     try:
-        from ddtrace.appsec.iast.ast.visitor import AstVisitor
+        from ddtrace.appsec.iast._ast.visitor import AstVisitor
 
         visitor = AstVisitor(
             filename=module_path,

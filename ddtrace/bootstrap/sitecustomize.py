@@ -93,7 +93,7 @@ try:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", default=False)) and sys.version_info[0] >= 3:  # IAST (only Py3 compatible)
-        from ddtrace.appsec.iast.import_hooks import initialize_iast_import_hooks
+        from ddtrace.appsec.iast._import_hooks import initialize_iast_import_hooks
 
         initialize_iast_import_hooks()
 

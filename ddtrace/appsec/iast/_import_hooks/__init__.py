@@ -14,7 +14,7 @@ from typing import Sequence
 from typing import Set
 from typing import Union
 
-from ddtrace.appsec.iast.ast import ast_patching
+from ddtrace.appsec.iast._ast import ast_patching
 
 
 _PY37 = sys.version_info >= (3, 7, 0)
