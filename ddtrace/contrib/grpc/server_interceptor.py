@@ -2,6 +2,7 @@ import grpc
 
 from ddtrace import config
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -74,7 +75,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         )
 
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.grpc_server.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

@@ -3,6 +3,7 @@ import os
 from yarl import URL
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -71,7 +72,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             kwargs["headers"] = headers
 
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.aiohttp_client.integration_name)
+        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.

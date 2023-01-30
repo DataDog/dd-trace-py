@@ -10,6 +10,7 @@ from pymemcache.exceptions import MemcacheUnknownError
 
 # 3p
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 # project
@@ -148,7 +149,7 @@ class WrappedClient(wrapt.ObjectProxy):
         ) as span:
 
             # set component tag equal to name of integration
-            span.set_tag_str("component", config.pymemcache.integration_name)
+            span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate

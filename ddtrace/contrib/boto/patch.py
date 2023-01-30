@@ -9,6 +9,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import debtcollector
@@ -87,7 +88,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         span_type=SpanTypes.HTTP,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.boto.integration_name)
+        span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -192,7 +193,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.boto.integration_name)
+        span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         return result
 

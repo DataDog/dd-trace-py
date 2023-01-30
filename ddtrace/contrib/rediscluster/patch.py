@@ -9,6 +9,7 @@ from ddtrace.contrib.redis.patch import traced_execute_command
 from ddtrace.contrib.redis.patch import traced_pipeline
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import redis as redisx
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
@@ -76,7 +77,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
         span_type=SpanTypes.REDIS,
     ) as s:
-        s.set_tag_str("component", config.rediscluster.integration_name)
+        s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))

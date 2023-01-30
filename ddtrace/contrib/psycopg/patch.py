@@ -12,6 +12,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
@@ -147,7 +148,7 @@ def patched_connect(connect_func, _, args, kwargs):
             "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
         ) as span:
             # set component tag equal to name of integration
-            span.set_tag_str("component", config.psycopg.integration_name)
+            span.set_tag_str(COMPONENT, config.psycopg.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

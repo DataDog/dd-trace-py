@@ -26,6 +26,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.compat import stringify
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -117,7 +118,7 @@ def _traced_parse(func, args, kwargs):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
@@ -138,7 +139,7 @@ def _traced_validate(func, args, kwargs):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
@@ -169,7 +170,7 @@ def _traced_execute(func, args, kwargs):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
@@ -197,7 +198,7 @@ def _traced_query(func, args, kwargs):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
         span.set_tag(SPAN_MEASURED_KEY)
@@ -229,7 +230,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str("component", config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         return next_middleware(root, info, **args)
 

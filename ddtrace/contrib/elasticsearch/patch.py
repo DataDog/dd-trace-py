@@ -2,6 +2,7 @@ from importlib import import_module
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -75,7 +76,7 @@ def _get_perform_request(elasticsearch):
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             # set component tag equal to name of integration
-            span.set_tag_str("component", config.elasticsearch.integration_name)
+            span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
 
