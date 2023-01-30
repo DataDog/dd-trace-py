@@ -18,7 +18,7 @@ def get_encoding(module_path):  # type: (str) -> str
     otherwise, returns global encoding default
     """
     try:
-        res = chardet.detect(module_path)  # type: ignore
+        res = chardet.detect(module_path)
         return res["encoding"]
     except TypeError:
         pass
