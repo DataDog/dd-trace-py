@@ -13,6 +13,7 @@ LATEST_VERSIONS = {
     "algoliasearch": "2.6.2",
     "aredis": "1.1.8",
     "asgiref": "3.5.2",
+    "astunparse": "1.6.3",
     "async-timeout": "4.0.2",
     "async_generator": "1.10",
     "asyncpg": "0.27.0",
