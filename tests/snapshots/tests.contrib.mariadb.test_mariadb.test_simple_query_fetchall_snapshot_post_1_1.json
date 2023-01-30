@@ -13,6 +13,7 @@
       "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
@@ -45,6 +46,7 @@
       "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },

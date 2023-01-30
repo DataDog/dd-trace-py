@@ -19,6 +19,7 @@
       "http.route": "include/test/",
       "http.status_code": "200",
       "http.url": "http://testserver/include/test/",
+      "language": "python",
       "runtime-id": "3a330969456446cd8d36553672a50858"
     },
     "metrics": {

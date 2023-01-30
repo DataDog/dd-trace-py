@@ -22,6 +22,7 @@
       "http.url": "http://localhost:8000/error-500/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "c4afcba4eb8c49c981a86cd803b6357b"
     },
     "metrics": {

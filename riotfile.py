@@ -192,7 +192,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="slotscheck",
-                    command="python -m slotscheck -v {cmdargs}",
+                    command="python -m slotscheck -v ddtrace/",
                 ),
             ],
         ),
@@ -1295,8 +1295,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "requests": latest,
                 "aiofiles": latest,
-                # Pinned until https://github.com/encode/databases/issues/298 is resolved.
-                "sqlalchemy": "~=1.3.0",
+                "sqlalchemy": latest,
                 "aiosqlite": latest,
                 "databases": latest,
             },
