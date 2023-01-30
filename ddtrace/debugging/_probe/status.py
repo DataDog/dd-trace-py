@@ -7,10 +7,10 @@ from typing import Tuple
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import BufferedEncoder
-from ddtrace.debugging._encoding import _unwind_stack
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._snapshot import utils
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -49,7 +49,7 @@ class ProbeStatusLogger(object):
             payload["debugger"]["diagnostics"]["exception"] = {  # type: ignore[index]
                 "type": exc_type.__name__,
                 "message": str(exc),
-                "stacktrace": _unwind_stack(tb.tb_frame),
+                "stacktrace": utils.capture_stack(tb.tb_frame),
             }
 
         return json.dumps(payload)
