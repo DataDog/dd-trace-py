@@ -26,6 +26,7 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
         _dbm_propagation_supported=True,
+        dbms_name="postgresql",
     ),
 )
 
@@ -108,6 +109,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
+        db.SYSTEM: config.psycopg.dbms_name,
         "db.application": dsn.get("application_name"),
     }
 
@@ -148,6 +150,9 @@ def patched_connect(connect_func, _, args, kwargs):
         ) as span:
             # set component tag equal to name of integration
             span.set_tag_str("component", config.psycopg.integration_name)
+            # set DBMS type if not set by a higher-order API (e.g. mysql client, sqlalchemy extension...)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)
