@@ -32,7 +32,6 @@ class MetricNamespace:
 
     def validate_type_metric(self, metric_check, metric_to_validate):
         # type: (Metric, Metric) -> bool
-        """ """
         if metric_check.__class__ == metric_to_validate.__class__:
             return True
         return False

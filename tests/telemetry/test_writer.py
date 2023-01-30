@@ -6,13 +6,9 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.constants import TELEMETRY_APPSEC
-from ddtrace.internal.constants import TELEMETRY_TRACER
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import get_version
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
