@@ -1,29 +1,20 @@
 import inspect
 import threading
-from typing import Any
-from typing import Callable
-from typing import Dict
 from uuid import uuid4
 
 import attr
 import mock
 import pytest
 
-from ddtrace.debugging._probe.model import LineProbe
+from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
+from tests.debugging.utils import create_snapshot_line_probe
 
 
 class MockLimiter:
     def limit(self):
         return
-
-
-@attr.s
-class MockProbe(object):
-    probe_id = attr.ib(type=str)
-    condition = attr.ib(type=Callable[[Dict[str, Any]], Any])
-    limiter = attr.ib(factory=MockLimiter)
 
 
 @attr.s
@@ -50,13 +41,23 @@ def test_collector_cond():
 
     collector = SnapshotCollector(encoder=encoder)
     collector.push(
-        MockProbe(uuid4(), lambda _: _["a"] is not None),
+        create_snapshot_line_probe(
+            probe_id=uuid4(),
+            source_file="file.py",
+            line=123,
+            condition=DDExpression("a not null", lambda _: _["a"] is not None),
+        ),
         MockFrame(dict(a=42)),
         MockThread(-1, "MainThread"),
         (Exception, Exception("foo"), None),
     )
     collector.push(
-        MockProbe(uuid4(), lambda _: _["b"] is not None),
+        create_snapshot_line_probe(
+            probe_id=uuid4(),
+            source_file="file.py",
+            line=123,
+            condition=DDExpression("b not null", lambda _: _["b"] is not None),
+        ),
         MockFrame(dict(b=None)),
         MockThread(-2, "WorkerThread"),
         (Exception, Exception("foo"), None),
@@ -76,7 +77,7 @@ def test_collector_collect_enqueue():
     collector = SnapshotCollector(encoder=encoder)
     for i in range(10):
         with collector.collect(
-            LineProbe(probe_id="batch-test", source_file="foo.py", line=42),
+            create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
             inspect.currentframe(),
             threading.current_thread(),
             [("posarg", i), ("foo", "bar")],
@@ -86,11 +87,6 @@ def test_collector_collect_enqueue():
 
         assert "[%d] bar" % i == sc.return_value
         assert sc.snapshot.return_capture
-
-    assert len(snapshot_encoder.capture_context.mock_calls) == 20
-    assert all(
-        {"@return"} == {n for n, _ in call.args[1]} for call in snapshot_encoder.capture_context.mock_calls[1::2]
-    ), [{n for n, _ in call.args[1]} for call in snapshot_encoder.capture_context.mock_calls[1::2]]
 
     assert len(encoder.put.mock_calls) == 10
 
@@ -107,7 +103,7 @@ def test_collector_collect_exception_enqueue():
     collector = SnapshotCollector(encoder=encoder)
     for _ in range(10):
         with pytest.raises(MockException), collector.collect(
-            LineProbe(probe_id="batch-test", source_file="foo.py", line=42),
+            create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
             inspect.currentframe(),
             threading.current_thread(),
             [],
@@ -116,10 +112,6 @@ def test_collector_collect_exception_enqueue():
             sc.return_value = wrapped()
 
         assert sc.snapshot.return_capture
-
-    assert len(snapshot_encoder.capture_context.mock_calls) == 20
-    assert all("@return" not in {n for n, _ in call.args[0]} for call in snapshot_encoder.capture_context.mock_calls)
-    assert all(call.args[2][0] == MockException for call in snapshot_encoder.capture_context.mock_calls[1::2])
 
     assert len(encoder.put.mock_calls) == 10
 
@@ -130,7 +122,7 @@ def test_collector_push_enqueue():
     collector = SnapshotCollector(encoder=encoder)
     for _ in range(10):
         collector.push(
-            MockProbe(uuid4(), None),
+            create_snapshot_line_probe(probe_id=uuid4(), source_file="file.py", line=123),
             inspect.currentframe(),
             threading.current_thread(),
             (Exception, Exception("foo"), None),

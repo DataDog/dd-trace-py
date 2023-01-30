@@ -19,6 +19,7 @@
       "django.response.class": "django.http.response.HttpResponse",
       "django.user.is_authenticated": "False",
       "django.view": "tests.contrib.django.views.index",
+      "http.client_ip": "127.0.0.1",
       "http.method": "GET",
       "http.route": "^$",
       "http.status_code": "200",
@@ -26,6 +27,7 @@
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
       "language": "python",
+      "network.client.ip": "127.0.0.1",
       "runtime-id": "70ff6f724192483fa0e78b88ca692feb",
       "span.kind": "server"
     },

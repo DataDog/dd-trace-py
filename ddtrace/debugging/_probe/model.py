@@ -9,10 +9,13 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import attr
 import six
 
+from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
@@ -20,6 +23,10 @@ from ddtrace.internal.utils.cache import cached
 
 
 log = get_logger(__name__)
+
+
+DEFAULT_PROBE_RATE = 1.0
+DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
 @cached()
@@ -44,16 +51,31 @@ def _resolve_source_file(path):
     return None
 
 
+MAXLEVEL = 2
+MAXSIZE = 100
+MAXLEN = 255
+MAXFIELDS = 20
+
+
+@attr.s
+class CaptureLimits(object):
+    max_level = attr.ib(type=int, default=MAXLEVEL)  # type: int
+    max_size = attr.ib(type=int, default=MAXSIZE)  # type: int
+    max_len = attr.ib(type=int, default=MAXLEN)  # type: int
+    max_fields = attr.ib(type=int, default=MAXFIELDS)  # type: int
+
+
 @attr.s(hash=True)
 class Probe(six.with_metaclass(abc.ABCMeta)):
     probe_id = attr.ib(type=str)
-    tags = attr.ib(type=dict, factory=dict, eq=False)
-    active = attr.ib(type=bool, default=True, eq=False)
-    rate = attr.ib(type=float, default=1.0, eq=False)
-    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
+    tags = attr.ib(type=dict, eq=False)
+    active = attr.ib(type=bool, eq=False)
+    rate = attr.ib(type=float, eq=False)
+    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
 
-    def __attrs_post_init__(self):
-        self.limiter = RateLimiter(
+    @limiter.default
+    def _(self):
+        return RateLimiter(
             limit_rate=self.rate,
             tau=1.0 / self.rate if self.rate else 1.0,
             on_exceed=lambda: log.warning("Rate limit exceeeded for %r", self),
@@ -73,26 +95,54 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 
 
 @attr.s
-class ConditionalProbe(Probe):
+class ProbeConditionMixin(object):
     """Conditional probe.
 
     If the condition is ``None``, then this is equivalent to a non-conditional
     probe.
     """
 
-    condition = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]], default=None)
+    condition = attr.ib(type=Optional[DDExpression])  # type: Optional[DDExpression]
+    condition_error_rate = attr.ib(type=float, eq=False)
+    condition_error_limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
+
+    @condition_error_limiter.default
+    def _(self):
+        return RateLimiter(
+            limit_rate=self.condition_error_rate,
+            tau=1.0 / self.condition_error_rate if self.condition_error_rate else 1.0,
+            on_exceed=lambda: log.debug("Condition error rate limit exceeeded for %r", self),
+            call_once=True,
+            raise_on_exceed=False,
+        )
 
 
 @attr.s
-class LineProbe(ConditionalProbe):
-    source_file = attr.ib(type=Optional[str], default=None, converter=_resolve_source_file)  # type: ignore[misc]
-    line = attr.ib(type=Optional[int], default=None)
+class ProbeLocationMixin(object):
+    def location(self):
+        # type: () -> Tuple[str,str]
+        """return a turple of (location,sublocation) for the probe.
+        For example, line probe returns the (file,line) and method probe return (module,method)
+        """
+        return ("", "")
 
 
 @attr.s
-class FunctionProbe(ConditionalProbe):
-    module = attr.ib(type=Optional[str], default=None)
-    func_qname = attr.ib(type=Optional[str], default=None)
+class LineLocationMixin(ProbeLocationMixin):
+    source_file = attr.ib(type=str, converter=_resolve_source_file)  # type: ignore[misc]
+    line = attr.ib(type=int)
+
+    def location(self):
+        return (self.source_file, self.line)
+
+
+@attr.s
+class FunctionLocationMixin(ProbeLocationMixin):
+    module = attr.ib(type=str)
+    func_qname = attr.ib(type=str)
+
+    def location(self):
+        return (self.module, self.func_qname)
 
 
 # TODO: make this an Enum once Python 2 support is dropped.
@@ -104,7 +154,36 @@ class MetricProbeKind(object):
 
 
 @attr.s
-class MetricProbe(LineProbe):
-    kind = attr.ib(type=Optional[str], default=None)
-    name = attr.ib(type=Optional[str], default=None)
-    value = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]], default=None)
+class MetricProbeMixin(object):
+    kind = attr.ib(type=str)
+    name = attr.ib(type=str)
+    value = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]])
+
+
+@attr.s
+class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeConditionMixin):
+    pass
+
+
+@attr.s
+class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeConditionMixin):
+    pass
+
+
+@attr.s
+class SnapshotProbeMixin(object):
+    limits = attr.ib(type=CaptureLimits, eq=False)
+
+
+@attr.s
+class SnapshotLineProbe(Probe, LineLocationMixin, SnapshotProbeMixin, ProbeConditionMixin):
+    pass
+
+
+@attr.s
+class SnapshotFunctionProbe(Probe, FunctionLocationMixin, SnapshotProbeMixin, ProbeConditionMixin):
+    pass
+
+
+LineProbe = Union[SnapshotLineProbe, MetricLineProbe]
+FunctionProbe = Union[SnapshotFunctionProbe, MetricFunctionProbe]

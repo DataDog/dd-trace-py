@@ -2,8 +2,8 @@ import json
 import sys
 import time
 
-from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from tests.debugging.utils import create_snapshot_line_probe
 
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
@@ -19,7 +19,7 @@ class DummyProbeStatusLogger(ProbeStatusLogger):
 def test_probe_status_received():
     status_logger = DummyProbeStatusLogger("test", "test")
 
-    probe = LineProbe(
+    probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
         source_file="tests/debugger/submod/stuff.py",
         line=36,
@@ -38,7 +38,7 @@ def test_probe_status_received():
 def test_probe_status_installed():
     status_logger = DummyProbeStatusLogger("test", "test")
 
-    probe = LineProbe(
+    probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
         source_file="tests/debugger/submod/stuff.py",
         line=36,
@@ -57,7 +57,7 @@ def test_probe_status_installed():
 def test_probe_status_error():
     status_logger = DummyProbeStatusLogger("test", "test")
 
-    probe = LineProbe(
+    probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
         source_file="tests/debugger/submod/stuff.py",
         line=36,
