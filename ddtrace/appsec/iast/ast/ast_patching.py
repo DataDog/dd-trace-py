@@ -70,11 +70,8 @@ def astpatch_source(
         loader = pkgutil.get_loader(module_name)
 
         assert loader
-        if hasattr(loader, "path"):
-            module_path = loader.path
-        elif hasattr(loader, "_loader") and hasattr(loader._loader, "path"):
-            # urlib.parse enter in this condition.
-            module_path = loader._loader.path
+        if hasattr(loader, "module_spec"):
+            module_path = loader.module_spec.origin
         else:
             # Enter in this else if the loader is instance of BuiltinImporter but
             # isinstance(loader, BuiltinImporter) doesn't work
