@@ -225,7 +225,7 @@ jobs:
       - name: Login to Docker
         run: docker login -u publisher -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
       - name: Docker Build
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           tags: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.ref_name }}
           platforms: 'linux/amd64,linux/arm64/v8'
