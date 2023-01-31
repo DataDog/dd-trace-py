@@ -1,5 +1,7 @@
 import grpc
 
+from ddtrace.vendor.debtcollector import deprecate
+
 
 GRPC_PIN_MODULE_SERVER = grpc.Server
 GRPC_PIN_MODULE_CLIENT = grpc.Channel
@@ -23,3 +25,18 @@ GRPC_SERVICE_SERVER = "grpc-server"
 GRPC_AIO_SERVICE_SERVER = "grpc-aio-server"
 GRPC_SERVICE_CLIENT = "grpc-client"
 GRPC_AIO_SERVICE_CLIENT = "grpc-aio-client"
+
+
+def __getattr__(name):
+    if name == "GRPC_PORT_KEY":
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            postfix="Use ddtrace.ext.net.TARGET_PORT instead.",
+            removal_version="2.0.0",
+        )
+        return "grpc.port"
+
+    if name in globals():
+        return globals[name]
+
+    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
