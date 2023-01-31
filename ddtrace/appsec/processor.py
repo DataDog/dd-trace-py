@@ -8,6 +8,7 @@ from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import attr
 from six import ensure_binary
@@ -248,7 +249,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
                     ddwaf_result = self._run_ddwaf(data)
 
-                    if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions:
+                    if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions and ddwaf_result.data:
                         res_dict = json.loads(ddwaf_result.data)
                         log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
                         _context.set_items(
@@ -335,8 +336,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         ddwaf_result = None
-        total_runtime = 0
-        total_overall_runtime = 0
+        total_runtime = 0.0
+        total_overall_runtime = 0.0
         blocked_request = _context.get_item("http.request.blocked", span=span)
         if not blocked_request:
             try:
@@ -349,7 +350,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.warning("Error executing Appsec In-App WAF: %s", repr(e))
         else:
             # Blocked requests call ddwaf earlier, so we already have the data
-            total_runtime = _context.get_item("http.request.waf_duration", span=span)
+            total_runtime = cast(float, _context.get_item("http.request.waf_duration", span=span))
 
         try:
             info = self._ddwaf.info
@@ -381,7 +382,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
 
-            if not blocked_request:
+            if not blocked_request and ddwaf_result:
                 # Partial DDAS-011-00
                 log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))

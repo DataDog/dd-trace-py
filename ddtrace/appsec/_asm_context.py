@@ -22,7 +22,7 @@ def reset():
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
 
 
-def set_ip(ip):  # type: (str) -> None
+def set_ip(ip):  # type: (Optional[str]) -> None
     _DD_EARLY_IP_CONTEXTVAR.set(ip)
 
 
