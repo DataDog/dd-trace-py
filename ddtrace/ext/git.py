@@ -65,6 +65,11 @@ def normalize_ref(name):
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
+def is_ref_a_tag(ref):
+    # type: (Optional[str]) -> bool
+    return "tags/" in ref if ref else False
+
+
 def _git_subprocess_cmd(cmd, cwd=None):
     # type: (str, Optional[str]) -> str
     """Helper for invoking the git CLI binary."""
@@ -159,7 +164,7 @@ def extract_user_git_metadata(env=None):
     tag = normalize_ref(env.get("DD_GIT_TAG"))
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if "origin/tags" in env.get("DD_GIT_BRANCH", "") or "refs/heads/tags" in env.get("DD_GIT_BRANCH", ""):
+    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
         tag = branch
         branch = None
 

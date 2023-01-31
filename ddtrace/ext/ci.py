@@ -115,7 +115,7 @@ def tags(env=None, cwd=None):
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
     # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if "tags/" in tags.get(git.BRANCH, ""):
+    if git.is_ref_a_tag(tags.get(git.BRANCH)):
         if not tags.get(git.TAG):
             tags[git.TAG] = git.normalize_ref(tags.get(git.BRANCH))
         del tags[git.BRANCH]
