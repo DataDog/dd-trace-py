@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "grpc",
       "grpc.host": "::",
       "grpc.method.kind": "unary",
       "grpc.method.name": "Handler",
@@ -17,6 +18,7 @@
       "grpc.method.service": "Servicer",
       "grpc.port": "58143",
       "grpc.status.code": "StatusCode.OK",
+      "language": "python",
       "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
       "span.kind": "client"
     },
@@ -41,6 +43,7 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.path": "/Servicer/Handler",
@@ -68,6 +71,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "grpc",
       "grpc.host": "::",
       "grpc.method.kind": "unary",
       "grpc.method.name": "Handler",
@@ -76,6 +80,7 @@
       "grpc.method.service": "Servicer",
       "grpc.port": "58143",
       "grpc.status.code": "StatusCode.OK",
+      "language": "python",
       "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
       "span.kind": "client"
     },
@@ -100,6 +105,7 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.package": "pkg",

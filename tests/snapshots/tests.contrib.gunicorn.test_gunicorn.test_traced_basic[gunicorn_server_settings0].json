@@ -10,10 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://0.0.0.0:8080/",
+      "language": "python",
       "runtime-id": "b73097ce1a54484f872936703dc77f48"
     },
     "metrics": {
@@ -35,6 +37,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "wsgi"
+       },
        "duration": 49000,
        "start": 1670886340849877000
      },
@@ -47,6 +52,9 @@
           "parent_id": 2,
           "type": "web",
           "error": 0,
+          "meta": {
+            "component": "wsgi"
+          },
           "duration": 14000,
           "start": 1670886340849902000
         },
@@ -60,6 +68,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "component": "wsgi",
          "result_class": "list_iterator"
        },
        "duration": 44000,

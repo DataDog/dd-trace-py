@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: Support reliably linking tests to the pipeline that executed them.

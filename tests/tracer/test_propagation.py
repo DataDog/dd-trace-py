@@ -650,11 +650,39 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
             ValueError,
         ),
-        (
+        (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
+            (None, {}, None),
             None,
-            ["received invalid tracestate header: 'dd=foo|bar:hi|l¢¢¢¢¢¢:"],
-            ValueError,
+            None,
+        ),
+        (
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz6~~~4",
+            # sampling_priority_ts, other_propagated_tags, origin
+            (
+                2,
+                {
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz6===4",
+                },
+                "rum",
+            ),
+            None,
+            None,
+        ),
+        (
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz:6:4",
+            # sampling_priority_ts, other_propagated_tags, origin
+            (
+                2,
+                {
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz:6:4",
+                },
+                "rum",
+            ),
+            None,
+            None,
         ),
     ],
     ids=[
@@ -669,6 +697,8 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         "tracestate_no_origin",
         "tracestate_invalid_dd_list_member",
         "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
+        "tracestate_tilda_replaced_with_equals",
+        "tracestate_colon_acceptable_char_in_value",
     ],
 )
 def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging, expected_exception):
@@ -1616,6 +1646,19 @@ INJECT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_DATADOG_CONTEXT,
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1"},
+    ),
+    # we want to make sure that if the Datadog trace_id or span_id is not
+    # the standard length int we'd expect, we pad the value with 0s so it's still a valid b3 header
+    (
+        "valid_b3_single_style_in_need_of_padding",
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        {
+            "trace_id": 123,
+            "span_id": 4567,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+        {_HTTP_HEADER_B3_SINGLE: "000000000000007b-00000000000011d7-1"},
     ),
     (
         "valid_b3_single_style_user_keep",

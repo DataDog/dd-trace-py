@@ -15,6 +15,7 @@ from six.moves import http_client
 
 import ddtrace
 from ddtrace.internal import compat
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
@@ -30,6 +31,7 @@ if sys.platform == "win32":
 
 
 _API_KEY = "my-api-key"
+_ENDPOINT_COUNTS = {"a": 1, "b": 2}
 
 
 class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -55,6 +57,10 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
             and tags[6] == platform.python_version(),
         )
 
+    @staticmethod
+    def _check_endpoints(endpoints):
+        return endpoints == _ENDPOINT_COUNTS
+
     def _check_event(self, event_json):
         event = json.loads(event_json.decode())
         for key, check in {
@@ -63,6 +69,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
             "family": lambda x: x == "python",
             "version": lambda x: x == "4",
             "tags_profiler": self._check_tags,
+            "endpoint_counts": self._check_endpoints,
         }.items():
             if not check(event[key]):
                 return False
@@ -175,21 +182,39 @@ def endpoint_test_unknown_server():
         thread.join()
 
 
+def _get_span_processor():
+    endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+    endpoint_call_counter_span_processor.endpoint_counts = _ENDPOINT_COUNTS
+    return endpoint_call_counter_span_processor
+
+
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key="this is not the right API key", max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT,
+        api_key="this is not the right API key",
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key=_API_KEY)
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT, api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor()
+    )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_server_down():
-    exp = http.PprofHTTPExporter(endpoint="http://localhost:2", api_key=_API_KEY, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint="http://localhost:2",
+        api_key=_API_KEY,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -198,7 +223,13 @@ def test_export_server_down():
 
 
 def test_export_timeout(endpoint_test_timeout_server):
-    exp = http.PprofHTTPExporter(endpoint=_TIMEOUT_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_TIMEOUT_ENDPOINT,
+        api_key=_API_KEY,
+        timeout=1,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -207,7 +238,13 @@ def test_export_timeout(endpoint_test_timeout_server):
 
 
 def test_export_reset(endpoint_test_reset_server):
-    exp = http.PprofHTTPExporter(endpoint=_RESET_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_RESET_ENDPOINT,
+        api_key=_API_KEY,
+        timeout=1,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -219,7 +256,7 @@ def test_export_reset(endpoint_test_reset_server):
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT)
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, endpoint_call_counter_span_processor=_get_span_processor())
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == (
@@ -228,7 +265,9 @@ def test_export_404_agent(endpoint_test_unknown_server):
 
 
 def test_export_404_agentless(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
+    exp = http.PprofHTTPExporter(
+        endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1, endpoint_call_counter_span_processor=_get_span_processor()
+    )
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
@@ -237,7 +276,12 @@ def test_export_404_agentless(endpoint_test_unknown_server):
 def test_export_tracer_base_path(endpoint_test_server):
     # Base path is prepended to the endpoint path because
     # it does not start with a slash.
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="v1/input")
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT + "/profiling/",
+        api_key=_API_KEY,
+        endpoint_path="v1/input",
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
@@ -245,7 +289,10 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
     # Base path is ignored by the profiling HTTP exporter
     # because the endpoint path starts with a slash.
     exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="/profiling/v1/input"
+        endpoint=_ENDPOINT + "/profiling/",
+        api_key=_API_KEY,
+        endpoint_path="/profiling/v1/input",
+        endpoint_call_counter_span_processor=_get_span_processor(),
     )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 

@@ -10,7 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "graphql",
       "graphql.source": "query HELLO { hello }",
+      "language": "python",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
     "metrics": {
@@ -35,6 +37,8 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "graphql",
+      "language": "python",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
     "metrics": {
@@ -58,6 +62,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
        "duration": 536000,
@@ -73,6 +78,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"

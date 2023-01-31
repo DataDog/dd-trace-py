@@ -10,11 +10,13 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "httpx",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://localhost:8001/status/500",
       "http.useragent": "python-httpx/x.xx.x",
-      "runtime-id": "e0fc845aaa70412aa95b1bc36ab72982"
+      "language": "python",
+      "runtime-id": "9d9b28b0fbbf4b0299c99323181aef06"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,6 +26,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 85259
     },
-    "duration": 5397000,
-    "start": 1633032093706602000
+    "duration": 8093000,
+    "start": 1666809521576719000
   }]]

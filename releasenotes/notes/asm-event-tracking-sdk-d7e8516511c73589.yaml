@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    ASM: New Application Security Events Tracking API, starting with the functions ``track_user_login_success_event`` and
+     ``track_user_login_failure_event`` for tracking user logins (it will also internally call ``set_user``) and ``track_custom_event`` for any custom events. 
+     You can find these functions in the ``ddtrace.appsec.trace_utils`` module. Calling these functions will create new tags under the ``appsec.events`` 
+     namespace (``appsec.events.user.login`` for logins) allowing you to track these events with Datadog. In the future this will 
+     be used to provide protection against account takeover attacks (ATO). Public documentation will be online soon.

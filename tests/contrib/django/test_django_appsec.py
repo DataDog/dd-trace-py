@@ -16,15 +16,30 @@ from tests.utils import override_global_config
 
 
 def _aux_appsec_get_root_span(
-    client, test_spans, tracer, appsec_enabled=True, payload=None, url="/", content_type="text/plain"
+    client,
+    test_spans,
+    tracer,
+    appsec_enabled=True,
+    payload=None,
+    url="/",
+    content_type="text/plain",
+    headers=None,
+    iast_enabled=False,
 ):
     tracer._appsec_enabled = appsec_enabled
+    tracer._iast_enabled = iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     if payload is None:
-        response = client.get(url)
+        if headers:
+            response = client.get(url, **headers)
+        else:
+            response = client.get(url)
     else:
-        response = client.post(url, payload, content_type=content_type)
+        if headers:
+            response = client.post(url, payload, content_type=content_type, **headers)
+        else:
+            response = client.post(url, payload, content_type=content_type)
     return test_spans.spans[0], response
 
 
@@ -201,7 +216,6 @@ def test_django_request_body_plain(client, test_spans, tracer):
 
 def test_django_request_body_plain_attack(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="1' or '1' = '1'")
 
         query = _context.get_item("http.request.body", span=root_span)
@@ -263,57 +277,69 @@ def test_django_path_params(client, test_spans, tracer):
 
 def test_django_useragent(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        client.get("/?a=1&b&c=d", HTTP_USER_AGENT="test/1.2.3")
-        root_span = test_spans.spans[0]
+        tracer._appsec_enabled = True
+        tracer.configure(api_version="v0.4")
+        root_span, _ = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_USER_AGENT": "test/1.2.3"}
+        )
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
 
 def test_django_client_ip_asm_enabled_reported(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
-        root_span = test_spans.spans[0]
+        root_span, _ = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_X_REAL_IP": "8.8.8.8"}
+        )
         assert root_span.get_tag(http.CLIENT_IP)
 
 
 def test_django_client_ip_asm_disabled_not_reported(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=False)):
-        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
-        root_span = test_spans.spans[0]
+        root_span, _ = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_X_REAL_IP": "8.8.8.8"}
+        )
         assert not root_span.get_tag(http.CLIENT_IP)
 
 
 def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
-        client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="8.8.8.8")
-        root_span = test_spans.spans[0]
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
+        root_span, _ = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "8.8.8.8"}
+        )
         # X_REAL_IP should be ignored since the client provided a header
         assert not root_span.get_tag(http.CLIENT_IP)
 
 
 def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
-        client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="foobar", HTTP_X_REAL_IP="8.8.8.8")
-        root_span = test_spans.spans[0]
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/?a=1&b&c=d",
+            headers={"HTTP_FOOIPHEADER": "foobar", "HTTP_X_REAL_IP": "8.8.8.8"},
+        )
         # X_REAL_IP should be ignored since the client provided a header
         assert not root_span.get_tag(http.CLIENT_IP)
 
 
 def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
-        client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="8.8.8.8", HTTP_X_USE_THIS="4.4.4.4")
-        root_span = test_spans.spans[0]
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="X-Use-This")):
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/?a=1&b&c=d",
+            headers={"HTTP_CLIENT_IP": "8.8.8.8", "HTTP_X_USE_THIS": "4.4.4.4"},
+        )
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
 
 
 def test_django_client_ip_nothing(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        client.get("/?a=1&b&c=d")
-        root_span = test_spans.spans[0]
-        assert not root_span.get_tag(http.CLIENT_IP)
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d")
+        ip = root_span.get_tag(http.CLIENT_IP)
+        assert not ip or ip == "127.0.0.1"  # this varies when running under PyCharm or CI
 
 
 @pytest.mark.parametrize(
@@ -327,18 +353,16 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
 )
 def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
     with override_global_config(dict(_appsec_enabled=True)):
-        client.get("/?a=1&b&c=d", **kwargs)
-        root_span = test_spans.spans[0]
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d", headers=kwargs)
         assert root_span.get_tag(http.CLIENT_IP) == expected
 
 
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
-    ):
-        result = client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="アスダス")
-        assert result.status_code == 200
-        root_span = test_spans.spans[0]
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"}
+        )
+        assert response.status_code == 200
         # X_REAL_IP should be ignored since the client provided a header
         assert not root_span.get_tag(http.CLIENT_IP)
 
@@ -346,12 +370,7 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 def test_django_weak_hash(client, test_spans, tracer):
     with override_env(dict(DD_IAST_ENABLED="true")):
         patch_iast(weak_hash=True)
-        tracer._iast_enabled = True
-        # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-        client.get("/weak-hash/")
-
-        root_span = test_spans.spans[0]
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/", iast_enabled=True)
         root_span.get_tag(IAST_JSON)
         vulnerability = json.loads(root_span.get_tag(IAST_JSON))["vulnerabilities"][0]
         assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")

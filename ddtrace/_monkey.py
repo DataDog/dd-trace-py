@@ -108,6 +108,7 @@ _PATCH_ON_IMPORT = {
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "opensearchpy",
     ),
     "pynamodb": ("pynamodb",),
     "rq": ("rq",),
