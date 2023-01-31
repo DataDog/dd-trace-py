@@ -737,6 +737,40 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_get_rowcount_existing_key(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.set("existing_key", 20)
+
+    cache.get("existing_key")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+
+    span = spans[1]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+
+
+def test_cache_get_rowcount_missing_key(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.get("missing_key")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
+
+
 def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -998,6 +1032,87 @@ def test_cache_get_many(test_spans):
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
+
+
+def test_cache_get_many_rowcount_all_existing(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.set_many({"first_key": 1, "second_key": 2})
+
+    cache.get_many(["first_key", "second_key"])
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 6
+
+    # spans in order: set_many, set1, set2, get_many, get1, get2
+    span_get_many = spans[3]
+    span_get_first = spans[4]
+    span_get_second = spans[5]
+
+    assert span_get_many.service == "django"
+    assert span_get_many.resource == "django.core.cache.backends.base.get_many"
+    assert span_get_first.service == "django"
+    assert span_get_first.resource == "django.core.cache.backends.locmem.get"
+    assert span_get_second.service == "django"
+    assert span_get_second.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 2})
+    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 1})
+
+
+def test_cache_get_many_rowcount_none_existing(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.get_many(["first_key", "second_key"])
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 3
+
+    # spans in order: set_many, set1, set2, get_many, get1, get2
+    span_get_many = spans[3]
+    span_get_first = spans[4]
+    span_get_second = spans[5]
+
+    assert span_get_many.service == "django"
+    assert span_get_many.resource == "django.core.cache.backends.base.get_many"
+    assert span_get_first.service == "django"
+    assert span_get_first.resource == "django.core.cache.backends.locmem.get"
+    assert span_get_second.service == "django"
+    assert span_get_second.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
+
+
+def test_cache_get_many_rowcount_some_existing(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.set_many({"first_key": 1, "second_key": 2})
+
+    cache.get_many(["first_key", "missing_key"])
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 6
+
+    # spans in order: set_many, set1, set2, get_many, get1, get2
+    span_get_many = spans[3]
+    span_get_first = spans[4]
+    span_get_second = spans[5]
+
+    assert span_get_many.service == "django"
+    assert span_get_many.resource == "django.core.cache.backends.base.get_many"
+    assert span_get_first.resource == "django.core.cache.backends.locmem.get"
+    assert span_get_second.service == "django"
+    assert span_get_second.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 0})
 
 
 def test_cache_set_many(test_spans):

@@ -83,6 +83,66 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
 
         self.check_spans(1, ["get_many"], ["get_many key1 key2"])
 
+    def test_get_any_rowcount(self):
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        result = client.set([b"key", b"value"])
+        result = client.set([b"key2", b"value2"])
+        result = client.get_many([b"key", b"key2"])
+        assert result == {b"key": b"value2", b"key2": b"value2"}
+        result = client.get_many([b"key", b"key3"])
+        assert result == {b"key": b"value2"}
+        result = client.get_many([b"key3", b"key4"])
+        assert result == {}
+
+        spans = self.check_spans(
+            5,
+            ["set", "set", "get_many", "get_many", "get_many"],
+            ["set key value", "set key2 value2", "get_many key key2", "get_many key key3", "get_many key3 key4"],
+        )
+
+        get_many_2_keys = spans[2]
+        get_many_1_keys = spans[3]
+        get_many_0_keys = spans[4]
+
+        assert get_many_2_keys.resource == "get_many"
+        assert get_many_2_keys.get_metric("db.row_count") == 2
+
+        assert get_many_1_keys.resource == "get_many"
+        assert get_many_1_keys.get_metric("db.row_count") == 1
+
+        assert get_many_0_keys.resource == "get_many"
+        assert get_many_0_keys.get_metric("db.row_count") == 0
+
+    def test_get_multi_rowcount(self):
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        result = client.set([b"key", b"value"])
+        result = client.set([b"key2", b"value2"])
+        result = client.get_multi([b"key", b"key2"])
+        assert result == {b"key": b"value2", b"key2": b"value2"}
+        result = client.get_multi([b"key", b"key3"])
+        assert result == {b"key": b"value2"}
+        result = client.get_multi([b"key3", b"key4"])
+        assert result == {}
+
+        spans = self.check_spans(
+            5,
+            ["set", "set", "get_multi", "get_multi", "get_multi"],
+            ["set key value", "set key2 value2", "get_multi key key2", "get_multi key key3", "get_multi key3 key4"],
+        )
+
+        get_many_2_keys = spans[2]
+        get_many_1_keys = spans[3]
+        get_many_0_keys = spans[4]
+
+        assert get_many_2_keys.resource == "get_multi"
+        assert get_many_2_keys.get_metric("db.row_count") == 2
+
+        assert get_many_1_keys.resource == "get_multi"
+        assert get_many_1_keys.get_metric("db.row_count") == 1
+
+        assert get_many_0_keys.resource == "get_multi"
+        assert get_many_0_keys.get_metric("db.row_count") == 0
+
     def test_delete_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])
         result = client.delete(b"key", noreply=False)

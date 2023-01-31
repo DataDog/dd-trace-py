@@ -47,6 +47,31 @@ class FlaskCacheTest(TracerTestCase):
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
 
+    def test_simple_cache_get_rowcount_existing_key(self):
+        self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
+        self.cache.get(u"á_complex_operation")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+
+    def test_simple_cache_get_rowcount_missing_key(self):
+        self.cache.get(u"á_complex_operation")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        get_span = spans[0]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
+
     def test_simple_cache_set(self):
         self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
         spans = self.get_spans()
@@ -165,6 +190,60 @@ class FlaskCacheTest(TracerTestCase):
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
+
+    def test_simple_cache_get_many_rowcount_all_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        self.cache.get_many("first_complex_op", "second_complex_op")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 2})
+
+    def test_simple_cache_get_many_rowcount_1_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        self.cache.get_many("first_complex_op", "missing_complex_op")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+
+    def test_simple_cache_get_many_rowcount_0_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        self.cache.get_many("missing_complex_op1", "missing_complex_op2")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
 
     def test_simple_cache_set_many(self):
         self.cache.set_many(
