@@ -16,6 +16,7 @@
       "error.type": "builtins.Exception",
       "http.method": "GET",
       "http.url": "http://localhost:80/error",
+      "language": "python",
       "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
     },
     "metrics": {

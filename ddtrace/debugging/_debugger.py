@@ -1,9 +1,7 @@
 from collections import defaultdict
-from inspect import currentframe
 from itertools import chain
 import sys
 import threading
-from types import FrameType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
@@ -26,10 +24,11 @@ from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.debugging._metrics import metrics
-from ddtrace.debugging._probe.model import ConditionalProbe
+from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
+from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
-from ddtrace.debugging._probe.model import MetricProbe
+from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.registry import ProbeRegistry
@@ -254,11 +253,13 @@ class Debugger(Service):
             return
 
         try:
-            if isinstance(probe, MetricProbe):
+            actual_frame = sys._getframe(1)
+
+            if isinstance(probe, MetricLineProbe):
                 # TODO: Handle value expressions
                 assert probe.kind is not None and probe.name is not None
 
-                value = float(probe.value(sys._getframe(1).f_locals)) if probe.value is not None else 1
+                value = float(probe.value(actual_frame.f_locals)) if probe.value is not None else 1
 
                 # TODO[perf]: We know the tags in advance so we can avoid the
                 # list comprehension.
@@ -278,9 +279,9 @@ class Debugger(Service):
                 return
 
             self._collector.push(
-                cast(ConditionalProbe, probe),
+                probe,
                 # skip the current frame
-                cast(FrameType, currentframe().f_back),  # type: ignore[union-attr]
+                actual_frame,
                 threading.current_thread(),
                 sys.exc_info(),
                 self._tracer.current_trace_context(),
@@ -290,7 +291,7 @@ class Debugger(Service):
             log.error("Failed to execute debugger probe hook", exc_info=True)
 
     def _dd_debugger_wrapper(self, wrappers):
-        # type: (Dict[str, ConditionalProbe]) -> Wrapper
+        # type: (Dict[str, Probe]) -> Wrapper
         """Debugger wrapper.
 
         This gets called with a reference to the wrapped function and the probe,
@@ -305,7 +306,7 @@ class Debugger(Service):
                 return wrapped(*args, **kwargs)
 
             argnames = wrapped.__code__.co_varnames
-            frame = currentframe()
+            actual_frame = sys._getframe(2)
             allargs = list(chain(zip(argnames, args), kwargs.items()))
 
             thread = threading.current_thread()
@@ -313,7 +314,6 @@ class Debugger(Service):
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
-            actual_frame = frame.f_back.f_back  # type: ignore[union-attr]
             for probe in wrappers.values():
                 if not probe.active or self._global_rate_limiter.limit() is RateLimitExceeded:
                     continue
@@ -321,7 +321,7 @@ class Debugger(Service):
                 open_contexts.append(
                     self._collector.collect(
                         probe=probe,
-                        frame=actual_frame,  # type: ignore[arg-type]
+                        frame=actual_frame,
                         thread=thread,
                         args=allargs,
                         context=trace_context,
@@ -364,9 +364,9 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[LineProbe]]
+        probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[Probe]]
         for probe in self._probe_registry.get_pending(origin(module)):
-            if not isinstance(probe, LineProbe):
+            if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
             assert line is not None
@@ -385,7 +385,7 @@ class Debugger(Service):
 
         for function, probes in probes_for_function.items():
             failed = self._function_store.inject_hooks(
-                function, [(self._dd_debugger_hook, probe.line, probe) for probe in probes]  # type: ignore[misc]
+                function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
             )
             for probe in probes:
                 if probe.probe_id in failed:
@@ -453,7 +453,7 @@ class Debugger(Service):
                 # The module is still loaded, so we can try to eject the hooks
                 probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[LineProbe]]
                 for probe in probes:
-                    if not isinstance(probe, LineProbe):
+                    if not isinstance(probe, LineLocationMixin):
                         continue
                     line = probe.line
                     assert line is not None, probe
@@ -483,7 +483,7 @@ class Debugger(Service):
         # type: (ModuleType) -> None
         probes = self._probe_registry.get_pending(module.__name__)
         for probe in probes:
-            if not isinstance(probe, FunctionProbe):
+            if not isinstance(probe, FunctionLocationMixin):
                 continue
 
             assert probe.module == module.__name__, "Imported module name matches probe definition"
@@ -594,13 +594,13 @@ class Debugger(Service):
                         registered_probe.deactivate()
             return
 
-        line_probes = []
-        function_probes = []
+        line_probes = []  # type: List[LineProbe]
+        function_probes = []  # type: List[FunctionProbe]
         for probe in probes:
-            if isinstance(probe, LineProbe):
-                line_probes.append(probe)
-            elif isinstance(probe, FunctionProbe):
-                function_probes.append(probe)
+            if isinstance(probe, LineLocationMixin):
+                line_probes.append(cast(LineProbe, probe))
+            elif isinstance(probe, FunctionLocationMixin):
+                function_probes.append(cast(FunctionProbe, probe))
             else:
                 log.warning("Skipping probe '%r': not supported.", probe)
 
