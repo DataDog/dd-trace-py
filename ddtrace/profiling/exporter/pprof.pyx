@@ -481,7 +481,7 @@ class _PprofConverter(object):
             ],
             location=self._locations.values(),
             function=self._functions.values(),
-            string_table=list(self._string_table),
+            string_table=self._string_table,
             time_nanos=start_time_ns,
             duration_nanos=duration_ns,
             period=period,
