@@ -154,6 +154,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
             client.wait(max_tries=100, delay=0.1)
         except tenacity.RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
+        # wait for services to wake up and decide whether to self-destruct due to PeriodicThread._is_proper_class
         time.sleep(SERVICE_INTERVAL)
         yield server_process, client
         try:
