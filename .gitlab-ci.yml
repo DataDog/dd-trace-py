@@ -1,5 +1,8 @@
 stages:
   - deploy
+  - benchmarks
+
+include: ".gitlab/benchmarks.yml"
 
 variables:
   DOWNSTREAM_BRANCH:
