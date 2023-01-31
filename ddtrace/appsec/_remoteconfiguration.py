@@ -4,8 +4,6 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -27,6 +25,9 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
+        from ddtrace.internal.remoteconfig import RemoteConfig
+        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
