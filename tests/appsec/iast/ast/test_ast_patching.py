@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import sys
 
-import astunparse
 import pytest
 
-from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
-from ddtrace.appsec.iast._ast.ast_patching import visit_ast
+
+if sys.version_info.major >= 3:
+    import astunparse
+
+    from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
+    from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
 
 @pytest.mark.parametrize(
@@ -17,6 +20,7 @@ from ddtrace.appsec.iast._ast.ast_patching import visit_ast
         ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_visit_ast_unchanged(source_text, module_path, module_name):
     """
     Source texts not containing:
@@ -34,6 +38,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
         ("print(str('hi' + 'bye'))", "test.py", "test"),
     ],
 )
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_visit_ast_changed(source_text, module_path, module_name):
     """
     Source texts containing:
@@ -53,6 +58,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
         (None, "tests.appsec.iast.fixtures.aspects.str.function_str"),
     ],
 )
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_astpatch_source_changed(module_path, module_name):
     module_path, new_source = astpatch_source(module_path, module_name)
     assert ("", "") != (module_path, new_source)
