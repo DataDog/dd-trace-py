@@ -1,10 +1,12 @@
 import json
+import logging
 import os.path
 
+import mock
 import pytest
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
@@ -19,6 +21,12 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
@@ -111,7 +119,7 @@ def test_valid_json(tracer_appsec):
 def test_header_attack(tracer_appsec):
     tracer = tracer_appsec
 
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    with override_global_config(dict(retrieve_client_ip=True)):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
@@ -131,7 +139,6 @@ def test_headers_collection(tracer_appsec):
     tracer = tracer_appsec
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-
         set_http_meta(
             span,
             Config(),
@@ -238,7 +245,6 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
 
 
 def test_appsec_span_rate_limit(tracer):
-
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
@@ -343,7 +349,6 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
-
         _enable_appsec(tracer)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -360,7 +365,6 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
-
         _enable_appsec(tracer)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -383,13 +387,11 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res, total_time, total_overall_runtime = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
-        print(total_time)
-        print(total_overall_runtime)
-        assert res.startswith('[{"rule":{"id":"crs-942-100"')
-        assert total_time > 0
-        assert total_overall_runtime > 0
-        assert total_overall_runtime > total_time
+        res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
+        assert res.runtime > 0
+        assert res.total_runtime > 0
+        assert res.total_runtime > res.runtime
 
 
 def test_ddwaf_info():
@@ -398,10 +400,10 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 3
-        assert info["failed"] == 0
-        assert info["errors"] == {}
-        assert info["version"] == ""
+        assert info.loaded == 3
+        assert info.failed == 0
+        assert info.errors == {}
+        assert info.version == ""
 
 
 def test_ddwaf_info_with_2_errors():
@@ -410,14 +412,14 @@ def test_ddwaf_info_with_2_errors():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 1
-        assert info["failed"] == 2
+        assert info.loaded == 1
+        assert info.failed == 2
         # Compare dict contents insensitive to ordering
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
         )
-        assert sorted(info["errors"].items()) == expected_dict
-        assert info["version"] == "5.5.5"
+        assert sorted(info.errors.items()) == expected_dict
+        assert info.version == "5.5.5"
 
 
 def test_ddwaf_info_with_3_errors():
@@ -426,6 +428,118 @@ def test_ddwaf_info_with_3_errors():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 1
-        assert info["failed"] == 2
-        assert info["errors"] == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+        assert info.loaded == 1
+        assert info.failed == 2
+        assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+
+
+def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
+    tracer = tracer_appsec
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")), mock.patch(
+        "ddtrace.appsec.processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
+    ), mock.patch.object(DDWaf, "info"):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert "Error parsing data AppSec In-App WAF metrics report" in caplog.text
+
+
+def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
+    tracer = tracer_appsec
+
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), mock.patch(
+        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert span.get_tag(APPSEC_JSON) is None
+    assert "Error executing Appsec In-App WAF: TypeError('expected c_long instead of int'" in caplog.text
+
+
+def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
+    tracer = tracer_appsec
+
+    config = Config()
+    config.http_tag_query_string = True
+
+    with caplog.at_level(logging.WARNING), mock.patch(
+        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                config,
+                method="PATCH",
+                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                status_code="200",
+                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                request_headers={
+                    "host": u"localhost",
+                    "user-agent": "aa",
+                    "content-length": u"73",
+                },
+                response_headers={
+                    "content-length": "501",
+                    "x-ratelimit-remaining": "363",
+                    "x-ratelimit-name": "role_api",
+                    "x-ratelimit-limit": "500",
+                    "x-ratelimit-period": "60",
+                    "content-type": "application/json",
+                    "x-ratelimit-reset": "16",
+                },
+                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+            )
+
+    assert span.get_tag(APPSEC_JSON) is None
+    assert "Error executing Appsec In-App WAF: \nTraceback (" in caplog.text

@@ -120,8 +120,11 @@ class _ProfilerInstance(service.Service):
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
     enable_code_provenance = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", True, formats.asbool),
+        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
         type=bool,
+    )
+    endpoint_collection_enabled = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
     )
 
     _recorder = attr.ib(init=False, default=None)
@@ -170,6 +173,10 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
+        endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
+        if self.endpoint_collection_enabled:
+            endpoint_call_counter_span_processor.enable()
+
         return [
             http.PprofHTTPExporter(
                 service=self.service,
@@ -180,6 +187,7 @@ class _ProfilerInstance(service.Service):
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
                 enable_code_provenance=self.enable_code_provenance,
+                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
             ),
         ]
 
@@ -202,7 +210,9 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            stack.StackCollector(
+                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
+            ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
         if _asyncio.asyncio_available:

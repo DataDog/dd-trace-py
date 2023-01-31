@@ -40,6 +40,7 @@ class MakoTest(TracerTestCase):
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
         self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("component"), "mako")
         self.assertEqual(spans[0].name, "mako.template.render")
         self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
@@ -52,6 +53,7 @@ class MakoTest(TracerTestCase):
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
         self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("component"), "mako")
         self.assertEqual(spans[0].name, "mako.template.render_unicode")
         self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
@@ -67,6 +69,7 @@ class MakoTest(TracerTestCase):
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
         self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("component"), "mako")
         self.assertEqual(spans[0].name, "mako.template.render_context")
         self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
@@ -84,6 +87,7 @@ class MakoTest(TracerTestCase):
         self.assertEqual(spans[0].span_type, "template")
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].get_tag("mako.template_name"), template_name)
+        self.assertEqual(spans[0].get_tag("component"), "mako")
         self.assertEqual(spans[0].name, "mako.template.render")
         self.assertEqual(spans[0].resource, template_name)
 

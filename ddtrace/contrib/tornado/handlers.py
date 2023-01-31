@@ -37,6 +37,10 @@ def execute(func, handler, args, kwargs):
             service=service,
             span_type=SpanTypes.WEB,
         )
+
+        # set component tag equal to name of integration
+        request_span.set_tag_str("component", config.tornado.integration_name)
+
         request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
@@ -104,7 +108,7 @@ def log_exception(func, handler, args, kwargs):
         # is not a 2xx. In this case we want to check the status code to be sure that
         # only 5xx are traced as errors, while any other HTTPError exception is handled as
         # usual.
-        if 500 <= value.status_code <= 599:
+        if config.http_server.is_error_code(value.status_code):
             current_span.set_exc_info(*args)
     else:
         # any other uncaught exception should be reported as error

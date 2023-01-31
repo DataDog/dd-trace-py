@@ -116,7 +116,7 @@ def _dd_id_to_b3_id(dd_id):
     """Helper to convert Datadog trace/span int ids into hex ids"""
     # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
     # DEV: this gives us lowercase hex, which is what we want
-    return "{:x}".format(dd_id)
+    return "{:016x}".format(dd_id)
 
 
 class _DatadogMultiHeader:
@@ -561,6 +561,11 @@ class _TraceContext:
     """
 
     @staticmethod
+    def decode_tag_val(tag_val):
+        # type str -> str
+        return tag_val.replace("~", "=")
+
+    @staticmethod
     def _get_traceparent_values(tp):
         # type: (str) -> Tuple[int, int, int]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
@@ -616,7 +621,8 @@ class _TraceContext:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
                 list_mem = list_mem[3:]
-                dd = dict(item.split(":") for item in list_mem.split(";"))
+                # since tags can have a value with a :, we need to only split on the first instance of :
+                dd = dict(item.split(":", 1) for item in list_mem.split(";"))
 
         # parse out values
         if dd:
@@ -627,8 +633,13 @@ class _TraceContext:
                 sampling_priority_ts_int = None
 
             origin = dd.get("o")
+            if origin:
+                # we encode "=" as "~" in tracestate so need to decode here
+                origin = _TraceContext.decode_tag_val(origin)
             # need to convert from t. to _dd.p.
-            other_propagated_tags = {"_dd.p.%s" % k[2:]: v for (k, v) in dd.items() if (k.startswith("t."))}
+            other_propagated_tags = {
+                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
+            }
 
             return sampling_priority_ts_int, other_propagated_tags, origin
         else:

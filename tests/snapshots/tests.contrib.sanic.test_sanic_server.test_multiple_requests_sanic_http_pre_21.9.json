@@ -10,11 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
-      "runtime-id": "0afaa48285414ecb85e61220e89828a4"
+      "language": "python",
+      "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90727
     },
-    "duration": 82987000,
-    "start": 1643465607624457000
+    "duration": 86262000,
+    "start": 1666809908933429000
   },
      {
        "name": "random_sleep",
@@ -50,11 +52,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
-      "runtime-id": "0afaa48285414ecb85e61220e89828a4"
+      "language": "python",
+      "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -63,8 +67,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90727
     },
-    "duration": 81765000,
-    "start": 1643465607721195000
+    "duration": 91384000,
+    "start": 1666809909058287000
   },
      {
        "name": "random_sleep",

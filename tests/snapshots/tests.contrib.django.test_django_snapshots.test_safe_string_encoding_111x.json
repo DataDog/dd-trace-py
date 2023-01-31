@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.template.response.TemplateResponse",
       "django.response.template.0": "cached_list.html",
@@ -19,6 +20,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/safe-template/",
+      "language": "python",
       "runtime-id": "771ab9d0147b4fa282ea8b1a6b7e0e3a"
     },
     "metrics": {
@@ -41,6 +43,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 80000,
        "start": 1633584268375918000
      },
@@ -53,6 +58,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 145000,
        "start": 1633584268376068000
      },
@@ -65,6 +73,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 39000,
        "start": 1633584268376278000
      },
@@ -77,6 +88,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 41000,
        "start": 1633584268376376000
      },
@@ -89,6 +103,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 34000,
        "start": 1633584268376475000
      },
@@ -101,6 +118,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 73000,
        "start": 1633584268376566000
      },
@@ -113,6 +133,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 35000,
        "start": 1633584268376698000
      },
@@ -125,6 +148,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 40000,
        "start": 1633584268376839000
      },
@@ -137,6 +163,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 386000,
        "start": 1633584268376958000
      },
@@ -149,6 +178,9 @@
           "parent_id": 10,
           "type": "",
           "error": 0,
+          "meta": {
+            "component": "django"
+          },
           "duration": 284000,
           "start": 1633584268377027000
         },
@@ -161,6 +193,9 @@
              "parent_id": 18,
              "type": "",
              "error": 0,
+             "meta": {
+               "component": "django"
+             },
              "duration": 184000,
              "start": 1633584268377088000
            },
@@ -173,6 +208,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 582000,
        "start": 1633584268377406000
      },
@@ -186,6 +224,7 @@
           "type": "template",
           "error": 0,
           "meta": {
+            "component": "django",
             "django.template.engine.class": "django.template.engine.Engine",
             "django.template.name": "cached_list.html"
           },
@@ -202,6 +241,7 @@
              "type": "cache",
              "error": 0,
              "meta": {
+               "component": "django",
                "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
                "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
              },
@@ -217,6 +257,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 36000,
        "start": 1633584268378049000
      },
@@ -229,6 +272,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 137000,
        "start": 1633584268378142000
      },
@@ -241,6 +287,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 39000,
        "start": 1633584268378337000
      },
@@ -253,6 +302,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 38000,
        "start": 1633584268378432000
      },
@@ -265,6 +317,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 49000,
        "start": 1633584268378525000
      },
@@ -277,6 +332,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "django"
+       },
        "duration": 42000,
        "start": 1633584268378636000
      }]]

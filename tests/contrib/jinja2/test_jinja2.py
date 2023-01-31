@@ -45,6 +45,7 @@ class Jinja2Test(TracerTestCase):
             assert span.service is None
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
+            assert span.get_tag("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
@@ -63,6 +64,7 @@ class Jinja2Test(TracerTestCase):
             assert span.service is None
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
+            assert span.get_tag("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
@@ -93,6 +95,7 @@ class Jinja2Test(TracerTestCase):
             render_span = spans[1]
             assert render_span.name == "jinja2.render"
             assert render_span.get_tag("jinja2.template_name") == expected
+            assert render_span.get_tag("component") == "jinja2"
             assert render_span.resource == expected
 
     def test_file_template(self):

@@ -10,11 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "aiohttp_client",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
-      "runtime-id": "b984b1b0f414444b914808157cba1e4d"
+      "language": "python",
+      "runtime-id": "c110789b92224c258de3e631ca50af4f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 32687
     },
-    "duration": 12671000,
-    "start": 1646414759574649000
+    "duration": 16930000,
+    "start": 1666808692662739000
   },
      {
        "name": "TCPConnector.connect",

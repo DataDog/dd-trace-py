@@ -10,7 +10,8 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "c75fe8a124e046a88374ca4e690d96f7"
+      "language": "python",
+      "runtime-id": "3c07c67132904e49a34823e7ddadd05d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,8 +20,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 2807
     },
-    "duration": 4925125,
-    "start": 1642687869451527501
+    "duration": 2768000,
+    "start": 1666808673648622000
   },
      {
        "name": "redis.command",
@@ -32,6 +33,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "component": "aioredis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo"
        },
@@ -42,8 +44,8 @@
          "out.redis_db": 0,
          "redis.args_length": 3
        },
-       "duration": 1989125,
-       "start": 1642687869452441335
+       "duration": 1648000,
+       "start": 1666808673648705000
      },
      {
        "name": "redis.command",
@@ -55,6 +57,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "component": "aioredis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "GET blah"
        },
@@ -65,6 +68,6 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 1576875,
-       "start": 1642687869454763335
+       "duration": 935000,
+       "start": 1666808673650429000
      }]]

@@ -7,6 +7,10 @@ def post_fork(server, worker):
         os.environ.update(
             {"DD_PROFILING_ENABLED": "1", "DD_PROFILING_API_TIMEOUT": "0.1", "DD_PROFILING_UPLOAD_INTERVAL": "10"}
         )
+    if os.environ.get("PERF_APPSEC_ENABLED") == "1":
+        os.environ.update({"DD_APPSEC_ENABLED ": "1"})
+    if os.environ.get("PERF_IAST_ENABLED") == "1":
+        os.environ.update({"DD_IAST_ENABLED ": "1"})
     # This will not work with gevent workers as the gevent hub has not been
     # initialized when this hook is called.
     if os.environ.get("PERF_TRACER_ENABLED") == "1":
