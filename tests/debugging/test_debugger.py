@@ -774,9 +774,9 @@ def test_debugger_run_module():
     env = os.environ.copy()
     env["PYTHONPATH"] = cwd
 
-    out, _, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
+    out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
 
-    assert out.strip() == b"OK"
+    assert out.strip() == b"OK", err.decode()
     assert status == 0
 
 
