@@ -27,7 +27,7 @@
       "http.client_ip": "8.8.4.4",
       "http.method": "GET",
       "http.request.headers.accept": "*/*",
-      "http.request.headers.accept-encoding": "gzip, deflate, br",
+      "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "localhost:8000",
       "http.request.headers.user-agent": "python-requests/2.28.1",
       "http.request.headers.via": "8.8.4.4",
