@@ -1,15 +1,13 @@
 import json
 import logging
 
-from ddtrace.appsec import _asm_context
 from flask import request
 import pytest
 
-from ddtrace import constants
+from ddtrace.appsec import _asm_context
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
-from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.contrib.django.test_django_appsec import _assert_context_is
@@ -259,79 +257,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
-
-    def test_request_ipblock_nomatch_200(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": _ALLOWED_IP})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                assert resp.text == "Ok"
-            else:
-                assert resp.data == six.ensure_binary("Ok")
-
-    def test_request_ipblock_match_403(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP, "ACCEPT": "text/html"})
-            assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_HTML)
-
-            root = self.pop_spans()[0]
-            assert root.get_tag("actor.ip") == _BLOCKED_IP
-            assert root.get_tag("appsec.event") == "true"
-            loaded = json.loads(root.get_tag(APPSEC_JSON))
-            assert loaded == {
-                "triggers": [
-                    {
-                        "rule": {
-                            "id": "blk-001-001",
-                            "name": "Block IP addresses",
-                            "tags": {"type": "ip_addresses", "category": "blocking"},
-                            "on_match": ["block"],
-                        },
-                        "rule_matches": [
-                            {
-                                "operator": "ip_match",
-                                "operator_value": "",
-                                "parameters": [
-                                    {
-                                        "address": "http.client_ip",
-                                        "key_path": [],
-                                        "value": _BLOCKED_IP,
-                                        "highlight": [_BLOCKED_IP],
-                                    }
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            }
-
-    def test_request_ipblock_match_403_json_response(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP})
-            assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
 
     def test_asm_request_context(self):
         @self.app.route("/")

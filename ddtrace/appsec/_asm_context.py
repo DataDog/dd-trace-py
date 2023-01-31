@@ -1,5 +1,7 @@
 import contextlib
-from typing import Any, Optional
+from typing import Any
+from typing import Generator
+from typing import Optional
 
 from ddtrace.vendor import contextvars
 

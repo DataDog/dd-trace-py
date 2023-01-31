@@ -440,6 +440,7 @@ def set_http_meta(
     :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
          { "id": <int_value> }
     """
+
     if method is not None:
         span.set_tag_str(http.METHOD, method)
 

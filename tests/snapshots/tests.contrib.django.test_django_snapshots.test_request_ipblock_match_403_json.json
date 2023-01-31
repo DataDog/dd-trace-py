@@ -1,0 +1,433 @@
+[[
+  {
+    "name": "django.request",
+    "service": "django",
+    "resource": "GET ^$",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.appsec.event_rules.version": "",
+      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"tags\":{\"type\":\"ip_addresses\",\"category\":\"blocking\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}]}]}",
+      "_dd.appsec.waf.version": "1.6.1",
+      "_dd.origin": "appsec",
+      "_dd.p.dm": "-4",
+      "_dd.runtime_family": "python",
+      "actor.ip": "8.8.4.4",
+      "appsec.blocked": "True",
+      "appsec.event": "true",
+      "asgi.version": "3.0",
+      "component": "django",
+      "django.request.class": "django.core.handlers.asgi.ASGIRequest",
+      "django.response.class": "django.http.response.HttpResponse",
+      "django.user.is_authenticated": "False",
+      "django.view": "tests.contrib.django.views.index",
+      "http.client_ip": "8.8.4.4",
+      "http.method": "GET",
+      "http.request.headers.accept": "*/*",
+      "http.request.headers.accept-encoding": "gzip, deflate, br",
+      "http.request.headers.host": "localhost:8000",
+      "http.request.headers.user-agent": "python-requests/2.28.1",
+      "http.request.headers.via": "8.8.4.4",
+      "http.response.headers.content-length": "16",
+      "http.response.headers.content-type": "text/html; charset=utf-8",
+      "http.route": "^$",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8000/",
+      "http.useragent": "python-requests/2.28.1",
+      "http.version": "1.1",
+      "language": "python",
+      "network.client.ip": "8.8.4.4",
+      "runtime-id": "0fa761c3a3e447b2aedf484baeeb9215"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0,
+      "_dd.appsec.event_rules.loaded": 4,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 228490
+    },
+    "duration": 4577790,
+    "start": 1675174828185025537
+  },
+     {
+       "name": "django.middleware",
+       "service": "django",
+       "resource": "django.contrib.sessions.middleware.SessionMiddleware.__call__",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "django"
+       },
+       "duration": 2374536,
+       "start": 1675174828186308748
+     },
+        {
+          "name": "django.middleware",
+          "service": "django",
+          "resource": "django.contrib.sessions.middleware.SessionMiddleware.process_request",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "django"
+          },
+          "duration": 56841,
+          "start": 1675174828186383395
+        },
+        {
+          "name": "django.middleware",
+          "service": "django",
+          "resource": "django.middleware.common.CommonMiddleware.__call__",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "django"
+          },
+          "duration": 2135265,
+          "start": 1675174828186492023
+        },
+           {
+             "name": "django.middleware",
+             "service": "django",
+             "resource": "django.middleware.common.CommonMiddleware.process_request",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "component": "django"
+             },
+             "duration": 68193,
+             "start": 1675174828186523847
+           },
+           {
+             "name": "django.middleware",
+             "service": "django",
+             "resource": "django.middleware.csrf.CsrfViewMiddleware.__call__",
+             "trace_id": 0,
+             "span_id": 7,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "component": "django"
+             },
+             "duration": 1937847,
+             "start": 1675174828186611705
+           },
+              {
+                "name": "django.middleware",
+                "service": "django",
+                "resource": "django.middleware.csrf.CsrfViewMiddleware.process_request",
+                "trace_id": 0,
+                "span_id": 9,
+                "parent_id": 7,
+                "type": "",
+                "error": 0,
+                "meta": {
+                  "component": "django"
+                },
+                "duration": 17650,
+                "start": 1675174828186634415
+              },
+              {
+                "name": "django.middleware",
+                "service": "django",
+                "resource": "django.contrib.auth.middleware.AuthenticationMiddleware.__call__",
+                "trace_id": 0,
+                "span_id": 10,
+                "parent_id": 7,
+                "type": "",
+                "error": 0,
+                "meta": {
+                  "component": "django"
+                },
+                "duration": 1816265,
+                "start": 1675174828186673624
+              },
+                 {
+                   "name": "django.middleware",
+                   "service": "django",
+                   "resource": "django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
+                   "trace_id": 0,
+                   "span_id": 12,
+                   "parent_id": 10,
+                   "type": "",
+                   "error": 0,
+                   "meta": {
+                     "component": "django"
+                   },
+                   "duration": 17382,
+                   "start": 1675174828186693881
+                 },
+                 {
+                   "name": "django.middleware",
+                   "service": "django",
+                   "resource": "django.contrib.messages.middleware.MessageMiddleware.__call__",
+                   "trace_id": 0,
+                   "span_id": 13,
+                   "parent_id": 10,
+                   "type": "",
+                   "error": 0,
+                   "meta": {
+                     "component": "django"
+                   },
+                   "duration": 1754470,
+                   "start": 1675174828186727124
+                 },
+                    {
+                      "name": "django.middleware",
+                      "service": "django",
+                      "resource": "django.contrib.messages.middleware.MessageMiddleware.process_request",
+                      "trace_id": 0,
+                      "span_id": 14,
+                      "parent_id": 13,
+                      "type": "",
+                      "error": 0,
+                      "meta": {
+                        "component": "django"
+                      },
+                      "duration": 51809,
+                      "start": 1675174828186747068
+                    },
+                    {
+                      "name": "django.middleware",
+                      "service": "django",
+                      "resource": "django.middleware.clickjacking.XFrameOptionsMiddleware.__call__",
+                      "trace_id": 0,
+                      "span_id": 15,
+                      "parent_id": 13,
+                      "type": "",
+                      "error": 0,
+                      "meta": {
+                        "component": "django"
+                      },
+                      "duration": 1614289,
+                      "start": 1675174828186816477
+                    },
+                       {
+                         "name": "django.middleware",
+                         "service": "django",
+                         "resource": "django.middleware.security.SecurityMiddleware.__call__",
+                         "trace_id": 0,
+                         "span_id": 17,
+                         "parent_id": 15,
+                         "type": "",
+                         "error": 0,
+                         "meta": {
+                           "component": "django"
+                         },
+                         "duration": 1518339,
+                         "start": 1675174828186839242
+                       },
+                          {
+                            "name": "django.middleware",
+                            "service": "django",
+                            "resource": "django.middleware.security.SecurityMiddleware.process_request",
+                            "trace_id": 0,
+                            "span_id": 19,
+                            "parent_id": 17,
+                            "type": "",
+                            "error": 0,
+                            "meta": {
+                              "component": "django"
+                            },
+                            "duration": 12673,
+                            "start": 1675174828186857309
+                          },
+                          {
+                            "name": "django.middleware",
+                            "service": "django",
+                            "resource": "tests.contrib.django.middleware.ClsMiddleware.__call__",
+                            "trace_id": 0,
+                            "span_id": 20,
+                            "parent_id": 17,
+                            "type": "",
+                            "error": 0,
+                            "meta": {
+                              "component": "django"
+                            },
+                            "duration": 1385712,
+                            "start": 1675174828186891553
+                          },
+                             {
+                               "name": "django.middleware",
+                               "service": "django",
+                               "resource": "tests.contrib.django.middleware.fn_middleware",
+                               "trace_id": 0,
+                               "span_id": 22,
+                               "parent_id": 20,
+                               "type": "",
+                               "error": 0,
+                               "meta": {
+                                 "component": "django"
+                               },
+                               "duration": 1359016,
+                               "start": 1675174828186910782
+                             },
+                                {
+                                  "name": "django.middleware",
+                                  "service": "django",
+                                  "resource": "tests.contrib.django.middleware.EverythingMiddleware.__call__",
+                                  "trace_id": 0,
+                                  "span_id": 23,
+                                  "parent_id": 22,
+                                  "type": "",
+                                  "error": 0,
+                                  "meta": {
+                                    "component": "django"
+                                  },
+                                  "duration": 1322119,
+                                  "start": 1675174828186932481
+                                },
+                                   {
+                                     "name": "django.middleware",
+                                     "service": "django",
+                                     "resource": "django.middleware.csrf.CsrfViewMiddleware.process_view",
+                                     "trace_id": 0,
+                                     "span_id": 24,
+                                     "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
+                                     "meta": {
+                                       "component": "django"
+                                     },
+                                     "duration": 34179,
+                                     "start": 1675174828187456847
+                                   },
+                                   {
+                                     "name": "django.middleware",
+                                     "service": "django",
+                                     "resource": "tests.contrib.django.middleware.EverythingMiddleware.process_view",
+                                     "trace_id": 0,
+                                     "span_id": 25,
+                                     "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
+                                     "meta": {
+                                       "component": "django"
+                                     },
+                                     "duration": 19595,
+                                     "start": 1675174828187641521
+                                   },
+                                   {
+                                     "name": "django.view",
+                                     "service": "django",
+                                     "resource": "tests.contrib.django.views.index",
+                                     "trace_id": 0,
+                                     "span_id": 26,
+                                     "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
+                                     "meta": {
+                                       "component": "django"
+                                     },
+                                     "duration": 64012,
+                                     "start": 1675174828187876989
+                                   },
+                          {
+                            "name": "django.middleware",
+                            "service": "django",
+                            "resource": "django.middleware.security.SecurityMiddleware.process_response",
+                            "trace_id": 0,
+                            "span_id": 21,
+                            "parent_id": 17,
+                            "type": "",
+                            "error": 0,
+                            "meta": {
+                              "component": "django"
+                            },
+                            "duration": 38630,
+                            "start": 1675174828188309270
+                          },
+                       {
+                         "name": "django.middleware",
+                         "service": "django",
+                         "resource": "django.middleware.clickjacking.XFrameOptionsMiddleware.process_response",
+                         "trace_id": 0,
+                         "span_id": 18,
+                         "parent_id": 15,
+                         "type": "",
+                         "error": 0,
+                         "meta": {
+                           "component": "django"
+                         },
+                         "duration": 30884,
+                         "start": 1675174828188377457
+                       },
+                    {
+                      "name": "django.middleware",
+                      "service": "django",
+                      "resource": "django.contrib.messages.middleware.MessageMiddleware.process_response",
+                      "trace_id": 0,
+                      "span_id": 16,
+                      "parent_id": 13,
+                      "type": "",
+                      "error": 0,
+                      "meta": {
+                        "component": "django"
+                      },
+                      "duration": 22689,
+                      "start": 1675174828188451201
+                    },
+              {
+                "name": "django.middleware",
+                "service": "django",
+                "resource": "django.middleware.csrf.CsrfViewMiddleware.process_response",
+                "trace_id": 0,
+                "span_id": 11,
+                "parent_id": 7,
+                "type": "",
+                "error": 0,
+                "meta": {
+                  "component": "django"
+                },
+                "duration": 29393,
+                "start": 1675174828188506627
+              },
+           {
+             "name": "django.middleware",
+             "service": "django",
+             "resource": "django.middleware.common.CommonMiddleware.process_response",
+             "trace_id": 0,
+             "span_id": 8,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "component": "django"
+             },
+             "duration": 36039,
+             "start": 1675174828188580598
+           },
+        {
+          "name": "django.middleware",
+          "service": "django",
+          "resource": "django.contrib.sessions.middleware.SessionMiddleware.process_response",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "django"
+          },
+          "duration": 28882,
+          "start": 1675174828188646155
+        }]]

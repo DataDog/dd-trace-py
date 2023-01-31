@@ -9,6 +9,7 @@ from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 
+
 log = get_logger(__name__)
 
 

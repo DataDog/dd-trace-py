@@ -3,15 +3,13 @@ import json
 import logging
 
 import pytest
-from ddtrace.appsec import _asm_context
 
-from ddtrace import constants
 from ddtrace._monkey import patch_iast
+from ddtrace.appsec import _asm_context
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.utils import override_env
@@ -378,83 +376,14 @@ def test_django_weak_hash(client, test_spans, tracer):
         assert vulnerability["evidence"]["value"] == "md5"
 
 
-_BLOCKED_IP = "8.8.4.4"
-_ALLOWED_IP = "8.8.8.8"
-
-
-def test_request_ipblock_nomatch_200(client, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        tracer._appsec_enabled = True
-        # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_ALLOWED_IP)
-        assert result.status_code == 200
-        assert result.content == b"Hello, test app."
-
-
-def test_request_ipblock_match_403(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP, HTTP_ACCEPT="text/html")
-        assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
-        )
-        assert result.content == as_bytes
-        root = test_spans.spans[0]
-        assert root.get_tag("actor.ip") == _BLOCKED_IP
-        assert root.get_tag("appsec.event") == "true"
-        loaded = json.loads(root.get_tag(APPSEC_JSON))
-        assert loaded == {
-            "triggers": [
-                {
-                    "rule": {
-                        "id": "blk-001-001",
-                        "name": "Block IP addresses",
-                        "tags": {"type": "ip_addresses", "category": "blocking"},
-                        "on_match": ["block"],
-                    },
-                    "rule_matches": [
-                        {
-                            "operator": "ip_match",
-                            "operator_value": "",
-                            "parameters": [
-                                {
-                                    "address": "http.client_ip",
-                                    "key_path": [],
-                                    "value": _BLOCKED_IP,
-                                    "highlight": [_BLOCKED_IP],
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ]
-        }
-
-
-def test_request_ipblock_match_403_json(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP=_BLOCKED_IP)
-        assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
-        )
-        assert result.content == as_bytes
-
-
 def _assert_context_is(ip, headers, case_sensitive):
     assert _asm_context.get_ip() == ip
     assert _asm_context.get_headers() == headers
     assert _asm_context.get_headers_case_sensitive() == case_sensitive
+
+
+_BLOCKED_IP = "8.8.4.4"
+_ALLOWED_IP = "8.8.8.8"
 
 
 def test_asm_request_context(client, test_spans, tracer):
