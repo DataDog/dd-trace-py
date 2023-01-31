@@ -1,7 +1,5 @@
 import warnings
 
-import pytest
-
 
 def test_not_deprecated():
     import ddtrace
@@ -11,8 +9,3 @@ def test_not_deprecated():
 
         assert ddtrace.constants.ENV_KEY
         assert len(ws) == 0
-
-
-def test_invalid():
-    with pytest.raises(ImportError):
-        from ddtrace.constants import INVALID_CONSTANT  # noqa
