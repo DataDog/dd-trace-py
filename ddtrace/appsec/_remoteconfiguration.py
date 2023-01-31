@@ -59,7 +59,6 @@ def _appsec_1click_actication(tracer, features):
     if rc_appsec_enabled is not None:
         from ddtrace.internal.remoteconfig import RemoteConfig
         from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True

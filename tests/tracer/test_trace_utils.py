@@ -538,13 +538,11 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
         (
             "",
             {"x-forwarded-for": "192.168.144.2"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "192.168.144.2",
         ),
         (
             "",
             {"x-forwarded-for": "127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "127.0.0.1",
         ),
         (
@@ -569,7 +567,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
 )
 def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
     with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
-        ip = trace_utils._get_request_header_client_ip(span, headers_dict, None, False)
+        ip = trace_utils._get_request_header_client_ip(headers_dict, None, False)
         assert ip == expected
 
 
