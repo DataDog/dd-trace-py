@@ -12,7 +12,7 @@ def test_deprecated():
         assert grpc_constants.GRPC_PORT_KEY
 
         (warn,) = warns
-        assert issubclass(warn, DeprecationWarning)
+        assert issubclass(warn.category, DeprecationWarning)
         assert (
             "ddtrace.contrib.grpc.constants.GRPC_PORT_KEY is deprecated and will be removed in version '2.0.0'."
             " Use ddtrace.ext.net.TARGET_PORT instead." == str(warn.message)
