@@ -294,6 +294,7 @@ def test_templates_disabled():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
@@ -317,6 +318,7 @@ def test_request_ipblock_nomatch_200():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
@@ -348,6 +350,7 @@ def test_request_ipblock_match_403():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
