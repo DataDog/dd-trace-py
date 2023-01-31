@@ -79,6 +79,7 @@ def test_astpatch_source_changed(module_path, module_name):
         (None, "tests.appsec.iast.fixtures.aspects.str.non_utf8_content"),  # EUC-JP file content
     ],
 )
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_astpatch_source_unchanged(module_path, module_name):
     assert ("", "") == astpatch_source(module_path, module_name)
 

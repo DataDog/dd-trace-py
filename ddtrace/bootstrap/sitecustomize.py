@@ -92,7 +92,9 @@ try:
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
-    if asbool(os.getenv("DD_IAST_ENABLED", default=False)) and sys.version_info[0] >= 3:  # IAST (only Py3 compatible)
+    if asbool(os.getenv("DD_IAST_ENABLED", default=False)) and (
+        (3, 6, 0) < sys.version_info < (3, 11, 0)  # IAST supports Python versions 3.6 to 3.10
+    ):
         from ddtrace.appsec.iast._import_hooks import initialize_iast_import_hooks
 
         initialize_iast_import_hooks()
