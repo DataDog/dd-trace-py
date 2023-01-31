@@ -32,6 +32,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 backport
@@ -85,7 +86,9 @@ graphene
 greenlet
 greenlets
 grpc
+gunicorn
 hostname
+hostnames
 http
 httplib
 https
@@ -106,6 +109,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+loopback
 macOS
 mako
 mariadb
@@ -124,6 +128,7 @@ mysqlclient
 mysqldb
 namespace
 obfuscator
+opensearch
 opentracer
 opentracing
 parameterized
@@ -137,6 +142,7 @@ profiler
 protobuf
 psycopg
 py
+PyFrameObject
 pylibmc
 pymemcache
 pymongo
@@ -165,6 +171,7 @@ serializable
 sql
 sqlalchemy
 sqlite
+stacktrace
 starlette
 stringable
 subdomains
@@ -189,6 +196,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
@@ -201,5 +209,6 @@ Serverless
 serverless
 cattrs
 IAST
+programmatically
 DES
 Blowfish

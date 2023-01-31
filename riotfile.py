@@ -1,9 +1,27 @@
 # type: ignore
+import logging
+import os
+import sys
 from typing import List
 from typing import Tuple
 
 from riot import Venv
-from riot import latest
+from riot import latest as latest_riot
+
+
+logger = logging.getLogger(__name__)
+latest = object()  # sentinel value
+
+
+# Import fixed version if needed
+PY_Latest = os.environ.get("DD_USE_LATEST_VERSION") == "true"
+if not PY_Latest:
+    try:
+        sys.path.extend([".", ".circleci"])
+        from dependencies import LATEST_VERSIONS
+    except ModuleNotFoundError:
+        logger.error("missing dependencies.py")
+        raise
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -84,7 +102,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": "<7.0.0",
+        "pytest": latest,
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -93,6 +111,7 @@ venv = Venv(
     },
     env={
         "DD_TESTING_RAISE": "1",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     },
     venvs=[
         Venv(
@@ -173,7 +192,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="slotscheck",
-                    command="python -m slotscheck -v {cmdargs}",
+                    command="python -m slotscheck -v ddtrace/",
                 ),
             ],
         ),
@@ -273,9 +292,6 @@ venv = Venv(
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
-            env={
-                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-            },
         ),
         Venv(
             name="telemetry",
@@ -288,7 +304,6 @@ venv = Venv(
         ),
         Venv(
             name="integration",
-            pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
@@ -297,6 +312,14 @@ venv = Venv(
                     env={
                         "AGENT_VERSION": "latest",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                        #      this logs a warning and causes these tests to fail
+                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
+                        Venv(pys=select_pys(min_version="3.7")),
+                    ],
                 ),
                 Venv(
                     name="integration-snapshot",
@@ -304,6 +327,14 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                        #      this logs a warning and causes these tests to fail
+                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
+                        Venv(pys=select_pys(min_version="3.7")),
+                    ],
                 ),
             ],
         ),
@@ -313,9 +344,6 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
-            },
-            env={
-                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
             venvs=[
                 Venv(pys="2.7", pkgs={"packaging": ["==17.1", latest]}),
@@ -337,6 +365,7 @@ venv = Venv(
                 "botocore": latest,
                 "requests": latest,
                 "elasticsearch": latest,
+                "opensearch-py": latest,
                 "pynamodb": latest,
             },
             venvs=[
@@ -430,6 +459,14 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
+            },
+        ),
+        Venv(
+            name="vertica",
+            command="pytest {cmdargs} tests/contrib/vertica/",
+            pys=select_pys(max_version="3.9"),
+            pkgs={
+                "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
             },
         ),
         Venv(
@@ -951,6 +988,13 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="elasticsearch-opensearch",
+            # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            pys=select_pys(),
+            pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0", "~=2.0.0", latest]},
+        ),
+        Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
@@ -1139,7 +1183,11 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pys=["3.6"],
+                    pkgs={"mysql-connector-python": ["==8.0.5", "==8.0.31"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
                 Venv(
@@ -1247,8 +1295,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "requests": latest,
                 "aiofiles": latest,
-                # Pinned until https://github.com/encode/databases/issues/298 is resolved.
-                "sqlalchemy": "~=1.3.0",
+                "sqlalchemy": latest,
                 "aiosqlite": latest,
                 "databases": latest,
             },
@@ -2163,6 +2210,7 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.1.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2172,6 +2220,7 @@ venv = Venv(
                         "snowflake-connector-python": [
                             "~=2.2.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2181,6 +2230,7 @@ venv = Venv(
                         "snowflake-connector-python": [
                             "~=2.3.0",
                         ],
+                        "cryptography": "<39",
                     },
                 ),
                 Venv(
@@ -2192,6 +2242,7 @@ venv = Venv(
                             "~=2.6.0",
                             latest,
                         ],
+                        "cryptography": "<39",
                     },
                 ),
             ],
@@ -2541,5 +2592,47 @@ venv = Venv(
                 "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
             },
         ),
+        Venv(
+            name="gunicorn",
+            command="pytest {cmdargs} tests/contrib/gunicorn",
+            pkgs={"requests": latest, "gevent": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
+                ),
+            ],
+        ),
     ],
 )
+
+
+def update_venv(venv: Venv):
+    """Recursively update the venvs by replacing the sentinel object 'latest' with either
+    - constant latest from riot package if PY_Latest
+    - fixed version string from local package dependencies
+    """
+
+    def replace(package):
+        if PY_Latest or "/" in package:  # local package are always using latest
+            return latest_riot
+        else:
+            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
+
+    def update_pkgs(d):
+        for k, v in list(d.items()):
+            if v is latest:
+                d[k] = replace(k)
+            elif isinstance(v, list):
+                for i, e in enumerate(v):
+                    if e is latest:
+                        v[i] = replace(k)
+
+    if hasattr(venv, "pkgs"):
+        update_pkgs(venv.pkgs)
+    if hasattr(venv, "venvs"):
+        for v in venv.venvs:
+            update_venv(v)
+
+
+update_venv(venv)

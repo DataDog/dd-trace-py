@@ -8,9 +8,12 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_B3
+from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -46,24 +49,24 @@ def _parse_propagation_styles(name, default):
     The allowed values are:
 
     - "datadog"
-    - "b3"
+    - "b3multi"
     - "b3 single header"
     - "none"
 
 
-    The default value is ``"datadog"``.
+    The default value is ``"tracecontext,datadog"``.
 
 
     Examples::
 
         # Extract and inject b3 headers:
-        DD_TRACE_PROPAGATION_STYLE="b3"
+        DD_TRACE_PROPAGATION_STYLE="b3multi"
 
         # Disable header propagation:
         DD_TRACE_PROPAGATION_STYLE="none"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
-        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
+        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
@@ -74,6 +77,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
+        if style == "b3":
+            deprecate(
+                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
+                removal_version="2.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -184,6 +195,8 @@ class Config(object):
         legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
 
         self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
+        self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
+        self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
         self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
 
@@ -211,7 +224,7 @@ class Config(object):
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE", default=PROPAGATION_STYLE_DATADOG
+            "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
         )
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE

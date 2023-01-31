@@ -108,10 +108,10 @@ def test_get_host_info():
 @pytest.mark.parametrize(
     "mac_ver,win32_ver,libc_ver,expected",
     [
-        ((None, None, None), (None, "4.1.6", None, None), (None, None), "4.1.6"),
-        (("3.5.6", None, None), (None, "", None, None), (None, None), "3.5.6"),
-        ((None, None, None), (None, None, None, None), (None, "1.2.7"), "1.2.7"),
-        ((None, None, None), (None, None, None, None), (None, None), ""),
+        (("", "", ""), ("", "4.1.6", "", ""), ("", ""), "4.1.6"),
+        (("3.5.6", "", ""), ("", "", "", ""), ("", ""), "3.5.6"),
+        (("", "", ""), ("", "", "", ""), ("", "1.2.7"), "1.2.7"),
+        (("", "", ""), ("", "", "", ""), ("", ""), ""),
     ],
 )
 def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
@@ -122,6 +122,32 @@ def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
             win32.return_value = win32_ver
             with mock.patch("platform.libc_ver") as libc:
                 libc.return_value = libc_ver
+                assert _get_os_version() == expected
+
+
+@pytest.mark.parametrize(
+    "mac_ver,win32_ver,expected",
+    [
+        # We are on a unix system that raised an OSError
+        (("", "", ""), ("", "", "", ""), ""),
+        # We are on macOS, we never call platform.libc_ver(), so success
+        (("3.5.6", "", ""), ("", "", "", ""), "3.5.6"),
+        # We are on a Windows machine, we never call platform.libc_ver(), so success
+        (("", "", ""), ("", "4.1.6", "", ""), "4.1.6"),
+    ],
+)
+def test_get_os_version_os_error(mac_ver, win32_ver, expected):
+    """regression test for platform.libc_ver() raising an OSError on Windows/unsupported machine"""
+    with mock.patch("platform.mac_ver") as macos:
+        macos.return_value = mac_ver
+
+        with mock.patch("platform.win32_ver") as win32:
+            win32.return_value = win32_ver
+
+            # Cause platform.libc_ver() to raise an OSError
+            with mock.patch("platform.libc_ver") as libc:
+                libc.side_effect = OSError
+
                 assert _get_os_version() == expected
 
 

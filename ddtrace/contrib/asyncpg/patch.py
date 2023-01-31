@@ -74,6 +74,9 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.asyncpg.integration_name)
+
         # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
         span.set_tags(_get_connection_tags(conn))
@@ -84,6 +87,9 @@ async def _traced_query(pin, method, query, args, kwargs):
     with pin.tracer.trace(
         "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.asyncpg.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
         return await method(*args, **kwargs)

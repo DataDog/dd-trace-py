@@ -104,6 +104,7 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "opensearchpy",
     ),
     "psycopg": ("psycopg2",),
     "snowflake": ("snowflake.connector",),

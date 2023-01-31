@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import sys
 import typing
 from typing import List
 from typing import Optional
@@ -54,11 +53,6 @@ class Profiler(object):
         :param profile_children: Whether to start a profiler in child processes.
         """
 
-        if sys.version_info >= (3, 11, 0):
-            raise RuntimeError(
-                "Profiling is not yet compatible with Python 3.11. "
-                "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
-            )
         if profile_children:
             try:
                 uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
@@ -115,7 +109,7 @@ class _ProfilerInstance(service.Service):
     # User-supplied values
     url = attr.ib(default=None)
     service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
-    tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
+    tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
@@ -126,8 +120,11 @@ class _ProfilerInstance(service.Service):
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
     enable_code_provenance = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", True, formats.asbool),
+        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
         type=bool,
+    )
+    endpoint_collection_enabled = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
     )
 
     _recorder = attr.ib(init=False, default=None)
@@ -166,7 +163,7 @@ class _ProfilerInstance(service.Service):
                 endpoint = agent.get_trace_url()
 
         if self.agentless:
-            endpoint_path = "/v1/input"
+            endpoint_path = "/api/v2/profile"
         else:
             # Agent mode
             # path is relative because it is appended
@@ -174,7 +171,11 @@ class _ProfilerInstance(service.Service):
             endpoint_path = "profiling/v1/input"
 
         if self._lambda_function_name is not None:
-            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
+            self.tags.update({"functionname": self._lambda_function_name})
+
+        endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
+        if self.endpoint_collection_enabled:
+            endpoint_call_counter_span_processor.enable()
 
         return [
             http.PprofHTTPExporter(
@@ -186,6 +187,7 @@ class _ProfilerInstance(service.Service):
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
                 enable_code_provenance=self.enable_code_provenance,
+                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
             ),
         ]
 
@@ -208,7 +210,9 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            stack.StackCollector(
+                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
+            ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
         if _asyncio.asyncio_available:

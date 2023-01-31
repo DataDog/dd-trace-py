@@ -10,9 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "elasticsearch",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
+      "language": "python",
       "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85"
     },
     "metrics": {
@@ -38,9 +40,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",
+      "language": "python",
       "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85"
     },
     "metrics": {

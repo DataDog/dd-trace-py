@@ -10,9 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "aredis",
+      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
-      "runtime-id": "cbe1640ba87d4f10b17f215d7ae38eed"
+      "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,6 +27,6 @@
       "process_id": 65274,
       "redis.args_length": 2
     },
-    "duration": 3470000,
-    "start": 1650032338898765000
+    "duration": 3675000,
+    "start": 1666795795412258000
   }]]

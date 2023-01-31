@@ -76,6 +76,9 @@ class TraceTool(cherrypy.Tool):
             span_type=SpanTypes.WEB,
         )
 
+        # set component tag equal to name of integration
+        cherrypy.request._datadog_span.set_tag_str("component", config.cherrypy.integration_name)
+
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)
 
@@ -84,9 +87,9 @@ class TraceTool(cherrypy.Tool):
             return
 
         span.error = 1
-        span.set_tag(ERROR_TYPE, cherrypy._cperror._exc_info()[0])
-        span.set_tag(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
-        span.set_tag(ERROR_STACK, cherrypy._cperror.format_exc())
+        span.set_tag_str(ERROR_TYPE, str(cherrypy._cperror._exc_info()[0]))
+        span.set_tag_str(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
+        span.set_tag_str(ERROR_STACK, cherrypy._cperror.format_exc())
 
         self._close_span(span)
 

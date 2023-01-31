@@ -66,6 +66,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         resource = "GET tests.contrib.django.views.index"
 
     meta = {
+        "component": "django",
         "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
         "django.response.class": "django.http.response.HttpResponse",
         "django.user.is_authenticated": "False",
@@ -107,6 +108,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
     root = test_spans.get_root_span()
 
     meta = {
+        "component": "django",
         "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
         "django.response.class": "django.http.response.HttpResponse",
         "django.user.is_authenticated": "False",
@@ -727,6 +729,7 @@ def test_cache_get(test_spans):
     assert span.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key",
     }
@@ -751,6 +754,7 @@ def test_cache_get_unicode(test_spans):
     assert span.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": u"😐",
     }
@@ -776,6 +780,7 @@ def test_cache_set(test_spans):
     assert span.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "a_new_key",
     }
@@ -800,6 +805,7 @@ def test_cache_delete(test_spans):
     assert span.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "an_existing_key",
     }
@@ -835,6 +841,7 @@ def test_cache_incr_1XX(test_spans):
     assert span_incr.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
     }
@@ -865,6 +872,7 @@ def test_cache_incr_2XX(test_spans):
     assert span_incr.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
     }
@@ -906,6 +914,7 @@ def test_cache_decr_1XX(test_spans):
     assert span_decr.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
     }
@@ -943,6 +952,7 @@ def test_cache_decr_2XX(test_spans):
     assert span_decr.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
     }
@@ -982,6 +992,7 @@ def test_cache_get_many(test_spans):
     assert span_get_many.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
     }
@@ -1095,6 +1106,7 @@ def test_cached_view(client, test_spans):
     assert span_header.error == 0
 
     expected_meta_view = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
@@ -1102,6 +1114,7 @@ def test_cached_view(client, test_spans):
     }
 
     expected_meta_header = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
     }
@@ -1139,6 +1152,7 @@ def test_cached_template(client, test_spans):
     assert span_template_cache.error == 0
 
     expected_meta = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
     }
@@ -1850,6 +1864,7 @@ class TestWSGI:
             resource = "GET tests.contrib.django.views.index"
 
         meta = {
+            "component": "django",
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
             "django.response.class": "django.http.response.HttpResponse",
             "django.user.is_authenticated": "False",

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    remote config: ensure proper validation of responses from the agent.

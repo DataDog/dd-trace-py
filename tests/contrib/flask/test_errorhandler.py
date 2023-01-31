@@ -1,8 +1,12 @@
 import flask
 
+from ddtrace.constants import ERROR_MSG
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
+
+
+EXPECTED_METADATA = {"component": "flask"}
 
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
@@ -31,16 +35,16 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 0)
-        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag(ERROR_MSG))
         self.assertIsNone(dispatch_span.get_tag("error.stack"))
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500(self):
@@ -75,7 +79,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag("error.msg")
+        error_msg = dispatch_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
         error_stack = dispatch_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -84,7 +88,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag("error.msg")
+        error_msg = endpoint_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
         error_stack = endpoint_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -92,11 +96,11 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500_custom_handler(self):
@@ -136,7 +140,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag("error.msg")
+        error_msg = dispatch_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
         error_stack = dispatch_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -145,7 +149,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag("error.msg")
+        error_msg = endpoint_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
         error_stack = endpoint_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -154,16 +158,16 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # tests.contrib.flask.test_errorhandler.handle_500 span
         self.assertEqual(handler_span.error, 0)
-        self.assertIsNone(handler_span.get_tag("error.msg"))
+        self.assertIsNone(handler_span.get_tag(ERROR_MSG))
         self.assertIsNone(handler_span.get_tag("error.stack"))
         self.assertIsNone(handler_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_raise_user_exception(self):
@@ -200,7 +204,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag("error.msg")
+        error_msg = dispatch_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
         error_stack = dispatch_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -209,7 +213,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag("error.msg")
+        error_msg = endpoint_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
         error_stack = endpoint_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -218,7 +222,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 1)
-        error_msg = user_ex_span.get_tag("error.msg")
+        error_msg = user_ex_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
         error_stack = user_ex_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -268,7 +272,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag("error.msg")
+        error_msg = dispatch_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
         error_stack = dispatch_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -277,7 +281,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag("error.msg")
+        error_msg = endpoint_span.get_tag(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
         error_stack = endpoint_span.get_tag("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
@@ -289,7 +293,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 0)
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
 
         # flask.handle_http_exception span
         self.assertIsNone(http_ex_span)

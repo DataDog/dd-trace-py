@@ -16,8 +16,8 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.vendor import debtcollector
@@ -102,6 +102,7 @@ def _default_span_processors_factory(
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
+    profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -145,6 +146,8 @@ def _default_span_processors_factory(
                 agent_url,
             ),
         )
+
+    span_processors.append(profiling_span_processor)
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
@@ -227,6 +230,8 @@ class Tracer(object):
         self._appsec_enabled = config._appsec_enabled
         self._iast_enabled = config._iast_enabled
 
+        self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+
         self._span_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -237,8 +242,8 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
-        enable_appsec_rc(self)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -474,6 +479,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self._endpoint_call_counter_span_processor,
             )
 
         if context_provider is not None:
@@ -519,8 +525,8 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
-        enable_appsec_rc(self)
 
         self._new_process = True
 
@@ -632,7 +638,8 @@ class Tracer(object):
             else:
                 service = config.service
 
-        mapped_service = config.service_mapping.get(service, service)
+        # Update the service name based on any mapping
+        service = config.service_mapping.get(service, service)
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -641,7 +648,7 @@ class Tracer(object):
                 context=context,
                 trace_id=trace_id,
                 parent_id=parent_id,
-                service=mapped_service,
+                service=service,
                 resource=resource,
                 span_type=span_type,
                 on_finish=[self._on_span_finish],
@@ -660,7 +667,7 @@ class Tracer(object):
             span = Span(
                 name=name,
                 context=context,
-                service=mapped_service,
+                service=service,
                 resource=resource,
                 span_type=span_type,
                 on_finish=[self._on_span_finish],

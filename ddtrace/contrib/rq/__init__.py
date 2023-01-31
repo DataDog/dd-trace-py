@@ -130,6 +130,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.rq.integration_name)
+
         span.set_tag_str("queue.name", instance.name)
         span.set_tag_str("job.id", job.get_id())
         span.set_tag_str("job.func_name", job.func_name)
@@ -143,6 +146,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
     with pin.tracer.trace("rq.queue.fetch_job", service=trace_utils.int_service(pin, config.rq)) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.rq.integration_name)
+
         job_id = get_argument_value(args, kwargs, 0, "job_id")
         span.set_tag_str("job.id", job_id)
         return func(*args, **kwargs)
@@ -166,6 +172,9 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
         ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.rq.integration_name)
+
             span.set_tag_str("job.id", job.get_id())
             try:
                 return func(*args, **kwargs)
@@ -189,6 +198,9 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
     with pin.tracer.trace("rq.job.perform", resource=job.func_name) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.rq.integration_name)
+
         span.set_tag("job.id", job.get_id())
         return func(*args, **kwargs)
 
@@ -197,6 +209,9 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     with pin.tracer.trace("rq.job.fetch_many", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.rq.integration_name)
+
         job_ids = get_argument_value(args, kwargs, 0, "job_ids")
         span.set_tag("job_ids", job_ids)
         return func(*args, **kwargs)

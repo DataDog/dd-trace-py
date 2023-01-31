@@ -1,19 +1,24 @@
 from itertools import chain
-import re
 import time
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Iterable
 from typing import Optional
+from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import config
 from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import FunctionProbe
-from ddtrace.debugging._probe.model import LineProbe
-from ddtrace.debugging._probe.model import MetricProbe
+from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DDExpression
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import MetricFunctionProbe
+from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SnapshotFunctionProbe
+from ddtrace.debugging._probe.model import SnapshotLineProbe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.utils.cache import LFUCache
@@ -25,26 +30,26 @@ log = get_logger(__name__)
 _EXPRESSION_CACHE = LFUCache()
 
 
-def _invalid_condition(_):
-    """Forces probes with invalid conditions to never trigger.
+def _invalid_expression(_):
+    """Forces probes with invalid expression/conditions to never trigger.
 
     Any signs of invalid conditions in logs is an indication of a problem with
     the expression compiler.
     """
-    return False
+    return None
 
 
-INVALID_CONDITION = _invalid_condition
+INVALID_EXPRESSION = _invalid_expression
 
 
-def _compile_condition(when):
-    # type: (Optional[Dict[str, Any]]) -> Optional[Callable[[Dict[str, Any]], Any]]
-    global _EXPRESSION_CACHE, INVALID_CONDITION
+def _compile_expression(expr):
+    # type: (Optional[Dict[str, Any]]) -> Optional[DDExpression]
+    global _EXPRESSION_CACHE, INVALID_EXPRESSION
 
-    if when is None:
+    if expr is None:
         return None
 
-    ast = when["json"]
+    ast = expr["json"]
 
     def compile_or_invalid(expr):
         # type: (str) -> Callable[[Dict[str, Any]], Any]
@@ -52,16 +57,16 @@ def _compile_condition(when):
             return dd_compile(ast)
         except Exception:
             log.error("Cannot compile expression: %s", expr, exc_info=True)
-            return INVALID_CONDITION
+            return INVALID_EXPRESSION
 
-    expr = when["dsl"]
+    dsl = expr["dsl"]
 
-    compiled = _EXPRESSION_CACHE.get(expr, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
+    compiled = _EXPRESSION_CACHE.get(dsl, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
 
-    if compiled is INVALID_CONDITION:
-        log.error("Cannot compile expression: %s", expr, exc_info=True)
+    if compiled is INVALID_EXPRESSION:
+        log.error("Cannot compile expression: %s", dsl, exc_info=True)
 
-    return compiled
+    return DDExpression(dsl=dsl, callable=compiled)
 
 
 def _match_env_and_version(probe):
@@ -83,6 +88,21 @@ def _filter_by_env_and_version(f):
     return _wrapper
 
 
+def _create_probe_based_on_location(args, attribs, line_class, function_class):
+    # type: (Dict[str, Any], Dict[str, Any], Type, Type) -> Any
+    if attribs["where"].get("sourceFile", None):
+        ProbeType = line_class
+        args["source_file"] = attribs["where"]["sourceFile"]
+        args["line"] = int(attribs["where"]["lines"][0])
+    else:
+        ProbeType = function_class
+        args["module"] = attribs["where"].get("type") or attribs["where"]["typeName"]
+        args["func_qname"] = attribs["where"].get("method") or attribs["where"]["methodName"]
+        args["evaluate_at"] = attribs.get("evaluateAt")
+
+    return ProbeType(**args)
+
+
 def probe(_id, _type, attribs):
     # type: (str, str, Dict[str, Any]) -> Probe
     """
@@ -91,39 +111,36 @@ def probe(_id, _type, attribs):
     if _type == "snapshotProbes":
         args = dict(
             probe_id=_id,
-            condition=_compile_condition(attribs.get("when")),
+            condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+            limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
+            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 
-        if attribs["where"].get("sourceFile", None):
-            ProbeType = LineProbe
-            args["source_file"] = attribs["where"]["sourceFile"]
-            args["line"] = int(attribs["where"]["lines"][0])
-        else:
-            ProbeType = FunctionProbe  # type: ignore[assignment]
-            args["module"] = attribs["where"].get("type") or attribs["where"]["typeName"]
-            args["func_qname"] = attribs["where"].get("method") or attribs["where"]["methodName"]
-
-        return ProbeType(**args)
+        return _create_probe_based_on_location(args, attribs, SnapshotLineProbe, SnapshotFunctionProbe)
 
     elif _type == "metricProbes":
-        return MetricProbe(
+        args = dict(
             probe_id=_id,
+            condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
-            source_file=attribs["where"]["sourceFile"],
-            line=int(attribs["where"]["lines"][0]),
             name=attribs["metricName"],
             kind=attribs["kind"],
+            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
+            value=_compile_expression(attribs.get("value")),
         )
+
+        return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
 
     raise ValueError("Unknown probe type: %s" % _type)
 
 
 _SNAPSHOT_PREFIX = "snapshotProbe_"
 _METRIC_PREFIX = "metricProbe_"
-_CONFIG_REGEX = re.compile(r"^[\da-f]{8}-([\da-f]{4}-){3}[\da-f]{12}$", re.IGNORECASE)
 
 
 def _make_probes(probes, _type):
@@ -139,12 +156,6 @@ def get_probes(config_id, config):
 
     if config_id.startswith(_METRIC_PREFIX):
         return chain(_make_probes([config], "metricProbes"))
-
-    if _CONFIG_REGEX.match(config_id):
-        return chain(
-            _make_probes(config.get("snapshotProbes") or [], "snapshotProbes"),
-            _make_probes(config.get("metricProbes") or [], "metricProbes"),
-        )
 
     raise ValueError("Unsupported config id: %s" % config_id)
 

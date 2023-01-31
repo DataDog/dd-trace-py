@@ -3,9 +3,9 @@ from botocore.errorfactory import ClientError
 import pytest
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
-from ddtrace.internal.compat import stringify
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_config
@@ -42,6 +42,7 @@ async def test_traced_client(tracer):
     assert span.name == "ec2.command"
     assert span.span_type == "http"
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -73,10 +74,10 @@ async def test_s3_client(tracer):
     assert span.service == "aws.s3"
     assert span.resource == "s3.listbuckets"
     assert span.name == "s3.command"
+    assert span.get_tag("component") == "aiobotocore"
 
 
-@pytest.mark.asyncio
-async def test_s3_put(tracer):
+async def _test_s3_put(tracer):
     params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
 
     async with aiobotocore_client("s3", tracer) as s3:
@@ -96,9 +97,36 @@ async def test_s3_put(tracer):
     assert_is_measured(spans[1])
     assert spans[1].get_tag("aws.operation") == "PutObject"
     assert spans[1].resource == "s3.putobject"
-    assert spans[1].get_tag("params.Key") == stringify(params["Key"])
-    assert spans[1].get_tag("params.Bucket") == stringify(params["Bucket"])
-    assert spans[1].get_tag("params.Body") is None
+
+    return spans[1]
+
+
+@pytest.mark.asyncio
+async def test_s3_put(tracer):
+    span = await _test_s3_put(tracer)
+    assert span.get_tag("aws.s3.bucket_name") == "mybucket"
+    assert span.get_tag("component") == "aiobotocore"
+
+
+@pytest.mark.asyncio
+async def test_s3_put_no_params(tracer):
+    with override_config("aiobotocore", dict(tag_no_params=True)):
+        span = await _test_s3_put(tracer)
+        assert span.get_tag("aws.s3.bucket_name") is None
+        assert span.get_tag("params.Key") is None
+        assert span.get_tag("params.Bucket") is None
+        assert span.get_tag("params.Body") is None
+        assert span.get_tag("component") == "aiobotocore"
+
+
+@pytest.mark.asyncio
+async def test_s3_put_all_params(tracer):
+    with override_config("aiobotocore", dict(tag_all_params=True)):
+        span = await _test_s3_put(tracer)
+        assert span.get_tag("params.Key") == "foo"
+        assert span.get_tag("params.Bucket") == "mybucket"
+        assert span.get_tag("params.Body") is None
+        assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -116,7 +144,8 @@ async def test_s3_client_error(tracer):
     assert_is_measured(span)
     assert span.resource == "s3.listobjects"
     assert span.error == 1
-    assert "NoSuchBucket" in span.get_tag("error.msg")
+    assert span.get_tag("component") == "aiobotocore"
+    assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
 
 
 @pytest.mark.asyncio
@@ -148,6 +177,7 @@ async def test_s3_client_read(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.s3"
     assert span.resource == "s3.getobject"
+    assert span.get_tag("component") == "aiobotocore"
 
     if pre_08:
         read_span = traces[1][0]
@@ -178,6 +208,7 @@ async def test_sqs_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.sqs"
     assert span.resource == "sqs.listqueues"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -197,12 +228,12 @@ async def test_kinesis_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.kinesis"
     assert span.resource == "kinesis.liststreams"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
 async def test_lambda_client(tracer):
     async with aiobotocore_client("lambda", tracer) as lambda_client:
-        # https://github.com/spulec/moto/issues/906
         await lambda_client.list_functions(MaxItems=5)
 
     traces = tracer.pop_traces()
@@ -217,6 +248,7 @@ async def test_lambda_client(tracer):
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.lambda"
     assert span.resource == "lambda.listfunctions"
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -238,6 +270,7 @@ async def test_kms_client(tracer):
     assert span.resource == "kms.listkeys"
     # checking for protection on STS against security leak
     assert span.get_tag("params") is None
+    assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -293,6 +326,7 @@ async def test_opentraced_client(tracer):
     assert dd_span.service == "aws.ec2"
     assert dd_span.resource == "ec2.describeinstances"
     assert dd_span.name == "ec2.command"
+    assert dd_span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -341,6 +375,7 @@ async def test_opentraced_s3_client(tracer):
     assert dd_span2.service == "aws.s3"
     assert dd_span2.resource == "s3.listbuckets"
     assert dd_span2.name == "s3.command"
+    assert dd_span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -405,6 +440,7 @@ async def test_response_context_manager(tracer):
         # enforce parenting
         assert read_span.parent_id == span.span_id
         assert read_span.trace_id == span.trace_id
+        assert read_span.get_tag("component") == "aiobotocore"
     else:
         assert len(traces[0]) == 1
         assert len(traces[0]) == 1
@@ -416,3 +452,4 @@ async def test_response_context_manager(tracer):
         assert span.service == "aws.s3"
         assert span.resource == "s3.getobject"
         assert span.name == "s3.command"
+        assert span.get_tag("component") == "aiobotocore"

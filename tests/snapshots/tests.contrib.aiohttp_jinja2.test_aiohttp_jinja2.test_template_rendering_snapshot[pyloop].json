@@ -11,7 +11,9 @@
     "meta": {
       "_dd.p.dm": "-0",
       "aiohttp.template": "/template.jinja2",
-      "runtime-id": "002626b5dcff4119a23c023f080c782a"
+      "component": "aiohttp_jinja2",
+      "language": "python",
+      "runtime-id": "97da340f246646cdb7197748b6ba69c7"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,6 +22,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 96510
     },
-    "duration": 840000,
-    "start": 1646201152174695000
+    "duration": 789000,
+    "start": 1666811114138560000
   }]]

@@ -121,6 +121,24 @@ below:
      default: False
      description: Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
+   DD_AGENT_HOST:
+     type: String
+     default: |
+        ``localhost``
+     description: |
+         The host name to use to connect the Datadog agent for traces. The host name
+         can be IPv4, IPv6, or a domain name. If ``DD_TRACE_AGENT_URL`` is specified, the
+         value of ``DD_AGENT_HOST`` is ignored.
+
+         Example for IPv4: ``DD_AGENT_HOST=192.168.10.1``
+
+         Example for IPv6: ``DD_AGENT_HOST=2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF``
+
+         Example for domain name: ``DD_AGENT_HOST=host``
+     version_added:
+        v0.17.0:
+        v1.7.0:
+
    DD_TRACE_AGENT_URL:
      type: URL
      default: |
@@ -254,16 +272,18 @@ below:
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-
          When ``none`` is the only propagator listed, propagation is disabled. 
 
          All provided styles are injected into the headers of outbound requests.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
@@ -273,15 +293,17 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-
          When ``none`` is the only propagator listed, extraction is disabled. 
 
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
@@ -291,14 +313,16 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
-
          When ``none`` is the only propagator listed, injection is disabled. 
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
@@ -336,10 +360,8 @@ below:
 
    DD_PROFILING_ENABLE_CODE_PROVENANCE:
      type: Boolean
-     default: True
+     default: False
      description: Whether to enable code provenance.
-     version_added:
-       v1.7.0:
 
    DD_PROFILING_MEMORY_ENABLED:
      type: Boolean

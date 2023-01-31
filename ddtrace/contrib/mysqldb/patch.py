@@ -76,6 +76,9 @@ def _connect(func, instance, args, kwargs):
         with pin.tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.mysqldb.integration_name)
+
             span.set_tag(SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)

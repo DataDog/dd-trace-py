@@ -62,12 +62,14 @@ jobs:
             expl_coverage: 1
           - expl_profiler: 0
             expl_coverage: 0
+          # Temporarily disabling line coverage to investigate cause of hangs
+          - expl_profiler: 0
+            expl_coverage: 1
     runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
-      DD_REMOTE_CONFIGURATION_ENABLED: false
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
@@ -169,7 +171,7 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.75.0
           path: fastapi
-      - uses: actions/cache@v3.0.11
+      - uses: actions/cache@v3.2.3
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -182,9 +184,6 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: flit install --symlink
-      - name: Pin SQLAlchemy
-        # https://github.com/encode/databases/issues/512
-        run: pip install "SQLAlchemy==1.4.41"
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
@@ -321,9 +320,6 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: scripts/install
-      - name: Pin SQLAlchemy
-        # https://github.com/encode/databases/issues/512
-        run: pip install "SQLAlchemy==1.4.41"
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
@@ -364,7 +360,6 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
-      DD_REMOTE_CONFIGURATION_ENABLED: false
     defaults:
       run:
         working-directory: asyncpg

@@ -1,6 +1,7 @@
 import django
 import pytest
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
@@ -25,6 +26,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert sp.span_type == "web"
     assert_span_http_status_code(sp, 500)
     assert sp.get_tag("http.method") == "GET"
+    assert sp.get_tag("component") == "django"
 
     # the DRF integration should set the traceback on the django.view.dispatch span
     # (as it's the current span when the exception info is set)
@@ -32,8 +34,9 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert len(view_dispatch_spans) == 1
     err_span = view_dispatch_spans[0]
     assert err_span.error == 1
-    assert err_span.get_tag("error.msg") == "Authentication credentials were not provided."
+    assert err_span.get_tag(ERROR_MSG) == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
+    assert err_span.get_tag("component") == "django"
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
@@ -48,4 +51,5 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
         query = dict(_context.get_item("http.request.body", span=root_span))
 
         assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_tag("component") == "django"
         assert query == {"mytestingbody_key": "mytestingbody_value"}

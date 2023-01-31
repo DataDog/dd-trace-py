@@ -145,6 +145,9 @@ def pytest_runtest_protocol(item, nextitem):
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", "pytest")
+
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.context.sampling_priority = AUTO_KEEP
         span.set_tags(pin.tags)

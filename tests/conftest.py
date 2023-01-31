@@ -11,6 +11,7 @@ import time
 from _pytest.runner import CallInfo
 from _pytest.runner import TestReport
 from _pytest.runner import call_and_report
+from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 from six import PY2
 
@@ -231,6 +232,13 @@ def run_function_from_file(item, params=None):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
+    if item.get_closest_marker("skip"):
+        return default_pytest_runtest_protocol(item, None)
+
+    skipif = item.get_closest_marker("skipif")
+    if skipif and skipif.args[0]:
+        return default_pytest_runtest_protocol(item, None)
+
     marker = item.get_closest_marker("subprocess")
     if marker:
         params = marker.kwargs.get("parametrize", None)

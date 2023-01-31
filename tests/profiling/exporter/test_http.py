@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 import email.parser
+import json
 import platform
 import socket
 import sys
@@ -14,6 +15,8 @@ from six.moves import http_client
 
 import ddtrace
 from ddtrace.internal import compat
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
@@ -28,6 +31,7 @@ if sys.platform == "win32":
 
 
 _API_KEY = "my-api-key"
+_ENDPOINT_COUNTS = {"a": 1, "b": 2}
 
 
 class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -41,17 +45,35 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
 
     @staticmethod
     def _check_tags(tags):
-        tags.sort()
+        tags.split(",").sort()
         return (
             len(tags) == 6
-            and tags[0].startswith(b"host:")
-            and tags[1] == b"language:python"
-            and tags[2] == ("profiler_version:%s" % ddtrace.__version__).encode("utf-8")
-            and tags[3].startswith(b"runtime-id:")
-            and tags[4] == b"runtime:CPython"
-            and tags[5].startswith(b"service:")
-            and tags[6] == platform.python_version().encode(),
+            and tags[0].startswith("host:")
+            and tags[1] == "language:python"
+            and tags[2] == ("profiler_version:%s" % ddtrace.__version__)
+            and tags[3].startswith("runtime-id:")
+            and tags[4] == "runtime:CPython"
+            and tags[5].startswith("service:")
+            and tags[6] == platform.python_version(),
         )
+
+    @staticmethod
+    def _check_endpoints(endpoints):
+        return endpoints == _ENDPOINT_COUNTS
+
+    def _check_event(self, event_json):
+        event = json.loads(event_json.decode())
+        for key, check in {
+            "start": lambda x: x == "1970-01-01T00:00:00Z",
+            "end": lambda x: x.startswith("20"),
+            "family": lambda x: x == "python",
+            "version": lambda x: x == "4",
+            "tags_profiler": self._check_tags,
+            "endpoint_counts": self._check_endpoints,
+        }.items():
+            if not check(event[key]):
+                return False
+        return True
 
     def do_POST(self):
         assert self.path.startswith(self.path_prefix)
@@ -73,17 +95,14 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         for part in msg.get_payload():
             items[part.get_param("name", header="content-disposition")].append(part.get_payload(decode=True))
         for key, check in {
-            "start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
-            "end": lambda x: x[0].startswith(b"20"),
-            "family": lambda x: x[0] == b"python",
-            "version": lambda x: x[0] == b"3",
-            "tags[]": self._check_tags,
-            "data[auto.pprof]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
-            "data[code-provenance.json]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "event": lambda x: self._check_event(x[0]),
+            "auto": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "code-provenance": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
         }.items():
             if not check(items[key]):
                 self.send_error(400, "Wrong value for %s: %r" % (key, items[key]))
                 return
+
         self.send_error(200, "OK")
 
 
@@ -163,21 +182,39 @@ def endpoint_test_unknown_server():
         thread.join()
 
 
+def _get_span_processor():
+    endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+    endpoint_call_counter_span_processor.endpoint_counts = _ENDPOINT_COUNTS
+    return endpoint_call_counter_span_processor
+
+
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key="this is not the right API key", max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT,
+        api_key="this is not the right API key",
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key=_API_KEY)
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT, api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor()
+    )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_server_down():
-    exp = http.PprofHTTPExporter(endpoint="http://localhost:2", api_key=_API_KEY, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint="http://localhost:2",
+        api_key=_API_KEY,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -186,7 +223,13 @@ def test_export_server_down():
 
 
 def test_export_timeout(endpoint_test_timeout_server):
-    exp = http.PprofHTTPExporter(endpoint=_TIMEOUT_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_TIMEOUT_ENDPOINT,
+        api_key=_API_KEY,
+        timeout=1,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -195,7 +238,13 @@ def test_export_timeout(endpoint_test_timeout_server):
 
 
 def test_export_reset(endpoint_test_reset_server):
-    exp = http.PprofHTTPExporter(endpoint=_RESET_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(
+        endpoint=_RESET_ENDPOINT,
+        api_key=_API_KEY,
+        timeout=1,
+        max_retry_delay=2,
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -207,7 +256,7 @@ def test_export_reset(endpoint_test_reset_server):
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT)
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, endpoint_call_counter_span_processor=_get_span_processor())
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == (
@@ -216,7 +265,9 @@ def test_export_404_agent(endpoint_test_unknown_server):
 
 
 def test_export_404_agentless(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
+    exp = http.PprofHTTPExporter(
+        endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1, endpoint_call_counter_span_processor=_get_span_processor()
+    )
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
@@ -225,7 +276,12 @@ def test_export_404_agentless(endpoint_test_unknown_server):
 def test_export_tracer_base_path(endpoint_test_server):
     # Base path is prepended to the endpoint path because
     # it does not start with a slash.
-    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="v1/input")
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT + "/profiling/",
+        api_key=_API_KEY,
+        endpoint_path="v1/input",
+        endpoint_call_counter_span_processor=_get_span_processor(),
+    )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
@@ -233,196 +289,180 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
     # Base path is ignored by the profiling HTTP exporter
     # because the endpoint path starts with a slash.
     exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="/profiling/v1/input"
+        endpoint=_ENDPOINT + "/profiling/",
+        api_key=_API_KEY,
+        endpoint_path="/profiling/v1/input",
+        endpoint_call_counter_span_processor=_get_span_processor(),
     )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
-def _check_tags_types(tags):
-    for k, v in tags.items():
-        assert isinstance(k, str)
-        assert isinstance(v, bytes)
-
-
 def test_get_tags():
-    tags = http.PprofHTTPExporter(env="foobar", endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["env"] == b"foobar"
-    assert tags["runtime"] == b"CPython"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["env"] == "foobar"
+    assert tags["runtime"] == "CPython"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
 
 def test_get_malformed(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytagfoobar")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 7
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["profiler_version"] == ddtrace.__version__
 
     monkeypatch.setenv("DD_TAGS", "mytagfoobar,")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 7
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["profiler_version"] == ddtrace.__version__
 
     monkeypatch.setenv("DD_TAGS", ",")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 7
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["profiler_version"] == ddtrace.__version__
 
     monkeypatch.setenv("DD_TAGS", "foo:bar,")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foo"] == b"bar"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foo"] == "bar"
+    assert tags["profiler_version"] == ddtrace.__version__
 
 
 def test_get_tags_override(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytag:foobar")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["mytag"] == b"foobar"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["mytag"] == "foobar"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "mytag:foobar,author:jd")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 9
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["mytag"] == b"foobar"
-    assert tags["author"] == b"jd"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["mytag"] == "foobar"
+    assert tags["author"] == "jd"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 7
-    assert tags["service"] == b"foobar"
+    assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:mycustomservice")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == b"mycustomservice"
+    assert tags["service"] == "mycustomservice"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foobar"] == b"baz"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foobar"] == "baz"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == u"🤣".encode("utf-8")
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foobar"] == b"baz"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foobar"] == "baz"
+    assert tags["profiler_version"] == ddtrace.__version__
     assert "version" not in tags
 
-    tags = http.PprofHTTPExporter(endpoint="", version="123")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123")._get_tags("foobar"))
     assert len(tags) == 9
-    assert tags["service"] == u"🤣".encode("utf-8")
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foobar"] == b"baz"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
-    assert tags["version"] == b"123"
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foobar"] == "baz"
+    assert tags["profiler_version"] == ddtrace.__version__
+    assert tags["version"] == "123"
     assert "env" not in tags
 
-    tags = http.PprofHTTPExporter(endpoint="", version="123", env="prod")._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123", env="prod")._get_tags("foobar"))
     assert len(tags) == 10
-    assert tags["service"] == u"🤣".encode("utf-8")
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foobar"] == b"baz"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
-    assert tags["version"] == b"123"
-    assert tags["env"] == b"prod"
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foobar"] == "baz"
+    assert tags["profiler_version"] == ddtrace.__version__
+    assert tags["version"] == "123"
+    assert tags["env"] == "prod"
 
-    tags = http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
-    _check_tags_types(tags)
+    tags = parse_tags_str(
+        http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+    )
     assert len(tags) == 11
-    assert tags["service"] == u"🤣".encode("utf-8")
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
-    assert tags["language"] == b"python"
-    assert tags["runtime"] == b"CPython"
-    assert tags["foobar"] == b"baz"
-    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
-    assert tags["version"] == b"123"
-    assert tags["env"] == b"prod"
-    assert tags["mytag"] == b"123"
+    assert tags["language"] == "python"
+    assert tags["runtime"] == "CPython"
+    assert tags["foobar"] == "baz"
+    assert tags["profiler_version"] == ddtrace.__version__
+    assert tags["version"] == "123"
+    assert tags["env"] == "prod"
+    assert tags["mytag"] == "123"
 
 
 def test_get_tags_legacy(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:baz")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
-    assert tags["mytag"] == b"baz"
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    assert tags["mytag"] == "baz"
 
     # precedence
     monkeypatch.setenv("DD_TAGS", "mytag:val1,ddtag:hi")
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:val2,ddptag:lo")
-    tags = http.PprofHTTPExporter(endpoint="")._get_tags("foobar")
-    _check_tags_types(tags)
-    assert tags["mytag"] == b"val2"
-    assert tags["ddtag"] == b"hi"
-    assert tags["ddptag"] == b"lo"
+    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    assert tags["mytag"] == "val2"
+    assert tags["ddtag"] == "hi"
+    assert tags["ddptag"] == "lo"
