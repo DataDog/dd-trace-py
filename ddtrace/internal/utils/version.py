@@ -2,8 +2,6 @@ import typing
 
 import packaging.version
 
-import ddtrace
-
 
 def parse_version(version):
     # type: (str) -> typing.Tuple[int, int, int]
@@ -70,7 +68,9 @@ def _get_version_agent_format():
     # https://semver.org/#backusnaur-form-grammar-for-valid-semver-versions
     #
     # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
-    tracer_version = ddtrace.__version__
+    from ddtrace.version import get_version
+
+    tracer_version = get_version()
     if "rc" in tracer_version:
         tracer_version = tracer_version.replace("rc", "-rc", 1)
     elif ".dev" in tracer_version:

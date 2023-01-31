@@ -67,6 +67,10 @@ class TelemetryWriter(PeriodicService):
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
+            "DD-Client-Library-Language": "python",
+            "DD-Client-Library-Version": _get_version_agent_format(),
+            "DD-Agent-Env": "config.env",  # TODO
+            "DD-Agent-Hostname": "",  # TODO
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEGUG", "false"))
@@ -113,6 +117,7 @@ class TelemetryWriter(PeriodicService):
     def _flush_namespace_metrics(self):
         # type () -> List[Metric]
         """Returns a list of all generate-metrics"""
+        log.debug("[METRICS] _flush_namespace_metrics")
         with self._lock:
             namespace_metrics = self._namespace.get()
             self._namespace._flush()
