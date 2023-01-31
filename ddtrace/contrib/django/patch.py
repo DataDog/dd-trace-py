@@ -21,6 +21,7 @@ from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
+from ddtrace.contrib.django.compat import get_resolver
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
@@ -354,7 +355,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 uri = utils.get_request_uri(request)
                 if query:
                     uri += "?" + query
-                path = request.resolver_match.kwargs if request.resolver_match else None
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                if resolver:
+                    try:
+                        path = resolver.resolve(request.path_info).kwargs
+                        log.debug("resolver.pattern %s", path)
+                    except Exception:
+                        path = None
                 parsed_query = request.GET
                 body = utils._extract_body(request)
                 trace_utils.set_http_meta(
