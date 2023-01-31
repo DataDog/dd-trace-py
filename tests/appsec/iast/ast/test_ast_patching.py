@@ -70,6 +70,26 @@ def test_astpatch_source_changed(module_path, module_name):
 @pytest.mark.parametrize(
     "module_path, module_name",
     [
+        ("tests/appsec/iast/fixtures/aspects/str/future_import_function_str.py", "function_str"),
+        ("tests/appsec/iast/fixtures/aspects/str/future_import_class_str.py", "class_str"),
+        (None, "tests.appsec.iast.fixtures.aspects.str.future_import_class_str"),
+        (None, "tests.appsec.iast.fixtures.aspects.str.future_import_function_str"),
+    ],
+)
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+def test_astpatch_source_changed_with_future_imports(module_path, module_name):
+    module_path, new_source = astpatch_source(module_path, module_name)
+    assert ("", "") != (module_path, new_source)
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith(
+        "\nfrom __future__ import annotations\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects"
+    )
+    assert "ddtrace_aspects.str_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_path, module_name",
+    [
         ("tests/appsec/iast/fixtures/aspects/str/function_no_str.py", "function_str"),
         ("tests/appsec/iast/fixtures/aspects/str/class_no_str.py", "class_str"),
         ("tests/appsec/iast/fixtures/aspects/str/non_existent_invented_extension.cppy", "class_str"),
