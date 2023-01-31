@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import os
 import subprocess
+import sys
+
+import pytest
 
 
 def _run_python_file(*args):
@@ -10,6 +13,7 @@ def _run_python_file(*args):
     assert ret.returncode == 0
 
 
+@pytest.mark.skipif(sys.version_info[0] < 3, reason="Not testing Python 2")
 def test_env_var_iast_enabled(monkeypatch, capfd):
     # type: (...) -> None
     monkeypatch.setenv("DD_IAST_ENABLED", "true")
@@ -18,6 +22,7 @@ def test_env_var_iast_enabled(monkeypatch, capfd):
     assert captured.out == "hi\n"
 
 
+@pytest.mark.skipif(sys.version_info[0] < 3, reason="Not testing Python 2")
 def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
     monkeypatch.setenv("DD_IAST_ENABLED", "false")
@@ -26,6 +31,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     assert captured.out == "hi\n"
 
 
+@pytest.mark.skipif(sys.version_info[0] < 3, reason="Not testing Python 2")
 def test_env_var_iast_unset(monkeypatch, capfd):
     # type: (...) -> None
     _run_python_file()
