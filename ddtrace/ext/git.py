@@ -160,9 +160,8 @@ def extract_user_git_metadata(env=None):
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
     if "origin/tags" in env.get("DD_GIT_BRANCH", "") or "refs/heads/tags" in env.get("DD_GIT_BRANCH", ""):
+        tag = branch
         branch = None
-        if not tag:
-            tag = normalize_ref(env.get("DD_GIT_BRANCH"))
 
     tags = {}
     tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")

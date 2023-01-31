@@ -114,14 +114,15 @@ def tags(env=None, cwd=None):
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
-    branch = tags.get(git.BRANCH) or ""
-    if "tags/" in branch:
+    # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
+    if "tags/" in tags.get(git.BRANCH, ""):
         if not tags.get(git.TAG):
-            tags[git.TAG] = branch
+            tags[git.TAG] = git.normalize_ref(tags.get(git.BRANCH))
         del tags[git.BRANCH]
+    else:
+        tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
+        tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
 
-    tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
-    tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     workspace_path = tags.get(WORKSPACE_PATH)
