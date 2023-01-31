@@ -109,6 +109,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+loopback
 macOS
 mako
 mariadb
@@ -141,6 +142,7 @@ profiler
 protobuf
 psycopg
 py
+PyFrameObject
 pylibmc
 pymemcache
 pymongo
@@ -169,6 +171,7 @@ serializable
 sql
 sqlalchemy
 sqlite
+stacktrace
 starlette
 stringable
 subdomains

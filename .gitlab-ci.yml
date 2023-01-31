@@ -12,7 +12,7 @@ variables:
     value: "dd-trace-py"
     description: "Run a specific relenv-microbenchmarking-platform branch downstream"
 
-    
+
 .common: &common
   tags: [ "runner:main", "size:large" ]
 
@@ -41,13 +41,37 @@ trigger_microbenchmarking_platform:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
 
+deploy_to_di_backend:
+  stage: deploy
+  rules:
+    - when: manual
+      allow_failure: true
+  trigger:
+    project: DataDog/debugger-backend
+    branch: main
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_PACKAGE_JOB: build
+
 deploy_to_docker_registries:
   stage: deploy
   rules:
     - if: '$POPULATE_CACHE'
       when: never
+    # Wait 1 day to trigger the downstream job.
+    # This is a work-around since there isn't a way to trigger
+    # Gitlab from the Github workflow (build_deploy.yml:upload_pypi).
+    #
+    # The caveat here is that if there is a failure to build to PyPI
+    # and it isn't fixed in a day then this job will fail and images
+    # will not be published.
     - if: '$CI_COMMIT_TAG =~ /^v.*/'
-      when: on_success
+      when: delayed
+      start_in: 1 day
     - when: manual
       allow_failure: true
   trigger:
@@ -55,7 +79,7 @@ deploy_to_docker_registries:
     branch: main
     strategy: depend
   variables:
-    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_SHA
+    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_TAG
     IMG_DESTINATIONS: dd-lib-python-init:$CI_COMMIT_TAG
     IMG_SIGNING: "false"
 
@@ -64,8 +88,10 @@ deploy_latest_tag_to_docker_registries:
   rules:
     - if: '$POPULATE_CACHE'
       when: never
+    # See above note in the `deploy_to_docker_registries` job.
     - if: '$CI_COMMIT_TAG =~ /^v.*/'
-      when: on_success
+      when: delayed
+      start_in: 1 day
     - when: manual
       allow_failure: true
   trigger:
@@ -73,6 +99,6 @@ deploy_latest_tag_to_docker_registries:
     branch: main
     strategy: depend
   variables:
-    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_SHA
+    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_TAG
     IMG_DESTINATIONS: dd-lib-python-init:latest
     IMG_SIGNING: "false"

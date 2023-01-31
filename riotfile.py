@@ -192,7 +192,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="slotscheck",
-                    command="python -m slotscheck -v {cmdargs}",
+                    command="python -m slotscheck -v ddtrace/",
                 ),
             ],
         ),
@@ -1295,8 +1295,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "requests": latest,
                 "aiofiles": latest,
-                # Pinned until https://github.com/encode/databases/issues/298 is resolved.
-                "sqlalchemy": "~=1.3.0",
+                "sqlalchemy": latest,
                 "aiosqlite": latest,
                 "databases": latest,
             },
@@ -2596,13 +2595,8 @@ venv = Venv(
         Venv(
             name="gunicorn",
             command="pytest {cmdargs} tests/contrib/gunicorn",
-            pkgs={"requests": latest},
+            pkgs={"requests": latest, "gevent": latest},
             venvs=[
-                Venv(
-                    pys="2.7",
-                    # Gunicorn ended Python 2 support after 19.10.0
-                    pkgs={"gunicorn": "==19.10.0"},
-                ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},

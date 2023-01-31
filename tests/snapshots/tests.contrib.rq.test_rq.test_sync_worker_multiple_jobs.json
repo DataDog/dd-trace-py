@@ -13,6 +13,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "05471619-decb-41ff-9bcd-e99759524087",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -41,6 +42,7 @@
          "job.id": "05471619-decb-41ff-9bcd-e99759524087",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
@@ -83,6 +85,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "3f321637-b119-4a25-a7c0-ae0a5aa05d1a",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -111,6 +114,7 @@
          "job.id": "3f321637-b119-4a25-a7c0-ae0a5aa05d1a",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
@@ -153,6 +157,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "6ee30d0e-4d5d-4a30-9ec0-bd40bff59e6a",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
@@ -181,6 +186,7 @@
          "job.id": "6ee30d0e-4d5d-4a30-9ec0-bd40bff59e6a",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {

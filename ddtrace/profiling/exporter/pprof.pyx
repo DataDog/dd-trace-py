@@ -430,7 +430,7 @@ class _PprofConverter(object):
                     "name": lib.name,
                     "kind": "library",
                     "version": lib.version,
-                    "paths": sorted(lib_and_filename[1] for lib_and_filename in libs_and_filenames),
+                    "paths": [lib_and_filename[1] for lib_and_filename in libs_and_filenames],
                 }
             )
             for lib, libs_and_filenames in groupby(
@@ -463,7 +463,7 @@ class _PprofConverter(object):
                 value=[values.get(sample_type_name, 0) for sample_type_name, unit in sample_types],
                 label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],
             )
-            for (locations, labels), values in sorted(six.iteritems(self._location_values), key=_ITEMGETTER_ZERO)
+            for (locations, labels), values in six.iteritems(self._location_values)
         ]
 
         period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))
@@ -479,10 +479,9 @@ class _PprofConverter(object):
                     filename=self._str(program_name),
                 ),
             ],
-            # Sort location and function by id so the output is reproducible
-            location=sorted(self._locations.values(), key=_ATTRGETTER_ID),
-            function=sorted(self._functions.values(), key=_ATTRGETTER_ID),
-            string_table=list(self._string_table), # type: ignore[call-overload]
+            location=self._locations.values(),
+            function=self._functions.values(),
+            string_table=list(self._string_table),
             time_nanos=start_time_ns,
             duration_nanos=duration_ns,
             period=period,

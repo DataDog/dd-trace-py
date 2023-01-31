@@ -13,6 +13,7 @@
       "component": "graphql",
       "error.message": "exception was raised in a graphene query",
       "error.type": "graphql.error.base.GraphQLError",
+      "language": "python",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {

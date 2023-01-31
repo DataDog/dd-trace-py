@@ -8,6 +8,7 @@ from ddtrace import ext
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.exporter import pprof
 
 
@@ -700,6 +701,7 @@ def test_pprof_exporter(gan):
 
 @mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter_libs(gan):
+    _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     TEST_EVENTS = {
@@ -747,7 +749,7 @@ def test_pprof_exporter_libs(gan):
         ]
     }
 
-    exports, libs = exp.export(TEST_EVENTS, 1, 7)
+    _, libs = exp.export(TEST_EVENTS, 1, 7)
 
     # Version does not match between pip and __version__ for ddtrace; ignore
     for lib in libs:
@@ -761,8 +763,8 @@ def test_pprof_exporter_libs(gan):
             del lib["paths"]
 
     expected_libs = [
-        {"name": "ddtrace", "kind": "library", "paths": [memalloc.__file__, __file__]},
-        {"name": "six", "kind": "library", "version": six.__version__, "paths": [six.__file__]},
+        {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
+        {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
             "kind": "library",
@@ -783,6 +785,8 @@ def test_pprof_exporter_libs(gan):
     # - we end up with an empty expected_libs
     # This is equivalent to checking that the two lists are equal.
     for _ in libs:
+        if "paths" in _:
+            _["paths"] = set(_["paths"])
         expected_libs.remove(_)
 
     assert not expected_libs
