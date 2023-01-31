@@ -11,8 +11,6 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from jsonschema import validate
-
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -225,7 +223,10 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
-    validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
+    if json_rules:
+        from jsonschema import validate
+
+        validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
