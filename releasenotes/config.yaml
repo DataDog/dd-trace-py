@@ -59,7 +59,7 @@ template: |
   issues:
     - |
       For known issues. Use present tense with the following format:
-      Format: <scope>: There is currently a known <symptom_of_issue> issue with <affected_code>.
+      Format: <scope>: There is a known <symptom_of_issue> issue with <affected_code>.
       <provide_actionable_workaround_here>.
   upgrade:
     - |
