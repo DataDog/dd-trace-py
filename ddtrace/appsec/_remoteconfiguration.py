@@ -4,9 +4,6 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -35,9 +32,11 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
-        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+        from ddtrace.internal.remoteconfig import RemoteConfig
+        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 
-    if tracer._appsec_enabled:
+        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 
 
@@ -58,6 +57,10 @@ def _appsec_1click_actication(tracer, features):
         rc_appsec_enabled = features.get("asm", {}).get("enabled")
 
     if rc_appsec_enabled is not None:
+        from ddtrace.internal.remoteconfig import RemoteConfig
+        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True
 
