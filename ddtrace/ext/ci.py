@@ -118,6 +118,8 @@ def tags(env=None, cwd=None):
     if git.is_ref_a_tag(tags.get(git.BRANCH)):
         if not tags.get(git.TAG):
             tags[git.TAG] = git.normalize_ref(tags.get(git.BRANCH))
+        else:
+            tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
         del tags[git.BRANCH]
     else:
         tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
