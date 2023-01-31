@@ -83,10 +83,10 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
 
         self.check_spans(1, ["get_many"], ["get_many key1 key2"])
 
-    def test_get_any_rowcount(self):
+    def test_get_many_rowcount(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        result = client.set([b"key", b"value"])
-        result = client.set([b"key2", b"value2"])
+        result = client.set(b"key", b"value", noreply=False)
+        result = client.set(b"key2", b"value2", noreply=False)
         result = client.get_many([b"key", b"key2"])
         assert result == {b"key": b"value2", b"key2": b"value2"}
         result = client.get_many([b"key", b"key3"])
@@ -115,8 +115,8 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
 
     def test_get_multi_rowcount(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        result = client.set([b"key", b"value"])
-        result = client.set([b"key2", b"value2"])
+        result = client.set(b"key", b"value", noreply=False)
+        result = client.set(b"key2", b"value2", noreply=False)
         result = client.get_multi([b"key", b"key2"])
         assert result == {b"key": b"value2", b"key2": b"value2"}
         result = client.get_multi([b"key", b"key3"])

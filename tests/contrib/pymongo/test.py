@@ -371,7 +371,7 @@ class PymongoCore(object):
 
         # scoped query (using the getattr syntax) to get 1 row
         q = {"name": "Powderfinger"}
-        queried = list(db.songs.find_one(q))
+        queried = list(db.songs.find(q))
         assert len(queried) == 1
         assert queried[0]["name"] == "Powderfinger"
         assert queried[0]["artist"] == "Neil"

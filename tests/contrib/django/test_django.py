@@ -1083,9 +1083,9 @@ def test_cache_get_many_rowcount_none_existing(test_spans):
     assert span_get_second.service == "django"
     assert span_get_second.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 0})
-    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 0})
-    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
+    assert "db.row_count" not in span_get_many.get_metrics()
+    assert "db.row_count" not in span_get_first.get_metrics()
+    assert "db.row_count" not in span_get_second.get_metrics()
 
 
 def test_cache_get_many_rowcount_some_existing(test_spans):
@@ -1112,7 +1112,7 @@ def test_cache_get_many_rowcount_some_existing(test_spans):
 
     assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 1})
     assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 1})
-    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 0})
+    assert "db.row_count" not in span_get_second.get_metrics()
 
 
 def test_cache_set_many(test_spans):

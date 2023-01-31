@@ -205,7 +205,7 @@ class FlaskCacheTest(TracerTestCase):
         get_span = spans[1]
 
         self.assertEqual(get_span.service, self.SERVICE)
-        self.assertEqual(get_span.resource, "get")
+        self.assertEqual(get_span.resource, "get_many")
 
         assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 2})
 
@@ -223,7 +223,7 @@ class FlaskCacheTest(TracerTestCase):
         get_span = spans[1]
 
         self.assertEqual(get_span.service, self.SERVICE)
-        self.assertEqual(get_span.resource, "get")
+        self.assertEqual(get_span.resource, "get_many")
 
         assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
 
@@ -241,7 +241,7 @@ class FlaskCacheTest(TracerTestCase):
         get_span = spans[1]
 
         self.assertEqual(get_span.service, self.SERVICE)
-        self.assertEqual(get_span.resource, "get")
+        self.assertEqual(get_span.resource, "get_many")
 
         assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
 

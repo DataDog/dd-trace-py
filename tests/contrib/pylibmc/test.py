@@ -170,7 +170,7 @@ class PylibmcCore(object):
         out = client.get_multi(["a", "c"])
         assert out == {"a": 1}
         out = client.get_multi(["c", "d"])
-        assert out is None
+        assert out == {}
         end = time.time()
         # verify
         spans = tracer.pop()
