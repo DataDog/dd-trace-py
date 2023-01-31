@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
 import pytest
 
 from ddtrace.appsec.iast._ast.aspects import str_aspect
