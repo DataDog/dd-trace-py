@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Telemetry: add ``DD_TELEMETRY_DEBUG``. This flag enables Telemetry payload debug mode.
