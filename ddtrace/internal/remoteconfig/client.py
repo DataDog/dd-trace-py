@@ -26,8 +26,6 @@ from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 from ddtrace.internal.utils.version import _get_version_agent_format
 
-from ..utils.version import _get_version_agent_format
-
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
