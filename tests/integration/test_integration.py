@@ -175,11 +175,12 @@ def test_payload_too_large(encoding, monkeypatch):
         t.shutdown()
         calls = [
             mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping. writer status: %s",
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
+                AnyStr(),
             )
         ]
         log.warning.assert_has_calls(calls)
@@ -310,11 +311,12 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
         log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping. writer status: %s",
             AnyInt(),
             AnyInt(),
             AnyInt(),
             AnyInt(),
+            AnyStr(),
         )
         log.error.assert_not_called()
 

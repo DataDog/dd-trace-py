@@ -555,11 +555,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping. writer status: %s",
                 len(self._encoder),
                 self._encoder.size,
                 self._encoder.max_size,
                 payload_size,
+                self.status.value,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
