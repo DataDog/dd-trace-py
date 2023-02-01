@@ -46,7 +46,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
-        self.assertIsNone(span.get_tag("sql.rows") or span.get_metric("db.row_count"))
+        self.assertIsNone(span.get_metric("db.row_count"))
         self.assertEqual(span.get_tag("component"), "sqlalchemy")
         self.check_meta(span)
         self.assertEqual(span.span_type, "sql")

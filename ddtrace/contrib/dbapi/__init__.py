@@ -164,7 +164,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
         if isinstance(row_count, six.integer_types) and row_count >= 0:
-            span.set_tag(sql.ROWS, row_count)
+            span.set_tag(db.ROWCOUNT, row_count)
 
     def _propagate_dbm_context(self, dbspan, args):
         # type: (...) -> Tuple[Tuple[Any, ...]]

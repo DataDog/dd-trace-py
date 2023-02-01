@@ -1066,7 +1066,8 @@ def test_cache_get_many_rowcount_none_existing(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
 
-    cache.get_many(["first_key", "second_key"])
+    result = cache.get_many(["non-existent-key", "non-existent-key-2"])
+    assert result == {}
 
     spans = test_spans.get_spans()
     assert len(spans) == 3

@@ -26,8 +26,7 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "out.port": 3306,
-      "process_id": 9600,
-      "sql.rows": 2
+      "process_id": 9600
     },
     "duration": 1315000,
     "start": 1667513575045174000
@@ -59,8 +58,7 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 0,
       "out.port": 3306,
-      "process_id": 9600,
-      "sql.rows": 0
+      "process_id": 9600
     },
     "duration": 1370000,
     "start": 1667513575046749000
@@ -91,8 +89,7 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "out.port": 3306,
-      "process_id": 9600,
-      "sql.rows": 2
+      "process_id": 9600
     },
     "duration": 50000,
     "start": 1667513575048182000

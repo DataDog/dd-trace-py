@@ -25,8 +25,7 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "out.port": 3306,
-      "process_id": 2209,
-      "sql.rows": 1
+      "process_id": 2209
     },
     "duration": 1328000,
     "start": 1667513581156725000
