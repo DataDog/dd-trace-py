@@ -768,7 +768,7 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
+    assert "db.row_count" not in span.get_metrics()
 
 
 def test_cache_get_unicode(test_spans):
@@ -1072,9 +1072,9 @@ def test_cache_get_many_rowcount_none_existing(test_spans):
     assert len(spans) == 3
 
     # spans in order: set_many, set1, set2, get_many, get1, get2
-    span_get_many = spans[3]
-    span_get_first = spans[4]
-    span_get_second = spans[5]
+    span_get_many = spans[0]
+    span_get_first = spans[1]
+    span_get_second = spans[2]
 
     assert span_get_many.service == "django"
     assert span_get_many.resource == "django.core.cache.backends.base.get_many"

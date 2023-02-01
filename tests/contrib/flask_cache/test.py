@@ -216,7 +216,11 @@ class FlaskCacheTest(TracerTestCase):
                 "second_complex_op": 20,
             }
         )
-        self.cache.get_many("first_complex_op", "missing_complex_op")
+        result = self.cache.get_many("first_complex_op", "missing_complex_op")
+
+        assert len(result) == 2
+        assert result[0] == 10
+        assert result[1] == None
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
@@ -234,7 +238,11 @@ class FlaskCacheTest(TracerTestCase):
                 "second_complex_op": 20,
             }
         )
-        self.cache.get_many("missing_complex_op1", "missing_complex_op2")
+        result = self.cache.get_many("missing_complex_op1", "missing_complex_op2")
+
+        assert len(result) == 2
+        assert result[0] == None
+        assert result[1] == None
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)

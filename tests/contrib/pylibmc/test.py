@@ -142,9 +142,9 @@ class PylibmcCore(object):
         # test
         start = time.time()
         client.set_multi({"a": 1, "b": 2})
-        out = client.get(["a"])
+        out = client.get("a")
         assert out == {"a": 1}
-        out = client.get(["c"])
+        out = client.get("c")
         assert out is None
         end = time.time()
         # verify
@@ -183,7 +183,7 @@ class PylibmcCore(object):
 
         assert get_multi_2_keys_exist_span.resource == "get_multi"
         assert get_multi_2_keys_exist_span.get_metric("db.row_count") == 2
-        assert get_multi_1_keys_exist_span.resource == "get"
+        assert get_multi_1_keys_exist_span.resource == "get_multi"
         assert get_multi_1_keys_exist_span.get_metric("db.row_count") == 1
         assert get_multi_0_keys_exist_span.resource == "get_multi"
         assert get_multi_0_keys_exist_span.get_metric("db.row_count") == 0

@@ -169,14 +169,15 @@ class WrappedClient(wrapt.ObjectProxy):
             try:
                 result = method(*args, **kwargs)
 
-                if method_name == "get_multi":
-                    # get returns a map or None
+                if method_name == "get_many" or method_name == "gets_many":
+                    # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
+                    # get many returns a map with values, else an empty map if no matches
                     span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
                 elif method_name == "get":
                     # get returns key or None
                     span.set_metric(db.ROWCOUNT, 1 if result else 0)
                 elif method_name == "gets":
-                    # gets returns a tuple of (None, None) if key not found
+                    # gets returns a tuple of (None, None) if key not found, else tuple of (key, index)
                     span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
                 return result
             except (
