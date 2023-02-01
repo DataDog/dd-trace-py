@@ -20,6 +20,7 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import six
@@ -28,7 +29,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -336,6 +336,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             {"id": "val", "name": "vlad"},
             None,
         ),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -376,10 +381,16 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        if query and int_config.trace_query_string:
-            assert span.get_tag(http.URL) == stringify(url + "?" + query)
+        if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
+            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
         else:
-            assert span.get_tag(http.URL) == stringify(url)
+            expected_url = url
+
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -511,8 +522,6 @@ def test_set_http_meta_case_sensitive_headers_but_dict_type_found(mock_store_hea
     mock_store_headers.assert_called()
 
 
-# XXX add test checking the expected tags for IP given appsec env and IP argument
-# XXX add test for the retrieval of the IP in set_http_meta if the framework didn't pass it
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [
@@ -525,6 +534,16 @@ def test_set_http_meta_case_sensitive_headers_but_dict_type_found(mock_store_hea
             "",
             {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
             "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.144.2"},
+            "192.168.144.2",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "127.0.0.1"},
+            "127.0.0.1",
         ),
         (
             "",
@@ -547,9 +566,140 @@ def test_set_http_meta_case_sensitive_headers_but_dict_type_found(mock_store_hea
     ],
 )
 def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
-        ip = trace_utils._get_request_header_client_ip(span, headers_dict, None, False)
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
+        ip = trace_utils._get_request_header_client_ip(headers_dict, None, False)
         assert ip == expected
+
+
+@pytest.mark.parametrize(
+    "headers_dict,peer_ip,expected",
+    [
+        # Public IP in headers should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "127.0.0.1",
+            "8.8.8.8",
+        ),
+        # Public IP in headers only should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over loopback IP in headers
+        (
+            {"x-forwarded-for": "127.0.0.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over private IP in headers
+        (
+            {"x-forwarded-for": "192.168.1.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public IP on both, headers selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "8.8.4.4",
+            "8.8.8.8",
+        ),
+        # Empty header IP, peer should be selected
+        (
+            {"x-forwarded-for": ""},
+            "8.8.4.4",
+            "8.8.4.4",
+        ),
+        # Empty header IP, peer should be selected even if loopback
+        (
+            {"x-forwarded-for": ""},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # Empty headers, peer should be selected even if loopback
+        (
+            {},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None headers, peer should be selected even if loopback
+        (
+            None,
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None everything, empty IP returned
+        (
+            None,
+            None,
+            "",
+        ),
+        # None headers, invalid peer IP, empty IP returned
+        (
+            None,
+            "invalid",
+            "",
+        ),
+        # Both invalid, empty IP returned
+        (
+            {"x-forwarded-for": "invalid"},
+            "invalid",
+            "",
+        ),
+        # Invalid IP in headers, peer ip should be selected even if loopback
+        (
+            {"x-forwarded-for": "invalid"},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+    ],
+)
+def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
+    ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
+    assert ip == expected
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=True)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"via": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
+        assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
 
 
 def test_ip_subnet_regression():
@@ -593,8 +743,8 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
-        (u"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "\u3132\u3134\u3137\u3138"),
+        ("", ["runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py2(

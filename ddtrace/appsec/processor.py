@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
+from ddtrace.appsec import _asm_context
 from ddtrace.appsec.constants import APPSEC
 from ddtrace.appsec.constants import SPAN_DATA_NAMES
 from ddtrace.appsec.constants import WAF_ACTIONS
@@ -18,7 +19,6 @@ from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
@@ -27,6 +27,12 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Dict
@@ -34,6 +40,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
+    from ddtrace.appsec.ddwaf import DDWaf_result
+    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
     from ddtrace.span import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -165,7 +173,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
-            except json.decoder.JSONDecodeError:
+            except JSONDecodeError:
                 log.error(
                     "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
                 )
@@ -197,27 +205,21 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span, Any, Any) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        peer_ip = kwargs.get("peer_ip")
-        headers = kwargs.get("headers", {})
-        headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
+        headers = _asm_context.get_headers()
+        headers_case_sensitive = _asm_context.get_headers_case_sensitive()
+
+        if headers is not None:
+            _context.set_items(
+                {
+                    SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
+                    "http.request.headers_case_sensitive": headers_case_sensitive,
+                },
+                span=span,
+            )
+
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-
-        _context.set_items(
-            {
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
-                "http.request.headers_case_sensitive": headers_case_sensitive,
-                WAF_CONTEXT_NAMES.CALLBACK: lambda: self._waf_action(span._local_root or span),
-            },
-            span=span,
-        )
-
-        if peer_ip or headers:
-            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
-            # Save the IP and headers in the context so the retrieval can be skipped later
-            if ip:
-                _context.set_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span=span)
-                self._mark_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP)
+        _context.set_item(WAF_CONTEXT_NAMES.CALLBACK, lambda: self._waf_action(span._local_root or span), span=span)
 
     def _waf_action(self, span):
         # type: (Span) -> None
@@ -305,8 +307,13 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (str) -> bool
         return address in self._addresses_to_keep
 
+    def _run_ddwaf(self, data):
+        # type: (DDWafRulesType) -> DDWaf_result
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+
     def on_span_finish(self, span):
         # type: (Span) -> None
+
         if span.span_type != SpanTypes.WEB:
             return
         # this call is only necessary for tests or frameworks that are not using blocking

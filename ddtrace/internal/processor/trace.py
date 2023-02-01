@@ -127,6 +127,7 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         ctx._update_tags(chunk_root)
+        chunk_root.set_tag_str("language", "python")
         return trace
 
 

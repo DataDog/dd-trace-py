@@ -16,6 +16,7 @@ from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec import _asm_context
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.constants import WAF_CONTEXT_NAMES
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -131,6 +132,9 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
     # get the original function method
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.django.integration_name)
+
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
@@ -222,6 +226,9 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as s:
+            # set component tag equal to name of integration
+            s.set_tag_str("component", config.django.integration_name)
+
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
@@ -233,6 +240,9 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.django.integration_name)
+
             resp = func(*args, **kwargs)
 
             # If the response code is erroneous then grab the traceback
@@ -330,73 +340,77 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
 
-    with pin.tracer.trace(
-        "django.request",
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
-        span_type=SpanTypes.WEB,
-        peer_ip=request.META.get("REMOTE_ADDR"),
-        headers=request_headers,
-        headers_case_sensitive=django.VERSION < (2, 2),
-    ) as span:
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+    with _asm_context.asm_request_context_manager(
+        request.META.get("REMOTE_ADDR"), request_headers, headers_case_sensitive=django.VERSION < (2, 2)
+    ):
+        with pin.tracer.trace(
+            "django.request",
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.WEB,
+        ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.django.integration_name)
 
-        response = None
-        if config._appsec_enabled:
-            try:
-                waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
-            except ValueError:
-                log.debug("no context for first Django WAF call", exc_info=True)
-                waf_callback = None
-            if waf_callback:
-                # set context information for waf with uri, params and query
-                query = request.META.get("QUERY_STRING", "")
-                uri = utils.get_request_uri(request)
-                if query:
-                    uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
-                parsed_query = request.GET
-                body = utils._extract_body(request)
-                trace_utils.set_http_meta(
-                    span,
-                    config.django,
-                    method=request.method,
-                    query=query,
-                    raw_uri=uri,
-                    request_path_params=path,
-                    parsed_query=parsed_query,
-                    request_body=body,
-                    request_cookies=request.COOKIES,
-                )
-                log.debug("first Django WAF call")
-                waf_callback()
-            if _context.get_item("http.request.blocked", span=span):
-                return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
-        try:
-            response = func(*args, **kwargs)
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
-            # calling the waf again if the request was not blocked at first with additional information (response)
+            utils._before_request_tags(pin, span, request)
+            span._metrics[SPAN_MEASURED_KEY] = 1
+
+            response = None
+
             if config._appsec_enabled:
                 try:
                     waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
                 except ValueError:
-                    log.debug("no context for second Django WAF call")
+                    log.debug("no context for first Django WAF call", exc_info=True)
                     waf_callback = None
                 if waf_callback:
-                    log.debug("second Django WAF call")
+                    # set context information for waf with uri, params and query
+                    query = request.META.get("QUERY_STRING", "")
+                    uri = utils.get_request_uri(request)
+                    if query:
+                        uri += "?" + query
+                    resolver = get_resolver(getattr(request, "urlconf", None))
+                    if resolver:
+                        try:
+                            path = resolver.resolve(request.path_info).kwargs
+                            log.debug("resolver.pattern %s", path)
+                        except Exception:
+                            path = None
+                    parsed_query = request.GET
+                    body = utils._extract_body(request)
+                    trace_utils.set_http_meta(
+                        span,
+                        config.django,
+                        method=request.method,
+                        query=query,
+                        raw_uri=uri,
+                        request_path_params=path,
+                        parsed_query=parsed_query,
+                        request_body=body,
+                        request_cookies=request.COOKIES,
+                    )
+                    log.debug("first Django WAF call")
                     waf_callback()
                 if _context.get_item("http.request.blocked", span=span):
                     return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
-        return response
+            try:
+                response = func(*args, **kwargs)
+            finally:
+                # DEV: Always set these tags, this is where `span.resource` is set
+                utils._after_request_tags(pin, span, request, response)
+                # calling the waf again if the request was not blocked at first with additional information (response)
+                if config._appsec_enabled:
+                    try:
+                        waf_callback = _context.get_item(WAF_CONTEXT_NAMES.CALLBACK, span=span)
+                    except ValueError:
+                        log.debug("no context for second Django WAF call")
+                        waf_callback = None
+                    if waf_callback:
+                        log.debug("second Django WAF call")
+                        waf_callback()
+                    if _context.get_item("http.request.blocked", span=span):
+                        return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
+            return response
 
 
 @trace_utils.with_traced_module
@@ -413,6 +427,9 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.django.integration_name)
+
         if template_name:
             span.set_tag_str("django.template.name", template_name)
         engine = getattr(instance, "engine", None)

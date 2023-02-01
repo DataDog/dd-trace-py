@@ -1,20 +1,32 @@
+from distutils.command.clean import clean as CleanCommand
+import hashlib
 import os
 import platform
 import shutil
 import sys
 import tarfile
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.test import test as TestCommand
+from pkg_resources import get_build_platform
+from setuptools import Extension
+from setuptools import find_packages
+from setuptools import setup
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
-from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
+from setuptools.command.test import test as TestCommand
 
-# ORDER MATTERS
-# Import this after setuptools or it will fail
-from Cython.Build import cythonize  # noqa: I100
-import Cython.Distutils
+
+try:
+    # ORDER MATTERS
+    # Import this after setuptools or it will fail
+    from Cython.Build import cythonize  # noqa: I100
+    import Cython.Distutils
+except ImportError:
+    raise ImportError(
+        "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
+        "support installing build requirements during setup. If you're using pip, make sure it's a "
+        "version >=18.\nSee the quickstart documentation for more information:\n"
+        "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
+    )
 
 
 if sys.version_info >= (3, 0):
@@ -35,6 +47,24 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
 
 CURRENT_OS = platform.system()
+
+LIBDDWAF_VERSION = "1.6.1"
+
+
+def verify_libddwaf_checksum(sha256_filename, filename, current_os):
+    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
+    expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
+    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
+    try:
+        assert expected_filename.endswith(filename)
+        assert expected_checksum == actual_checksum
+    except AssertionError:
+        print("Checksum verification error: Checksum and/or filename don't match:")
+        print("expected checksum: %s" % expected_checksum)
+        print("actual checksum: %s" % actual_checksum)
+        print("expected filename: %s" % expected_filename)
+        print("actual filename: %s" % filename)
+        sys.exit(1)
 
 
 def load_module_from_project_file(mod_name, fname):
@@ -65,7 +95,6 @@ def load_module_from_project_file(mod_name, fname):
 
 
 class Tox(TestCommand):
-
     user_options = [("tox-args=", "a", "Arguments to pass to tox")]
 
     def initialize_options(self):
@@ -79,8 +108,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:
@@ -102,6 +132,8 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
+        # If the directory exists and it is not empty, assume the right files are there.
+        # Use `python setup.py clean` to remove it.
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
             return
 
@@ -110,42 +142,52 @@ class LibDDWaf_Download(BuildPyCommand):
 
         build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
-            if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64") and arch == "arm64":
+            if CURRENT_OS == "Darwin" and not build_platform.endswith(arch):
+                # We cannot include the dynamic libraries for other architectures here.
                 continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
+            # If the directory for the architecture exists, assume the right files are there
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-1.6.0-beta1-%s-%s" % (CURRENT_OS.lower(), arch)
+            ddwaf_archive_dir = "libddwaf-%s-%s-%s" % (LIBDDWAF_VERSION, CURRENT_OS.lower(), arch)
             ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
-            ddwaf_download_address = (
-                "https://github.com/DataDog/libddwaf/releases/download/1.6.0-beta1/%s" % ddwaf_archive_name
+            ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/%s/%s" % (
+                LIBDDWAF_VERSION,
+                ddwaf_archive_name,
             )
+            ddwaf_sha256_address = ddwaf_download_address + ".sha256"
 
             try:
                 filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-                print(filename)
+                sha256_filename, http_response = urlretrieve(ddwaf_sha256_address, ddwaf_archive_name + ".sha256")
             except HTTPError as e:
                 print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
                 raise e
 
+            # Verify checksum of downloaded file
+            verify_libddwaf_checksum(sha256_filename, filename, CURRENT_OS)
+
+            # Open the tarfile first to get the files needed.
+            # This could be solved with "r:gz" mode, that allows random access
+            # but that approach does not work on Windows
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                print("extracting dylib:", [c.name for c in dynfiles])
+                print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
-
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
-                # cleaning unwanted files
-                tar.close()
-            ori = os.path.join(arch_dir, "lib", "ddwaf.dll")
-            if os.path.exists(ori):
-                dest = os.path.join(arch_dir, "lib", "libddwaf.dll")
-                os.rename(ori, dest)
+
+            # Rename ddwaf.xxx to libddwaf.xxx so the filename is the same for every OS
+            original_file = os.path.join(arch_dir, "lib", "ddwaf" + SUFFIX)
+            if os.path.exists(original_file):
+                renamed_file = os.path.join(arch_dir, "lib", "libddwaf" + SUFFIX)
+                os.rename(original_file, renamed_file)
+
             os.remove(filename)
 
     def run(self):
@@ -156,8 +198,7 @@ class LibDDWaf_Download(BuildPyCommand):
 class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_dynamic_library():
-        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-        shutil.rmtree(dst, True)
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
 
     def run(self):
         CleanLibraries.remove_dynamic_library()
@@ -263,8 +304,6 @@ bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
     "bytecode; python_version>='3.8'",
 ]
-
-LibDDWaf_Download.download_dynamic_library()
 
 setup(
     name="ddtrace",

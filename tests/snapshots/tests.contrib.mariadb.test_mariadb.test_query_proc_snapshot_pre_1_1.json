@@ -10,10 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "93f76aae38d74161926ccd64013f5d01"
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,6 +28,6 @@
       "process_id": 9600,
       "sql.rows": 0
     },
-    "duration": 996000,
-    "start": 1656521180755302000
+    "duration": 1068000,
+    "start": 1667513575106570000
   }]]

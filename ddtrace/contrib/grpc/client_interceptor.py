@@ -179,6 +179,10 @@ class _ClientInterceptor(
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
+
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.grpc.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)

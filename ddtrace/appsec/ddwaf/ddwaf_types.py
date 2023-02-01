@@ -4,17 +4,11 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
+from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import text_type as unicode
 from ddtrace.internal.logger import get_logger
-
-
-# Python 2/3 unicode str compatibility
-if PY3:
-    unicode = str
-    long = int
-
-from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
@@ -24,6 +18,8 @@ if TYPE_CHECKING:
 
     DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
 
+if PY3:
+    long = int
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -40,16 +36,22 @@ if system() == "Linux":
     ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
 
 ARCHI = machine().lower()
+
+# 32-bit-Python on 64-bit-Windows
+if system() == "Windows" and ARCHI == "amd64":
+    from sys import maxsize
+
+    if maxsize <= (1 << 32):
+        ARCHI = "x86"
+
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
 ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+
 ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
 #
 # Constants
 #
 
-DDWAF_MAX_STRING_LENGTH = 4096
-DDWAF_MAX_CONTAINER_DEPTH = 20
-DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_RUN_TIMEOUT = 5000
 
 
@@ -104,49 +106,40 @@ class ddwaf_object(ctypes.Structure):
     # 16 is a map : array of length "nbEntries" with parameterName
     # 32 is boolean
 
-    def __init__(self, struct=None, max_objects=DDWAF_MAX_CONTAINER_SIZE, max_depth=DDWAF_MAX_CONTAINER_DEPTH):
-        # type: (ddwaf_object, DDWafRulesType|None, int, int) -> None
-        if struct is None or max_objects == 0:
-            ddwaf_object_invalid(self)
-        elif isinstance(struct, (int, long)):
+    def __init__(self, struct=None):
+        # type: (ddwaf_object, DDWafRulesType|None) -> None
+        if isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: DDWAF_MAX_STRING_LENGTH - 1])
+            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore"))
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct[: DDWAF_MAX_STRING_LENGTH - 1])
+            ddwaf_object_string(self, struct)
         elif isinstance(struct, float):
             res = unicode(struct).encode("UTF-8", errors="ignore")
             ddwaf_object_string(self, res)
         elif isinstance(struct, list):
-            if max_depth <= 0:
-                max_objects = 0
             array = ddwaf_object_array(self)
             assert array
-            for counter_object, elt in enumerate(struct):
-                if counter_object >= max_objects:
-                    break
-                obj = ddwaf_object(elt, max_depth=max_depth - 1)
+            for elt in struct:
+                obj = ddwaf_object(elt)
                 if obj.type:  # discards invalid objects
                     assert ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
-            if max_depth <= 0:
-                max_objects = 0
             map_o = ddwaf_object_map(self)
             assert map_o
             # order is unspecified and could lead to problems if max_objects is reached
-            for counter_object, (key, val) in enumerate(struct.items()):
+            for key, val in struct.items():
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
-                if counter_object >= max_objects:
-                    break
-                res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
-                    : DDWAF_MAX_STRING_LENGTH - 1
-                ]
-                obj = ddwaf_object(val, max_depth=max_depth - 1)
+                res_key = key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key
+                obj = ddwaf_object(val)
                 if obj.type:  # discards invalid objects
                     assert ddwaf_object_map_add(map_o, res_key, obj)
         else:
-            raise TypeError("ddwaf_object : unknown type in structure. " + repr(type(struct)))
+            if struct is not None:
+                log.warning("DDWAF object init called with unknown data structure: %s", repr(type(struct)))
+
+            ddwaf_object_invalid(self)
 
     @property
     def struct(self):
@@ -159,17 +152,18 @@ class ddwaf_object(ctypes.Structure):
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
             return self.value.uintValue
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            return self.value.stringValue.decode("UTF-8")
+            return self.value.stringValue.decode("UTF-8", errors="ignore")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
             return [self.value.array[i].struct for i in range(self.nbEntries)]
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
             return {
-                self.value.array[i].parameterName.decode("UTF-8"): self.value.array[i].struct
+                self.value.array[i].parameterName.decode("UTF-8", errors="ignore"): self.value.array[i].struct
                 for i in range(self.nbEntries)
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
-        raise ValueError("ddwaf_object: unknown object")
+        log.warning("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
+        return None
 
     def __repr__(self):
         return repr(self.struct)
@@ -380,14 +374,6 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
 ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
     ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
 )
-
-
-def py_ddwaf_run(context, object_p, timeout):
-    # type : (...) -> tuple[int, ddwaf_result]
-    res = ddwaf_result()
-    err = ddwaf_run(context, object_p, ctypes.byref(res), timeout)
-    return err, res
-
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ("ddwaf_context_destroy", ddwaf),

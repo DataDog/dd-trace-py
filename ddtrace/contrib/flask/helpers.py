@@ -34,7 +34,12 @@ def simple_tracer(name, span_type=None):
 
     @with_instance_pin
     def wrapper(pin, wrapped, instance, args, kwargs):
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask, pin), span_type=span_type):
+        with pin.tracer.trace(
+            name, service=trace_utils.int_service(pin, config.flask, pin), span_type=span_type
+        ) as span:
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.flask.integration_name)
+
             return wrapped(*args, **kwargs)
 
     return wrapper

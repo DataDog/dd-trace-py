@@ -1,11 +1,14 @@
 import json
 
 import flask
+from flask import Response
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import abort
 import xmltodict
 
+from ...appsec import _asm_context
 from ...appsec import utils
 from ...internal import _context
 
@@ -214,6 +217,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = self._extract_body(request, environ)
+
+        real_ip = trace_utils._get_request_header_client_ip(
+            request.headers, request.remote_addr, _asm_context.get_headers_case_sensitive()
+        )
+        log.debug("XXXIP %s", real_ip)
         trace_utils.set_http_meta(
             span,
             config.flask,
@@ -225,7 +233,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_headers=request.headers,
             request_cookies=request.cookies,
             request_body=req_body,
-            peer_ip=request.remote_addr,
+            peer_ip=real_ip,
         )
 
         if config._appsec_enabled:
@@ -522,7 +530,10 @@ def traced_render_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE):
+    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 
@@ -532,7 +543,10 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE):
+    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 
@@ -596,14 +610,18 @@ def request_tracer(name):
         _set_request_tags(span)
         request = flask.request
 
+        _asm_context.asm_request_context_set(request.remote_addr, request.headers)
         with pin.tracer.trace(
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
-            peer_ip=request.remote_addr,
-            headers=request.headers,
-            headers_case_sensitive=False,
         ) as request_span:
+            # set component tag equal to name of integration
+            request_span.set_tag_str("component", config.flask.integration_name)
+
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                ctype = request.headers.get("Accept") or "text/json"
+                abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
             return wrapped(*args, **kwargs)
 
     return _traced_request
@@ -629,7 +647,10 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.jsonify"):
+    with pin.tracer.trace("flask.jsonify") as span:
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 
@@ -638,6 +659,9 @@ def _set_request_tags(span):
         # raises RuntimeError if a request is not active:
         # https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
         request = flask.request
+
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.flask.integration_name)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:

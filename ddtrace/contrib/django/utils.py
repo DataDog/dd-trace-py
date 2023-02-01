@@ -289,7 +289,7 @@ def _extract_body(request):
         return req_body
 
 
-def _get_request_headers(request):  # XXX typing
+def _get_request_headers(request):
     if DJANGO22:
         request_headers = request.headers
     else:

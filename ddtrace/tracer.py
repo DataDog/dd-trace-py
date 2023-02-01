@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.vendor import debtcollector
@@ -64,8 +65,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Union
     from typing import Tuple
 
-    # from .appsec.processor import AppSecSpanProcessor
-
 from typing import Callable
 from typing import TypeVar
 
@@ -82,8 +81,10 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 if debug_mode and not hasHandlers(log) and call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message=(
+            "`logging.basicConfig()` should be called in a user's application."
+            " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version."
+        ),
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -131,6 +132,7 @@ def _default_span_processors_factory(
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
+    profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
     # type: (...) -> Tuple[List[SpanProcessor], Optional[Any]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -165,6 +167,8 @@ def _default_span_processors_factory(
                 agent_url,
             ),
         )
+
+    span_processors.append(profiling_span_processor)
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
@@ -248,7 +252,7 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
-
+        self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -259,6 +263,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
 
         self._hooks = _hooks.Hooks()
@@ -495,6 +500,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self._endpoint_call_counter_span_processor,
             )
 
         if context_provider is not None:
@@ -540,6 +546,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
 
         self._new_process = True
@@ -553,7 +560,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         *args,  # type: Any
-        **kwargs  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
@@ -568,7 +575,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         *args,  # type: Any
-        **kwargs  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -842,7 +849,7 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
             *args,
-            **kwargs
+            **kwargs,
         )  # type: ignore[misc]
 
     def current_root_span(self):

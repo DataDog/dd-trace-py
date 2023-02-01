@@ -57,7 +57,7 @@ def test_get_dbm_comment_service_mode():
 
     sqlcomment = _database_monitoring._get_dbm_comment(dbspan)
     # assert tags sqlcomment contains the correct value
-    assert sqlcomment == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+    assert sqlcomment == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
     # ensure that dbm tag is not set (only required in full mode)
     assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
@@ -80,7 +80,7 @@ def test_get_dbm_comment_full_mode():
     # assert tags sqlcomment contains the correct value
     assert (
         sqlcomment
-        == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/"
+        == "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
         % (dbspan.context._traceparent,)
     )
     # ensure that dbm tag is set (only required in full mode)

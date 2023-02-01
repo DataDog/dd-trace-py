@@ -4,12 +4,12 @@ from uuid import uuid4
 import pytest
 
 from ddtrace.debugging._config import config
-from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
 
 
@@ -69,28 +69,28 @@ def test_poller_env_version(env, version, expected, mock_config):
     with override_global_config(dict(env=env, version=version)):
         mock_config.add_probes(
             [
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe1",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
                     tags={"env": "prod", "version": "dev"},
                 ),
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe2",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
                     tags={"env": "prod"},
                 ),
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe3",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
                     tags={"version": "dev"},
                 ),
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe4",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
@@ -112,25 +112,25 @@ def test_poller_events(mock_config):
 
     mock_config.add_probes(
         [
-            LineProbe(
+            create_snapshot_line_probe(
                 probe_id="probe1",
                 source_file="tests/debugger/submod/stuff.py",
                 line=36,
                 condition=None,
             ),
-            LineProbe(
+            create_snapshot_line_probe(
                 probe_id="probe2",
                 source_file="tests/debugger/submod/stuff.py",
                 line=36,
                 condition=None,
             ),
-            LineProbe(
+            create_snapshot_line_probe(
                 probe_id="probe3",
                 source_file="tests/debugger/submod/stuff.py",
                 line=36,
                 condition=None,
             ),
-            LineProbe(
+            create_snapshot_line_probe(
                 probe_id="probe4",
                 source_file="tests/debugger/submod/stuff.py",
                 line=36,
@@ -150,7 +150,7 @@ def test_poller_events(mock_config):
         mock_config.add_probes(
             [
                 # Modified
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe2",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
@@ -158,7 +158,7 @@ def test_poller_events(mock_config):
                     active=False,
                 ),
                 # New
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="probe5",
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,

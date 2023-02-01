@@ -138,6 +138,7 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
+        assert spans[0].get_tag("component") == "pytest"
         assert spans[0].get_tag("test.name") == "Simple scenario"
         assert spans[0].span_type == "test"
         assert spans[1].resource == "I have a bar"

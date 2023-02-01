@@ -1,5 +1,4 @@
 import abc
-from typing import Any
 from typing import Optional
 
 import attr
@@ -32,8 +31,8 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         log.debug("initialized processor %r", self)
 
     @abc.abstractmethod
-    def on_span_start(self, span, *args, **kwargs):
-        # type: (Span, Any, Any) -> None
+    def on_span_start(self, span):
+        # type: (Span) -> None
         """Called when a span is started.
 
         This method is useful for making upfront decisions on spans.
@@ -41,7 +40,6 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         For example, a sampling decision can be made when the span is created
         based on its resource name.
         """
-        pass
 
     @abc.abstractmethod
     def on_span_finish(self, span):
@@ -52,7 +50,6 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         It can return any data which will be passed to any processors that are
         applied afterwards.
         """
-        pass
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
@@ -60,4 +57,3 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
 
         Any clean-up or flushing should be performed with this method.
         """
-        pass

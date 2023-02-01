@@ -5,11 +5,6 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-from ddtrace.internal.remoteconfig.constants import ASM_DD_PRODUCT
-from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
-from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -38,9 +33,13 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
-        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+        from ddtrace.internal.remoteconfig import RemoteConfig
+        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_DD_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 
-    if tracer._appsec_enabled:
+        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))  # IP Blocking
         RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
         RemoteConfig.register(ASM_DD_PRODUCT, appsec_rc_reload_features(tracer))  # DD Rules
@@ -77,18 +76,27 @@ def _appsec_1click_actication(tracer, features):
         rc_appsec_enabled = features.get("asm", {}).get("enabled")
 
     if rc_appsec_enabled is not None:
+        from ddtrace.internal.remoteconfig import RemoteConfig
+        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_DD_PRODUCT
+        from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
+
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True
 
-        if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
-            asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
-        ):
+        if asbool(os.environ.get(APPSEC_ENV, "false")) is False or rc_appsec_enabled is False:
             _appsec_enabled = False
             RemoteConfig.unregister(ASM_DATA_PRODUCT)
-        else:
-            RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+            RemoteConfig.unregister(ASM_PRODUCT)
+            RemoteConfig.unregister(ASM_DD_PRODUCT)
 
-        tracer.configure(appsec_enabled=_appsec_enabled)
+        else:
+            RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))  # IP Blocking
+            RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+            RemoteConfig.register(ASM_DD_PRODUCT, appsec_rc_reload_features(tracer))  # DD Rules
+
+        if tracer._appsec_enabled != _appsec_enabled:
+            tracer.configure(appsec_enabled=_appsec_enabled)
 
 
 def appsec_rc_reload_features(tracer):
