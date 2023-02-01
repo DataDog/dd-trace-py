@@ -2,13 +2,12 @@ import errno
 import json
 import os
 import os.path
-from typing import Any
+from typing import Any, Optional
 from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
-from typing import cast
 
 import attr
 from six import ensure_binary
@@ -16,6 +15,7 @@ from six import ensure_binary
 from ddtrace.appsec import _asm_context
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
+from ddtrace.constants import APPSEC_BLOCKED
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -227,10 +227,12 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span):
         # type: (Span) -> None
 
+        if span.span_type != SpanTypes.WEB:
+            return
+
         peer_ip = _asm_context.get_ip()
         headers = _asm_context.get_headers()
         headers_case_sensitive = _asm_context.get_headers_case_sensitive()
-
         if headers is not None:
             _context.set_items(
                 {
@@ -240,28 +242,31 @@ class AppSecSpanProcessor(SpanProcessor):
                 span=span,
             )
 
-            if peer_ip is not None:
-                ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
-                # Save the IP and headers in the context so the retrieval can be skipped later
-                _context.set_item("http.request.remote_ip", ip, span=span)
-                if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
-                    data = {_Addresses.HTTP_CLIENT_IP: ip}
-                    log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-                    ddwaf_result = self._run_ddwaf(data)
+            if not peer_ip:
+                return
 
-                    if ddwaf_result and ddwaf_result.actions and "block" in ddwaf_result.actions and ddwaf_result.data:
-                        res_dict = json.loads(ddwaf_result.data)
-                        log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res_dict)
-                        _context.set_items(
-                            {
-                                "http.request.waf_json": '{"triggers":%s}' % (ddwaf_result.data,),
-                                "http.request.waf_duration": ddwaf_result.runtime,
-                                "http.request.waf_duration_ext": ddwaf_result.total_runtime,
-                                "http.request.waf_actions": ddwaf_result.actions,
-                                "http.request.blocked": True,
-                            },
-                            span=span,
-                        )
+            ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
+            # Save the IP and headers in the context so the retrieval can be skipped later
+            _context.set_item("http.request.remote_ip", ip, span=span)
+            if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
+                data = {_Addresses.HTTP_CLIENT_IP: ip}
+                log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+                ddwaf_result = self._run_ddwaf(data)
+
+                if ddwaf_result and (
+                        ddwaf_result.actions
+                        and "block" in ddwaf_result.actions
+                        and ddwaf_result.data):
+                    log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
+                    span.set_tags(
+                        {
+                            APPSEC_JSON: '{"triggers":%s}' % ddwaf_result.data,
+                            APPSEC_BLOCKED: "true",
+                            APPSEC_WAF_DURATION: str(ddwaf_result.runtime),
+                            APPSEC_WAF_DURATION_EXT: str(ddwaf_result.total_runtime),
+                        }
+                    )
+                    _context.set_item("http.request.blocked", True, span=span)
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -272,8 +277,15 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def _run_ddwaf(self, data):
-        # type: (DDWafRulesType) -> DDWaf_result
-        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        # type: (DDWafRulesType) -> Optional[DDWaf_result]
+        try:
+            return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        except OSError:
+            log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
+        except Exception as e:
+            log.warning("Error executing Appsec In-App WAF: %s", repr(e))
+
+        return None
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -336,21 +348,9 @@ class AppSecSpanProcessor(SpanProcessor):
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         ddwaf_result = None
-        total_runtime = 0.0
-        total_overall_runtime = 0.0
         blocked_request = _context.get_item("http.request.blocked", span=span)
         if not blocked_request:
-            try:
-                ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-                total_runtime = ddwaf_result.runtime
-                total_overall_runtime = ddwaf_result.total_runtime
-            except OSError:
-                log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
-            except Exception as e:
-                log.warning("Error executing Appsec In-App WAF: %s", repr(e))
-        else:
-            # Blocked requests call ddwaf earlier, so we already have the data
-            total_runtime = cast(float, _context.get_item("http.request.waf_duration", span=span))
+            ddwaf_result = self._run_ddwaf(data)  # res is a serialized json
 
         try:
             info = self._ddwaf.info
@@ -358,12 +358,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info.errors))
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
             span.set_tag_str(APPSEC_WAF_VERSION, version())
-
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
             if not blocked_request:
-                span.set_metric(APPSEC_WAF_DURATION, total_runtime)
-                span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
+                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
         except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
@@ -386,10 +385,6 @@ class AppSecSpanProcessor(SpanProcessor):
                 # Partial DDAS-011-00
                 log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
-            else:
-                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
-                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
-                span.set_tag("appsec.blocked", True)
 
             # Partial DDAS-011-00
             span.set_tag_str("appsec.event", "true")

@@ -8,7 +8,6 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
-from ...appsec import _asm_context
 from ...appsec import utils
 from ...internal import _context
 
@@ -174,7 +173,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         environ["wsgi.input"] = BytesIO(body)
         return req_body
 
-    def _request_span_modifier(self, span, environ):
+    def _request_span_modifier(self, span, environ, parsed_headers=None):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
@@ -195,6 +194,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = self._extract_body(request, environ)
+        headers = parsed_headers if parsed_headers else request.headers
         trace_utils.set_http_meta(
             span,
             config.flask,
@@ -571,7 +571,6 @@ def request_tracer(name):
         _set_request_tags(span)
         request = flask.request
 
-        _asm_context.asm_request_context_set(request.remote_addr, request.headers)
         with pin.tracer.trace(
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),

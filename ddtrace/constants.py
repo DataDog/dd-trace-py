@@ -34,6 +34,7 @@ APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
 APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
 APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
 APPSEC_ORIGIN_VALUE = "appsec"
+APPSEC_BLOCKED = "appsec.blocked"
 
 IAST_ENV = "DD_IAST_ENABLED"
 IAST_JSON = "_dd.iast.json"

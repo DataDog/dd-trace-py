@@ -111,7 +111,6 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
-        pass
 
 
 @pytest.mark.snapshot(
@@ -148,12 +147,12 @@ def test_flask_get_user(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
         "meta.flask.version",
-        "http.request.headers.accept-encoding",
+        "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
         "meta.error.stack",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
@@ -170,12 +169,12 @@ def test_flask_ipblock_match_403(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
         "meta.flask.version",
-        "http.request.headers.accept-encoding",
+        "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
         "meta.error.stack",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
