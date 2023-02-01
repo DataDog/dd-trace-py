@@ -49,7 +49,7 @@ def _appsec_rules_data(tracer, features):
             tracer._appsec_processor.update_rules(rules_data)
 
 
-def _appsec_1click_actication(tracer, features):
+def _appsec_1click_activation(tracer, features):
     # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
     if features is False:
         rc_appsec_enabled = False
