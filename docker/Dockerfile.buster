@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-slim
+FROM debian:buster-20221219-slim
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
