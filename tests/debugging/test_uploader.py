@@ -44,16 +44,13 @@ def test_uploader_full_buffer():
     size = 1 << 8
     with ActiveBatchJsonEncoder(size=size, interval=0.5) as uploader:
         item = "hello" * 10
-        n = size // len(item)
+        item_len = len(item)
+        n = (size + item_len - 1) // item_len
         assert n
-        for _ in range(n):
-            uploader._encoder.put(item)
 
         with pytest.raises(BufferFull):
-            uploader._encoder.put(item)
-
-            # OK, maybe this time then
-            uploader._encoder.put(item)
+            for _ in range(n):
+                uploader._encoder.put(item)
 
         # The full buffer forces a flush
         sleep(0.01)

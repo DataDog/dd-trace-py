@@ -3,6 +3,7 @@ from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
@@ -31,7 +32,6 @@ def create_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("tags", dict())
         kwargs.setdefault("active", True)
-        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         return f(*args, **kwargs)
 
     return _wrapper
@@ -57,6 +57,7 @@ def function_location_defaults(f):
 def log_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("take_snapshot", False)
+        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         kwargs.setdefault("limits", CaptureLimits())
         return f(*args, **kwargs)
 
@@ -66,6 +67,7 @@ def log_probe_defaults(f):
 def snapshot_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("take_snapshot", True)
+        kwargs.setdefault("rate", DEFAULT_SNAPSHOT_PROBE_RATE)
         kwargs.setdefault("limits", CaptureLimits())
         kwargs.setdefault("template", "")
         kwargs.setdefault("segments", [])
@@ -76,6 +78,7 @@ def snapshot_probe_defaults(f):
 
 def metric_probe_defaults(f):
     def _wrapper(*args, **kwargs):
+        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         kwargs.setdefault("value", None)
         return f(*args, **kwargs)
 

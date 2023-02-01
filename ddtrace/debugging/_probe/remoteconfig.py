@@ -14,6 +14,7 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
@@ -121,15 +122,19 @@ def probe(_id, _type, attribs):
     Create a new Probe instance.
     """
     if _type == "logProbes":
+        take_snapshot = attribs.get("captureSnapshot", False)
+
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            rate=DEFAULT_SNAPSHOT_PROBE_RATE
+            if take_snapshot
+            else DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
-            take_snapshot=attribs.get("captureSnapshot", False),
+            take_snapshot=take_snapshot,
             template=attribs["template"],
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
