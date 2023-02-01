@@ -764,4 +764,3 @@ def test_collect_ensure_all_frames_gc():
 
     gc.collect()  # Make sure we don't race with gc when we check frame objects
     assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0
->>>>>>> 1.x
