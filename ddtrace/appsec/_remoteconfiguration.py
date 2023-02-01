@@ -63,7 +63,7 @@ def _appsec_1click_activation(tracer, features):
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True
 
-        if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
+        if not (APPSEC_ENV not in os.environ and rc_appsec_enabled) and (
             asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
         ):
             _appsec_enabled = False
