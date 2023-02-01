@@ -64,7 +64,7 @@ def _appsec_1click_activation(tracer, features):
         _appsec_enabled = True
 
         if not (APPSEC_ENV not in os.environ and rc_appsec_enabled) and (
-            asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
+            not asbool(os.environ.get(APPSEC_ENV)) or not rc_appsec_enabled
         ):
             _appsec_enabled = False
             RemoteConfig.unregister(ASM_DATA_PRODUCT)
