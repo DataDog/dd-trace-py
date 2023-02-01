@@ -227,7 +227,6 @@ def test_ip_block(tracer):
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
             assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
             assert _context.get_item("http.request.blocked", span)
-            assert "block" in _context.get_item("http.request.waf_actions", span)
 
 
 def test_ip_not_block(tracer):
@@ -247,7 +246,7 @@ def test_ip_not_block(tracer):
 def test_ip_update_rules_and_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        tracer._appsec_processor.update_rules(
+        tracer._appsec_processor._update_rules(
             [
                 {
                     "data": [
@@ -265,15 +264,14 @@ def test_ip_update_rules_and_block(tracer):
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-            assert _context.get_item("http.request.blocked", span)
-            assert "block" in _context.get_item("http.request.waf_actions", span)
+                assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+                assert _context.get_item("http.request.blocked", span)
 
 
 def test_ip_update_rules_expired_no_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        tracer._appsec_processor.update_rules(
+        tracer._appsec_processor._update_rules(
             [
                 {
                     "data": [

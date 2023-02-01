@@ -217,7 +217,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
-    def update_rules(self, new_rules):
+    def _update_rules(self, new_rules):
         # type: (List[Dict[str, Any]]) -> None
         try:
             self._ddwaf.update_rules(new_rules)
@@ -250,7 +250,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
                 data = {_Addresses.HTTP_CLIENT_IP: ip}
-                log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+                log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 ddwaf_result = self._run_ddwaf(data)
 
                 if ddwaf_result and (
@@ -280,10 +280,8 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (DDWafRulesType) -> Optional[DDWaf_result]
         try:
             return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-        except OSError:
+        except Exception:
             log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
-        except Exception as e:
-            log.warning("Error executing Appsec In-App WAF: %s", repr(e))
 
         return None
 
@@ -347,10 +345,19 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.HTTP_CLIENT_IP] = remote_ip
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        ddwaf_result = None
-        blocked_request = _context.get_item("http.request.blocked", span=span)
+        ddwaf_trigger = blocked_request = _context.get_item("http.request.blocked", span=span)
+
         if not blocked_request:
+            # Run ddwaf again
             ddwaf_result = self._run_ddwaf(data)  # res is a serialized json
+            if ddwaf_result:
+                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
+                if ddwaf_result.data:
+                    ddwaf_trigger = True
+                    # Partial DDAS-011-00
+                    log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
+                    span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
 
         try:
             info = self._ddwaf.info
@@ -360,15 +367,12 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag_str(APPSEC_WAF_VERSION, version())
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            if not blocked_request:
-                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
-                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
         except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        if blocked_request or (ddwaf_result and ddwaf_result.data is not None):
+        if ddwaf_trigger:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
@@ -380,11 +384,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
-
-            if not blocked_request and ddwaf_result:
-                # Partial DDAS-011-00
-                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
-                span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
 
             # Partial DDAS-011-00
             span.set_tag_str("appsec.event", "true")

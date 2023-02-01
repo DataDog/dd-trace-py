@@ -46,7 +46,7 @@ def _appsec_rules_data(tracer, features):
         rules_data = features.get("rules_data", [])
         if rules_data:
             log.debug("Reloading Appsec rules data: %s", rules_data)
-            tracer._appsec_processor.update_rules(rules_data)
+            tracer._appsec_processor._update_rules(rules_data)
 
 
 def _appsec_1click_activation(tracer, features):

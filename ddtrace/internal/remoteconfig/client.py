@@ -359,7 +359,13 @@ class RemoteConfigClient(object):
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
                 if callback:
-                    callback(None, None)
+                    try:
+                        callback(None, None)
+                    except Exception as e:
+                        log.debug(  # noqa: G200
+                            "error with callback %s while deserializing target" % callback
+                        )
+                        continue
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
