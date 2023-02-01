@@ -194,7 +194,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = self._extract_body(request, environ)
-        headers = parsed_headers if parsed_headers else request.headers
         trace_utils.set_http_meta(
             span,
             config.flask,

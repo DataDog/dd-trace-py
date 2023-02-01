@@ -361,10 +361,8 @@ class RemoteConfigClient(object):
                 if callback:
                     try:
                         callback(None, None)
-                    except Exception as e:
-                        log.debug(  # noqa: G200
-                            "error with callback %s while deserializing target" % callback
-                        )
+                    except Exception:
+                        log.debug("error with callback %s while deserializing target", callback)
                         continue
             return
 

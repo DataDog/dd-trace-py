@@ -2,8 +2,9 @@ import errno
 import json
 import os
 import os.path
-from typing import Any, Optional
+from typing import Any
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
@@ -221,8 +222,8 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (List[Dict[str, Any]]) -> None
         try:
             self._ddwaf.update_rules(new_rules)
-        except TypeError as e:
-            log.debug("Error updating ASM rules", exc_info=True)  # noqa: G200
+        except TypeError:
+            log.debug("Error updating ASM rules", exc_info=True)
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -253,10 +254,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 ddwaf_result = self._run_ddwaf(data)
 
-                if ddwaf_result and (
-                        ddwaf_result.actions
-                        and "block" in ddwaf_result.actions
-                        and ddwaf_result.data):
+                if ddwaf_result and (ddwaf_result.actions and "block" in ddwaf_result.actions and ddwaf_result.data):
                     log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
                     span.set_tags(
                         {
