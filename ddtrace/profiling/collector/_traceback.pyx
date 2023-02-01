@@ -1,3 +1,12 @@
+from types import CodeType
+from types import FrameType
+
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
+
 cpdef _extract_class_name(frame):
     # type: (...) -> str
     """Extract class name from a frame, if possible.
@@ -47,13 +56,39 @@ cpdef pyframe_to_frames(frame, max_nframes):
     :param frame: The frame object to serialize.
     :param max_nframes: The maximum number of frames to return.
     :return: The serialized frames and the number of frames present in the original traceback."""
+    # DEV: There are reports that Python 3.11 returns non-frame objects when
+    # retrieving frame objects and doing stack unwinding. If we detect a
+    # non-frame object we log a warning and return an empty stack, to avoid
+    # reporting potentially incomplete and/or inaccurate data. This until we can
+    # come to the bottom of the issue.
+    if not isinstance(frame, FrameType):
+        log.warning(
+            "Got object of type '%s' instead of a frame object for the top frame of a thread", type(frame).__name__
+        )
+        return [], 0
+
     frames = []
     nframes = 0
+
     while frame is not None:
-        nframes += 1
-        if len(frames) < max_nframes:
+        if nframes < max_nframes:
+            IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                if not isinstance(frame, FrameType):
+                    log.warning(
+                        "Got object of type '%s' instead of a frame object during stack unwinding", type(frame).__name__
+                    )
+                    return [], 0
+
             code = frame.f_code
+            IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                if not isinstance(code, CodeType):
+                    log.warning(
+                        "Got object of type '%s' instead of a code object during stack unwinding", type(code).__name__
+                    )
+                    return [], 0
+
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
             frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+        nframes += 1
         frame = frame.f_back
     return frames, nframes

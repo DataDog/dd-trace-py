@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiler: handle potential stack unwinding issues when running with
+    Python 3.11
