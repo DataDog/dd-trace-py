@@ -360,25 +360,27 @@ class PymongoCore(object):
     def test_rowcount(self):
         tracer, client = self.get_tracer_and_client()
         db = client["testdb"]
-        db.drop_collection("songs")
+        songs_collection = db["songs"]
+        songs_collection.delete_many({})
+
         input_songs = [
             {"name": "Powderfinger", "artist": "Neil"},
             {"name": "Harvest", "artist": "Neil"},
             {"name": "Suzanne", "artist": "Leonard"},
             {"name": "Partisan", "artist": "Leonard"},
         ]
-        db.songs.insert_many(input_songs)
+        songs_collection.insert_many(input_songs)
 
         # scoped query (using the getattr syntax) to get 1 row
         q = {"name": "Powderfinger"}
-        queried = list(db.songs.find(q))
+        queried = list(songs_collection.find(q))
         assert len(queried) == 1
         assert queried[0]["name"] == "Powderfinger"
         assert queried[0]["artist"] == "Neil"
 
         # scoped query (using the getattr syntax) to get 2 rows
         q = {"artist": "Neil"}
-        queried = list(db.songs.find(q))
+        queried = list(songs_collection.find(q))
         assert len(queried) == 2
         assert queried[0]["name"] == "Powderfinger"
         assert queried[0]["artist"] == "Neil"
@@ -391,8 +393,9 @@ class PymongoCore(object):
         two_row_span = spans[3]
 
         assert len(spans) == 4
+        assert one_row_span.name == "pymongo.cmd"
         assert one_row_span.get_metric("db.row_count") == 1
-        assert two_row_span.get_metric("db.row_count") == 1
+        assert two_row_span.get_metric("db.row_count") == 2
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):

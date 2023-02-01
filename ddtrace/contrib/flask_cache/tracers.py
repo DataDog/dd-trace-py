@@ -1,7 +1,6 @@
 """
 Datadog trace code for flask_cache
 """
-from collections.abc import Iterable
 import logging
 import typing
 
