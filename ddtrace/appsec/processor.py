@@ -222,7 +222,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             self._ddwaf.update_rules(new_rules)
         except TypeError as e:
-            log.debug("Error updating RCM rules: %s", str(e))  # noqa: G200
+            log.debug("Error updating ASM rules", exc_info=True)  # noqa: G200
 
     def on_span_start(self, span):
         # type: (Span) -> None
