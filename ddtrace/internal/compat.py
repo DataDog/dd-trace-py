@@ -268,6 +268,22 @@ else:
     CONTEXTVARS_IS_AVAILABLE = True
 
 
+try:
+    from pep562 import Pep562  # noqa
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        if sys.version_info < (3, 7):
+            Pep562(module_name)
+
+
+except ImportError:
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        pass
+
+
 def maybe_stringify(obj):
     # type: (Any) -> Optional[str]
     if obj is not None:
