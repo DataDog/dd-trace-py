@@ -1,4 +1,5 @@
 from collections import Counter
+import os.path
 import sys
 from threading import Thread
 from time import sleep
@@ -23,6 +24,7 @@ from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
+from tests.utils import call_program
 
 
 def good_probe():
@@ -822,6 +824,21 @@ def test_debugger_function_probe_eval_on_enter():
             assert snapshot, d.test_queue
             assert 0 == snapshot.entry_capture["arguments"]["arg"]["size"]
             assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
+
+
+def test_debugger_run_module():
+    # This is where the target module resides
+    cwd = os.path.join(os.path.dirname(__file__), "run_module")
+
+    # This is also where the sitecustomize resides, so we set the PYTHONPATH
+    # accordingly. This is responsible for booting the test debugger
+    env = os.environ.copy()
+    env["PYTHONPATH"] = cwd
+
+    out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
+
+    assert out.strip() == b"OK", err.decode()
+    assert status == 0
 
 
 def test_debugger_function_probe_eval_on_exit():
