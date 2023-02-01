@@ -32,6 +32,7 @@ exclude = '''
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/vendor/
   | \.eggs
   | \.git
@@ -69,6 +70,7 @@ exclude-modules = '''
   | ddtrace.profiling.auto
   # protobuf file fails to import
   | ddtrace.profiling.exporter.pprof_pre312_pb2
+  | ddtrace.profiling.exporter.pprof_pre319_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
 )

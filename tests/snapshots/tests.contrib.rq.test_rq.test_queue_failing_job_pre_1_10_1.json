@@ -16,6 +16,7 @@
       "error.type": "tests.contrib.rq.jobs.MyException",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "44dff4e9-25a8-4e26-b6ff-0e66de42143e",
+      "language": "python",
       "queue.name": "sync-q",
       "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },

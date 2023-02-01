@@ -1,15 +1,33 @@
 """
-``ddtrace`` supports `Gunicorn <https://gunicorn.org>`__.
+**Note:** ``ddtrace-run`` and Python 2 are both not supported with `Gunicorn <https://gunicorn.org>`__.
 
-If the application is using the ``gevent`` worker class, ``gevent`` monkey patching must be performed before loading the
-``ddtrace`` library.
+``ddtrace`` only supports Gunicorn's ``gevent`` worker type when configured as follows:
 
-There are different options to ensure this happens:
+- The application is running under Python 3
+- `ddtrace-run` is not used
+- The `DD_GEVENT_PATCH_ALL=1` environment variable is set
+- Gunicorn's ```post_fork`` <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`__ hook does not import from
+  ``ddtrace``
+- ``import ddtrace.bootstrap.sitecustomize`` is called either in the application's main process or in the
+  ```post_worker_init`` <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`__ hook.
 
-- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize`` as the first import of the application.
+.. code-block:: python
 
-- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
-  hook to import ``ddtrace.bootstrap.sitecustomize``.
+  # gunicorn.conf.py
+  def post_fork(server, worker):
+      # don't touch ddtrace here
+      pass
+
+  def post_worker_init(worker):
+      import ddtrace.bootstrap.sitecustomize
+
+  workers = 4
+  worker_class = "gevent"
+  bind = "8080"
+
+.. code-block:: bash
+
+  DD_GEVENT_PATCH_ALL=1 gunicorn --config gunicorn.conf.py path.to.my:app
 """
 
 
