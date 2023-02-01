@@ -1,1 +1,2 @@
-print(str("hi"))
+def print_str():
+    print(str("hi"))
