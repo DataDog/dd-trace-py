@@ -79,7 +79,7 @@ def _get_blocked_template(accept_header_value):
     else:
         template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
-    if template_path and os.path.exists(template_path) and os.path.isfile(template_path):
+    if template_path:
         try:
             with open(template_path, "r") as template_file:
                 content = template_file.read()
