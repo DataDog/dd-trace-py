@@ -143,7 +143,7 @@ class PylibmcCore(object):
         start = time.time()
         client.set_multi({"a": 1, "b": 2})
         out = client.get("a")
-        assert out == {"a": 1}
+        assert out == 1
         out = client.get("c")
         assert out is None
         end = time.time()
