@@ -58,8 +58,8 @@ def visit_ast(
 
 
 def astpatch_source(
+    module_name,  # type: str
     module_path="",  # type: str
-    module_name="",  # type: str
 ):  # type: (...) -> Tuple[str, str]
 
     if not module_path and not module_name:

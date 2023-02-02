@@ -22,6 +22,6 @@ import pytest
 )
 @pytest.mark.skipif(sys.version_info[0] < 3, reason="Python 3 only")
 def test_str_aspect(obj, kwargs):
-    from ddtrace.appsec.iast._ast.aspects import str_aspect
+    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 
-    assert str_aspect(obj, **kwargs) == str(obj, **kwargs)
+    assert ddtrace_aspects.str_aspect(obj, **kwargs) == str(obj, **kwargs)

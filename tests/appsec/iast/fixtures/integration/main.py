@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-from print_str import print_str
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG)
+
+from tests.appsec.iast.fixtures.integration.print_str import print_str  # noqa: E402
 
 
 def main():
