@@ -17,6 +17,9 @@ from ddtrace.vendor import wrapt
 from .. import trace_utils
 
 
+DBMS_NAME = "redis"
+
+
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
 #      but in `1.x.x` `__version__` is a tuple annd `VERSION` does not exist
 REDISCLUSTER_VERSION = getattr(rediscluster, "VERSION", rediscluster.__version__)
@@ -77,6 +80,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag_str("component", config.rediscluster.integration_name)
+        s.set_tag_str("db.system", DBMS_NAME)
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
