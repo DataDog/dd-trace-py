@@ -275,8 +275,8 @@ def maybe_stringify(obj):
     return None
 
 
-def to_bytes_py2(n, length=1, byteorder="big", signed=False):
-    # type: (int, int, str, bool) -> Text
+def to_bytes_py2(n, length, byteorder):
+    # type: (int, int, str) -> Text
     """
     Convert a string to bytes in the format expected by the remote config
     capabilities string, considering the byteorder, which is needed

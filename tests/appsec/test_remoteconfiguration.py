@@ -14,10 +14,19 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.utils import override_env
 
 
+def _stop_remote_config_worker():
+    if RemoteConfig._worker:
+        RemoteConfig._worker._stop_service()
+        RemoteConfig._worker = None
+
+
 @pytest.fixture
 def remote_config_worker(tracer):
-    RemoteConfig._worker = None
-    yield
+    _stop_remote_config_worker()
+    try:
+        yield
+    finally:
+        _stop_remote_config_worker()
 
 
 def _set_and_get_appsec_tags(tracer):
