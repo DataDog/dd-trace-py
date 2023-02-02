@@ -54,6 +54,7 @@ def parse_payload(data):
 
 
 def assert_remoteconfig_started_successfully(response, check_patch=True):
+    # ddtrace and gunicorn don't play nicely under python 3.5 or 3.11
     if sys.version_info[1] in (5, 11):
         return
     assert response.status_code == 200
@@ -166,6 +167,10 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
+SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
+    worker_class="gevent",
+    patch_gevent=True,
+)
 SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
@@ -194,4 +199,20 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
+    assert_remoteconfig_started_successfully(r)
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        SETTINGS_GEVENT_DDTRACERUN_PATCH,
+    ],
+)
+def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
+    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+        server_process, client = context
+        r = client.get("/")
+    # this particular error does not manifest in 3.7 and older
+    if sys.version_info[1] > 7:
+        assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
     assert_remoteconfig_started_successfully(r)
