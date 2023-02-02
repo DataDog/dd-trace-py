@@ -201,6 +201,7 @@ class TestVertica(TracerTestCase):
         assert spans[0].get_metric("out.port") == 5433
         assert spans[0].get_tag("db.name") == "docker"
         assert spans[0].get_tag("db.user") == "dbadmin"
+        assert spans[0].get_tag("db.system") == "vertica"
         assert spans[0].get_tag("component") == "vertica"
 
         assert spans[1].resource == "SELECT * FROM test_table;"
@@ -228,6 +229,7 @@ class TestVertica(TracerTestCase):
         assert spans[0].resource == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
         assert spans[0].get_metric("out.port") == 5433
+        assert spans[0].get_tag("db.system") == "vertica"
         assert spans[0].get_tag("component") == "vertica"
 
         assert spans[1].resource == "SELECT * FROM test_table;"
@@ -251,6 +253,7 @@ class TestVertica(TracerTestCase):
         error_type = "vertica_python.errors.VerticaSyntaxError"
         assert spans[0].get_tag(ERROR_TYPE) == error_type
         assert spans[0].get_tag(ERROR_STACK)
+        assert spans[0].get_tag("db.system") == "vertica"
         assert spans[0].get_tag("component") == "vertica"
 
         assert spans[1].resource == "COMMIT;"
@@ -295,21 +298,26 @@ class TestVertica(TracerTestCase):
 
         # check all the rowcounts
         assert spans[0].name == "vertica.query"
+        assert spans[0].get_tag("db.system") == "vertica"
         assert spans[0].get_tag("component") == "vertica"
         assert spans[1].get_metric("db.rowcount") == -1
         assert spans[1].name == "vertica.query"
         assert spans[1].get_metric("db.rowcount") == -1
+        assert spans[1].get_tag("db.system") == "vertica"
         assert spans[1].get_tag("component") == "vertica"
         assert spans[2].name == "vertica.fetchone"
         assert spans[2].get_tag("out.host") == "127.0.0.1"
         assert spans[2].get_metric("out.port") == 5433
         assert spans[2].get_metric("db.rowcount") == 1
+        assert spans[2].get_tag("db.system") == "vertica"
         assert spans[2].get_tag("component") == "vertica"
         assert spans[3].name == "vertica.fetchone"
         assert spans[3].get_metric("db.rowcount") == 2
+        assert spans[3].get_tag("db.system") == "vertica"
         assert spans[3].get_tag("component") == "vertica"
         assert spans[4].name == "vertica.fetchall"
         assert spans[4].get_metric("db.rowcount") == 5
+        assert spans[4].get_tag("db.system") == "vertica"
         assert spans[4].get_tag("component") == "vertica"
 
     def test_nextset(self):
@@ -378,6 +386,7 @@ class TestVertica(TracerTestCase):
         assert dd_span.resource == query
         assert dd_span.get_tag("out.host") == "127.0.0.1"
         assert dd_span.get_metric("out.port") == 5433
+        assert dd_span.get_tag("db.system") == "vertica"
         assert dd_span.get_tag("component") == "vertica"
 
     def test_analytics_default(self):
