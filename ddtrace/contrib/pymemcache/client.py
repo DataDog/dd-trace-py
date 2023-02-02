@@ -17,6 +17,7 @@ from ddtrace.vendor import wrapt
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.compat import reraise
@@ -147,8 +148,8 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
-
             span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+            span.set_tag_str(db.SYSTEM, memcachedx.SERVICE)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate
