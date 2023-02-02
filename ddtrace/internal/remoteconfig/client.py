@@ -232,8 +232,10 @@ class RemoteConfigClient(object):
                 self._headers["Datadog-Container-Id"] = container_id
 
         tags = global_config.tags.copy()
-        tags["env"] = ddtrace.config.env
-        tags["version"] = ddtrace.config.version
+        if ddtrace.config.env:
+            tags["env"] = ddtrace.config.env
+        if ddtrace.config.version:
+            tags["version"] = ddtrace.config.version
         tags["tracer_version"] = tracer_version
         tags["host_name"] = get_hostname()
 
