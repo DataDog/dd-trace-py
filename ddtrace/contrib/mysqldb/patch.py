@@ -16,6 +16,9 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 
 
+DBMS_NAME = "mysql"
+
+
 config._add(
     "mysqldb",
     dict(
@@ -88,6 +91,7 @@ def patch_conn(conn, *args, **kwargs):
     tags = {
         t: kwargs[k] if k in kwargs else args[p] for t, (k, p) in KWPOS_BY_TAG.items() if k in kwargs or len(args) > p
     }
+    tags[db.SYSTEM] = DBMS_NAME
     tags[net.TARGET_PORT] = conn.port
     pin = Pin(tags=tags)
 

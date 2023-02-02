@@ -14,6 +14,9 @@ from ...ext import db
 from ...ext import net
 
 
+DBMS_NAME = "mysql"
+
+
 config._add(
     "aiomysql",
     dict(_default_service="mysql"),
@@ -33,6 +36,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
             tags[tag] = getattr(conn, attr)
+    tags[db.SYSTEM] = DBMS_NAME
 
     c = AIOTracedConnection(conn)
     Pin(tags=tags).onto(c)

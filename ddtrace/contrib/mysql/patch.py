@@ -12,6 +12,9 @@ from ...ext import net
 from ...internal.utils.formats import asbool
 
 
+DBMS_NAME = "mysql"
+
+
 config._add(
     "mysql",
     dict(
@@ -51,6 +54,7 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
 
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
+    tags[db.SYSTEM] = DBMS_NAME
     pin = Pin(tags=tags)
 
     # grab the metadata from the conn
