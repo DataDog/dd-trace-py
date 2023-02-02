@@ -59,6 +59,10 @@ def _assert_response(mock_send_request, expected_response):
     response = json.loads(mock_send_request.call_args.args[0])
     response["cached_target_files"].sort(key=lambda x: x["path"], reverse=True)
     response["client"]["state"]["config_states"].sort(key=lambda x: x["id"], reverse=True)
+
+    assert response["client"]["client_tracer"]["tags"]
+    del response["client"]["client_tracer"]["tags"]
+
     assert response == expected_response
 
 
