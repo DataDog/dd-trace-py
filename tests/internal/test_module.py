@@ -1,5 +1,4 @@
 import os
-from os.path import dirname
 import sys
 
 import mock
@@ -8,6 +7,7 @@ import pytest
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
