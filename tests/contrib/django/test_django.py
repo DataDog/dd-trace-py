@@ -1098,7 +1098,7 @@ def test_cache_get_many_rowcount_some_existing(test_spans):
     result = cache.get_many(["first_key", "missing_key"])
 
     print(result)
-    assert result == {'first_key': 1}
+    assert result == {"first_key": 1}
 
     spans = test_spans.get_spans()
     assert len(spans) == 6
