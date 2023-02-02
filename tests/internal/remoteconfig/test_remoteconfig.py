@@ -130,7 +130,7 @@ def test_remote_config_forksafe():
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
-def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_send_request):
+def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
 
