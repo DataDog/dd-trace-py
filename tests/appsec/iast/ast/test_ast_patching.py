@@ -60,7 +60,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
 )
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_astpatch_source_changed(module_path, module_name):
-    module_path, new_source = astpatch_source(module_path, module_name)
+    module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
@@ -78,7 +78,7 @@ def test_astpatch_source_changed(module_path, module_name):
 )
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_astpatch_source_changed_with_future_imports(module_path, module_name):
-    module_path, new_source = astpatch_source(module_path, module_name)
+    module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith(
@@ -101,7 +101,7 @@ def test_astpatch_source_changed_with_future_imports(module_path, module_name):
 )
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
 def test_astpatch_source_unchanged(module_path, module_name):
-    assert ("", "") == astpatch_source(module_path, module_name)
+    assert ("", "") == astpatch_source(module_name, module_path)
 
 
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
