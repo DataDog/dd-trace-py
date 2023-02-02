@@ -11,11 +11,15 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
+
+
+DBMS_NAME = "dynamodb"
 
 
 # Pynamodb connection class
@@ -56,6 +60,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.pynamodb.integration_name)
+        span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
