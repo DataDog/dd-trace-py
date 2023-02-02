@@ -33,7 +33,6 @@ from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .constants import TELEMETRY_TRACER
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
