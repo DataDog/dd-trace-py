@@ -10,10 +10,14 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy
+
+
+DBMS_NAME = "memcached"
 
 
 # Original Client class
@@ -142,6 +146,7 @@ class TracedClient(ObjectProxy):
 
         # set component tag equal to name of integration
         span.set_tag_str("component", config.pylibmc.integration_name)
+        span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
