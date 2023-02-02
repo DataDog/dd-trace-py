@@ -47,6 +47,8 @@ from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.module import register_post_run_module_hook
+from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -136,6 +138,14 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
         return super(DebuggerModuleWatchdog, cls).unregister_module_hook(module_name, hook)
 
+    @classmethod
+    def on_run_module(cls, module):
+        # type: (ModuleType) -> None
+        if cls._instance is not None:
+            # Treat run module as an import to trigger import hooks and register
+            # the module's origin.
+            cls._instance.after_import(module)
+
 
 class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
@@ -178,6 +188,7 @@ class Debugger(Service):
 
         forksafe.register(cls._restart)
         atexit.register(cls.disable)
+        register_post_run_module_hook(cls._on_run_module)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -197,6 +208,7 @@ class Debugger(Service):
 
         forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
+        unregister_post_run_module_hook(cls._on_run_module)
 
         cls._instance.stop()
         cls._instance = None
@@ -366,7 +378,8 @@ class Debugger(Service):
 
     def _probe_injection_hook(self, module):
         # type: (ModuleType) -> None
-        # This hook is invoked by the ModuleWatchdog to inject probes.
+        # This hook is invoked by the ModuleWatchdog or the post run module hook
+        # to inject probes.
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
@@ -636,3 +649,10 @@ class Debugger(Service):
         log.info("Restarting the debugger in child process")
         cls.disable()
         cls.enable()
+
+    @classmethod
+    def _on_run_module(cls, module):
+        # type: (ModuleType) -> None
+        debugger = cls._instance
+        if debugger is not None:
+            debugger.__watchdog__.on_run_module(module)
