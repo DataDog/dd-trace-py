@@ -17,7 +17,6 @@ import cattr
 import six
 
 import ddtrace
-from ddtrace import config as global_config
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
