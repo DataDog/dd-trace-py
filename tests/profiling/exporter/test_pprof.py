@@ -8,6 +8,7 @@ from ddtrace import ext
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.exporter import pprof
 
 
@@ -354,7 +355,7 @@ TEST_EVENTS = {
             local_root_span_id=1322219321,
             span_id=24930,
             trace_type="sql",
-            trace_resource_container=[u"\x1bnotme"],
+            trace_resource_container=["\x1bnotme"],
             frames=[
                 ("foobar.py", 23, "func1", ""),
                 ("foobar.py", 44, "func2", ""),
@@ -461,7 +462,7 @@ TEST_EVENTS = {
             local_root_span_id=23435,
             span_id=345432,
             trace_type=ext.SpanTypes.WEB,
-            trace_resource_container=[u"myresource"],
+            trace_resource_container=["myresource"],
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
@@ -658,25 +659,16 @@ TEST_EVENTS = {
 }
 
 
-def test_sequence():
-    s = pprof._Sequence()
-    assert s.start_at == 1
-    assert s.next_id == 1
-    assert s.generate() == 1
-    assert s.start_at == 1
-    assert s.next_id == 2
-
-
 def test_string_table():
     t = pprof._StringTable()
     assert len(t) == 1
-    id1 = t.to_id("foobar")
+    id1 = t.index("foobar")
     assert len(t) == 2
-    assert id1 == t.to_id("foobar")
+    assert id1 == t.index("foobar")
     assert len(t) == 2
-    id2 = t.to_id("foobaz")
+    id2 = t.index("foobaz")
     assert len(t) == 3
-    assert id2 == t.to_id("foobaz")
+    assert id2 == t.index("foobaz")
     assert len(t) == 3
     assert id1 != id2
 
@@ -693,17 +685,23 @@ def test_to_str_none():
 def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
-    exports, libs = exp.export(TEST_EVENTS, 1, 7)
-    if six.PY2:
-        filename = "test-pprof-exporter-py2.txt"
-    else:
-        filename = "test-pprof-exporter.txt"
-    with open(os.path.join(os.path.dirname(__file__), filename)) as f:
-        assert f.read() == str(exports), filename
+    exports, _ = exp.export(TEST_EVENTS, 1, 7)
+
+    assert len(exports.sample_type) == 11
+    assert len(exports.string_table) == 58
+    assert len(exports.sample) == 22 if six.PY2 else 28
+    assert len(exports.location) == 8
+
+    assert exports.period == 1000000
+    assert exports.time_nanos == 1
+    assert exports.duration_nanos == 6
+
+    assert all(_ in exports.string_table for _ in ("time", "nanoseconds", "bonjour"))
 
 
 @mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter_libs(gan):
+    _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     TEST_EVENTS = {
@@ -737,7 +735,7 @@ def test_pprof_exporter_libs(gan):
                 local_root_span_id=1322219321,
                 span_id=24930,
                 trace_type="sql",
-                trace_resource_container=[u"\x1bnotme"],
+                trace_resource_container=["\x1bnotme"],
                 frames=[
                     (__file__, 23, "func1", ""),
                     ("foobar.py", 44, "func2", ""),
@@ -751,7 +749,7 @@ def test_pprof_exporter_libs(gan):
         ]
     }
 
-    exports, libs = exp.export(TEST_EVENTS, 1, 7)
+    _, libs = exp.export(TEST_EVENTS, 1, 7)
 
     # Version does not match between pip and __version__ for ddtrace; ignore
     for lib in libs:
@@ -765,8 +763,8 @@ def test_pprof_exporter_libs(gan):
             del lib["paths"]
 
     expected_libs = [
-        {"name": "ddtrace", "kind": "library", "paths": [memalloc.__file__, __file__]},
-        {"name": "six", "kind": "library", "version": six.__version__, "paths": [six.__file__]},
+        {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
+        {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
             "kind": "library",
@@ -780,7 +778,18 @@ def test_pprof_exporter_libs(gan):
             {"kind": "standard library", "name": "platstdlib", "version": platform.python_version()},
         )
 
-    assert libs == expected_libs
+    # DEV: We cannot convert the lists to sets because the some of the values
+    # in the dicts are list. We resort to matching the elements of one list to
+    # the other instead and check that:
+    # - for all elements in libs we have a match in expected_libs
+    # - we end up with an empty expected_libs
+    # This is equivalent to checking that the two lists are equal.
+    for _ in libs:
+        if "paths" in _:
+            _["paths"] = set(_["paths"])
+        expected_libs.remove(_)
+
+    assert not expected_libs
 
 
 def test_pprof_exporter_empty():

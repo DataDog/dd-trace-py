@@ -11,8 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec.ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -33,6 +33,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
@@ -153,7 +159,6 @@ def _get_waf_timeout():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
@@ -181,7 +186,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
-            except json.decoder.JSONDecodeError:
+            except JSONDecodeError:
                 log.error(
                     "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
                 )
@@ -271,24 +276,32 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        ddwaf_result = None
+        try:
+            ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        except OSError:
+            log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
+        except Exception as e:
+            log.warning("Error executing Appsec In-App WAF: %s", repr(e))
 
         try:
             info = self._ddwaf.info
-            if info["errors"]:
-                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
-            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span.set_tag_str(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+            if info.errors:
+                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info.errors))
+            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
+            span.set_tag_str(APPSEC_WAF_VERSION, version())
 
-            span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
-            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
-            span.set_metric(APPSEC_WAF_DURATION, total_runtime)
-            span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
-        except (json.decoder.JSONDecodeError, ValueError):
+            span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
+            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
+            if ddwaf_result:
+                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
+        except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
-        if res is not None:
+
+        if ddwaf_result and ddwaf_result.data is not None:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
@@ -301,14 +314,14 @@ class AppSecSpanProcessor(SpanProcessor):
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
             # Partial DDAS-011-00
-            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
             span.set_tag_str("appsec.event", "true")
-            span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
+            span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
             if remote_ip:
-                # Note that if the ip collection is disabled by the env var
-                # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
+                # Note that if the ip collection is disabled by not having ASM or
+                # DD_TRACE_CLIENT_IP_ENABLED actor.ip won't be sent
                 span.set_tag_str("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's

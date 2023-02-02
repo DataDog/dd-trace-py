@@ -45,7 +45,7 @@ No lines found
 """
 
 
-@pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__)}, out=OUT)
+@pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__) + ":."}, out=OUT)
 def test_exploration_bootstrap():
     # We test that we get the expected output from the exploration debuggers
     # and no errors when running the sitecustomize.py script.

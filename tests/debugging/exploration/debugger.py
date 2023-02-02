@@ -14,13 +14,12 @@ from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._probe.model import ConditionalProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.collector import SnapshotContext
 from ddtrace.debugging._snapshot.model import Snapshot
-from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -176,17 +175,6 @@ class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
         # type: (Snapshot) -> bytes
         return b""
 
-    @classmethod
-    def capture_context(
-        cls,
-        arguments,  # type: t.List[t.Tuple[str, t.Any]]
-        _locals,  # type: t.List[t.Tuple[str, t.Any]]
-        throwable,  # type: ExcInfoType
-        level=1,  # type: int
-    ):
-        # type: (...) -> t.Dict[str, t.Any]
-        return {}
-
 
 class ExplorationSnapshotCollector(SnapshotCollector):
     def __init__(self, *args, **kwargs):
@@ -213,7 +201,7 @@ class ExplorationSnapshotCollector(SnapshotCollector):
 
     def collect(
         self,
-        probe,  # type: ConditionalProbe
+        probe,  # type: ProbeConditionMixin
         frame,  # type: FrameType
         thread,  # type: Thread
         args,  # type: t.List[t.Tuple[str, t.Any]]
