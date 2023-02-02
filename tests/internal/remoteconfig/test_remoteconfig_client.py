@@ -7,7 +7,7 @@ import mock
 from ddtrace.internal import runtime
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-from ddtrace.internal.utils.version import _get_version_agent_format
+from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
 
 
@@ -28,7 +28,7 @@ def _expected_payload(
             "client_tracer": {
                 "runtime_id": runtime.get_runtime_id(),
                 "language": "python",
-                "tracer_version": _get_version_agent_format(),
+                "tracer_version": _pep440_to_semver(),
                 "service": None,
                 "env": None,
                 "app_version": None,
