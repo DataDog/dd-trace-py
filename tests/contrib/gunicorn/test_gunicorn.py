@@ -212,7 +212,7 @@ def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
         r = client.get("/")
-    # this particular error does not manifest in 3.7 and older
-    if sys.version_info[1] > 7:
+    # this particular error does not manifest in 3.8 and older
+    if sys.version_info[1] > 8:
         assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
     assert_remoteconfig_started_successfully(r)
