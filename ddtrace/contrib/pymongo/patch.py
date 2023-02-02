@@ -9,6 +9,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
@@ -16,9 +17,7 @@ from .client import set_address_tags
 
 config._add(
     "pymongo",
-    dict(
-        _default_service="pymongo",
-    ),
+    dict(_default_service="pymongo", dbms_name="mongodb"),
 )
 
 
@@ -71,6 +70,7 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     ) as span:
         # set component tag equal to name of integration
         span.set_tag_str("component", config.pymongo.integration_name)
+        span.set_tag_str(db.SYSTEM, config.pymongo.dbms_name)
 
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
