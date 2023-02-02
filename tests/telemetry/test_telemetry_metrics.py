@@ -9,10 +9,11 @@ from ddtrace.internal.utils.version import _get_version_agent_format
 from tests.telemetry.test_writer import _get_request_body
 
 
-def _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_TRACER, seq_id=1):
-    test_agent_session.telemetry_writer.periodic()
-    events = test_agent_session.get_events()
-    assert len(events) == 1
+def _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_TRACER, seq_id=1):
+    test_agent_session_telemetry_metrics.telemetry_writer.periodic()
+    events = test_agent_session_telemetry_metrics.get_events()
+    # TODO: test_agent_session.clear() creates many telemetry events 'app-closing' type
+    assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_GENERATE_METRICS]) == 1
 
     payload = {
         "namespace": namespace,
@@ -24,12 +25,12 @@ def _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_TRAC
     assert events[0] == _get_request_body(payload, TELEMETRY_TYPE_GENERATE_METRICS, seq_id)
 
 
-def test_send_metric_flush_and_series_is_restarted(mock_time, test_agent_session):
+def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer = test_agent_session.telemetry_writer
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric2", 1, {"a": "b"})
     expected_series = [
         {
@@ -43,21 +44,20 @@ def test_send_metric_flush_and_series_is_restarted(mock_time, test_agent_session
         },
     ]
 
-    _assert_metric(test_agent_session, expected_series)
-    test_agent_session.clear()
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series)
+    test_agent_session_telemetry_metrics.clear()
 
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric2", 1, {"a": "b"})
 
-    _assert_metric(test_agent_session, expected_series, seq_id=2)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series, seq_id=2)
 
 
-def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(mock_time, test_agent_session):
+def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_session_telemetry_metrics, mock_time):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    # test_agent_session.telemetry_writer._flush_namespace_metrics()
-    telemetry_writer = test_agent_session.telemetry_writer
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 2, {"a": "b"})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 3, {"a": "b"})
 
@@ -73,15 +73,17 @@ def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(mock_time, t
         },
     ]
 
-    _assert_metric(test_agent_session, expected_series)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
-def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(mock_time, test_agent_session):
+def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(
+    test_agent_session_telemetry_metrics, mock_time
+):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer = test_agent_session.telemetry_writer
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 4, {"a": "b"})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 5, {"a": "b", "c": "d"})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 6, {})
@@ -116,15 +118,17 @@ def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(mock_t
         },
     ]
 
-    _assert_metric(test_agent_session, expected_series)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
-def test_send_metric_datapoint_equal_tags_different_type_expected_1_serie(mock_time, test_agent_session):
+def test_send_metric_datapoint_equal_tags_different_type_expected_1_serie(
+    test_agent_session_telemetry_metrics, mock_time
+):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer = test_agent_session.telemetry_writer
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
     with pytest.raises(TelemetryTypeError) as e:
         telemetry_writer.add_gauge_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
@@ -135,8 +139,8 @@ def test_send_metric_datapoint_equal_tags_different_type_expected_1_serie(mock_t
     )
 
 
-def test_send_tracers_count_metric(mock_time, test_agent_session):
-    telemetry_writer = test_agent_session.telemetry_writer
+def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_time):
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
@@ -171,11 +175,11 @@ def test_send_tracers_count_metric(mock_time, test_agent_session):
             "type": "count",
         },
     ]
-    _assert_metric(test_agent_session, expected_series)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
-def test_send_appsec_rate_metric(mock_time, test_agent_session):
-    telemetry_writer = test_agent_session.telemetry_writer
+def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time):
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
     telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
     telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
@@ -201,11 +205,11 @@ def test_send_appsec_rate_metric(mock_time, test_agent_session):
         },
     ]
 
-    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_APPSEC)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_APPSEC)
 
 
-def test_send_appsec_gauge_metric(mock_time, test_agent_session):
-    telemetry_writer = test_agent_session.telemetry_writer
+def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_time):
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"})
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"a": "b"})
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 6, {})
@@ -239,4 +243,4 @@ def test_send_appsec_gauge_metric(mock_time, test_agent_session):
             "type": "gauge",
         },
     ]
-    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_APPSEC)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_APPSEC)

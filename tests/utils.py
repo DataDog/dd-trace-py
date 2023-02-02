@@ -1028,7 +1028,10 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     close_fds = sys.platform != "win32"
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
+    cwd = os.path.dirname(os.path.dirname(__file__))
+    subp = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, cwd=cwd, **kwargs
+    )
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
 

@@ -80,11 +80,7 @@ class TelemetryTestSession(object):
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request)
-    telemetry_writer._flush_namespace_metrics()
-    telemetry_writer._flush_events_queue()
-    telemetry_writer._flush_integrations_queue()
     telemetry_writer._headers["X-Datadog-Test-Session-Token"] = token
-
     # Also add a header to the environment for subprocesses test cases that might use snapshotting.
     existing_headers = parse_tags_str(os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS", ""))
     existing_headers.update({"X-Datadog-Test-Session-Token": token})
@@ -106,9 +102,18 @@ def test_agent_session(telemetry_writer, request):
         yield requests
     finally:
         # Force a flush
-        requests.clear()
+        telemetry_writer.periodic()
         del telemetry_writer._headers["X-Datadog-Test-Session-Token"]
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
+
+
+@pytest.fixture
+def test_agent_session_telemetry_metrics(test_agent_session):
+    test_agent_session.telemetry_writer._flush_namespace_metrics()
+    test_agent_session.telemetry_writer._flush_events_queue()
+    test_agent_session.telemetry_writer._flush_integrations_queue()
+    yield test_agent_session
+    test_agent_session.clear()
 
 
 @pytest.fixture
