@@ -16,7 +16,7 @@ from ddtrace.settings import _config as config
 from .conftest import TelemetryTestSession
 
 
-def test_add_event(telemetry_writer, test_agent_session):
+def test_add_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_event queues a telemetry request with valid headers and payload"""
     payload = {"test": "123"}
     payload_type = "test-event"
@@ -47,7 +47,7 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-def test_app_started_event(telemetry_writer, test_agent_session):
+def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     # queue integrations
     telemetry_writer.add_integration("integration-t", True)
@@ -90,7 +90,7 @@ def test_app_started_event(telemetry_writer, test_agent_session):
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_closing_event(telemetry_writer, test_agent_session):
+def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that on_shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
     telemetry_writer.on_shutdown()
@@ -102,7 +102,7 @@ def test_app_closing_event(telemetry_writer, test_agent_session):
     assert requests[0]["body"] == _get_request_body({}, "app-closing")
 
 
-def test_add_integration(telemetry_writer, test_agent_session):
+def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
     telemetry_writer.add_integration("integration-t", True)
@@ -169,7 +169,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
         assert len(httpretty.latest_requests()) == 1
 
 
-def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
+def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.start()
     telemetry_writer.stop()
 

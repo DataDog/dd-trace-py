@@ -111,7 +111,7 @@ def test_agent_session(telemetry_writer, request):
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_time():
     with mock.patch("time.time") as mt:
         mt.return_value = 1642544540
