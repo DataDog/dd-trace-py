@@ -13,6 +13,7 @@ from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
+from ...ext import db
 from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
@@ -29,6 +30,7 @@ RESOURCE_MAX_LENGTH = 5000
 SERVICE = "cassandra"
 CURRENT_SPAN = "_ddtrace_current_span"
 PAGE_NUMBER = "_ddtrace_page_number"
+DBMS_NAME = "cassandra"
 
 # Original connect connect function
 _connect = cassandra.cluster.Cluster.connect
@@ -174,6 +176,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
 
     # set component tag equal to name of integration
     span.set_tag_str("component", config.cassandra.integration_name)
+    span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)
