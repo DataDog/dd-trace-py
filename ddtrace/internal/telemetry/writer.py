@@ -16,6 +16,7 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
+from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from .data import get_application
@@ -54,11 +55,14 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+        # Debug flag that enables payload debug mode.
+        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
         forksafe.register(self._fork_writer)
 
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
+            "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
@@ -254,6 +258,7 @@ class TelemetryWriter(PeriodicService):
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": sequence_id,
+            "debug": self._debug,
             "application": get_application(config.service, config.version, config.env),
             "host": get_host_info(),
             "payload": payload,
