@@ -95,6 +95,7 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Updating ASM Remote Configuration: %s", features)
+            # Note that the order of these call matter
             _appsec_rules_data(tracer, features)
             _appsec_1click_activation(tracer, features)
 

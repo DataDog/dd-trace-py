@@ -238,7 +238,8 @@ class TraceMiddleware:
 
             try:
                 if _request_blocked(span):
-                    return await self.app(scope, receive, wrapped_blocked_send)
+                    # return await self.app(scope, receive, wrapped_blocked_send)
+                    return await send({"type": "http.response.start", "headers": {}, body: b"", "more_body": False})
                 return await self.app(scope, receive, wrapped_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
