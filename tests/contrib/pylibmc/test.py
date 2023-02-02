@@ -158,7 +158,7 @@ class PylibmcCore(object):
         assert get_existing_key_span.resource == "get"
         assert get_existing_key_span.get_metric("db.row_count") == 1
         assert get_missing_key_span.resource == "get"
-        assert get_missing_key_span.get_metric("db.row_count") == 1
+        assert get_missing_key_span.get_metric("db.row_count") == 0
 
     def test_get_multi_rowcount(self):
         client, tracer = self.get_client()

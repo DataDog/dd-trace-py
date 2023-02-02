@@ -156,6 +156,8 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             if result and isinstance(result, Iterable):
                 span.set_metric(db.ROWCOUNT, len(result))
         elif command_name == "get":
+            print(command_name)
+            print(f"{command_name} result: '{result}', {type(result)}")
             if result:
                 span.set_metric(db.ROWCOUNT, 1)
         return result
