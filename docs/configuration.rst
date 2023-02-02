@@ -63,12 +63,6 @@ below:
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
-   DD_TELEMETRY_DEBUG
-     type: Boolean
-     default: False
-     description: |
-         This flag enables Telemetry payload debug mode.
-
    DD_TRACE_DEBUG:
      type: Boolean
      default: False
