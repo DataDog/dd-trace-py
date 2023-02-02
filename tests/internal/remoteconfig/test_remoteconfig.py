@@ -196,27 +196,3 @@ def test_remoteconfig_semver():
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
     mock_healthcheck.return_value = result
     assert RemoteConfig._check_remote_config_enable_in_agent() is expected
-
-
-@pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
-def test_remote_config_client_tags():
-
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-
-    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-
-    assert tags["env"] == "foo"
-    assert tags["version"] == "bar"
-
-
-@pytest.mark.subprocess(
-    env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
-)
-def test_remote_config_client_tags_override():
-
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-
-    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-
-    assert tags["env"] == "foo"
-    assert tags["version"] == "bar"

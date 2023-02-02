@@ -3,6 +3,7 @@ import json
 import os
 
 import mock
+import pytest
 
 from ddtrace.internal import runtime
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -660,3 +661,27 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
+
+
+@pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
+def test_remote_config_client_tags():
+
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
+
+    assert tags["env"] == "foo"
+    assert tags["version"] == "bar"
+
+
+@pytest.mark.subprocess(
+    env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
+)
+def test_remote_config_client_tags_override():
+
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
+
+    assert tags["env"] == "foo"
+    assert tags["version"] == "bar"
