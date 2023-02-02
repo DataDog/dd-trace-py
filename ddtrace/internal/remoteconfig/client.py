@@ -230,7 +230,7 @@ class RemoteConfigClient(object):
             if container_id is not None:
                 self._headers["Datadog-Container-Id"] = container_id
 
-        tags = global_config.tags.copy()
+        tags = ddtrace.config.tags.copy()
         if ddtrace.config.env:
             tags["env"] = ddtrace.config.env
         if ddtrace.config.version:
