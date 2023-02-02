@@ -12,6 +12,9 @@ from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
 
+DBMS_NAME = "mariadb"
+
+
 config._add(
     "mariadb",
     dict(
@@ -42,6 +45,7 @@ def _connect(func, instance, args, kwargs):
         net.TARGET_PORT: kwargs["port"],
         db.USER: kwargs["user"],
         db.NAME: kwargs["database"],
+        db.SYSTEM: DBMS_NAME,
     }
 
     pin = Pin(tags=tags)
