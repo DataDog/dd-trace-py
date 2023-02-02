@@ -1,3 +1,4 @@
+import os
 from os.path import dirname
 import sys
 
@@ -7,6 +8,9 @@ import pytest
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -268,7 +272,7 @@ def test_module_import_hierarchy():
 
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
-    env=dict(PYTHONPATH=dirname(__file__)),
+    env=dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR)),
     run_module=True,
 )
 def test_post_run_module_hook():
