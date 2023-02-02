@@ -659,25 +659,16 @@ TEST_EVENTS = {
 }
 
 
-def test_sequence():
-    s = pprof._Sequence()
-    assert s.start_at == 1
-    assert s.next_id == 1
-    assert s.generate() == 1
-    assert s.start_at == 1
-    assert s.next_id == 2
-
-
 def test_string_table():
     t = pprof._StringTable()
     assert len(t) == 1
-    id1 = t.to_id("foobar")
+    id1 = t.index("foobar")
     assert len(t) == 2
-    assert id1 == t.to_id("foobar")
+    assert id1 == t.index("foobar")
     assert len(t) == 2
-    id2 = t.to_id("foobaz")
+    id2 = t.index("foobaz")
     assert len(t) == 3
-    assert id2 == t.to_id("foobaz")
+    assert id2 == t.index("foobaz")
     assert len(t) == 3
     assert id1 != id2
 
