@@ -14,7 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     try:
         from typing import Literal
     except ImportError:
-        # Python < 3.8
+        # Python < 3.8. The "type ignore" is to avoid a runtime check just to silence mypy.
         from typing_extensions import Literal  # type: ignore
     from typing import Mapping
     from typing import Optional
