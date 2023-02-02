@@ -12,6 +12,9 @@ from ..dbapi import TracedCursor
 from ..trace_utils import unwrap
 
 
+DBMS_NAME = "snowflake"
+
+
 config._add(
     "snowflake",
     dict(
@@ -64,6 +67,7 @@ def patched_connect(connect_func, _, args, kwargs):
         net.TARGET_HOST: conn.host,
         net.TARGET_PORT: conn.port,
         db.NAME: conn.database,
+        db.SYSTEM: DBMS_NAME,
         db.USER: conn.user,
         "db.application": conn.application,
         "db.schema": conn.schema,
