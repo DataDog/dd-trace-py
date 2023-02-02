@@ -1,3 +1,5 @@
+import sys
+
 from mock.mock import ANY
 import pytest
 
@@ -22,9 +24,11 @@ def _assert_metric(test_agent_session_telemetry_metrics, expected_series, namesp
         "series": expected_series,
     }
     assert events[0]["request_type"] == TELEMETRY_TYPE_GENERATE_METRICS
+
     assert events[0] == _get_request_body(payload, TELEMETRY_TYPE_GENERATE_METRICS, seq_id)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
@@ -52,6 +56,7 @@ def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_
     _assert_metric(test_agent_session_telemetry_metrics, expected_series, seq_id=2)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_session_telemetry_metrics, mock_time):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
@@ -76,6 +81,7 @@ def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_s
     _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(
     test_agent_session_telemetry_metrics, mock_time
 ):
@@ -139,6 +145,7 @@ def test_send_metric_datapoint_equal_tags_different_type_expected_1_serie(
     )
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
@@ -178,6 +185,7 @@ def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_ti
     _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
@@ -208,6 +216,7 @@ def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time
     _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_APPSEC)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"})
