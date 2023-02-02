@@ -4,9 +4,13 @@
         "type": "redis",
         "specification": {
             "tags": {
-                "flask.endpoint": {
+                "out.host": {
                     "type": "str",
-                    "required": false
+                    "required": true
+                },
+                "out.port": {
+                    "type": "int",
+                    "required": true
                 }
             }
         }
@@ -18,14 +22,6 @@
             "tags": {
                 "redis.raw_command": {
                     "type": "str",
-                    "required": true
-                },
-                "out.host": {
-                    "type": "str",
-                    "required": true
-                },
-                "out.port": {
-                    "type": "int",
                     "required": true
                 }
             }

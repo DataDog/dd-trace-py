@@ -9,5 +9,41 @@
                 }
             }
         }
+    },
+    {
+        "name": "flask.render_template", 
+        "type": "template",
+        "specification": {
+            "tags": {
+                "flask.endpoint": {
+                    "type": "str",
+                    "required": false
+                },
+                "flask.template_name": {
+                    "type": "str",
+                    "required": false
+                }
+            }
+        }
+    },
+    {
+        "name": "flask.request", 
+        "type": "http",
+        "specification": {
+            "tags": {
+                "flask.endpoint": {
+                    "type": "str",
+                    "required": false
+                },
+                "flask.url_rule": {
+                    "type": "str",
+                    "required": false
+                },
+                "flask.view_args": {
+                    "type": "str",
+                    "required": false
+                }
+            }
+        }
     }
 ]
