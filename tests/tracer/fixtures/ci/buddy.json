@@ -91,7 +91,7 @@
       "ci.pipeline.number": "buddy-execution-id",
       "ci.pipeline.url": "https://app.buddy.works/myworkspace/my-project/pipelines/pipeline/456/execution/5d9dc42c422f5a268b389d08",
       "ci.provider.name": "buddy",
-      "git.branch": "master",
+      "git.branch": "user-supplied-branch",
       "git.commit.author.date": "usersupplied-authordate",
       "git.commit.author.email": "usersupplied-authoremail",
       "git.commit.author.name": "usersupplied-authorname",
