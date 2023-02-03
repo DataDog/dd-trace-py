@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 import os
@@ -552,7 +553,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
+                extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded; charset=UTF-8"},
             )
             assert response.status == 200
 
@@ -610,7 +611,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/json"},
+                extra_environ={"CONTENT_TYPE": "application/json; charset=iso-8859-1"},
             )
             assert response.status == 200
 
@@ -650,6 +651,30 @@ class PylonsTestCase(TracerTestCase):
                 assert span
                 assert span == {"attack": "1' or '1' = '1'"}
 
+    def test_pylons_body_xml_special_characters(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<🙀>mytestingbody_value</🙀>"
+
+            response = self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/xml; charset=iso-8859-1"},
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span["mytestingbody_key"] == "mytestingbody_value"
+
     def test_pylons_body_xml(self):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
@@ -659,7 +684,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/xml"},
+                extra_environ={"CONTENT_TYPE": "application/xml; charset=euc-jp"},
             )
             assert response.status == 200
 
