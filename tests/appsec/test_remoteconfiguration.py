@@ -13,6 +13,7 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal import _context
 from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.appsec.test_processor import Config

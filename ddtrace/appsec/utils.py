@@ -43,7 +43,6 @@ def _appsec_rc_capabilities():
         value |= 1 << 1
         value |= 1 << 2
 
-    result = ""
     if sys.version_info.major < 3:
         bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
         result = base64.b64encode(bytes_res)  # type: ignore[assignment, arg-type]
