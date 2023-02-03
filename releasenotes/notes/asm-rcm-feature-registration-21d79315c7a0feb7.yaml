@@ -1,0 +1,5 @@
+features:
+  - |
+    ASM: Enable ability to remotely activate and configure ASM features. To 
+    enable, check the Python Security page in your account. Note that this is a beta
+    feature.
