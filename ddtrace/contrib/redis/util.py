@@ -71,22 +71,6 @@ def determine_row_count(redis_command, span, result):
         span.set_metric(db.ROWCOUNT, 0)
 
 
-async def _run_redis_command_async(span, func, args, kwargs):
-    try:
-        parsed_command = stringify_cache_args(args)
-        redis_command = parsed_command.split(" ")[0]
-
-        result = await func(*args, **kwargs)
-        return result
-    except Exception:
-        if redis_command in row_returning_commands:
-            span.set_metric(db.ROWCOUNT, 0)
-        raise
-    finally:
-        if redis_command in row_returning_commands:
-            determine_row_count(redis_command=redis_command, span=span, result=result)
-
-
 def _run_redis_command(span, func, args, kwargs):
     try:
         parsed_command = stringify_cache_args(args)
