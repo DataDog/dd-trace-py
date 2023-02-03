@@ -155,12 +155,12 @@ def _compile_arg_predicate(ast):
 
     if _type == "matches":
         a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
+        string, pattern = _compile_predicate(a), _compile_predicate(b)
+        if string is None:
             raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
+        if pattern is None:
             raise ValueError("Invalid argument: %r" % b)
-        return _call_function(lambda p, s: re.match(p, s) is not None, cb, ca)
+        return _call_function(lambda p, s: re.match(p, s) is not None, pattern, string)
 
     return None
 
@@ -197,7 +197,14 @@ def _compile_direct_operation(ast):
 
 
 def _call_function(func, *args):
-    return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+    # type: (Callable, List[Instr]) -> List[Instr]
+    if PY < (3, 11):
+        return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+    return (
+        [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
+        + list(chain(*args))
+        + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
+    )
 
 
 def _compile_arg_operation(ast):

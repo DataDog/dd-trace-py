@@ -56,6 +56,11 @@ template: |
     - |
       For new features such as a new integration or component. Use present tense with the following format:
       Format: <scope>: This introduces <new_feature_or_component>.
+  issues:
+    - |
+      For known issues. Use present tense with the following format:
+      Format: <scope>: There is a known <symptom_of_issue> issue with <affected_code>.
+      <provide_actionable_workaround_here>.
   upgrade:
     - |
       For enhanced functionality or if package dependencies are upgraded. If applicable, include instructions
