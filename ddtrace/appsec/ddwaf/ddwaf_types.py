@@ -4,7 +4,6 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
-import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import PY3
@@ -57,7 +56,7 @@ DDWAF_MAX_STRING_LENGTH = 4096
 DDWAF_MAX_CONTAINER_DEPTH = 20
 DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
-DDWAF_DEPTH_NO_LIMIT = sys.getrecursionlimit() * 7 // 8
+DDWAF_DEPTH_NO_LIMIT = 1000
 DDWAF_RUN_TIMEOUT = 5000
 
 
@@ -136,7 +135,9 @@ class ddwaf_object(ctypes.Structure):
             for counter_object, elt in enumerate(struct):
                 if counter_object >= max_objects:
                     break
-                obj = ddwaf_object(elt, max_depth=max_depth - 1)
+                obj = ddwaf_object(
+                    elt, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
+                )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
@@ -152,7 +153,9 @@ class ddwaf_object(ctypes.Structure):
                 res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
                     : max_string_length - 1
                 ]
-                obj = ddwaf_object(val)
+                obj = ddwaf_object(
+                    val, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
+                )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_map_add(map_o, res_key, obj)
         else:
