@@ -23,7 +23,7 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0
 
 
-@pytest.mark.skipif(not _is_python_version_supported, reason="IAST compatible versions")
+@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
