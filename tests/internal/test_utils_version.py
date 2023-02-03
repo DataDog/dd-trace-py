@@ -1,10 +1,9 @@
 import re
 import typing
 
-import mock
 import pytest
 
-from ddtrace.internal.utils.version import _get_version_agent_format
+from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.internal.utils.version import parse_version
 
 
@@ -41,7 +40,7 @@ def test_parse_version(version_str, expected):
 
 
 def test_default_version_agent_format():
-    version_agent_format = _get_version_agent_format()
+    version_agent_format = _pep440_to_semver()
     _assert_and_get_version_agent_format(version_agent_format)
 
 
@@ -59,10 +58,8 @@ def test_default_version_agent_format():
         ("2.0.0.dev", "2.0.0-dev"),
     ],
 )
-@mock.patch("ddtrace.internal.utils.version.get_version")
-def test_version_agent_format(mock_get_version, version_str, expected):
-    # type: (mock.Mock, str, typing.Tuple[int, int, int]) -> None
-    mock_get_version.return_value = version_str
-    version_agent_format = _get_version_agent_format()
+def test_version_agent_format(version_str, expected):
+    # type: (str, typing.Tuple[int, int, int]) -> None
+    version_agent_format = _pep440_to_semver(version_str)
     assert version_agent_format == expected
     _assert_and_get_version_agent_format(version_agent_format)

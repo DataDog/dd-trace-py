@@ -1,14 +1,32 @@
 import os
 
+import mock
 import pytest
 
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
+from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.utils import override_env
+
+
+def _stop_remote_config_worker():
+    if RemoteConfig._worker:
+        RemoteConfig._worker._stop_service()
+        RemoteConfig._worker = None
+
+
+@pytest.fixture
+def remote_config_worker(tracer):
+    _stop_remote_config_worker()
+    try:
+        yield
+    finally:
+        _stop_remote_config_worker()
 
 
 def _set_and_get_appsec_tags(tracer):
@@ -30,7 +48,7 @@ def test_rc_enabled_by_default(tracer):
     assert _appsec_rc_features_is_enabled()
 
 
-def test_rc_activate_is_active_and_get_processor_tags(tracer):
+def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": True}})
@@ -38,28 +56,68 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer):
 
 
 @pytest.mark.parametrize(
-    "appsec_enabled, rc_value, expected",
+    "appsec_enabled, rc_value",
     [
-        ("", None, False),
-        ("", None, False),
-        ("", False, False),
-        ("", True, True),
-        ("false", None, False),
-        ("true", None, True),
-        ("false", False, False),
-        ("false", True, False),
-        ("true", False, False),
-        ("true", True, True),
+        ("", True),
+        ("true", True),
     ],
 )
-def test_rc_activation_states(tracer, appsec_enabled, rc_value, expected):
+def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
+    tracer.configure(appsec_enabled=False)
     with override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
         appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
-        if expected:
-            assert "triggers" in result
-        else:
-            assert result is None
+        assert "triggers" in result
+
+
+@pytest.mark.parametrize(
+    "appsec_enabled, rc_value",
+    [
+        ("", False),
+        ("false", False),
+        ("false", True),
+        ("true", False),
+    ],
+)
+def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
+    tracer.configure(appsec_enabled=True)
+    with override_env({APPSEC_ENV: appsec_enabled}):
+        if appsec_enabled == "":
+            del os.environ[APPSEC_ENV]
+
+        rc_config = {"asm": {"enabled": True}}
+        if rc_value is False:
+            rc_config = False
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+        result = _set_and_get_appsec_tags(tracer)
+        assert result is None
+
+
+@pytest.mark.parametrize(
+    "rc_enabled, capability",
+    [
+        ("true", "Bg=="),
+        ("false", ""),
+    ],
+)
+def test_rc_capabilities(rc_enabled, capability):
+    with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
+        assert _appsec_rc_capabilities() == capability
+
+
+@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agent, tracer, remote_config_worker):
+    mock_check_remote_config_enable_in_agent.return_value = True
+    tracer.configure(appsec_enabled=False, api_version="v0.4")
+
+    rc_config = {"asm": {"enabled": True}}
+
+    assert not RemoteConfig._worker
+
+    appsec_rc_reload_features(tracer)(None, rc_config)
+
+    assert RemoteConfig._worker._client._products["ASM_DATA"]

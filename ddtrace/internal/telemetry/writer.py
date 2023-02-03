@@ -21,7 +21,7 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
-from ..utils.version import _get_version_agent_format
+from ..utils.version import _pep440_to_semver
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
@@ -63,12 +63,14 @@ class TelemetryWriter(PeriodicService):
         self._namespace = MetricNamespace()
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+        # Debug flag that enables payload debug mode.
+        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
         forksafe.register(self._fork_writer)
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
             "DD-Client-Library-Language": "python",
-            "DD-Client-Library-Version": _get_version_agent_format(),
+            "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
             "DD-Agent-Env": "config.env",  # TODO
             "DD-Agent-Hostname": "",  # TODO
         }  # type: Dict[str, str]
@@ -220,7 +222,7 @@ class TelemetryWriter(PeriodicService):
                 payload = {
                     "namespace": namespace,
                     "lib_language": "python",
-                    "lib_version": _get_version_agent_format(),
+                    "lib_version": _pep440_to_semver(),
                     "series": [m.to_dict() for m in metrics.values()],
                 }
                 self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)

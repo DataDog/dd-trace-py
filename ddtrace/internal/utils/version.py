@@ -1,4 +1,5 @@
 import typing
+from typing import Optional
 
 import packaging.version
 
@@ -51,10 +52,10 @@ def parse_version(version):
     )
 
 
-def _get_version_agent_format():
-    # type: () -> str
-    # The library uses a PEP 440-compliant versioning scheme, but the
-    # RCM spec requires that we use a SemVer-compliant version.
+def _pep440_to_semver(version=None):
+    # type: (Optional[str]) -> str
+    # The library uses a PEP 440-compliant (https://peps.python.org/pep-0440/) versioning
+    # scheme, but the RCM spec requires that we use a SemVer-compliant version.
     #
     # However, we may have versions like:
     #
@@ -71,7 +72,7 @@ def _get_version_agent_format():
     #
     # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
 
-    tracer_version = get_version()
+    tracer_version = version or get_version()
     if "rc" in tracer_version and "-rc" not in tracer_version:
         tracer_version = tracer_version.replace("rc", "-rc", 1)
     elif ".dev" in tracer_version:

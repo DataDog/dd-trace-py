@@ -24,7 +24,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
-from ddtrace.internal.utils.version import _get_version_agent_format
+from ddtrace.internal.utils.version import _pep440_to_semver
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -204,7 +204,7 @@ class RemoteConfigClient(object):
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            tracer_version=_get_version_agent_format(),
+            tracer_version=_pep440_to_semver(),
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
