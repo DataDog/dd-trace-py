@@ -5,7 +5,7 @@ Add all monkey-patching that needs to run by default here
 import sys
 
 
-LOADED_MODULES = frozenset(sys.modules.keys())
+MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
 
 import logging  # noqa
 import os  # noqa
@@ -69,7 +69,7 @@ if PY2:
 
 def cleanup_loaded_modules():
     # Unload all the modules that we have imported, expect for the ddtrace one.
-    for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
+    for m in list(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP):
         if m.startswith("atexit"):
             continue
         if m.startswith("typing"):  # reguired by Python < 3.7
@@ -90,7 +90,7 @@ def cleanup_loaded_modules():
 
         del sys.modules[m]
 
-    # TODO: The better strategy is to identify the core modues in LOADED_MODULES
+    # TODO: The better strategy is to identify the core modues in MODULES_LOADED_AT_STARTUP
     # that should not be unloaded, and then unload as much as possible.
     if "time" in sys.modules:
         del sys.modules["time"]
@@ -135,7 +135,10 @@ try:
 
         # We need to clean up after we have imported everything we need from
         # ddtrace, but before we register the patch-on-import hooks for the
-        # integrations.
+        # integrations. This is because if we register a hook for a module
+        # that is already imported, then we patch the module straight-away.
+        # So if we unload it after we register the hooks, we effectively remove
+        # the patching, thus breaking the tracer integration.
         cleanup_loaded_modules()
 
         patch_all(**EXTRA_PATCHED_MODULES)

@@ -70,7 +70,6 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
-      DD_REMOTE_CONFIGURATION_ENABLED: false
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
