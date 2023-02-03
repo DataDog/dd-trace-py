@@ -188,20 +188,20 @@ class AppSecSpanProcessor(SpanProcessor):
             except EnvironmentError as err:
                 if err.errno == errno.ENOENT:
                     log.error(
-                        "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: file does not exist", self.rules
+                        "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules
                     )
                 else:
                     # TODO: try to log reasons
-                    log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
+                    log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
                 raise
             except JSONDecodeError:
                 log.error(
-                    "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
+                    "[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules
                 )
                 raise
             except Exception:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
                 raise
             try:
                 self._ddwaf = DDWaf(
@@ -255,7 +255,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 ddwaf_result = self._run_ddwaf(data)
 
                 if ddwaf_result and (ddwaf_result.actions and "block" in ddwaf_result.actions and ddwaf_result.data):
-                    log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
+                    log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", ddwaf_result.data)
                     span.set_tags(
                         {
                             APPSEC_JSON: '{"triggers":%s}' % ddwaf_result.data,
@@ -279,7 +279,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         except Exception:
-            log.warning("Error executing Appsec In-App WAF: ", exc_info=True)
+            log.warning("Error executing ASM In-App WAF: ", exc_info=True)
 
         return None
 
@@ -366,9 +366,9 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
         except JSONDecodeError:
-            log.warning("Error parsing data AppSec In-App WAF metrics report")
+            log.warning("Error parsing data ASM In-App WAF metrics report")
         except Exception:
-            log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
+            log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
         if ddwaf_trigger:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm

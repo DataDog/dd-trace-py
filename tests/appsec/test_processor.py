@@ -8,7 +8,7 @@ from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import DDWaf
-from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import AppSecSpanProcessor, _get_rate_limiter
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
 from ddtrace.appsec.processor import DEFAULT_RULES
@@ -523,7 +523,7 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
     config = Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.WARNING), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")), mock.patch(
+    with caplog.at_level(logging.WARNING), mock.patch(
         "ddtrace.appsec.processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
     ), mock.patch.object(DDWaf, "info"):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -551,7 +551,7 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
                 request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
-    assert "Error parsing data AppSec In-App WAF metrics report" in caplog.text
+    assert "Error parsing data ASM In-App WAF metrics report" in caplog.text
 
 
 def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
@@ -560,9 +560,9 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
     config = Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.WARNING), mock.patch(
+    with caplog.at_level(logging.DEBUG), mock.patch(
         "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
-    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    ):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
@@ -589,7 +589,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
             )
 
     assert span.get_tag(APPSEC_JSON) is None
-    assert "Error executing Appsec In-App WAF: TypeError('expected c_long instead of int'" in caplog.text
+    assert "TypeError: expected c_long instead of int" in caplog.text
 
 
 def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
@@ -598,9 +598,9 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
     config = Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.WARNING), mock.patch(
+    with caplog.at_level(logging.DEBUG), mock.patch(
         "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
-    ), override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    ):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
@@ -627,4 +627,4 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
             )
 
     assert span.get_tag(APPSEC_JSON) is None
-    assert "Error executing Appsec In-App WAF: \nTraceback (" in caplog.text
+    assert "OSError: ddwaf run failed" in caplog.text
