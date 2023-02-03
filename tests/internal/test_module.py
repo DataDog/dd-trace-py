@@ -272,10 +272,10 @@ def test_module_import_hierarchy():
 
 def _build_env():
     environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
-    # if os.environ.get("PATH"):
-    #     environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    # if os.environ.get("PYTHONPATH"):
-    #     environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
     return environ
 
 
