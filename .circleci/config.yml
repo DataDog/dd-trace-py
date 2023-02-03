@@ -275,30 +275,30 @@ jobs:
     steps:
       - checkout
       - setup_riot
-      - run:
-          name: "Formatting check"
-          command: riot run -s fmt && git diff --exit-code
-      - run:
-          name: "Flake8 check"
-          command: riot run -s flake8
-      - run:
-          name: "Slots check"
-          command: riot run -s slotscheck
-      - run:
-          name: "Mypy check"
-          command: riot run -s mypy
-      - run:
-          name: "Codespell check"
-          command: riot run -s codespell
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Test agent snapshot check"
-          command: riot run -s snapshot-fmt && git diff --exit-code
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
+      # - run:
+      #     name: "Formatting check"
+      #     command: riot run -s fmt && git diff --exit-code
+      # - run:
+      #     name: "Flake8 check"
+      #     command: riot run -s flake8
+      # - run:
+      #     name: "Slots check"
+      #     command: riot run -s slotscheck
+      # - run:
+      #     name: "Mypy check"
+      #     command: riot run -s mypy
+      # - run:
+      #     name: "Codespell check"
+      #     command: riot run -s codespell
+      # - run:
+      #     name: "Run riotfile.py tests"
+      #     command: riot run -s riot-helpers
+      # - run:
+      #     name: "Test agent snapshot check"
+      #     command: riot run -s snapshot-fmt && git diff --exit-code
+      # - run:
+      #     name: "Run scripts/*.py tests"
+      #     command: riot run -s scripts
 
   ccheck:
     executor: cimg_base

@@ -679,7 +679,7 @@ class PylonsTestCase(TracerTestCase):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = "<🙀>mytestingbody_value</🙀>"
+            payload = b"<\x80🙀>mytestingbody_value</\x80🙀>"
 
             response = self.app.post(
                 url_for(controller="root", action="body"),
