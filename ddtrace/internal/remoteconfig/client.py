@@ -234,7 +234,7 @@ class RemoteConfigClient(object):
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func):
-        # type: (str, Optional[ProductCallback]) -> None
+        # type: (str, ProductCallback) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -390,15 +390,15 @@ class RemoteConfigClient(object):
             config_content = _extract_target_file(payload, target, config)
             if config_content is None:
                 continue
-            if callback:
-                try:
-                    log.debug("Load new configuration: %s. content %s", target, config_content)
+            try:
+                log.debug("Load new configuration: %s. content %s", target, config_content)
+                if callback:
                     callback(config, config_content)
-                except Exception:
-                    log.debug("error while loading product %s config %r", config.product_name, config)
-                    continue
-                else:
-                    applied_configs[target] = config
+            except Exception:
+                log.debug("error while loading product %s config %r", config.product_name, config)
+                continue
+            else:
+                applied_configs[target] = config
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
