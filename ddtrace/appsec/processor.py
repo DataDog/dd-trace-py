@@ -2,6 +2,7 @@ import errno
 import json
 import os
 import os.path
+from typing import Any
 from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
@@ -209,6 +210,13 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
+
+    def _update_rules(self, new_rules):
+        # type: (List[Dict[str, Any]]) -> None
+        try:
+            self._ddwaf.update_rules(new_rules)
+        except TypeError:
+            log.debug("Error updating ASM rules", exc_info=True)
 
     def on_span_start(self, span):
         # type: (Span) -> None
