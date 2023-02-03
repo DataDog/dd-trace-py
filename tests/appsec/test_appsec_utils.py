@@ -53,7 +53,7 @@ def test_get_blocked_template_user_file_exists_html():
             html_content = test_template_html.read()
         assert utils._get_blocked_template("text/html") == html_content
         assert utils._get_blocked_template("") == APPSEC_BLOCKED_RESPONSE_JSON
-        assert utils._get_blocked_template("application/json") == APPSEC_BLoCKED_RESPONSE_JSON
+        assert utils._get_blocked_template("application/json") == APPSEC_BLOCKED_RESPONSE_JSON
 
 
 def test_get_blocked_template_user_file_exists_json():
