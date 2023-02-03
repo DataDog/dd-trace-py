@@ -20,6 +20,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
@@ -191,6 +192,8 @@ class RemoteConfigClient(object):
 
     def __init__(self):
         # type: () -> None
+        tracer_version = _pep440_to_semver()
+
         self.id = str(uuid.uuid4())
         self.agent_url = agent_url = agent.get_trace_url()
         self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
@@ -202,13 +205,22 @@ class RemoteConfigClient(object):
             if container_id is not None:
                 self._headers["Datadog-Container-Id"] = container_id
 
+        tags = ddtrace.config.tags.copy()
+        if ddtrace.config.env:
+            tags["env"] = ddtrace.config.env
+        if ddtrace.config.version:
+            tags["version"] = ddtrace.config.version
+        tags["tracer_version"] = tracer_version
+        tags["host_name"] = get_hostname()
+
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            tracer_version=_pep440_to_semver(),
+            tracer_version=tracer_version,
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
+            tags=[":".join(_) for _ in tags.items()],
         )
         self.cached_target_files = []  # type: List[Dict[str, Any]]
         self.converter = cattr.Converter()
