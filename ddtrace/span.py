@@ -1,7 +1,6 @@
 import math
 import pprint
 import sys
-import time
 import traceback
 from typing import Any
 from typing import Callable
@@ -366,7 +365,6 @@ class Span(object):
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
-        time.sleep(0.001)
         if tags:
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
@@ -405,7 +403,6 @@ class Span(object):
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
-        time.sleep(0.001)
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
