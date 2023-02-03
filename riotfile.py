@@ -1791,7 +1791,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.11"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphene": ["~=2.1.9", "~=3.0.0", latest],
                     },
@@ -1811,7 +1811,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.11"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
                     },
