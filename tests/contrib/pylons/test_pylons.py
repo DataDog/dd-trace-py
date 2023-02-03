@@ -679,12 +679,12 @@ class PylonsTestCase(TracerTestCase):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = b"\x80<🙀>mytestingbody_value</🙀>"
+            payload = b"\x80<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/xml; charset=iso-8859-1"},
+                extra_environ={"CONTENT_TYPE": "application/xml"},
             )
             assert response.status == 200
 
@@ -694,6 +694,10 @@ class PylonsTestCase(TracerTestCase):
             root_span = spans[0]
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span["mytestingbody_key"] == "mytestingbody_value"
             assert _context.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_json_special_characters(self):
@@ -721,7 +725,7 @@ class PylonsTestCase(TracerTestCase):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = "<attack>1' or '1' = '1'</attack>"
+            payload = b"\x80<attack>1' or '1' = '1'</attack>"
             self.app.post(
                 url_for(controller="root", action="index"),
                 params=payload,
