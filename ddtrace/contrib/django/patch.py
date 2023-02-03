@@ -151,14 +151,24 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             span.set_tag_str("django.cache.key", keys)
 
         result = func(*args, **kwargs)
+        print("-" * 50)
+        print("kwargs", *kwargs)
+        print("args", *args)
+        print("func", func)
+        print("command", command_name)
+        print("instance", instance)
+        print("result", result)
+        print("type", type(result))
         if command_name == "get_many":
             # get returns a map
             if result and isinstance(result, Iterable):
                 span.set_metric(db.ROWCOUNT, len(result))
         elif command_name == "get":
-            print(command_name)
-            print(f"{command_name} result: '{result}', {type(result)}")
             if result:
+                print("---------------- ATTRIBUTES -------------------")
+                for attr in dir(result):
+                    print(attr)
+                    print(getattr(result, attr))
                 span.set_metric(db.ROWCOUNT, 1)
         return result
 
@@ -174,6 +184,7 @@ def instrument_caches(django):
                 cls = django.utils.module_loading.import_string(cache_path)
                 # DEV: this can be removed when we add an idempotent `wrap`
                 if not trace_utils.iswrapped(cls, method):
+                    print(cls, method)
                     trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
             except Exception:
                 log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
