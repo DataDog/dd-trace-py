@@ -670,10 +670,7 @@ class PylonsTestCase(TracerTestCase):
             root_span = spans[0]
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
-
-            span = dict(_context.get_item("http.request.body", span=root_span))
-            assert span
-            assert span["mytestingbody_key"] == "mytestingbody_value"
+            assert _context.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_xml(self):
         with override_global_config(dict(_appsec_enabled=True)):
