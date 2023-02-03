@@ -87,6 +87,10 @@ def astpatch_source(
     if not module_path:
         return "", ""
 
+    if os.stat(module_path).st_size == 0:
+        # Don't patch empty files like __init__.py
+        return "", ""
+
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
     # If its pyc or pyo, change to .py and check that the file exists. If not,
     # return with warning.
@@ -101,10 +105,6 @@ def astpatch_source(
             source_text = source_file.read()
         except UnicodeDecodeError:
             return "", ""
-
-    if os.stat(module_path).st_size == 0:
-        # Don't patch empty files like __init__.py
-        return "", ""
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
