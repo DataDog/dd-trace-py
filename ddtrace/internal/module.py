@@ -300,14 +300,27 @@ class ModuleWatchdog(dict):
                 hook(module)
 
     @classmethod
-    def get_by_origin(cls, origin):
+    def get_by_origin(cls, _origin):
         # type: (str) -> Optional[ModuleType]
         """Lookup a module by its origin."""
         cls._check_installed()
 
-        path = _resolve(origin)
+        instance = cast(ModuleWatchdog, cls._instance)
+
+        path = _resolve(_origin)
         if path is not None:
-            return cls._instance._origin_map.get(path)  # type: ignore[union-attr]
+            module = instance._origin_map.get(path)
+            if module is not None:
+                return module
+
+            # Check if this is the __main__ module
+            main_module = sys.modules.get("__main__")
+            if main_module is not None and origin(main_module) == path:
+                # Register for future lookups
+                instance._origin_map[path] = main_module
+
+                return main_module
+
         return None
 
     def __delitem__(self, name):
