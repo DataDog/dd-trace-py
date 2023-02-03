@@ -3,9 +3,10 @@ import os
 import sys
 from typing import Optional
 
-from ddtrace import constants
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_bytes_py2
+from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 
@@ -89,13 +90,13 @@ def _get_blocked_template(accept_header_value):
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return content
-        except OSError as e:
+        except (OSError, IOError) as e:
             log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
 
     # No user-defined template at this point
     if need_html_template:
-        _HTML_BLOCKED_TEMPLATE_CACHE = constants.APPSEC_BLOCKED_RESPONSE_HTML
-        return constants.APPSEC_BLOCKED_RESPONSE_HTML
+        _HTML_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_HTML
+        return APPSEC_BLOCKED_RESPONSE_HTML
 
-    _JSON_BLOCKED_TEMPLATE_CACHE = constants.APPSEC_BLOCKED_RESPONSE_JSON
-    return constants.APPSEC_BLOCKED_RESPONSE_JSON
+    _JSON_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_JSON
+    return APPSEC_BLOCKED_RESPONSE_JSON
