@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 import os
@@ -673,6 +674,27 @@ class PylonsTestCase(TracerTestCase):
             span = dict(_context.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
+
+    def test_pylons_body_xml_special_characters(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<🙀>mytestingbody_value</🙀>"
+
+            response = self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/xml; charset=iso-8859-1"},
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert _context.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_xml_attack(self):
         with override_global_config(dict(_appsec_enabled=True)):
