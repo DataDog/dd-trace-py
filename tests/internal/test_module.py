@@ -270,10 +270,21 @@ def test_module_import_hierarchy():
     ImportCatcher.uninstall()
 
 
+def _build_env():
+    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
+    # if os.environ.get("PATH"):
+    #     environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    # if os.environ.get("PYTHONPATH"):
+    #     environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    return environ
+
+
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
     # env=dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR)),
-    env=dict(PATH=ROOT_DIR, PYTHONPATH=ROOT_DIR),
+    # env=dict(PATH=os.environ.get("PATH"), PYTHONPATH=os.environ.get("PYTHONPATH")),
+    env=_build_env(),
+    # env=dict(PATH=ROOT_DIR, PYTHONPATH=ROOT_DIR),
     # env=dict(PYTHONVERBOSE="1"),
     run_module=True,
 )
