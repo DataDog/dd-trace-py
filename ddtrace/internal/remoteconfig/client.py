@@ -235,7 +235,10 @@ class RemoteConfigClient(object):
 
     def register_product(self, product_name, func):
         # type: (str, ProductCallback) -> None
-        self._products[product_name] = func
+        if func is not None:
+            self._products[product_name] = func
+        else:
+            self._products.pop(product_name, None)
 
     def unregister_product(self, product_name):
         # type: (str) -> None
