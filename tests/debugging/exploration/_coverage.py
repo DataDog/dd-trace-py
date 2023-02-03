@@ -10,12 +10,12 @@ from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
+from debugging.utils import create_snapshot_line_probe
 
 from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.internal.module import origin
-from tests.debugging.utils import create_snapshot_line_probe
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
