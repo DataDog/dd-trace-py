@@ -3,7 +3,6 @@ import base64
 import datetime
 import hashlib
 import json
-import re
 from time import sleep
 import warnings
 
@@ -16,6 +15,7 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
+from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 
 
@@ -173,11 +173,7 @@ def test_remote_configuration_check_deprecated_override():
 
 
 def test_remoteconfig_semver():
-    assert re.match(
-        r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*["
-        r"a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
-        RemoteConfigClient()._client_tracer["tracer_version"],
-    )
+    _assert_and_get_version_agent_format(RemoteConfigClient()._client_tracer["tracer_version"])
 
 
 @pytest.mark.parametrize(
