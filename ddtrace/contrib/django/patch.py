@@ -152,7 +152,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
         result = func(*args, **kwargs)
         print("-" * 50)
-        print("kwargs", *kwargs)
+        print("kwargs", **kwargs)
         print("args", *args)
         print("func", func)
         print("command", command_name)
