@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
@@ -126,7 +126,7 @@ class TraceMiddleware:
 
         resource = "{} {}".format(scope["method"], scope["path"])
 
-        with _asm_context.asm_request_context_manager(ip, headers):
+        with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(
                 name=self.integration_config.get("request_span_name", "asgi.request"),
                 service=trace_utils.int_service(None, self.integration_config),

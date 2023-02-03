@@ -5,7 +5,7 @@ import logging
 import pytest
 
 from ddtrace._monkey import patch_iast
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
@@ -377,9 +377,9 @@ def test_django_weak_hash(client, test_spans, tracer):
 
 
 def _assert_context_is(ip, headers, case_sensitive):
-    assert _asm_context.get_ip() == ip
-    assert _asm_context.get_headers() == headers
-    assert _asm_context.get_headers_case_sensitive() == case_sensitive
+    assert _asm_request_context.get_ip() == ip
+    assert _asm_request_context.get_headers() == headers
+    assert _asm_request_context.get_headers_case_sensitive() == case_sensitive
 
 
 _BLOCKED_IP = "8.8.4.4"
@@ -391,7 +391,7 @@ def test_asm_request_context(client, test_spans, tracer):
     test_headers = {"foo": "bar"}
 
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        with _asm_context.asm_request_context_manager(test_ip, test_headers, False):
+        with _asm_request_context.asm_request_context_manager(test_ip, test_headers, False):
             tracer._appsec_enabled = True
             # # Hack: need to pass an argument to configure so that the processors are recreated
             tracer.configure(api_version="v0.4")
@@ -406,7 +406,7 @@ def test_asm_request_context(client, test_spans, tracer):
 
             # Check that it's reset at the end of the request
             _assert_context_is(None, None, False)
-            _asm_context.set_ip(test_ip)
+            _asm_request_context.set_ip(test_ip)
 
     # Check that it should also be reset outside the first one
     _assert_context_is(None, None, False)

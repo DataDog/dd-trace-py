@@ -6,7 +6,7 @@ import mock
 import pytest
 from six import ensure_binary
 
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
@@ -217,7 +217,7 @@ _ALLOWED_IP = "1.1.1.1"
 def test_ip_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -232,7 +232,7 @@ def test_ip_block(tracer):
 def test_ip_not_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_context.asm_request_context_manager(_ALLOWED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_ALLOWED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -257,7 +257,7 @@ def test_ip_update_rules_and_block(tracer):
                 },
             ]
         )
-        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -282,7 +282,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 },
             ]
         )
-        with _asm_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,

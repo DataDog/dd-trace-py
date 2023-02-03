@@ -4,7 +4,7 @@ import logging
 from flask import request
 import pytest
 
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -267,7 +267,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         test_headers = {"foo": "bar"}
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            with _asm_context.asm_request_context_manager(test_ip, test_headers, False):
+            with _asm_request_context.asm_request_context_manager(test_ip, test_headers, False):
                 self._aux_appsec_prepare_tracer()
 
                 # Check that the context vars are what we set at the start since the request has
@@ -281,7 +281,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
                 # Check that it's reset at the end of the request
                 _assert_context_is(None, None, False)
-                _asm_context.set_ip(test_ip)
+                _asm_request_context.set_ip(test_ip)
 
         # Check that it should also be reset outside the first one
         _assert_context_is(None, None, False)

@@ -13,7 +13,7 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_BLOCKED
@@ -231,9 +231,9 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        peer_ip = _asm_context.get_ip()
-        headers = _asm_context.get_headers()
-        headers_case_sensitive = _asm_context.get_headers_case_sensitive()
+        peer_ip = _asm_request_context.get_ip()
+        headers = _asm_request_context.get_headers()
+        headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
         if headers is not None:
             _context.set_items(
                 {

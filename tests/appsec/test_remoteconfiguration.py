@@ -5,7 +5,7 @@ import time
 import mock
 import pytest
 
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
@@ -151,7 +151,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
         assert not RemoteConfig._worker
 
         appsec_rc_reload_features(tracer)(None, rc_config)
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -180,7 +180,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
         appsec_rc_reload_features(tracer)(None, rc_config)
 
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -208,7 +208,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
         appsec_rc_reload_features(tracer)(None, rc_config)
 
-        with _asm_context.asm_request_context_manager("8.8.4.4", {}):
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,

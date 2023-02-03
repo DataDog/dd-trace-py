@@ -2,7 +2,7 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec import _asm_context
+from ddtrace.appsec import _asm_request_context
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -118,7 +118,7 @@ class _DDWSGIMiddlewareBase(object):
         trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
 
         headers = get_request_headers(environ)  # JJJ pasarle al span modifier
-        with _asm_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True):
+        with _asm_request_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True):
             req_span = self.tracer.trace(
                 self._request_span_name,
                 service=trace_utils.int_service(self._pin, self._config),
