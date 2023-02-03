@@ -7,7 +7,7 @@ from ddtrace.internal.constants import TELEMETRY_APPSEC
 from ddtrace.internal.constants import TELEMETRY_TRACER
 from ddtrace.internal.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.metrics_namespaces import TelemetryTypeError
-from ddtrace.internal.utils.version import _get_version_agent_format
+from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 
 
@@ -20,7 +20,7 @@ def _assert_metric(test_agent_session_telemetry_metrics, expected_series, namesp
     payload = {
         "namespace": namespace,
         "lib_language": "python",
-        "lib_version": _get_version_agent_format(),
+        "lib_version": _pep440_to_semver(),
         "series": expected_series,
     }
     assert events[0]["request_type"] == TELEMETRY_TYPE_GENERATE_METRICS
