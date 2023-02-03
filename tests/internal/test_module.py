@@ -272,7 +272,8 @@ def test_module_import_hierarchy():
 
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
-    env=dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR)),
+    #env=dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR)),
+    # env=dict(PYTHONVERBOSE="1"),
     run_module=True,
 )
 def test_post_run_module_hook():
