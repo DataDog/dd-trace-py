@@ -6,6 +6,13 @@ from typing import Optional
 from ddtrace.vendor import contextvars
 
 
+"""
+Stopgap module for providing ASM context for the blocking features wrapping some
+contextvars. When using this, note that context vars are always thread-local so each
+thread will have a different context.
+"""
+
+
 # FIXME: remove these and use the new context API once implemented and allowing
 # contexts without spans
 
