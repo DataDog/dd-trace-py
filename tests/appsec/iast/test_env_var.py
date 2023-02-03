@@ -5,6 +5,8 @@ import sys
 
 import pytest
 
+from ddtrace.appsec.iast._util import _is_python_version_supported
+
 
 def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
@@ -21,7 +23,7 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0
 
 
-@pytest.mark.skipif((3, 6, 0) < sys.version_info < (3, 11, 0), reason="IAST compatible versions")
+@pytest.mark.skipif(not _is_python_version_supported, reason="IAST compatible versions")
 def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
