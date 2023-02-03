@@ -135,10 +135,10 @@ try:
 
         # We need to clean up after we have imported everything we need from
         # ddtrace, but before we register the patch-on-import hooks for the
-        # integrations. This is because if we register a hook for a module
-        # that is already imported, then we patch the module straight-away.
-        # So if we unload it after we register the hooks, we effectively remove
-        # the patching, thus breaking the tracer integration.
+        # integrations. This is because registering a hook for a module
+        # that is already imported causes the module to be patched immediately.
+        # So if we unload the module after registering hooks, we effectively
+        # remove the patching, thus breaking the tracer integration.
         cleanup_loaded_modules()
 
         patch_all(**EXTRA_PATCHED_MODULES)
