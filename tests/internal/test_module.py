@@ -5,7 +5,6 @@ import mock
 import pytest
 
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.module import _should_iast_patch
 from ddtrace.internal.module import origin
 import tests.test_module
 
@@ -376,13 +375,3 @@ def test_module_watchdog_no_lazy_force_load():
         lazy.__spec__
     except AttributeError:
         pass
-
-
-def test_module_should_iast_patch():
-    assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec.iast")
-    assert not _should_iast_patch("django")
-    assert not _should_iast_patch("Flask")
-    assert not _should_iast_patch("http")
-    assert _should_iast_patch("tests.appsec.iast.integration.main")
-    assert _should_iast_patch("tests.appsec.iast.integration.print_str")

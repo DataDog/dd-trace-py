@@ -10,6 +10,8 @@ if sys.version_info.major >= 3:
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
+from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
+
 
 @pytest.mark.parametrize(
     "source_text, module_path, module_name",
@@ -110,3 +112,13 @@ def test_astpatch_source_raises_exception():
         astpatch_source(None, None)
 
     assert e.value.args == ("Implementation Error: You must pass module_name and, optionally, module_path",)
+
+
+def test_module_should_iast_patch():
+    assert not _should_iast_patch("ddtrace.internal.module")
+    assert not _should_iast_patch("ddtrace.appsec.iast")
+    assert not _should_iast_patch("django")
+    assert not _should_iast_patch("Flask")
+    assert not _should_iast_patch("http")
+    assert _should_iast_patch("tests.appsec.iast.integration.main")
+    assert _should_iast_patch("tests.appsec.iast.integration.print_str")

@@ -9,6 +9,9 @@ from typing import Tuple
 import chardet
 
 
+# Prefixes for modules where IAST patching is allowed
+IAST_ALLOWLIST = ("tests.appsec.iast",)
+
 ENCODING = ""
 
 
@@ -30,6 +33,10 @@ def get_encoding(module_path):  # type: (str) -> str
         except LookupError:
             ENCODING = codecs.lookup("utf-8").name
     return ENCODING
+
+
+def _should_iast_patch(module_name):
+    return not module_name.startswith("ddtrace") and module_name.startswith(IAST_ALLOWLIST)
 
 
 def visit_ast(

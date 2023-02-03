@@ -32,10 +32,9 @@ _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
 
 IS_IAST_ENABLED = _is_iast_enabled()
-# Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)
 
 if IS_IAST_ENABLED:
+    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
 
 
@@ -66,10 +65,6 @@ def _patch_run_code():
 
         _run_code = runpy._run_code  # type: ignore[attr-defined]
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
-
-
-def _should_iast_patch(module_name):
-    return not module_name.startswith("ddtrace") and module_name.startswith(IAST_ALLOWLIST)
 
 
 def register_post_run_module_hook(hook):
