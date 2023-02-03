@@ -17,7 +17,6 @@ from typing import Set
 from typing import Union
 from typing import cast
 
-from ddtrace.appsec.iast._ast import ast_patching
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
@@ -32,8 +31,12 @@ ModuleHookType = Callable[[ModuleType], None]
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
 
+IS_IAST_ENABLED = _is_iast_enabled()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)
+
+if IS_IAST_ENABLED:
+    from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -201,9 +204,9 @@ class _ImportHookChainedLoader(Loader):
 
     def _exec_module(self, module):
         patched_source = None
-        if _is_iast_enabled() and _should_iast_patch(module.__name__):
+        if IS_IAST_ENABLED and _should_iast_patch(module.__name__):
             log.debug("IAST enabled")
-            module_path, patched_source = ast_patching.astpatch_source(module.__name__)
+            module_path, patched_source = astpatch_source(module.__name__)
 
         if patched_source:
             # Patched source is executed instead of original module
