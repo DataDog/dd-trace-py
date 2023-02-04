@@ -1,6 +1,6 @@
 one-trace: &base_variant
   ntraces: 1
-  nspans: 1000
+  nspans: 200
   ntags: 0
   ltags: 0
   nmetrics: 0
@@ -8,14 +8,14 @@ one-trace: &base_variant
   encoding: "v0.4"
 many-traces:
   <<: *base_variant
-  ntraces: 100
+  ntraces: 20
 one-tag:
   <<: *base_variant
   ntags: 1
   ltags: 16
 many-tags:
   <<: *base_variant
-  ntags: 100
+  ntags: 50
   ltags: 16
 one-metric:
   <<: *base_variant
@@ -33,7 +33,7 @@ one-trace-with-dd-origin-no-tags:
   dd_origin: true
 many-traces-with-dd-origin:
   <<: *base_variant
-  ntraces: 100
+  ntraces: 20
   ntags: 10
   ltags: 16
   dd_origin: true
