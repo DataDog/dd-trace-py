@@ -1,5 +1,5 @@
 import bm
-import utils
+import encoder_scenario_utils as utils
 
 
 class Encoder(bm.Scenario):
