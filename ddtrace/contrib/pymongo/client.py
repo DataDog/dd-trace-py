@@ -314,20 +314,14 @@ def _set_query_metadata(span, cmd):
 def set_query_rowcount(span, result=None, cursor=None):
     search_key = "Batch"
     try:
-        if result:
-            for attr in dir(result):
-                print(attr)
-                print(getattr(result, attr))
-            print(result.docs)
         if not cursor:
             cursor = result.docs[0].get("cursor")
-
+        # results returned in batches, get len of each batch
         rowcount = sum([len(documents) for batch_key, documents in cursor.items() if search_key in batch_key])
-        print("rowcount", rowcount)
         span.set_metric(db.ROWCOUNT, rowcount)
         return span
 
-    except Exception as e:
-        print(e)
+    except Exception:
+        log.exception("Error parsing rowcount.")
         span.set_metric(db.ROWCOUNT, 0)
         return span

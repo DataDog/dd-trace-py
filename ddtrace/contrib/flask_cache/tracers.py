@@ -1,6 +1,7 @@
 """
 Datadog trace code for flask_cache
 """
+
 import logging
 import typing
 

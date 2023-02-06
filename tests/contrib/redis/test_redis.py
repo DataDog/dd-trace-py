@@ -30,7 +30,7 @@ class TestRedisPatch(TracerTestCase):
         unpatch()
         super(TestRedisPatch, self).tearDown()
 
-    async def command_test_rowcount(self, raw_command, row_count, expect_result=True, **kwargs):
+    def command_test_rowcount(self, raw_command, row_count, expect_result=True, **kwargs):
         command_args_as_list = raw_command.split(" ")
 
         command_name = command_args_as_list[0].lower()
@@ -45,7 +45,7 @@ class TestRedisPatch(TracerTestCase):
                     raw_command += " " + str(kwargs[k])
             except Exception:
                 # try without keyword arguments
-                result = await func(*command_args_as_list[1:])
+                result = func(*command_args_as_list[1:])
 
             if expect_result:
                 assert result is not None
