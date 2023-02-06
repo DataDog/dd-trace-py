@@ -1,11 +1,9 @@
+import inspect
 import sys
 
 import pytest
 
 from ddtrace.internal.wrapping import wrap
-
-
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="FIXME[debugger-311]")
 
 
 @pytest.mark.asyncio
@@ -22,10 +20,16 @@ async def test_async_generator():
         _body = b"".join(chunks)
         return _body
 
+    wrapper_called = awrapper_called = False
+
     async def wrapper(f, args, kwargs):
+        nonlocal wrapper_called
+        wrapper_called = True
         return await f(*args, **kwargs)
 
     async def agwrapper(f, args, kwargs):
+        nonlocal awrapper_called
+        awrapper_called = True
         async for _ in f(*args, **kwargs):
             yield _
 
@@ -33,6 +37,8 @@ async def test_async_generator():
     wrap(body, wrapper)
 
     assert await body() == b"hello"
+    assert wrapper_called
+    assert awrapper_called
 
 
 @pytest.mark.asyncio
@@ -109,3 +115,59 @@ async def test_double_async_for_with_exception():
     assert channel == [b"hello", b""]
     with pytest.raises(StreamConsumed):
         b"".join([_ async for _ in s])
+
+
+@pytest.mark.asyncio
+async def test_wrap_async_generator_throw_close():
+    channel = []
+
+    async def wrapper(f, args, kwargs):
+        nonlocal channel
+
+        channel.append(True)
+
+        __ddgen = f(*args, **kwargs)
+        __ddgensend = __ddgen.asend
+        try:
+            value = await __ddgen.__anext__()
+            channel.append(value)
+        except StopAsyncIteration:
+            return
+        while True:
+            try:
+                tosend = yield value
+            except GeneratorExit:
+                channel.append("GeneratorExit")
+                await __ddgen.aclose()
+                raise
+            except:  # noqa
+                channel.append(sys.exc_info()[0])
+                value = await __ddgen.athrow(*sys.exc_info())
+                channel.append(value)
+            else:
+                try:
+                    value = await __ddgensend(tosend)
+                    channel.append(value)
+                except StopAsyncIteration:
+                    return
+
+    async def g():
+        while True:
+            try:
+                yield 0
+            except ValueError:
+                yield 1
+
+    wrap(g, wrapper)
+    inspect.isasyncgenfunction(g)
+
+    gen = g()
+    inspect.isasyncgen(gen)
+
+    for _ in range(10):
+        assert await gen.__anext__() == 0
+        assert await gen.athrow(ValueError) == 1
+
+    await gen.aclose()
+
+    assert channel == [True] + [0, ValueError, 1] * 10 + ["GeneratorExit"]

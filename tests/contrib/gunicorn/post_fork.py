@@ -4,7 +4,6 @@ import gevent.monkey
 
 from ddtrace.debugging import DynamicInstrumentation
 from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.profiling.profiler import Profiler
 
 
 # take some notes about the relative ordering of thread creation and
@@ -18,4 +17,3 @@ if sys.version_info < (3, 11):
     DynamicInstrumentation.enable()
 
 RemoteConfig._was_enabled_after_gevent_monkeypatch = monkeypatch_happened
-Profiler._was_enabled_after_gevent_monkeypatch = monkeypatch_happened
