@@ -700,10 +700,7 @@ class PylonsTestCase(TracerTestCase):
                 appsec_json = root_span.get_tag("_dd.appsec.json")
                 assert appsec_json is None
 
-                assert (
-                    "UnicodeDecodeError: 'utf8' codec can't decode byte 0x80 in position 0: invalid start byte"
-                    not in self._caplog.text
-                )
+                assert "UnicodeDecodeError" not in self._caplog.text
                 assert _context.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_json_unicode_decode_error(self):
@@ -725,9 +722,7 @@ class PylonsTestCase(TracerTestCase):
                 appsec_json = root_span.get_tag("_dd.appsec.json")
                 assert appsec_json is None
 
-                assert (
-                    "UnicodeDecodeError" not in self._caplog.text
-                )
+                assert "UnicodeDecodeError" not in self._caplog.text
                 assert _context.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_xml_attack_and_unicode_decode_error(self):
@@ -747,9 +742,7 @@ class PylonsTestCase(TracerTestCase):
             root_span = spans[0]
             assert root_span
 
-            assert (
-                "UnicodeDecodeError" not in self._caplog.text
-            )
+            assert "UnicodeDecodeError" not in self._caplog.text
             assert root_span.get_tag("_dd.appsec.json") is None
 
             span = dict(_context.get_item("http.request.body", span=root_span))
