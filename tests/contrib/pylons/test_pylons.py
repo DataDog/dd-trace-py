@@ -651,27 +651,6 @@ class PylonsTestCase(TracerTestCase):
                 assert span
                 assert span == {"attack": "1' or '1' = '1'"}
 
-    def test_pylons_body_xml_special_characters(self):
-        with override_global_config(dict(_appsec_enabled=True)):
-            # Hack: need to pass an argument to configure so that the processors are recreated
-            self.tracer.configure(api_version="v0.4")
-            payload = "<🙀>mytestingbody_value</🙀>"
-
-            response = self.app.post(
-                url_for(controller="root", action="body"),
-                params=payload,
-                extra_environ={"CONTENT_TYPE": "application/xml; charset=iso-8859-1"},
-            )
-            assert response.status == 200
-
-            spans = self.pop_spans()
-            assert spans
-
-            root_span = spans[0]
-            assert root_span
-            assert root_span.get_tag("_dd.appsec.json") is None
-            assert _context.get_item("http.request.body", span=root_span) is None
-
     def test_pylons_body_xml(self):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
@@ -696,7 +675,7 @@ class PylonsTestCase(TracerTestCase):
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
-    def test_pylons_body_json_special_characters(self):
+    def test_pylons_body_json_unicode_decode_error(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
                 self.tracer._appsec_enabled = True
@@ -725,7 +704,7 @@ class PylonsTestCase(TracerTestCase):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = "<attack>1' or '1' = '1'</attack>"
+            payload = b"\x80<attack>1' or '1' = '1'</attack>"
             self.app.post(
                 url_for(controller="root", action="index"),
                 params=payload,
