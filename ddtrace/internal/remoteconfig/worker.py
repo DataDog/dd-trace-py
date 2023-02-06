@@ -1,9 +1,11 @@
 import logging
 import os
 
+from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -31,19 +33,53 @@ def get_poll_interval_seconds():
 
 
 class RemoteConfigWorker(periodic.PeriodicService):
+    """Remote configuration worker.
+
+    This implements a finite-state machine that allows checking the agent for
+    the expected endpoint, which could be enabled after the client is started.
+    """
+
     def __init__(self):
         super(RemoteConfigWorker, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
+        self._state = self._agent_check
 
-    def periodic(self):
+    def _agent_check(self):
+        # type: () -> None
+        info = agent.info()
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and (
+                REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
+            ):
+                self._state = self._online
+                return
+
+        log.warning(
+            "Agent is down or Remote Config is not enabled in the Agent\n"
+            "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
+            "Check Your Remote Config environment variables on your Agent:\n"
+            "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
+            "DD_REMOTE_CONFIGURATION_KEY=<YOUR-KEY>\n"
+            "See: https://app.datadoghq.com/organization-settings/remote-config"
+        )
+
+    def _online(self):
         # type: () -> None
         with StopWatch() as sw:
-            self._client.request()
+            if not self._client.request():
+                # An error occurred, so we transition back to the agent check
+                self._state = self._agent_check
+                return
 
-        t = sw.elapsed()
-        if t >= self.interval:
+        elapsed = sw.elapsed()
+        if elapsed >= self.interval:
             log_level = logging.WARNING
         else:
             log_level = logging.DEBUG
-        log.log(log_level, "request config in %.5fs to %s", t, self._client.agent_url)
+        log.log(log_level, "request config in %.5fs to %s", elapsed, self._client.agent_url)
+
+    def periodic(self):
+        # type: () -> None
+        return self._state()

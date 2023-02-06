@@ -418,15 +418,17 @@ class RemoteConfigClient(object):
             self.cached_target_files = []
 
     def request(self):
-        # type: () -> None
+        # type: () -> bool
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
 
             response = self._send_request(payload)
-            if response is None:
-                return
-            self._process_response(response)
+            if response is not None:
+                self._process_response(response)
+            self._last_error = None
+            return True
+
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.debug("remote configuration client reported an error", exc_info=True)
@@ -434,5 +436,5 @@ class RemoteConfigClient(object):
             log.debug("Unexpected response data: %s", e)  # noqa: G200
         except Exception as e:
             log.debug("Unexpected error: %s", e)  # noqa: G200
-        else:
-            self._last_error = None
+
+        return False

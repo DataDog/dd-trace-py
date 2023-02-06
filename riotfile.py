@@ -443,7 +443,10 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={"msgpack": latest},
+            pkgs={
+                "msgpack": latest,
+                "httpretty": "==0.9.7",
+            },
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
