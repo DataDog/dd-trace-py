@@ -223,12 +223,12 @@ def test_heap():
     _memalloc.start(max_nframe, 10, 1024)
     x = _allocate_1k()
     # Check that at least one sample comes from the main thread
-    # thread_found = False
+    thread_found = False
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         assert size > 0
-        # if thread_id == nogevent.main_thread_id:
-        #     thread_found = True
+        if thread_id == threading.main_thread().ident:
+            thread_found = True
         assert isinstance(thread_id, int)
         if (
             stack[0][0] == __file__
@@ -243,7 +243,7 @@ def test_heap():
             break
     else:
         pytest.fail("No trace of allocation in heap")
-    # assert thread_found, "Main thread not found"
+    assert thread_found, "Main thread not found"
     y = _pre_allocate_1k()
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
