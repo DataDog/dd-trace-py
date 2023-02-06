@@ -554,7 +554,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded; charset=UTF-8"},
+                extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
             )
             assert response.status == 200
 
@@ -612,7 +612,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/json; charset=iso-8859-1"},
+                extra_environ={"CONTENT_TYPE": "application/json"},
             )
             assert response.status == 200
 
@@ -661,7 +661,7 @@ class PylonsTestCase(TracerTestCase):
             response = self.app.post(
                 url_for(controller="root", action="body"),
                 params=payload,
-                extra_environ={"CONTENT_TYPE": "application/xml; charset=euc-jp"},
+                extra_environ={"CONTENT_TYPE": "application/xml"},
             )
             assert response.status == 200
 
