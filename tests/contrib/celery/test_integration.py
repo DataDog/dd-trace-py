@@ -809,26 +809,10 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 stderr=subprocess.STDOUT,
             )
             sleep(5)
-            celery.kill()
-            celery.wait()
-
-            try:
-                # Unix only. This is to avoid blocking with nothing to read.
-                import fcntl
-                import os
-
-                fd = celery.stdout.fileno()
-                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-            except ImportError:
-                pass
+            celery.terminate()
 
             while True:
-                try:
-                    err = celery.stdout.readline().strip()
-                except IOError:
-                    # Nothing to read
-                    err = None
+                err = celery.stdout.readline().strip()
                 if not err:
                     break
                 assert b"SIGSEGV" not in err
