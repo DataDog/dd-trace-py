@@ -2,11 +2,17 @@ import json
 import os
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.processor import JSONDecodeError
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 
 if TYPE_CHECKING:  # pragma: no cover
