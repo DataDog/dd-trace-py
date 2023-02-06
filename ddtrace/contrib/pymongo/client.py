@@ -13,6 +13,7 @@ from ddtrace.vendor.wrapt import ObjectProxy
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.compat import iteritems
@@ -30,6 +31,9 @@ log = get_logger(__name__)
 
 
 VERSION = pymongo.version_tuple
+
+if VERSION < (3, 6, 0):
+    from pymongo.helpers import _unpack_response
 
 
 class TracedMongoClient(ObjectProxy):
@@ -133,6 +137,9 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
+
+                if result and self._is_query(operation):
+                    set_query_rowcount(result=result, span=span)
                 return result
 
     # Pymongo >= 3.9, <3.12
@@ -146,6 +153,9 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
+
+                if result and self._is_query(operation):
+                    set_query_rowcount(result=result, span=span)
                 return result
 
     # Pymongo < 3.9
@@ -159,6 +169,19 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
+
+                if result and self._is_query(operation):
+                    if VERSION < (3, 2, 0):
+                        docs = _unpack_response(response=result.data)
+                        span.set_metric(db.ROWCOUNT, docs["number_returned"])
+                    elif (3, 2, 0) <= VERSION < (3, 6, 0):
+                        docs = _unpack_response(response=result.data)
+                        cursor = docs["data"][0]["cursor"]
+                        set_query_rowcount(cursor=cursor, span=span)
+                    else:
+                        docs = result.data.unpack_response()
+                        cursor = docs[0]["cursor"]
+                        set_query_rowcount(cursor=cursor, span=span)
                 return result
 
     @contextlib.contextmanager
@@ -211,7 +234,7 @@ class TracedSocket(ObjectProxy):
         with self.__trace(cmd) as s:
             result = self.__wrapped__.write_command(*args, **kwargs)
             if result:
-                s.set_metric(mongox.ROWS, result.get("n", -1))
+                s.set_metric(db.ROWCOUNT, result.get("n", -1))
             return result
 
     def __trace(self, cmd):
@@ -286,3 +309,19 @@ def _set_query_metadata(span, cmd):
         span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
+
+
+def set_query_rowcount(span, result=None, cursor=None):
+    search_key = "Batch"
+    try:
+        if not cursor:
+            cursor = result.docs[0].get("cursor")
+        # results returned in batches, get len of each batch
+        rowcount = sum([len(documents) for batch_key, documents in cursor.items() if search_key in batch_key])
+        span.set_metric(db.ROWCOUNT, rowcount)
+        return span
+
+    except Exception:
+        log.exception("Error parsing rowcount.")
+        span.set_metric(db.ROWCOUNT, 0)
+        return span
