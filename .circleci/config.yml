@@ -762,9 +762,15 @@ jobs:
   gunicorn:
     <<: *machine_executor
     steps:
-      - run_test:
-          pattern: "gunicorn"
-          snapshot: true
+      - attach_workspace:
+          at: .
+      - checkout
+      - start_docker_services:
+          services: ddagent
+      - run:
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
 
   httplib:
     <<: *machine_executor

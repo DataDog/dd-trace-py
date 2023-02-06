@@ -192,7 +192,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="slotscheck",
-                    command="python -m slotscheck -v {cmdargs}",
+                    command="python -m slotscheck -v ddtrace/",
                 ),
             ],
         ),
@@ -447,8 +447,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
-                    # FIXME[bytecode-3.11]: debugger depends on bytecode, which doesn't yet have 3.11 support
-                    pys=select_pys(min_version="3.5", max_version="3.10"),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
@@ -2595,13 +2594,8 @@ venv = Venv(
         Venv(
             name="gunicorn",
             command="pytest {cmdargs} tests/contrib/gunicorn",
-            pkgs={"requests": latest},
+            pkgs={"requests": latest, "gevent": latest},
             venvs=[
-                Venv(
-                    pys="2.7",
-                    # Gunicorn ended Python 2 support after 19.10.0
-                    pkgs={"gunicorn": "==19.10.0"},
-                ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
