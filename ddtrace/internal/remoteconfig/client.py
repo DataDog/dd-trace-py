@@ -347,12 +347,11 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                if callback:
-                    try:
-                        callback(None, None)
-                    except Exception:
-                        log.debug("error with callback %s while deserializing target", callback)
-                        continue
+                try:
+                    callback(None, None)
+                except Exception:
+                    log.debug("error with callback %s while deserializing target", callback)
+                    continue
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -378,18 +377,17 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products.get(config.product_name)
-            if callback:
-                try:
-                    callback(config, callback_action)
-                except Exception as e:
-                    log.debug(  # noqa: G200
-                        "error while removing product %s config %r. Error: %s",
-                        config.product_name,
-                        config,
-                        e,
-                    )
-                    continue
+            callback = self._products[config.product_name]
+            try:
+                callback(config, callback_action)
+            except Exception as e:
+                log.debug(  # noqa: G200
+                    "error while removing product %s config %r. Error: %s",
+                    config.product_name,
+                    config,
+                    e,
+                )
+                continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
@@ -404,8 +402,7 @@ class RemoteConfigClient(object):
                 continue
             try:
                 log.debug("Load new configuration: %s. content %s", target, config_content)
-                if callback:
-                    callback(config, config_content)
+                callback(config, config_content)
             except Exception:
                 log.debug("error while loading product %s config %r", config.product_name, config)
                 continue
