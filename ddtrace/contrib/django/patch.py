@@ -63,6 +63,8 @@ config._add(
     ),
 )
 
+empty_response_object = object()
+
 
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
@@ -164,11 +166,8 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             if result and isinstance(result, Iterable):
                 span.set_metric(db.ROWCOUNT, len(result))
         elif command_name == "get":
-            if result:
-                print("---------------- ATTRIBUTES -------------------")
-                for attr in dir(result):
-                    print(attr)
-                    print(getattr(result, attr))
+            if result and result != empty_response_object:
+                print("equals empty object", result == empty_response_object)
                 span.set_metric(db.ROWCOUNT, 1)
         return result
 
