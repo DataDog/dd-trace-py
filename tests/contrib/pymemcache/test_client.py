@@ -49,25 +49,6 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 
         self.check_spans(2, ["set", "get"], ["set key", "get key"])
 
-    def test_get_rowcount(self):
-        client = self.make_client([b"VALUE key 0 5\r\nvalue\r\nEND\r\n", b"END\r\n"])
-
-        result = client.get(b"key")
-        assert _str(result) == "value"
-        result = client.get(b"missing_key")
-        assert result is None
-
-        spans = self.check_spans(2, ["get", "get"], ["get key", "get missing_key"])
-
-        get_key_exists_span = spans[0]
-        get_key_missing_span = spans[1]
-
-        assert get_key_exists_span.resource == "get"
-        assert get_key_exists_span.get_metric("db.row_count") == 1
-
-        assert get_key_missing_span.resource == "get"
-        assert get_key_missing_span.get_metric("db.row_count") == 0
-
     def test_append_stored(self):
         client = self.make_client([b"STORED\r\n"])
         result = client.append(b"key", b"value", noreply=False)
@@ -159,24 +140,6 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         assert result == (b"value", b"10")
 
         self.check_spans(1, ["gets"], ["gets key"])
-
-    def test_gets_rowcount(self):
-        client = self.make_client([b"VALUE key 0 5 10\r\nvalue\r\nEND\r\n", b"END\r\n"])
-        result = client.gets(b"key")
-        assert result == (b"value", b"10")
-        result = client.gets(b"missing_key")
-        assert result == (None, None)
-
-        spans = self.check_spans(2, ["gets", "gets"], ["gets key", "gets missing_key"])
-
-        gets_key_exists_span = spans[0]
-        gets_key_missing_span = spans[1]
-
-        assert gets_key_exists_span.resource == "gets"
-        assert gets_key_exists_span.get_metric("db.row_count") == 1
-
-        assert gets_key_missing_span.resource == "gets"
-        assert gets_key_missing_span.get_metric("db.row_count") == 0
 
     def test_touch_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])

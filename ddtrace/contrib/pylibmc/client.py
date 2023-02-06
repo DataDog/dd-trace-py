@@ -1,7 +1,3 @@
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 from contextlib import contextmanager
 import random
 
@@ -14,7 +10,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
 from ddtrace.internal.logger import get_logger
@@ -115,17 +110,7 @@ class TracedClient(ObjectProxy):
             if span and args:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
-            if method_name == "get":
-                result = method(*args, **kwargs)
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
-                return result
-            elif method_name == "gets":
-                result = method(*args, **kwargs)
-                # returns a tuple object that may be (None, None)
-                span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
-                return result
-            else:
-                return method(*args, **kwargs)
+            return method(*args, **kwargs)
 
     def _trace_multi_cmd(self, method_name, *args, **kwargs):
         """trace the execution of the multi command with the given name."""
@@ -136,12 +121,7 @@ class TracedClient(ObjectProxy):
             if span and pre:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
 
-            if method_name == "get_multi":
-                result = method(*args, **kwargs)
-                span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
-                return result
-            else:
-                return method(*args, **kwargs)
+            return method(*args, **kwargs)
 
     @contextmanager
     def _no_span(self):

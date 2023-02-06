@@ -6,7 +6,6 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ..redis.asyncio_patch import _run_redis_command_async
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 
@@ -47,8 +46,9 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aredis, instance, args) as span:
-        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
+    with _trace_redis_cmd(pin, config.aredis, instance, args):
+        # run the command
+        return await func(*args, **kwargs)
 
 
 async def traced_pipeline(func, instance, args, kwargs):
