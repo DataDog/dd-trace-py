@@ -87,8 +87,11 @@ def astpatch_source(
     if not module_path:
         return "", ""
 
-    if os.stat(module_path).st_size == 0:
-        # Don't patch empty files like __init__.py
+    try:
+        if os.stat(module_path).st_size == 0:
+            # Don't patch empty files like __init__.py
+            return "", ""
+    except FileNotFoundError:
         return "", ""
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return

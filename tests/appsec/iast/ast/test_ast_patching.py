@@ -94,7 +94,9 @@ def test_astpatch_source_changed_with_future_imports(module_path, module_name):
     [
         ("tests/appsec/iast/fixtures/aspects/str/function_no_str.py", "function_str"),
         ("tests/appsec/iast/fixtures/aspects/str/class_no_str.py", "class_str"),
-        ("tests/appsec/iast/fixtures/aspects/str/non_existent_invented_extension.cppy", "class_str"),
+        ("tests/appsec/iast/fixtures/aspects/str/non_existent_file.py", "class_str"),
+        ("tests/appsec/iast/fixtures/aspects/str/invented_extension.cppy", "class_str"),
+        ("tests/appsec/iast/fixtures/aspects/str/empty_file.py", "class_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str.class_no_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str.function_no_str"),
         (None, "tests.appsec.iast.fixtures.aspects.str"),  # Empty __init__.py
