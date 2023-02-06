@@ -2,6 +2,7 @@ import json
 import os
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.processor import JSONDecodeError
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
@@ -49,7 +50,7 @@ def _loading_rules(features, feature, message, rule_list):
         try:
             rule_list += json.loads(rules)
             log.debug("Reloading Appsec %s: %s", message, rules)
-        except json.decoder.JSONDecodeError:
+        except JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
