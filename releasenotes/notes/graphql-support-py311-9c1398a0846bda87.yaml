@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    graphql: Adds support for python 3.11
