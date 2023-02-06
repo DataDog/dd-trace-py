@@ -236,7 +236,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "runtime_id": get_runtime_id(),
         "api_version": "v1",
         "seq_id": seq_id,
-        "debug": False,
+        "debug": "false",
         "application": get_application(config.service, config.version, config.env),
         "host": get_host_info(),
         "payload": payload,

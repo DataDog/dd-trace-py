@@ -33,13 +33,15 @@ def _get_interval_or_default():
 
 
 class _TelemetryClient:
-    def __init__(self, endpoint, headers):
-        # type: (str, Dict) -> None
-
+    def __init__(self, endpoint):
+        # type: (str) -> None
         self._agent_url = get_trace_url()
         self._endpoint = endpoint
         self._encoder = JSONEncoderV2()
-        self._headers = headers.copy()
+        self._headers = {
+            "Content-type": "application/json",
+            "DD-Telemetry-API-Version": "v1",
+        }
 
     def url(self):
         return "%s/%s" % (self._agent_url, self._endpoint)
@@ -50,7 +52,7 @@ class _TelemetryClient:
         resp = None
         try:
             rb_json = self._encoder.encode(request)
-            headers = self._create_headers(request["request_type"])
+            headers = self.get_headers(request)
             with StopWatch() as sw:
                 conn = get_connection(self._agent_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
@@ -65,11 +67,12 @@ class _TelemetryClient:
             conn.close()
         return resp
 
-    def _create_headers(self, payload_type):
-        # type: (str) -> Dict
-        """Creates request headers"""
+    def get_headers(self, request):
+        # type: (Dict) -> Dict
+        """Get all telemetry api v1 request headers"""
         headers = self._headers.copy()
-        headers["DD-Telemetry-Request-Type"] = payload_type
+        headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
+        headers["DD-Telemetry-Request-Type"] = request["request_type"]
         return headers
 
 
@@ -99,12 +102,7 @@ class TelemetryWriter(PeriodicService):
 
         # counter representing the number of events sent by the writer
         self._sequence = itertools.count(1)
-        headers = {
-            "Content-type": "application/json",
-            "DD-Telemetry-API-Version": "v1",
-            "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
-        }  # type: Dict[str, str]
-        self._client = _TelemetryClient(self.ENDPOINT_V1, headers)
+        self._client = _TelemetryClient(self.ENDPOINT_V1)
 
     def _flush_integrations_queue(self):
         # type: () -> List[Dict]
@@ -172,7 +170,7 @@ class TelemetryWriter(PeriodicService):
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": next(self._sequence),
-            "debug": self._debug,
+            "debug": str(self._debug).lower(),
             "application": get_application(config.service, config.version, config.env),
             "host": get_host_info(),
             "payload": payload,
