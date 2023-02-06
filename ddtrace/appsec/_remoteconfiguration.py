@@ -30,13 +30,13 @@ def enable_appsec_rc():
     # type: () -> None
     # Import tracer here to avoid a circular import
     from ddtrace import tracer
-
+    from ddtrace.internal.remoteconfig import RemoteConfig
+    from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+    from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
     if _appsec_rc_features_is_enabled():
-        from ddtrace.internal.remoteconfig import RemoteConfig
-        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
-
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+
+    if tracer._appsec_processor:
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 
 
@@ -67,6 +67,7 @@ def _appsec_1click_activation(tracer, features):
             not asbool(os.environ.get(APPSEC_ENV)) or not rc_appsec_enabled
         ):
             _appsec_enabled = False
+            log.debug("Disabling appsec products")
             RemoteConfig.unregister(ASM_DATA_PRODUCT)
         else:
             RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
@@ -95,7 +96,7 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Updating ASM Remote Configuration: %s", features)
-            _appsec_rules_data(tracer, features)
             _appsec_1click_activation(tracer, features)
+            _appsec_rules_data(tracer, features)
 
     return _reload_features
