@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import os
 import sys
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool  # noqa
+from ddtrace.settings import _config as config
 
 
 def _is_python_version_supported():
@@ -12,7 +11,7 @@ def _is_python_version_supported():
 
 
 def _is_iast_enabled():
-    if not asbool(os.getenv("DD_IAST_ENABLED", default=False)):
+    if not config._iast_enabled:
         return False
 
     if not _is_python_version_supported():
