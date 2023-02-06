@@ -30,6 +30,37 @@ class TestRedisPatch(TracerTestCase):
         unpatch()
         super(TestRedisPatch, self).tearDown()
 
+    def command_test_rowcount(self, raw_command, row_count, expect_result=True, **kwargs):
+        command_args_as_list = raw_command.split(" ")
+
+        command_name = command_args_as_list[0].lower()
+
+        if hasattr(self.r, command_name):
+            func = getattr(self.r, command_name)
+
+            try:
+                # try to run function with kwargs, may fail due to redis version
+                result = yield func(*command_args_as_list[1:], **kwargs)
+                for k in kwargs.keys():
+                    raw_command += " " + str(kwargs[k])
+            except Exception:
+                # try without keyword arguments
+                result = func(*command_args_as_list[1:])
+
+            if expect_result:
+                assert result is not None
+            else:
+                empty_result = [None, [], {}, b""]
+                if isinstance(result, list):
+                    result = [x for x in result if x]
+                assert result in empty_result
+
+            command_span = self.get_spans()[-1]
+
+            assert command_span.name == "redis.command"
+            assert command_span.get_tag("redis.raw_command") == raw_command
+            assert command_span.get_metric("db.row_count") == row_count
+
     def test_long_command(self):
         self.r.mget(*range(1000))
 
@@ -216,6 +247,115 @@ class TestRedisPatch(TracerTestCase):
         assert dd_span.get_tag("component") == "redis"
         assert dd_span.get_metric("redis.args_length") == 2
         assert dd_span.resource == "GET cheese"
+
+    def test_redis_rowcount_all_keys_valid(self):
+        self.r.set("key1", "value1")
+
+        get1 = self.r.get("key1")
+
+        assert get1 == b"value1"
+
+        spans = self.get_spans()
+        get_valid_key_span = spans[1]
+
+        assert get_valid_key_span.name == "redis.command"
+        assert get_valid_key_span.get_tag("redis.raw_command") == u"GET key1"
+        assert get_valid_key_span.get_metric("db.row_count") == 1
+
+        get_commands = ["GET key", "GETEX key", "GETRANGE key 0 2"]
+        list_get_commands = ["LINDEX lkey 0", "LRANGE lkey 0 3", "RPOP lkey", "LPOP lkey"]
+        hashing_get_commands = [
+            "HGET hkey field1",
+            "HGETALL hkey",
+            "HKEYS hkey",
+            "HMGET hkey field1 field2",
+            "HRANDFIELD hkey",
+            "HVALS hkey",
+        ]
+        multi_key_get_commands = ["MGET key key2", "MGET key key2 key3", "MGET key key2 key3 key4"]
+
+        for command in get_commands:
+            self.r.set("key", "value")
+            self.command_test_rowcount(command, 1)
+        for command in list_get_commands:
+            self.r.lpush("lkey", "1", "2", "3", "4", "5")
+            self.command_test_rowcount(command, 1)
+            if command == "RPOP lkey":  # lets get multiple values from the set and ensure rowcount is still 1
+                self.command_test_rowcount(command, 1, count=2)
+        for command in hashing_get_commands:
+            self.r.hset("hkey", "field1", "value1")
+            self.r.hset("hkey", "field2", "value2")
+            self.command_test_rowcount(command, 1)
+        for command in multi_key_get_commands:
+            self.r.mset({"key": "value", "key2": "value2", "key3": "value3", "key4": "value4"})
+            self.command_test_rowcount(command, len(command.split(" ")) - 1)
+
+    def test_redis_rowcount_some_keys_valid(self):
+        self.r.mset({"key": "value", "key2": "value2"})
+
+        get_both_valid = self.r.mget("key", "key2")
+        get_one_missing = self.r.mget("key", "missing_key")
+
+        assert get_both_valid == [b"value", b"value2"]
+        assert get_one_missing == [b"value", None]
+
+        spans = self.get_spans()
+        get_both_valid_span = spans[1]
+        get_one_missing_span = spans[2]
+
+        assert get_both_valid_span.name == "redis.command"
+        assert get_both_valid_span.get_tag("redis.raw_command") == u"MGET key key2"
+        assert get_both_valid_span.get_metric("db.row_count") == 2
+
+        assert get_one_missing_span.name == "redis.command"
+        assert get_one_missing_span.get_tag("redis.raw_command") == u"MGET key missing_key"
+        assert get_one_missing_span.get_metric("db.row_count") == 1
+
+        multi_key_get_commands = [
+            "MGET key key2",
+            "MGET key missing_key",
+            "MGET key key2 missing_key",
+            "MGET key missing_key missing_key2 key2",
+        ]
+
+        for command in multi_key_get_commands:
+            command_keys = command.split(" ")[1:]
+            self.command_test_rowcount(command, len([key for key in command_keys if "missing_key" not in key]))
+
+    def test_redis_rowcount_no_keys_valid(self):
+        get_missing = self.r.get("missing_key")
+
+        assert get_missing is None
+
+        spans = self.get_spans()
+        get_missing_key_span = spans[0]
+
+        assert get_missing_key_span.name == "redis.command"
+        assert get_missing_key_span.get_tag("redis.raw_command") == u"GET missing_key"
+        assert get_missing_key_span.get_metric("db.row_count") == 0
+
+        get_commands = ["GET key", "GETDEL key", "GETEX key", "GETRANGE key 0 2"]
+        list_get_commands = ["LINDEX lkey 0", "LRANGE lkey 0 3", "RPOP lkey", "LPOP lkey"]
+        hashing_get_commands = [
+            "HGET hkey field1",
+            "HGETALL hkey",
+            "HKEYS hkey",
+            "HMGET hkey field1 field2",
+            "HRANDFIELD hkey",
+            "HVALS hkey",
+        ]
+        multi_key_get_commands = ["MGET key key2", "MGET key key2 key3", "MGET key key2 key3 key4"]
+
+        for command in get_commands:
+            self.command_test_rowcount(command, 0, expect_result=False)
+        for command in list_get_commands:
+            self.command_test_rowcount(command, 0, expect_result=False)
+            if command == "RPOP lkey":  # lets get multiple values from the set and ensure rowcount is still 1
+                self.command_test_rowcount(command, 0, expect_result=False, count=2)
+        for command in hashing_get_commands:
+            self.command_test_rowcount(command, 0, expect_result=False)
+        for command in multi_key_get_commands:
+            self.command_test_rowcount(command, 0, expect_result=False)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
