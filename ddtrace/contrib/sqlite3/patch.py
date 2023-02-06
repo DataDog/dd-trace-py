@@ -9,8 +9,12 @@ from ddtrace.vendor import wrapt
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
+from ...ext import db
 from ...internal.utils.formats import asbool
 from ...pin import Pin
+
+
+DBMS_NAME = "sqlite"
 
 
 # Original connect method
@@ -45,7 +49,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin().onto(wrapped)
+    Pin(tags={db.SYSTEM: DBMS_NAME}).onto(wrapped)
     return wrapped
 
 
