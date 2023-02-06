@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -11,6 +12,7 @@ from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
+from ..constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -19,9 +21,14 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
+from ..utils.version import _pep440_to_semver
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import MetricTagType
+from .metrics import MetricType
+from .metrics_namespaces import MetricNamespace
+from .metrics_namespaces import NamespaceMetricType
 
 
 log = get_logger(__name__)
@@ -53,18 +60,22 @@ class TelemetryWriter(PeriodicService):
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
+        self._namespace = MetricNamespace()
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
         # Debug flag that enables payload debug mode.
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
         forksafe.register(self._fork_writer)
-
         self._headers = {
             "Content-type": "application/json",
             "DD-Telemetry-API-Version": "v1",
+            "DD-Client-Library-Language": "python",
             "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
+            "DD-Agent-Env": "config.env",  # TODO
+            "DD-Agent-Hostname": "",  # TODO
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
+        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEGUG", "false"))
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
@@ -105,6 +116,15 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = []
         return integrations
 
+    def _flush_namespace_metrics(self):
+        # type () -> List[Metric]
+        """Returns a list of all generate-metrics"""
+        log.debug("[METRICS] _flush_namespace_metrics")
+        with self._lock:
+            namespace_metrics = self._namespace.get()
+            self._namespace._flush()
+        return namespace_metrics
+
     def _flush_events_queue(self):
         # type: () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
@@ -123,6 +143,10 @@ class TelemetryWriter(PeriodicService):
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        namespace_metrics = self._flush_namespace_metrics()
+        if namespace_metrics:
+            self._app_generate_metrics_event(namespace_metrics)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
@@ -162,8 +186,49 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         self.join()
 
+    def add_gauge_metric(self, namespace, name, value, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("gauge", namespace, name, value, tags)
+
+    def add_rate_metric(self, namespace, name, value=1.0, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("rate", namespace, name, value, tags)
+
+    def add_count_metric(self, namespace, name, value=1.0, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric("count", namespace, name, value, tags)
+
+    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}):
+        # type: (MetricType, str,str, float, MetricTagType) -> None
+        """
+        Queues metric
+        """
+        with self._lock:
+            self._namespace._add_metric(metric_type, namespace, name, value, tags, interval=_get_interval_or_default())
+
+    def _app_generate_metrics_event(self, namespace_metrics):
+        # type: (NamespaceMetricType) -> None
+        for namespace, metrics in namespace_metrics.items():
+            if metrics:
+                payload = {
+                    "namespace": namespace,
+                    "lib_language": "python",
+                    "lib_version": _pep440_to_semver(),
+                    "series": [m.to_dict() for m in metrics.values()],
+                }
+                self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
+
     def add_event(self, payload, payload_type):
-        # type: (Dict, str) -> None
+        # type: (Dict[str, Any], str) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 

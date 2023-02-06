@@ -607,8 +607,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # This really isn't ideal as now we're going to do a ton of socket calls.
                     self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
                     self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
+                    # TODO(avara1986): we could migrate this dogstatsd metrics to:
+                    #  telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.bytes", len(encoded), {})
+                    #  telemetry_writer.add_count_metric(TELEMETRY_TRACER, "http.sent.traces", n_traces, {})
                     for name, metric in self._metrics.items():
                         self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+                        # TODO(avara1986): ditto:
+                        #  telemetry_writer.add_count_metric(TELEMETRY_TRACER, name, metric["count"], metric["tags"])
         finally:
             self._set_drop_rate()
             self._metrics_reset()

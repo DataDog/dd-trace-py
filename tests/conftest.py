@@ -223,7 +223,11 @@ def run_function_from_file(item, params=None):
                     % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
                 )
             elif expected_out is not None and out != expected_out:
-                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                raise AssertionError(
+                    "STDOUT ERROR\n"
+                    "STDOUT: Expected [%s] got [%s]\n"
+                    "STDERR: Expected [%s] got [%s]" % (expected_out, out, expected_err, err)
+                )
             elif expected_err is not None and err != expected_err:
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
