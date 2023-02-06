@@ -1,3 +1,4 @@
+import json
 import os
 from typing import TYPE_CHECKING
 
@@ -32,21 +33,38 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
+        from ddtrace.appsec._constants import PRODUCTS
         from ddtrace.internal.remoteconfig import RemoteConfig
-        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-        from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 
-        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
-        RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+        RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+        RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+
+
+def _loading_rules(features, feature, message, rule_list):
+    # type: (Mapping[str, Any], str, str, list[Any]) -> None
+    rules = features.get(feature, [])
+    if rules:
+        try:
+            rule_list += json.loads(rules)
+            log.debug("Reloading Appsec %s: %s", message, rules)
+        except json.decoder.JSONDecodeError:
+            log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
 def _appsec_rules_data(tracer, features):
-    # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
+    # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
-        rules_data = features.get("rules_data", [])
-        if rules_data:
-            log.debug("Reloading Appsec rules data: %s", rules_data)
-            tracer._appsec_processor._update_rules(rules_data)
+        rule_list = []  # type: list[Any]
+        _loading_rules(features, "rules_data", "rules data", rule_list)
+        _loading_rules(features, "custom_rules", "custom rules", rule_list)
+        _loading_rules(features, "rules", "Datadog rules", rule_list)
+        # exclusion filters can be managed in a subsequent PR
+        # _loading_rules(features, "exclusions", "exclusion filters", rule_list)
+        if rule_list:
+            payload = {"version": "2.2", "rules": rule_list}
+            tracer._appsec_processor.update_rules(json.dumps(payload))
 
 
 def _appsec_1click_activation(tracer, features):
@@ -57,8 +75,8 @@ def _appsec_1click_activation(tracer, features):
         rc_appsec_enabled = features.get("asm", {}).get("enabled")
 
     if rc_appsec_enabled is not None:
+        from ddtrace.appsec._constants import PRODUCTS
         from ddtrace.internal.remoteconfig import RemoteConfig
-        from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
 
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True
@@ -67,9 +85,13 @@ def _appsec_1click_activation(tracer, features):
             not asbool(os.environ.get(APPSEC_ENV)) or not rc_appsec_enabled
         ):
             _appsec_enabled = False
-            RemoteConfig.unregister(ASM_DATA_PRODUCT)
+            RemoteConfig.unregister(PRODUCTS.ASM_DATA)
+            RemoteConfig.unregister(PRODUCTS.ASM)
+            RemoteConfig.unregister(PRODUCTS.ASM_DD)
         else:
-            RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+            RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+            RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+            RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
         if tracer._appsec_enabled != _appsec_enabled:
             tracer.configure(appsec_enabled=_appsec_enabled)
