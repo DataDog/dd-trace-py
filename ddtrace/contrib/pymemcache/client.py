@@ -1,7 +1,3 @@
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 import sys
 
 import pymemcache
@@ -20,7 +16,6 @@ from ddtrace.vendor import wrapt
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...ext import db
 from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.compat import reraise
@@ -170,19 +165,7 @@ class WrappedClient(wrapt.ObjectProxy):
                 log.debug("Error setting relevant pymemcache tags")
 
             try:
-                result = method(*args, **kwargs)
-
-                if method_name == "get_many" or method_name == "gets_many":
-                    # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
-                    # get many returns a map with values, else an empty map if no matches
-                    span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
-                elif method_name == "get":
-                    # get returns key or None
-                    span.set_metric(db.ROWCOUNT, 1 if result else 0)
-                elif method_name == "gets":
-                    # gets returns a tuple of (None, None) if key not found, else tuple of (key, index)
-                    span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
-                return result
+                return method(*args, **kwargs)
             except (
                 MemcacheClientError,
                 MemcacheServerError,

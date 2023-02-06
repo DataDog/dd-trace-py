@@ -245,9 +245,6 @@
                "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
                "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
              },
-             "metrics": {
-               "db.row_count": 1
-             },
              "duration": 128000,
              "start": 1633584268377746000
            },
