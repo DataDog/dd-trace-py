@@ -33,6 +33,7 @@ def enable_appsec_rc():
     from ddtrace.internal.remoteconfig import RemoteConfig
     from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
     from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
