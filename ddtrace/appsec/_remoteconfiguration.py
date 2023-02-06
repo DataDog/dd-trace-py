@@ -44,9 +44,10 @@ def enable_appsec_rc():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
-        RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-        RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
-        RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+        if tracer._appsec_enabled:
+            RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+            RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+            RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
 
 def _add_rules_to_list(features, feature, message, rule_list):
