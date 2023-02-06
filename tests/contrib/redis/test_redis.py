@@ -40,7 +40,7 @@ class TestRedisPatch(TracerTestCase):
 
             try:
                 # try to run function with kwargs, may fail due to redis version
-                result = func(*command_args_as_list[1:], **kwargs)
+                result = yield func(*command_args_as_list[1:], **kwargs)
                 for k in kwargs.keys():
                     raw_command += " " + str(kwargs[k])
             except Exception:
