@@ -43,6 +43,7 @@ class _TelemetryClient:
             "DD-Telemetry-API-Version": "v1",
         }
 
+    @property
     def url(self):
         return "%s/%s" % (self._agent_url, self._endpoint)
 

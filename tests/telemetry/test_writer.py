@@ -168,9 +168,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
             telemetry_writer.on_shutdown()
             # asserts unsuccessful status code was logged
             log.debug.assert_called_with(
-                "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
-                telemetry_writer._client._agent_url,
-                telemetry_writer._client._endpoint,
+                "failed to send telemetry to the Datadog Agent at %s. response: %s",
+                telemetry_writer._client.url,
                 mock_status,
             )
         # ensure one failing request was sent
