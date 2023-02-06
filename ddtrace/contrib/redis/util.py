@@ -7,33 +7,12 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...ext import db
 from ...ext import net
 from ...ext import redis as redisx
 from ...internal.utils.formats import stringify_cache_args
 
 
 format_command_args = stringify_cache_args
-
-single_key_commands = [
-    "GET",
-    "GETDEL",
-    "GETEX",
-    "GETRANGE",
-    "GETSET",
-    "LINDEX",
-    "LRANGE",
-    "RPOP",
-    "LPOP",
-    "HGET",
-    "HGETALL",
-    "HKEYS",
-    "HMGET",
-    "HRANDFIELD",
-    "HVALS",
-]
-multi_key_commands = ["MGET"]
-row_returning_commands = single_key_commands + multi_key_commands
 
 
 def _extract_conn_tags(conn_kwargs):
@@ -50,41 +29,6 @@ def _extract_conn_tags(conn_kwargs):
         return conn_tags
     except Exception:
         return {}
-
-
-def determine_row_count(redis_command, span, result):
-    empty_results = [b"", [], {}, None]
-    # result can be an empty list / dict / string
-    if result not in empty_results:
-        if redis_command == "MGET":
-            # only include valid key results within count
-            result = [x for x in result if x not in empty_results]
-            span.set_metric(db.ROWCOUNT, len(result))
-        elif redis_command == "HMGET":
-            # only include valid key results within count
-            result = [x for x in result if x not in empty_results]
-            span.set_metric(db.ROWCOUNT, 1 if len(result) > 0 else 0)
-        else:
-            span.set_metric(db.ROWCOUNT, 1)
-    else:
-        # set count equal to 0 if an empty result
-        span.set_metric(db.ROWCOUNT, 0)
-
-
-def _run_redis_command(span, func, args, kwargs):
-    try:
-        parsed_command = stringify_cache_args(args)
-        redis_command = parsed_command.split(" ")[0]
-
-        result = func(*args, **kwargs)
-        return result
-    except Exception:
-        if redis_command in row_returning_commands:
-            span.set_metric(db.ROWCOUNT, 0)
-        raise
-    finally:
-        if redis_command in row_returning_commands:
-            determine_row_count(redis_command=redis_command, span=span, result=result)
 
 
 @contextmanager

@@ -7,7 +7,6 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .util import _run_redis_command
 from .util import _trace_redis_cmd
 from .util import _trace_redis_execute_pipeline
 
@@ -82,8 +81,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
-            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args):
+            return func(*args, **kwargs)
 
     return _traced_execute_command
 

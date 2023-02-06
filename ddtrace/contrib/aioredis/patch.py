@@ -12,15 +12,11 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...ext import db
 from ...ext import net
 from ...ext import redis as redisx
 from ...internal.utils.formats import stringify_cache_args
-from ..redis.asyncio_patch import _run_redis_command_async
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
-from ..redis.util import determine_row_count
-from ..redis.util import row_returning_commands
 
 
 try:
@@ -71,8 +67,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aioredis, instance, args) as span:
-        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
+    with _trace_redis_cmd(pin, config.aioredis, instance, args):
+        return await func(*args, **kwargs)
 
 
 def traced_pipeline(func, instance, args, kwargs):
@@ -138,7 +134,6 @@ def traced_13_execute_command(func, instance, args, kwargs):
         }
     )
     span.set_metric(redisx.ARGS_LEN, len(args))
-
     # set analytics sample rate if enabled
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
@@ -148,18 +143,10 @@ def traced_13_execute_command(func, instance, args, kwargs):
             #   - The future was cancelled (CancelledError)
             #   - There was an error executing the future (`future.exception()`)
             #   - The future is in an invalid state
-            redis_command = span.resource.split(" ")[0]
-
             future.result()
-
-            if redis_command in row_returning_commands:
-                determine_row_count(redis_command=redis_command, span=span, result=future.result())
-
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except BaseException:
             span.set_exc_info(*sys.exc_info())
-            if redis_command in row_returning_commands:
-                span.set_metric(db.ROWCOUNT, 0)
         finally:
             span.finish()
 

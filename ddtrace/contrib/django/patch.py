@@ -6,10 +6,6 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
@@ -22,7 +18,6 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
@@ -133,14 +128,8 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.django.integration_name)
 
-        resource_name_no_prefix = func_name(func)
-
-        # last string within the resource name is the command, ie: get
-        command_name = resource_name_no_prefix.split(".")[-1]
-
         # update the resource name and tag the cache backend
-        span.resource = utils.resource_from_cache_prefix(resource_name_no_prefix, instance)
-
+        span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
         span.set_tag_str("django.cache.backend", cache_backend)
 
@@ -150,19 +139,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             keys = utils.quantize_key_values(args[0])
             span.set_tag_str("django.cache.key", keys)
 
-        result = func(*args, **kwargs)
-        if command_name == "get_many":
-            # get_many returns a map
-            if result and isinstance(result, Iterable):
-                span.set_metric(db.ROWCOUNT, len(result))
-        elif command_name == "get":
-            if result:
-                # special case for Django~3.0 that returns an empty Sentinel object as missing key
-                if hasattr(instance, "_missing_key") and result == instance._missing_key:
-                    print("equals empty object", result == instance._missing_key)
-                else:
-                    span.set_metric(db.ROWCOUNT, 1)
-        return result
+        return func(*args, **kwargs)
 
 
 def instrument_caches(django):
