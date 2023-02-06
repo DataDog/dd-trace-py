@@ -11,6 +11,9 @@ from tests.appsec.iast.fixtures.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.weak_algorithms import cryptography_algorithm
 
 
+FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
+
+
 @pytest.mark.parametrize(
     "mode,cipher_func",
     [
@@ -26,7 +29,7 @@ def test_weak_cipher_crypto_des(iast_span_defaults, mode, cipher_func):
     cipher_des(mode=getattr(DES, mode))
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures/weak_algorithms.py")
+    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].location.line == 32
     assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
 
@@ -46,7 +49,7 @@ def test_weak_cipher_crypto_blowfish(iast_span_defaults, mode, cipher_func):
     cipher_blowfish(mode=getattr(Blowfish, mode))
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures/weak_algorithms.py")
+    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].location.line == 42
     assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
 
@@ -66,7 +69,7 @@ def test_weak_cipher_rc2(iast_span_defaults, mode, cipher_func):
     cipher_arc2(mode=getattr(ARC2, mode))
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures/weak_algorithms.py")
+    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].location.line == 52
     assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
 
@@ -75,7 +78,7 @@ def test_weak_cipher_rc4(iast_span_defaults):
     cipher_arc4()
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures/weak_algorithms.py")
+    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].location.line == 62
     assert list(span_report.vulnerabilities)[0].evidence.value == "RC4"
 
@@ -92,7 +95,7 @@ def test_weak_cipher_cryptography_blowfish(iast_span_defaults, algorithm, cipher
     cryptography_algorithm(algorithm)
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures/weak_algorithms.py")
+    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].location.line == 81
     assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
 
