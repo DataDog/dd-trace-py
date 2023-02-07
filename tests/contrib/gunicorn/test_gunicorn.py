@@ -71,7 +71,6 @@ def _gunicorn_settings_factory(
     bind="0.0.0.0:8080",  # type: str
     use_ddtracerun=True,  # type: bool
     import_sitecustomize_in_postworkerinit=False,  # type: bool
-    patch_gevent=None,  # type: Optional[bool]
     import_sitecustomize_in_app=None,  # type: Optional[bool]
     start_service_in_hook_named="post_fork",  # type: str
 ):
@@ -79,8 +78,6 @@ def _gunicorn_settings_factory(
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
     if env is None:
         env = os.environ.copy()
-    if patch_gevent is not None:
-        env["DD_GEVENT_PATCH_ALL"] = str(patch_gevent)
     if import_sitecustomize_in_app is not None:
         env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
     env["DD_REMOTECONFIG_POLL_SECONDS"] = str(SERVICE_INTERVAL)
@@ -165,22 +162,19 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
-SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
+SETTINGS_GEVENT_DDTRACERUN = _gunicorn_settings_factory(
     worker_class="gevent",
-    patch_gevent=True,
 )
-SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_app=True,
-    patch_gevent=True,
     start_service_in_hook_named="post_worker_init",
 )
-SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_postworkerinit=True,
-    patch_gevent=True,
     start_service_in_hook_named="post_worker_init",
 )
 
@@ -188,9 +182,9 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
-        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_DDTRACERUN_PATCH,
+        SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_DDTRACERUN,
     ],
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
