@@ -211,10 +211,10 @@ below:
    DD_SPAN_SAMPLING_RULES:
      type: string
      description: |
-         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional. 
+         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional.
          The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
-         The "max_per_second" value must be >= 0 and will default to no limit. 
-         The "service" and "name" fields can be glob patterns: 
+         The "max_per_second" value must be >= 0 and will default to no limit.
+         The "service" and "name" fields can be glob patterns:
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
@@ -222,15 +222,15 @@ below:
 
      version_added:
         v1.4.0:
-    
+
    DD_SPAN_SAMPLING_RULES_FILE:
      type: string
      description: |
-         A path to a JSON file containing span sampling rules organized as JSON array of objects. 
-         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional. 
+         A path to a JSON file containing span sampling rules organized as JSON array of objects.
+         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional.
          The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
-         The "max_per_second" value must be >= 0 and will default to no limit. 
-         The "service" and "name" fields are glob patterns, where "glob" means: 
+         The "max_per_second" value must be >= 0 and will default to no limit.
+         The "service" and "name" fields are glob patterns, where "glob" means:
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
@@ -275,7 +275,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, propagation is disabled. 
+         When ``none`` is the only propagator listed, propagation is disabled.
 
          All provided styles are injected into the headers of outbound requests.
 
@@ -296,7 +296,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, extraction is disabled. 
+         When ``none`` is the only propagator listed, extraction is disabled.
 
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
@@ -316,7 +316,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
-         When ``none`` is the only propagator listed, injection is disabled. 
+         When ``none`` is the only propagator listed, injection is disabled.
 
          Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
