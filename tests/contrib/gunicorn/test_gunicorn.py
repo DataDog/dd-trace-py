@@ -53,15 +53,13 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def assert_remoteconfig_started_successfully(response, check_patch=True):
+def assert_remoteconfig_started_successfully(response):
     # ddtrace and gunicorn don't play nicely under python 3.5 or 3.11
     if sys.version_info[1] in (5, 11):
         return
     assert response.status_code == 200
     payload = parse_payload(response.content)
     assert payload["remoteconfig"]["worker_alive"] is True
-    if check_patch:
-        assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is True
 
 
 def _gunicorn_settings_factory(

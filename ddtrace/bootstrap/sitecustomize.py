@@ -80,6 +80,8 @@ def cleanup_loaded_modules():
             continue
         if m.startswith("concurrent"):
             continue
+        if m.startswith("attr"):
+            continue
 
         if PY2:
             if m.startswith("encodings") or m.startswith("codecs"):
