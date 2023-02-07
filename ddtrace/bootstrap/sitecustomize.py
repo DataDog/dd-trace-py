@@ -68,7 +68,10 @@ if PY2:
 
 
 def cleanup_loaded_modules():
-    # Unload all the modules that we have imported, expect for the ddtrace one.
+    # Unload all the modules that we have imported, except for the ddtrace one.
+    # Doing so will allow ddtrace to continue using its local references to modules unpatched by
+    # gevent, while avoiding conflicts with user-application code potentially running 
+    # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
     for m in list(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP):
         if m.startswith("atexit"):
             continue
