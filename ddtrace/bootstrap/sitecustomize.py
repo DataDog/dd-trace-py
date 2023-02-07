@@ -24,6 +24,12 @@ from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
+if sys.version_info < (3, 1):
+    import imp
+else:
+    import importlib
+
+
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
 # change the formatter since it applies the formatter to the root handler only
 # upon initializing it the first time.
@@ -67,14 +73,41 @@ if PY2:
     _unloaded_modules = []
 
 
-def cleanup_loaded_modules():
+def gevent_is_installed():
+    # https://stackoverflow.com/a/51491863/735204
+    if sys.version_info >= (3, 4):
+        return importlib.util.find_spec("gevent")
+    elif sys.version_info >= (3, 3):
+        return importlib.find_loader("gevent")
+    elif sys.version_info >= (3, 1):
+        return importlib.find_module("gevent")
+    elif sys.version_info >= (2, 7):
+        return imp.find_module("gevent")
+    return False
+
+
+def should_cleanup_loaded_modules():
     dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
-    if dd_unload_sitecustomize_modules == "no":
-        log.debug("skipping sitecustomize module unload because of configuration variable")
-        return
-    elif dd_unload_sitecustomize_modules == "auto":
-        return
-    elif dd_unload_sitecustomize_modules != "yes":
+    if dd_unload_sitecustomize_modules == "0":
+        log.debug("skipping sitecustomize module unload because of DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == 0")
+        return False
+    elif dd_unload_sitecustomize_modules not in ("1", "auto"):
+        log.debug(
+            "skipping sitecustomize module unload because of invalid envvar value"
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == {}".format(dd_unload_sitecustomize_modules)
+        )
+        return False
+    elif dd_unload_sitecustomize_modules == "auto" and not gevent_is_installed():
+        log.debug(
+            "skipping sitecustomize module unload because DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == auto and "
+            "gevent is not installed"
+        )
+        return False
+    return True
+
+
+def cleanup_loaded_modules():
+    if not should_cleanup_loaded_modules():
         return
     # Unload all the modules that we have imported, except for ddtrace and a few
     # others that don't like being cloned.
