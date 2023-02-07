@@ -136,7 +136,6 @@ class TelemetryWriter(PeriodicService):
             self._app_heartbeat_event()
 
         telemetry_events = self._flush_events_queue()
-
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
@@ -163,21 +162,20 @@ class TelemetryWriter(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
-        if not self._enabled:
-            return
+        if self._enabled:
+            event = {
+                "tracer_time": int(time.time()),
+                "runtime_id": get_runtime_id(),
+                "api_version": "v1",
+                "seq_id": next(self._sequence),
+                "debug": str(self._debug).lower(),
+                "application": get_application(config.service, config.version, config.env),
+                "host": get_host_info(),
+                "payload": payload,
+                "request_type": payload_type,
+            }
+            self._events_queue.append(event)
 
-        event = {
-            "tracer_time": int(time.time()),
-            "runtime_id": get_runtime_id(),
-            "api_version": "v1",
-            "seq_id": next(self._sequence),
-            "debug": str(self._debug).lower(),
-            "application": get_application(config.service, config.version, config.env),
-            "host": get_host_info(),
-            "payload": payload,
-            "request_type": payload_type,
-        }
-        self._events_queue.append(event)
 
     def add_integration(self, integration_name, auto_enabled):
         # type: (str, bool) -> None
@@ -187,18 +185,16 @@ class TelemetryWriter(PeriodicService):
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if self._enabled is not None and not self._enabled:
-            return
-
-        integration = {
-            "name": integration_name,
-            "version": "",
-            "enabled": True,
-            "auto_enabled": auto_enabled,
-            "compatible": True,
-            "error": "",
-        }
-        self._integrations_queue.append(integration)
+        if self._enabled:
+            integration = {
+                "name": integration_name,
+                "version": "",
+                "enabled": True,
+                "auto_enabled": auto_enabled,
+                "compatible": True,
+                "error": "",
+            }
+            self._integrations_queue.append(integration)
 
     def _app_started_event(self):
         # type: () -> None
