@@ -1,9 +1,6 @@
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 from contextlib import contextmanager
 import random
+from typing import Iterable
 
 import pylibmc
 
@@ -121,8 +118,9 @@ class TracedClient(ObjectProxy):
                 return result
             elif method_name == "gets":
                 result = method(*args, **kwargs)
+
                 # returns a tuple object that may be (None, None)
-                span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
+                span.set_metric(db.ROWCOUNT, 1 if result and isinstance(result, Iterable) and result[0] else 0)
                 return result
             else:
                 return method(*args, **kwargs)
@@ -138,6 +136,8 @@ class TracedClient(ObjectProxy):
 
             if method_name == "get_multi":
                 result = method(*args, **kwargs)
+
+                # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
                 span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
                 return result
             else:

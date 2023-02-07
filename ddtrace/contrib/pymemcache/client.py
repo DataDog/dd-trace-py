@@ -1,8 +1,5 @@
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 import sys
+from typing import Iterable
 
 import pymemcache
 from pymemcache.client.base import Client

@@ -6,15 +6,12 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
+from typing import Iterable
 
 from ddtrace import Pin
 from ddtrace import config
@@ -133,13 +130,11 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.django.integration_name)
 
-        resource_name_no_prefix = func_name(func)
-
         # last string within the resource name is the command, ie: get
-        command_name = resource_name_no_prefix.split(".")[-1]
+        command_name = func.__name__
 
         # update the resource name and tag the cache backend
-        span.resource = utils.resource_from_cache_prefix(resource_name_no_prefix, instance)
+        span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
 
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
         span.set_tag_str("django.cache.backend", cache_backend)
@@ -152,16 +147,14 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
         result = func(*args, **kwargs)
         if command_name == "get_many":
-            # get_many returns a map
-            if result and isinstance(result, Iterable):
-                span.set_metric(db.ROWCOUNT, len(result))
+            span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
         elif command_name == "get":
-            if result:
-                # special case for Django~3.0 that returns an empty Sentinel object as missing key
-                if hasattr(instance, "_missing_key") and result == instance._missing_key:
-                    print("equals empty object", result == instance._missing_key)
-                else:
-                    span.set_metric(db.ROWCOUNT, 1)
+            # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
+            # missing key
+            if result and not (hasattr(instance, "_missing_key") and result == instance._missing_key):
+                span.set_metric(db.ROWCOUNT, 1)
+            else:
+                span.set_metric(db.ROWCOUNT, 0)
         return result
 
 
