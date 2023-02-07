@@ -217,9 +217,9 @@ def test_lock_release_events():
 
 @pytest.mark.subprocess
 def test_lock_gevent_tasks():
-    import gevent.monkey
+    from gevent import monkey
 
-    gevent.monkey.patch_all()
+    monkey.patch_all()
 
     import threading
 
