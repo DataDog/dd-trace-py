@@ -176,7 +176,6 @@ class TelemetryWriter(PeriodicService):
             }
             self._events_queue.append(event)
 
-
     def add_integration(self, integration_name, auto_enabled):
         # type: (str, bool) -> None
         """
