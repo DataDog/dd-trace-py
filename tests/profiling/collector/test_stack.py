@@ -7,14 +7,17 @@ import threading
 import time
 import timeit
 from types import FrameType
+import typing
 import uuid
 
 import pytest
 import six
 from six.moves import _thread
 
+import ddtrace
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
+from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
