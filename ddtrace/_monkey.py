@@ -133,15 +133,6 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-class IntegrationNotAvailableException(PatchException):
-    """Exception for when an integration is not available.
-
-    Raised when the module required for an integration is not available.
-    """
-
-    pass
-
-
 def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
     # type: (str, str, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
