@@ -22,17 +22,16 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     """
 
     HOST_NAME = get_hostname()
+    metric_type = ""
 
-    def __init__(self, namespace, name, metric_type, tags, common, interval=None):
-        # type: (str, str, MetricType, MetricTagType, bool, Optional[float]) -> None
+    def __init__(self, namespace, name, tags, common, interval=None):
+        # type: (str, str, MetricTagType, bool, Optional[float]) -> None
         """
         name: metric name
-        metric_type: type of metric (count/gauge/rate)
         common: set to True if a metric is common to all tracers, false if it is python specific
         interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
         """
         self.name = name
-        self.type = metric_type
         self.common = common
         self.interval = interval
         self._roll_up_interval = interval
@@ -46,7 +45,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         """
         https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
         """
-        return "".join([self.name, str(self._tags)])
+        return self.name + str(self._tags)
 
     def __hash__(self):
         return self.id
@@ -73,7 +72,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         return {
             "host": self.HOST_NAME,
             "name": self.name,
-            "type": self.type,
+            "type": self.metric_type,
             "common": self.common,
             "interval": int(self.interval) if self.interval else None,
             "points": self._points,
@@ -87,12 +86,12 @@ class CountMetric(Metric):
     metric tracking the number of website hits, for instance.
     """
 
+    metric_type = "count"
+
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         timestamp = int(time.time())
-        # self._count += 1.0
-        # self._points = [(timestamp, self._count)]
         self._points.append((timestamp, float(value)))
 
 
@@ -104,12 +103,13 @@ class GaugeMetric(Metric):
     Choosing the correct metric type ensures accurate data.
     """
 
+    metric_type = "gauge"
+
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         timestamp = int(time.time())
         self._points = [(timestamp, float(value))]
-        # self._points.append((timestamp, value))
 
 
 class RateMetric(Metric):
@@ -117,6 +117,8 @@ class RateMetric(Metric):
     The rate type takes the count and divides it by the length of the time interval. This is useful if you’re
     interested in the number of hits per second.
     """
+
+    metric_type = "rate"
 
     def add_point(self, value=1.0):
         # type: (float) -> None
