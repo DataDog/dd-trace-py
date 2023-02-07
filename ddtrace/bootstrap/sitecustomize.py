@@ -68,6 +68,14 @@ if PY2:
 
 
 def cleanup_loaded_modules():
+    dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
+    if dd_unload_sitecustomize_modules == "no":
+        log.debug("skipping sitecustomize module unload because of configuration variable")
+        return
+    elif dd_unload_sitecustomize_modules == "auto":
+        return
+    elif dd_unload_sitecustomize_modules != "yes":
+        return
     # Unload all the modules that we have imported, except for ddtrace and a few
     # others that don't like being cloned.
     # Doing so will allow ddtrace to continue using its local references to modules unpatched by
