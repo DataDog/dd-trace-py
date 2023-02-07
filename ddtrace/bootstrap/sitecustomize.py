@@ -95,7 +95,7 @@ def cleanup_loaded_modules():
 
         del sys.modules[m]
 
-    # TODO: The better strategy is to identify the core modues in MODULES_LOADED_AT_STARTUP
+    # TODO: The better strategy is to identify the core modules in MODULES_LOADED_AT_STARTUP
     # that should not be unloaded, and then unload as much as possible.
     if "time" in sys.modules:
         del sys.modules["time"]
