@@ -22,6 +22,7 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.utils.cache import LFUCache
@@ -176,6 +177,19 @@ def probe_factory(attribs):
         )
 
         return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
+
+    elif _type == ProbeType.SPAN_PROBE:
+        args = dict(
+            probe_id=_id,
+            condition=_compile_expression(attribs.get("when")),
+            active=attribs["active"],
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+            resource=attribs["resource"],
+            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
+        )
+
+        return _create_probe_based_on_location(args, attribs, None, SpanFunctionProbe)
 
     raise ValueError("Unknown probe type: %s" % _type)
 
