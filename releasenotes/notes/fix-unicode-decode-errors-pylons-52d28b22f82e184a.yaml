@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pylons: This fix resolves an issue where ``str.decode`` could cause critical unicode decode errors when ASM is enabled. ASM is disabled by default.
