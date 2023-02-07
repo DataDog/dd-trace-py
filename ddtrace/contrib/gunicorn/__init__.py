@@ -1,5 +1,5 @@
 """
-**Note:** Python 2 is not supported with `Gunicorn <https://gunicorn.org>`__.
+**Note:** dd-trace-py under Python 2 is not supported with `Gunicorn <https://gunicorn.org>`__.
 """
 
 
