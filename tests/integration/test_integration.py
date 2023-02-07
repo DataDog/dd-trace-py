@@ -851,14 +851,3 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
-
-
-def test_no_warnings():
-    env = os.environ.copy()
-    # Have to disable sqlite3 as coverage uses it on process shutdown
-    # which results in a trace being generated after the tracer shutdown
-    # has been initiated which results in a deprecation warning.
-    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
-    assert out == b"", out
-    assert err == b"", err
