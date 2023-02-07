@@ -72,7 +72,7 @@ def cleanup_loaded_modules():
     for m in list(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP):
         if m.startswith("atexit"):
             continue
-        if m.startswith("typing"):  # reguired by Python < 3.7
+        if m.startswith("typing"):  # required by Python < 3.7
             continue
         if m.startswith("ddtrace"):
             continue
