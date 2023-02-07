@@ -99,7 +99,8 @@ def should_cleanup_loaded_modules():
     elif dd_unload_sitecustomize_modules not in ("1", "auto"):
         log.debug(
             "skipping sitecustomize module unload because of invalid envvar value"
-            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == {}".format(dd_unload_sitecustomize_modules)
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == {}",
+            dd_unload_sitecustomize_modules,
         )
         return False
     elif dd_unload_sitecustomize_modules == "auto" and not gevent_is_installed():
