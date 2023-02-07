@@ -5,8 +5,6 @@ import pytest
 
 
 if sys.version_info.major >= 3:
-    import astunparse
-
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
