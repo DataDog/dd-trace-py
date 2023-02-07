@@ -82,7 +82,12 @@ def gevent_is_installed():
     elif sys.version_info >= (3, 1):
         return importlib.find_module("gevent")
     elif sys.version_info >= (2, 7):
-        return imp.find_module("gevent")
+        try:
+            imp.find_module("gevent")
+        except ImportError:
+            return False
+        else:
+            return True
     return False
 
 
