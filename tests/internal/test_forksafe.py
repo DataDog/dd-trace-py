@@ -292,7 +292,9 @@ def test_double_fork():
     out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"), err=None
 )
 def test_gevent_gunicorn_behaviour():
-    # ---- Emulate sitecustomize.py ----
+    # emulate how sitecustomize.py cleans up imported modules
+    # to avoid problems with threads/forks that we saw previously
+    # when running gunicorn with gevent workers
 
     import sys
 
