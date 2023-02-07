@@ -447,8 +447,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
-                    # FIXME[bytecode-3.11]: debugger depends on bytecode, which doesn't yet have 3.11 support
-                    pys=select_pys(min_version="3.5", max_version="3.10"),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
@@ -1791,8 +1790,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphene": ["~=2.1.9", "~=3.0.0", latest],
                     },
@@ -1812,8 +1810,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
                     },
