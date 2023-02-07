@@ -6,8 +6,6 @@ import os
 import pkgutil
 from typing import Tuple
 
-import chardet
-
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)
@@ -20,12 +18,6 @@ def get_encoding(module_path):  # type: (str) -> str
     First tries to detect the encoding for the file,
     otherwise, returns global encoding default
     """
-    try:
-        res = chardet.detect(module_path)  # type: ignore[arg-type]
-        return res["encoding"]
-    except TypeError:
-        pass
-
     global ENCODING
     if not ENCODING:
         try:
