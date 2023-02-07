@@ -11,6 +11,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 
 
 def compile_template(*args):
@@ -85,6 +86,14 @@ def metric_probe_defaults(f):
     return _wrapper
 
 
+def span_probe_defaults(f):
+    def _wrapper(*args, **kwargs):
+        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
+        return f(*args, **kwargs)
+
+    return _wrapper
+
+
 @create_probe_defaults
 @probe_conditional_defaults
 @snapshot_probe_defaults
@@ -128,3 +137,11 @@ def create_metric_line_probe(**kwargs):
 @metric_probe_defaults
 def create_metric_function_probe(**kwargs):
     return MetricFunctionProbe(**kwargs)
+
+
+@create_probe_defaults
+@probe_conditional_defaults
+@function_location_defaults
+@span_probe_defaults
+def create_span_function_probe(**kwargs):
+    return SpanFunctionProbe(**kwargs)

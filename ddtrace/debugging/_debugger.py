@@ -18,6 +18,7 @@ from six import PY3
 
 import ddtrace
 from ddtrace.debugging._capture.collector import CapturedEventCollector
+from ddtrace.debugging._capture.dynamic_span import DynamicSpan
 from ddtrace.debugging._capture.metric_sample import MetricSample
 from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config
@@ -36,6 +37,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
@@ -345,6 +347,15 @@ class Debugger(Service):
                         context=trace_context,
                     )
                     open_contexts.append(self._collector.attach(snapshot))
+                elif isinstance(probe, SpanFunctionProbe):
+                    span = DynamicSpan(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
+                        context=trace_context,
+                    )
+                    open_contexts.append(self._collector.attach(span))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)

@@ -200,6 +200,23 @@ def test_multiple_configs():
         adapter = ProbeRCAdapter(cb)
 
         adapter(
+            config_metadata("spanProbe_probe1"),
+            {
+                "id": "probe1",
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+        adapter(
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
@@ -245,7 +262,7 @@ def test_multiple_configs():
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe2", "probe3"})),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
             }
         )
 
