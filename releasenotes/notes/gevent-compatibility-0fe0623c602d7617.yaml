@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    gevent: This fix resolves incompatibility between `ddtrace-run` and applications that depend on `gevent`, for example `gunicorn` servers.
