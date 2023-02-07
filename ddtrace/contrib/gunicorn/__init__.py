@@ -1,5 +1,6 @@
 """
-**Note:** dd-trace-py under Python 2 is not supported with `Gunicorn <https://gunicorn.org>`__.
+**Note:** dd-trace-py works best with `Gunicorn <https://gunicorn.org>`__ under Python versions >=3.8 and <=3.10.
+Using dd-trace-py with Gunicorn under other python versions may lead to unexpected behavior.
 """
 
 

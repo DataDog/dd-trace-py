@@ -2595,7 +2595,7 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
             ],
