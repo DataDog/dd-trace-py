@@ -68,22 +68,25 @@ if PY2:
 
 
 def cleanup_loaded_modules():
-    # Unload all the modules that we have imported, except for the ddtrace one.
+    # Unload all the modules that we have imported, except for ddtrace and a few
+    # others that don't like being cloned.
     # Doing so will allow ddtrace to continue using its local references to modules unpatched by
-    # gevent, while avoiding conflicts with user-application code potentially running 
+    # gevent, while avoiding conflicts with user-application code potentially running
     # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
     for m in list(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP):
         if m.startswith("atexit"):
             continue
-        if m.startswith("typing"):  # required by Python < 3.7
-            continue
-        if m.startswith("ddtrace"):
-            continue
         if m.startswith("asyncio"):
+            continue
+        if m.startswith("attr"):
             continue
         if m.startswith("concurrent"):
             continue
-        if m.startswith("attr"):
+        if m.startswith("ddtrace"):
+            continue
+        if m.startswith("logging"):
+            continue
+        if m.startswith("typing"):  # required by Python < 3.7
             continue
 
         if PY2:

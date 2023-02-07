@@ -3,8 +3,6 @@ import logging
 import attr
 
 import ddtrace
-from ddtrace.tracer import DD_LOG_FORMAT
-from ddtrace.tracer import debug_mode
 
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
@@ -118,12 +116,6 @@ def patch():
     if getattr(logging, "_datadog_patch", False):
         return
     setattr(logging, "_datadog_patch", True)
-
-    if not debug_mode:
-        if ddtrace.config.logs_injection:
-            logging.basicConfig(format=DD_LOG_FORMAT)
-        else:
-            logging.basicConfig()
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
     if hasattr(logging, "StrFormatStyle"):

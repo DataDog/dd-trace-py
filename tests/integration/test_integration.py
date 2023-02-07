@@ -696,6 +696,46 @@ s2.finish()
     assert p.returncode == 0
 
 
+@pytest.mark.parametrize(
+    "call_basic_config,debug_mode",
+    itertools.permutations((True, False, None), 2),
+)
+def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
+    """
+    When setting DD_CALL_BASIC_CONFIG env variable
+        When true
+            We call logging.basicConfig()
+        When false
+            We do not call logging.basicConfig()
+        When not set
+            We do not call logging.basicConfig()
+    """
+    env = os.environ.copy()
+
+    if debug_mode is not None:
+        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
+    if call_basic_config is not None:
+        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
+        has_root_handlers = call_basic_config
+    else:
+        has_root_handlers = False
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+root = logging.getLogger()
+print(len(root.handlers))
+""",
+        env=env,
+    )
+
+    assert status == 0
+    if has_root_handlers:
+        assert out == six.b("1\n")
+    else:
+        assert out == six.b("0\n")
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
@@ -813,6 +853,25 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
 
 
+def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_TRACE_DEBUG="1",
+        )
+    )
+    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+from ddtrace import patch_all
+logging.basicConfig(level=logging.DEBUG)
+patch_all()
+        """,
+        env=env,
+    )
+    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
+
+
 def test_no_warnings():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown
@@ -820,5 +879,5 @@ def test_no_warnings():
     # has been initiated which results in a deprecation warning.
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
-    assert out == b"", out.decode()
-    assert err == b"", err.decode()
+    assert out == b"", out
+    assert err == b"", err
