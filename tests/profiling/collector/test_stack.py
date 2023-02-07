@@ -7,17 +7,14 @@ import threading
 import time
 import timeit
 from types import FrameType
-import typing
 import uuid
 
 import pytest
 import six
 from six.moves import _thread
 
-import ddtrace
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
@@ -46,18 +43,6 @@ def func4():
 
 def func5():
     return time.sleep(1)
-
-
-def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
-    for _ in range(retries):
-        matched = list(filter(cond, collector.recorder.events[stack_event.StackSampleEvent]))
-        if matched:
-            return matched[0]
-
-        collector.recorder.events[stack_event.StackSampleEvent].clear()
-        time.sleep(interval)
-
-    raise RuntimeError("event wait timeout")
 
 
 def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
