@@ -4,6 +4,8 @@ from six import PY2
 
 
 if not PY2:
+    import astunparse
+
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
@@ -62,10 +64,9 @@ def test_visit_ast_changed(source_text, module_path, module_name):
 def test_astpatch_source_changed(module_path, module_name):
     module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
-    # # TODO: Requires astunparse dependency:
-    # new_code = astunparse.unparse(new_source)
-    # assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
-    # assert "ddtrace_aspects.str_aspect(" in new_code
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
+    assert "ddtrace_aspects.str_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
@@ -82,22 +83,19 @@ def test_astpatch_source_changed(module_path, module_name):
 def test_astpatch_source_changed_with_future_imports(module_path, module_name):
     module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
-    # # TODO: Requires astunparse dependency:
-
-
-#     new_code = astunparse.unparse(new_source)
-#     assert new_code.startswith(
-#         """
-# from __future__ import absolute_import
-# from __future__ import annotations
-# from __future__ import division
-# from __future__ import print_function
-# from __future__ import unicode_literals
-# import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-# import html
-# """
-#     )
-#     assert "ddtrace_aspects.str_aspect(" in new_code
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith(
+        """
+from __future__ import absolute_import
+from __future__ import annotations
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+import html
+        """
+    )
+    assert "ddtrace_aspects.str_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
