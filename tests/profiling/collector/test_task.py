@@ -1,5 +1,4 @@
 import os
-import threading
 
 import pytest
 
@@ -26,6 +25,8 @@ def test_list_tasks_gevent():
     import gevent.monkey
 
     gevent.monkey.patch_all()
+
+    import threading
 
     from ddtrace.internal import compat
     from ddtrace.profiling.collector import _task
