@@ -3,16 +3,16 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config as config
-from ddtrace.vendor.psutil._compat import lru_cache
+from ddtrace.internal.utils.cache import callonce
 
 
-@lru_cache(maxsize=32)
+@callonce
 def _is_python_version_supported():
     # IAST supports Python versions 3.6 to 3.10
     return (3, 6, 0) <= sys.version_info < (3, 11, 0)
 
 
-@lru_cache(maxsize=32)
+@callonce
 def _is_iast_enabled():
     if not config._iast_enabled:
         return False
