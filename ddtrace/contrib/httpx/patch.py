@@ -25,7 +25,8 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
-HTTPX_VERSION = tuple(map(int, httpx.__version__.split(".")))
+
+HTTPX_VERSION = parse_version(httpx.__version__)
 
 config._add(
     "httpx",
@@ -42,14 +43,19 @@ def _url_to_str(url):
     """
     Helper to convert the httpx.URL parts from bytes to a str
     """
-    # httpx==0.23.1 removed URL.raw, must construct it manually
-    if HTTPX_VERSION >= (0, 23, 1):
+    # httpx==0.13.0 added url.raw, removed in httpx==0.23.1. Otherwise must construct manually
+    if HTTPX_VERSION < (0, 13, 0):
+        scheme = url.scheme.encode("ascii")
+        host = url.host.encode("ascii")
+        port = url.port
+        raw_path = url.full_path.encode("ascii")
+    elif HTTPX_VERSION < (0, 23, 1):
+        scheme, host, port, raw_path = url.raw
+    else:
         scheme = url.raw_scheme
         host = url.raw_host
         port = url.port
         raw_path = url.raw_path
-    else:
-        scheme, host, port, raw_path = url.raw
     url = scheme + b"://" + host
     if port is not None:
         url += b":" + ensure_binary(str(port))
@@ -155,13 +161,12 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
-    version = parse_version(httpx.__version__)
     _w(httpx.Client, "send", _wrapped_sync_send)
 
     pin = Pin()
     pin.onto(httpx.Client)
 
-    if version >= (0, 11):
+    if HTTPX_VERSION >= (0, 11):
         # httpx==0.10.0 added AsyncClient as a synonym for Client for backwards compatibility
         # httpx==0.11.0 broke backwards compatibility and added a synchronous Client
         _w(httpx.AsyncClient, "send", _wrapped_async_send)
@@ -175,8 +180,7 @@ def unpatch():
 
     setattr(httpx, "_datadog_patch", False)
 
-    version = parse_version(httpx.__version__)
-    if version >= (0, 11):
+    if HTTPX_VERSION >= (0, 11):
         # See above patching code for when this patching occurred
         _u(httpx.AsyncClient, "send")
 

@@ -1865,7 +1865,6 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "httpx": [
-                    "~=0.9.0",
                     "~=0.11.0",
                     "~=0.14.0",
                     "~=0.15.0",
