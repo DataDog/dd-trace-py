@@ -126,7 +126,7 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
 
 
 def test_rc_rules_data(tracer):
-    tracer.configure(appsec_enabled=True)
+    with override_global_config(dict(_appsec_enabled=True)):
     with override_env({APPSEC_ENV: "true"}):
         with open("ddtrace/appsec/rules.json", "r") as dd_rules:
             config = {
