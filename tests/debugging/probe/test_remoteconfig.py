@@ -4,10 +4,13 @@ from uuid import uuid4
 import pytest
 
 from ddtrace.debugging._config import config
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.remoteconfig import probe as parse_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
@@ -260,3 +263,52 @@ def test_multiple_configs():
 
     finally:
         config.diagnostics_interval = old_interval
+
+
+def test_prase_log_probe_with_rate():
+    probe = parse_probe(
+        "1244",
+        "logProbes",
+        {
+            "active": True,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "sampling": {"snapshotsPerSecond": 1337},
+        },
+    )
+
+    assert probe.rate == 1337
+
+
+def test_prase_log_probe_default_rates():
+    probe = parse_probe(
+        "1244",
+        "logProbes",
+        {
+            "active": True,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": True,
+        },
+    )
+
+    assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
+
+    probe = parse_probe(
+        "1244",
+        "logProbes",
+        {
+            "active": True,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": False,
+        },
+    )
+
+    assert probe.rate == DEFAULT_PROBE_RATE

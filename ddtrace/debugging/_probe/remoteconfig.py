@@ -124,18 +124,20 @@ def probe(_id, _type, attribs):
     if _type == "logProbes":
         take_snapshot = attribs.get("captureSnapshot", False)
 
+        rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
+        if attribs.get("sampling"):
+            rate = attribs["sampling"].get("snapshotsPerSecond", rate)
+
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
-            rate=DEFAULT_SNAPSHOT_PROBE_RATE
-            if take_snapshot
-            else DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            rate=rate,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
-            template=attribs["template"],
+            template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
 
@@ -149,7 +151,7 @@ def probe(_id, _type, attribs):
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            rate=DEFAULT_PROBE_RATE,  # not been used
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             value=_compile_expression(attribs.get("value")),
         )
