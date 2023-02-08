@@ -245,28 +245,28 @@ def test_lock_gevent_tasks():
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) >= 1
 
     for event in r.events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading.py:234":
+        if event.lock_name == "test_threading.py:235":
             assert event.wait_time_ns >= 0
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 235, "play_with_lock", "")
+            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 236, "play_with_lock", "")
             assert event.sampling_pct == 100
             break
     else:
         pytest.fail("Lock event not found")
 
     for event in r.events[collector_threading.ThreadingLockReleaseEvent]:
-        if event.lock_name == "test_threading.py:234":
+        if event.lock_name == "test_threading.py:235":
             assert event.locked_for_ns >= 0
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 236, "play_with_lock", "")
+            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 237, "play_with_lock", "")
             assert event.sampling_pct == 100
             break
     else:

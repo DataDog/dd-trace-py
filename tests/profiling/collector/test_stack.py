@@ -419,7 +419,7 @@ def test_exception_collection():
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"
     assert e.frames == [
-        (__file__, test_exception_collection.__code__.co_firstlineno + 23, "test_exception_collection", "")
+        (__file__, test_exception_collection.__code__.co_firstlineno + 8, "test_exception_collection", "")
     ]
     assert e.nframes == 1
     assert e.exc_type == ValueError
@@ -453,7 +453,7 @@ def test_exception_collection_trace(
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"
     assert e.frames == [
-        (__file__, test_exception_collection_trace.__code__.co_firstlineno + 28, "test_exception_collection_trace", "")
+        (__file__, test_exception_collection_trace.__code__.co_firstlineno + 13, "test_exception_collection_trace", "")
     ]
     assert e.nframes == 1
     assert e.exc_type == ValueError
