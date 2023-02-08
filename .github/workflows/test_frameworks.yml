@@ -448,7 +448,7 @@ jobs:
       - name: Run tests
         run: |
           . ../ddtrace/.github/workflows/setup-tox.sh py39
-
+          
           pip install -e .
           pytest -p no:warnings -k "not test_import" tests/
 
