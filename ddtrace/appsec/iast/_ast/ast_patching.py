@@ -73,21 +73,21 @@ def astpatch_source(
         if hasattr(loader, "module_spec"):
             module_path = loader.module_spec.origin
             if not module_path:
-                log.debug("astpatch_source couldn't get module spec origin for: ", module_name)
+                log.debug("astpatch_source couldn't get module spec origin for: %s", module_name)
                 return "", ""
         else:
             # Enter in this else if the loader is instance of BuiltinImporter but
             # isinstance(loader, BuiltinImporter) doesn't work
-            log.debug("astpatch_source couldn't get loader from module name", module_name)
+            log.debug("astpatch_source couldn't get loader for: %s", module_name)
             return "", ""
 
     try:
         if os.stat(module_path).st_size == 0:
             # Don't patch empty files like __init__.py
-            log.debug("empty file: ", module_path)
+            log.debug("empty file: %s", module_path)
             return "", ""
     except FileNotFoundError:
-        log.debug("astpatch_source couldn't find the file: ", module_path)
+        log.debug("astpatch_source couldn't find the file: %s", module_path)
         return "", ""
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -97,19 +97,19 @@ def astpatch_source(
 
     if module_ext not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        log.debug("extension not supported: for : ", module_ext, module_path)
+        log.debug("extension not supported: %s for: %s", module_ext, module_path)
         return "", ""
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            log.debug("unicode decode error for file: ", module_path)
+            log.debug("unicode decode error for file: %s", module_path)
             return "", ""
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        log.debug("empty file: ", module_path)
+        log.debug("empty file: %s", module_path)
         return "", ""
 
     new_source = visit_ast(
@@ -118,7 +118,7 @@ def astpatch_source(
         module_name=module_name,
     )
     if new_source is None:
-        log.debug("file not ast patched: ", module_path)
+        log.debug("file not ast patched: %s", module_path)
         return "", ""
 
     return module_path, new_source
