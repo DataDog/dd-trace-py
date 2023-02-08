@@ -10,17 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+      "language": "python",
+      "runtime-id": "839b28bc836e415db4b392c344faf211"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 65771
+      "process_id": 10876
     },
-    "duration": 244934000,
-    "start": 1671993353001798000
+    "duration": 243265000,
+    "start": 1675875229511894000
   },
      {
        "name": "otel-parent1",
@@ -31,8 +32,8 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 110396000,
-       "start": 1671993353027088000
+       "duration": 107830000,
+       "start": 1675875229536894000
      },
         {
           "name": "otel-child1",
@@ -43,8 +44,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 65169000,
-          "start": 1671993353072185000
+          "duration": 65097000,
+          "start": 1675875229579543000
         },
      {
        "name": "orphan1",
@@ -55,8 +56,8 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 109181000,
-       "start": 1671993353137541000
+       "duration": 110374000,
+       "start": 1675875229644763000
      },
      {
        "name": "otel-parent2",
@@ -68,14 +69,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+         "runtime-id": "839b28bc836e415db4b392c344faf211"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 65771
+         "process_id": 10876
        },
-       "duration": 109115000,
-       "start": 1671993353137599000
+       "duration": 110304000,
+       "start": 1675875229644818000
      },
         {
           "name": "otel-child2",
@@ -87,12 +88,12 @@
           "type": "",
           "error": 0,
           "meta": {
-            "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+            "runtime-id": "839b28bc836e415db4b392c344faf211"
           },
           "metrics": {
             "_dd.top_level": 1,
-            "process_id": 65771
+            "process_id": 10876
           },
-          "duration": 65182000,
-          "start": 1671993353181432000
+          "duration": 65126000,
+          "start": 1675875229689896000
         }]]

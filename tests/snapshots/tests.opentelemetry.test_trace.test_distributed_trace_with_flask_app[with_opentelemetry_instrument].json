@@ -10,17 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "87e9cbc7c823475db63262e27b42e00f"
+      "language": "python",
+      "runtime-id": "4d178c1ef0204eefb5c613e48b1172a3"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 44965
+      "process_id": 11030
     },
-    "duration": 29715000,
-    "start": 1672074406527108000
+    "duration": 19158000,
+    "start": 1675875257806706000
   },
      {
        "name": "/otel",
@@ -41,19 +42,20 @@
          "http.status_code": "200",
          "http.target": "/otel",
          "http.user_agent": "python-requests/2.28.1",
+         "language": "python",
          "net.peer.ip": "127.0.0.1",
-         "runtime-id": "31feb380fd5b40819d189df2a381d980",
+         "runtime-id": "d564029f275b41238fbc3c0f49704aed",
          "span.kind": "server"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "net.host.port": 8001,
-         "net.peer.port": 58394,
-         "process_id": 44972
+         "net.peer.port": 49814,
+         "process_id": 11051
        },
-       "duration": 261912,
-       "start": 1672074406528889088
+       "duration": 371904,
+       "start": 1675875257808580096
      },
         {
           "name": "otel-flask-manual-span",
@@ -64,6 +66,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 13000,
-          "start": 1672074406529091000
+          "duration": 17000,
+          "start": 1675875257808853000
         }]]

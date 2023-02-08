@@ -10,17 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+      "language": "python",
+      "runtime-id": "839b28bc836e415db4b392c344faf211"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 65771
+      "process_id": 10876
     },
-    "duration": 118252000,
-    "start": 1671993353324897000
+    "duration": 117811000,
+    "start": 1675875229861905000
   },
      {
        "name": "ddtrace-top-level",
@@ -31,8 +32,8 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 118127000,
-       "start": 1671993353325004000
+       "duration": 117649000,
+       "start": 1675875229862046000
      },
         {
           "name": "ddtrace-child",
@@ -43,8 +44,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 42674000,
-          "start": 1671993353350075000
+          "duration": 44546000,
+          "start": 1675875229885009000
         },
         {
           "name": "otel-child",
@@ -55,8 +56,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 50282000,
-          "start": 1671993353392832000
+          "duration": 50042000,
+          "start": 1675875229929632000
         },
            {
              "name": "ddtrace-grandchild",
@@ -67,8 +68,8 @@
              "parent_id": 4,
              "type": "",
              "error": 0,
-             "duration": 25182000,
-             "start": 1671993353417911000
+             "duration": 25070000,
+             "start": 1675875229954579000
            },
               {
                 "name": "otel-grandchild",
@@ -79,6 +80,6 @@
                 "parent_id": 5,
                 "type": "",
                 "error": 0,
-                "duration": 25096000,
-                "start": 1671993353417967000
+                "duration": 24983000,
+                "start": 1675875229954626000
               }]]

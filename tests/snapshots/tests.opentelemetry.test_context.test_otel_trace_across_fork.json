@@ -10,17 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+      "language": "python",
+      "runtime-id": "839b28bc836e415db4b392c344faf211"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 65771
+      "process_id": 10876
     },
-    "duration": 324355000,
-    "start": 1671993353590077000
+    "duration": 320037000,
+    "start": 1675875230248820000
   },
      {
        "name": "task",
@@ -32,13 +33,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "71e64970f84c4544b33b003622cb8d0a"
+         "language": "python",
+         "runtime-id": "0bcb5b7962544b30aacf40ac84b6a757"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
-         "process_id": 65781
+         "process_id": 10882
        },
-       "duration": 25076000,
-       "start": 1671993353806593000
+       "duration": 25071000,
+       "start": 1675875230468447000
      }]]
