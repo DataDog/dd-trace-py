@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from functools import lru_cache
 import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config as config
+from ddtrace.vendor.psutil._compat import lru_cache
 
 
 @lru_cache(maxsize=32)
