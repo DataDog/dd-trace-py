@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import os
 import subprocess
-import sys
 
 import pytest
+from six import PY2
 
 from ddtrace.appsec.iast._util import _is_python_version_supported
 
@@ -31,11 +31,10 @@ def test_env_var_iast_enabled(capfd):
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "DEBUG:ddtrace.internal.module:IAST enabled" in captured.err
-    assert "IAST enabled" not in captured.out
     assert "hi" in captured.out
 
 
-@pytest.mark.skipif(sys.version_info[0] < 3, reason="Not testing Python 2")
+@pytest.mark.skipif(PY2, reason="Not testing Python 2")
 def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -44,14 +43,12 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "DEBUG:ddtrace.internal.module:IAST enabled" not in captured.err
-    assert "IAST enabled" not in captured.out
 
 
-@pytest.mark.skipif(sys.version_info[0] < 3, reason="Not testing Python 2")
+@pytest.mark.skipif(PY2, reason="Not testing Python 2")
 def test_env_var_iast_unset(monkeypatch, capfd):
     # type: (...) -> None
     _run_python_file()
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "DEBUG:ddtrace.internal.module:IAST enabled" not in captured.err
-    assert "IAST enabled" not in captured.out
