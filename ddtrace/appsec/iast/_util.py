@@ -2,8 +2,8 @@
 import sys
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config as config
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.settings import _config as config
 
 
 @callonce
