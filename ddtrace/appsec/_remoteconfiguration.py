@@ -55,7 +55,7 @@ def _add_rules_to_list(features, feature, message, rule_list):
     rules = features.get(feature, [])
     if rules:
         try:
-            rule_list += json.loads(rules)
+            rule_list += rules
             log.debug("Reloading Appsec %s: %s", message, rules)
         except JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
