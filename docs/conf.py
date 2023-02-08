@@ -177,6 +177,9 @@ html_theme = "alabaster"
 #
 html_theme_options = {
     "description": "Datadog's Python APM client",
+    # https://alabaster.readthedocs.io/en/latest/customization.html#basics
+    "page_width": "1200px",
+    "sidebar_width": "400px",
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
