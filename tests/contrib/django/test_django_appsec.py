@@ -383,8 +383,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     with override_env(dict(DD_IAST_ENABLED="true")):
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/", iast_enabled=True)
-        root_span.get_tag(IAST_JSON)
-        str_json = root_span.get_tag(APPSEC_JSON)
+        str_json = root_span.get_tag(IAST_JSON)
         assert str_json is not None, "no JSON tag in root span"
         vulnerability = json.loads(str_json)["vulnerabilities"][0]
         assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
