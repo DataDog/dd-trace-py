@@ -93,8 +93,11 @@ class AstVisitor(ast.NodeTransformer):
             insert_position += 1
             if isinstance(body_node, ImportFrom) and body_node.module == "__future__":
                 from_future_import_found = True
+            # As soon as we start a non-futuristic import we can stop looking
             elif from_future_import_found:
                 insert_position -= 1
+                break
+            else:
                 break
 
         if not from_future_import_found:

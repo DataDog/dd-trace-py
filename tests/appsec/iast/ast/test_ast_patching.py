@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-import sys
-
 import pytest
+from six import PY2
 
 
-if sys.version_info.major >= 3:
+if not PY2:
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
 
@@ -20,7 +19,7 @@ from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
         ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_visit_ast_unchanged(source_text, module_path, module_name):
     """
     Source texts not containing:
@@ -28,7 +27,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
     - [...]  // To be filled with more aspects
     won't be modified by ast patching, so will return empty string
     """
-    assert "" == visit_ast(source_text, module_path, module_name)
+    assert visit_ast(source_text, module_path, module_name) is None
 
 
 @pytest.mark.parametrize(
@@ -38,7 +37,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
         ("print(str('hi' + 'bye'))", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_visit_ast_changed(source_text, module_path, module_name):
     """
     Source texts containing:
@@ -46,7 +45,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     - [...]  // To be filled with more aspects
     will be modified by ast patching, so will not return empty string
     """
-    assert "" != visit_ast(source_text, module_path, module_name)
+    assert visit_ast(source_text, module_path, module_name) is not None
 
 
 @pytest.mark.parametrize(
@@ -59,7 +58,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
         # (None, "tests.appsec.iast.fixtures.aspects.str.function_str"),
     ],
 )
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_astpatch_source_changed(module_path, module_name):
     module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
@@ -79,16 +78,26 @@ def test_astpatch_source_changed(module_path, module_name):
         # (None, "tests.appsec.iast.fixtures.aspects.str.future_import_function_str"),
     ],
 )
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_astpatch_source_changed_with_future_imports(module_path, module_name):
     module_path, new_source = astpatch_source(module_name, module_path)
     assert ("", "") != (module_path, new_source)
     # # TODO: Requires astunparse dependency:
-    # new_code = astunparse.unparse(new_source)
-    # assert new_code.startswith(
-    #     "\nfrom __future__ import annotations\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects"
-    # )
-    # assert "ddtrace_aspects.str_aspect(" in new_code
+
+
+#     new_code = astunparse.unparse(new_source)
+#     assert new_code.startswith(
+#         """
+# from __future__ import absolute_import
+# from __future__ import annotations
+# from __future__ import division
+# from __future__ import print_function
+# from __future__ import unicode_literals
+# import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+# import html
+# """
+#     )
+#     assert "ddtrace_aspects.str_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
@@ -104,19 +113,12 @@ def test_astpatch_source_changed_with_future_imports(module_path, module_name):
         # (None, "tests.appsec.iast.fixtures.aspects.str.function_no_str"),
         # (None, "tests.appsec.iast.fixtures.aspects.str"),  # Empty __init__.py
         # (None, "tests.appsec.iast.fixtures.aspects.str.non_utf8_content"),  # EUC-JP file content
+        (None, None),
     ],
 )
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_astpatch_source_unchanged(module_path, module_name):
     assert ("", "") == astpatch_source(module_name, module_path)
-
-
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 3 only")
-def test_astpatch_source_raises_exception():
-    with pytest.raises(Exception) as e:
-        astpatch_source(None, None)
-
-    assert e.value.args == ("Implementation Error: You must pass module_name and, optionally, module_path",)
 
 
 def test_module_should_iast_patch():

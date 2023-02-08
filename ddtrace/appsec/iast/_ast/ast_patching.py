@@ -4,13 +4,19 @@ import ast
 import codecs
 import os
 import pkgutil
+from typing import Optional
 from typing import Tuple
+
+from ddtrace.appsec.iast._ast.visitor import AstVisitor
+from ddtrace.internal.logger import get_logger
 
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)
 
 ENCODING = ""
+
+log = get_logger(__name__)
 
 
 def get_encoding(module_path):  # type: (str) -> str
@@ -35,23 +41,17 @@ def visit_ast(
     source_text,  # type: str
     module_path,  # type: str
     module_name="",  # type: str
-):  # type: (...) -> str
+):  # type: (...) -> Optional[str]
     parsed_ast = ast.parse(source_text, module_path)
 
-    try:
-        from ddtrace.appsec.iast._ast.visitor import AstVisitor
+    visitor = AstVisitor(
+        filename=module_path,
+        module_name=module_name,
+    )
+    modified_ast = visitor.visit(parsed_ast)
 
-        visitor = AstVisitor(
-            filename=module_path,
-            module_name=module_name,
-        )
-        modified_ast = visitor.visit(parsed_ast)
-
-        if not visitor.ast_modified:
-            return ""
-
-    except Exception:
-        raise
+    if not visitor.ast_modified:
+        return None
 
     return modified_ast
 
@@ -62,7 +62,8 @@ def astpatch_source(
 ):  # type: (...) -> Tuple[str, str]
 
     if not module_path and not module_name:
-        raise Exception("Implementation Error: You must pass module_name and, optionally, module_path")
+        log.debug("astpatch_source called with no module path or name")
+        return "", ""
 
     if not module_path:
         # Get the module path from the module name (foo.bar -> foo/bar.py)
@@ -71,19 +72,22 @@ def astpatch_source(
         assert loader
         if hasattr(loader, "module_spec"):
             module_path = loader.module_spec.origin
+            if not module_path:
+                log.debug("astpatch_source couldn't get module spec origin for: ", module_name)
+                return "", ""
         else:
             # Enter in this else if the loader is instance of BuiltinImporter but
             # isinstance(loader, BuiltinImporter) doesn't work
+            log.debug("astpatch_source couldn't get loader from module name", module_name)
             return "", ""
-
-    if not module_path:
-        return "", ""
 
     try:
         if os.stat(module_path).st_size == 0:
             # Don't patch empty files like __init__.py
+            log.debug("empty file: ", module_path)
             return "", ""
     except FileNotFoundError:
+        log.debug("astpatch_source couldn't find the file: ", module_path)
         return "", ""
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -93,16 +97,19 @@ def astpatch_source(
 
     if module_ext not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
+        log.debug("extension not supported: for : ", module_ext, module_path)
         return "", ""
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
+            log.debug("unicode decode error for file: ", module_path)
             return "", ""
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
+        log.debug("empty file: ", module_path)
         return "", ""
 
     new_source = visit_ast(
@@ -110,7 +117,8 @@ def astpatch_source(
         module_path,
         module_name=module_name,
     )
-    if not new_source:
+    if new_source is None:
+        log.debug("file not ast patched: ", module_path)
         return "", ""
 
     return module_path, new_source
