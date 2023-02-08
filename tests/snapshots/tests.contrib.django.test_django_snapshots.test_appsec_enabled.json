@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.4.2",
+      "_dd.appsec.event_rules.version": "1.5.0",
       "_dd.appsec.waf.version": "1.6.1",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",
