@@ -19,6 +19,7 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -32,6 +33,12 @@ ASTTrasformer = Callable[[AST], AST]
 
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
+
+IS_IAST_ENABLED = _is_iast_enabled()
+
+if IS_IAST_ENABLED:
+    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -148,9 +155,10 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader):
-        # type: (Loader) -> None
+    def __init__(self, loader, module_spec=None):
+        # type: (Loader, Optional[ModuleSpec]) -> None
         self.loader = loader
+        self.module_spec = module_spec
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
@@ -404,7 +412,7 @@ class ModuleWatchdog(dict):
 
             if loader is not None:
                 if not isinstance(loader, _ImportHookChainedLoader):
-                    spec.loader = _ImportHookChainedLoader(loader)
+                    spec.loader = _ImportHookChainedLoader(loader, spec)
 
                 cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
