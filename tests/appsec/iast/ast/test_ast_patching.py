@@ -92,8 +92,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-import html
-        """
+import html"""
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
 
