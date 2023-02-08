@@ -24,7 +24,7 @@ ddtrace/**/*.html
 
 # Dynamic binary libraries
 ddtrace/appsec/ddwaf/libddwaf/
-libddwaf-.*-.*-.*.tar.gz.sha256
+libddwaf-*-*-*.tar.gz.sha256
 
 # Distribution / packaging
 .Python
