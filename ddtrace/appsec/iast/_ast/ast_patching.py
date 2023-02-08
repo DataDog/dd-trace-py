@@ -65,14 +65,15 @@ def astpatch_source(
         log.debug("astpatch_source called with no module path or name")
         return "", ""
 
-    if not module_path:
+    detected_module_path = module_path
+    if not detected_module_path:
         # Get the module path from the module name (foo.bar -> foo/bar.py)
         loader = pkgutil.get_loader(module_name)
 
         assert loader
         if hasattr(loader, "module_spec"):
-            module_path = loader.module_spec.origin
-            if not module_path:
+            detected_module_path = loader.module_spec.origin
+            if not detected_module_path:
                 log.debug("astpatch_source couldn't get module spec origin for: %s", module_name)
                 return "", ""
         else:
@@ -82,43 +83,43 @@ def astpatch_source(
             return "", ""
 
     try:
-        if os.stat(module_path).st_size == 0:
+        if os.stat(detected_module_path).st_size == 0:
             # Don't patch empty files like __init__.py
-            log.debug("empty file: %s", module_path)
+            log.debug("empty file: %s", detected_module_path)
             return "", ""
-    except FileNotFoundError:
-        log.debug("astpatch_source couldn't find the file: %s", module_path)
+    except OSError:
+        log.debug("astpatch_source couldn't find the file: %s", detected_module_path, exc_info=True)
         return "", ""
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
     # If its pyc or pyo, change to .py and check that the file exists. If not,
     # return with warning.
-    _, module_ext = os.path.splitext(module_path)
+    _, module_ext = os.path.splitext(detected_module_path)
 
-    if module_ext not in {".pyo", ".pyc", ".pyw", ".py"}:
+    if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        log.debug("extension not supported: %s for: %s", module_ext, module_path)
+        log.debug("extension not supported: %s for: %s", module_ext, detected_module_path)
         return "", ""
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(detected_module_path, "r", encoding=get_encoding(detected_module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            log.debug("unicode decode error for file: %s", module_path)
+            log.debug("unicode decode error for file: %s", detected_module_path, exc_info=True)
             return "", ""
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        log.debug("empty file: %s", module_path)
+        log.debug("empty file: %s", detected_module_path)
         return "", ""
 
     new_source = visit_ast(
         source_text,
-        module_path,
+        detected_module_path,
         module_name=module_name,
     )
     if new_source is None:
-        log.debug("file not ast patched: %s", module_path)
+        log.debug("file not ast patched: %s", detected_module_path)
         return "", ""
 
-    return module_path, new_source
+    return detected_module_path, new_source

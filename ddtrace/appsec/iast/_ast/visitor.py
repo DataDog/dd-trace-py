@@ -36,24 +36,16 @@ class AstVisitor(ast.NodeTransformer):
         """
 
         # Some nodes (like Module) dont have position
-        try:
-            lineno = pos_from_node.lineno
-            col_offset = pos_from_node.col_offset
-        except AttributeError:
-            lineno = 1
-            col_offset = 0
+        lineno = getattr(pos_from_node, "lineno", 1)
+        col_offset = getattr(pos_from_node, "col_offset", 0)
 
         if PY27_37:
             # No end_lineno or end_pos_offset
             return type_(lineno=lineno, col_offset=col_offset, **kwargs)
 
         # Py38+
-        try:
-            end_lineno = pos_from_node.end_lineno
-            end_col_offset = pos_from_node.end_col_offset
-        except AttributeError:
-            end_lineno = 1
-            end_col_offset = 0
+        end_lineno = getattr(pos_from_node, "end_lineno", 1)
+        end_col_offset = getattr(pos_from_node, "end_col_offset", 0)
 
         return type_(
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
@@ -85,10 +77,10 @@ class AstVisitor(ast.NodeTransformer):
 
         # Check all nodes that are "from __future__ import...", as we must insert after them.
         #
-        # Caveats:
+        # Caveat:
         # - body_node.lineno doesn't work because a large docstring changes the lineno
         #   but not the position in the nodes (i.e. this can happen: lineno==52, position==2)
-        # - `from __future__ import ...` may not be the first node (i.e: docstring can go first)
+        # TODO: Test and implement cases with docstrings before future imports, etc.
         for body_node in module_node.body:
             insert_position += 1
             if isinstance(body_node, ImportFrom) and body_node.module == "__future__":
