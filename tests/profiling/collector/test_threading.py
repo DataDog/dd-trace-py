@@ -2,7 +2,6 @@ import os
 import threading
 import uuid
 
-from gevent import monkey  # noqa
 import pytest
 from six.moves import _thread
 
