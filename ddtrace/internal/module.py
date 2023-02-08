@@ -17,6 +17,7 @@ from typing import Set
 from typing import Union
 from typing import cast
 
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -29,6 +30,12 @@ ModuleHookType = Callable[[ModuleType], None]
 
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
+
+IS_IAST_ENABLED = _is_iast_enabled()
+
+if IS_IAST_ENABLED:
+    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -145,9 +152,10 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader):
-        # type: (Loader) -> None
+    def __init__(self, loader, module_spec=None):
+        # type: (Loader, Optional[ModuleSpec]) -> None
         self.loader = loader
+        self.module_spec = module_spec
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
@@ -189,7 +197,18 @@ class _ImportHookChainedLoader(Loader):
         return self.loader.create_module(spec)
 
     def _exec_module(self, module):
-        self.loader.exec_module(module)
+        patched_source = None
+        if IS_IAST_ENABLED and _should_iast_patch(module.__name__):
+            log.debug("IAST enabled")
+            module_path, patched_source = astpatch_source(module.__name__)
+
+        if patched_source:
+            # Patched source is executed instead of original module
+            compiled_code = compile(patched_source, module_path, "exec")
+            exec(compiled_code, module.__dict__)
+        else:
+            self.loader.exec_module(module)
+
         for callback in self.callbacks.values():
             callback(module)
 
@@ -386,7 +405,7 @@ class ModuleWatchdog(dict):
 
             if loader is not None:
                 if not isinstance(loader, _ImportHookChainedLoader):
-                    spec.loader = _ImportHookChainedLoader(loader)
+                    spec.loader = _ImportHookChainedLoader(loader, spec)
 
                 cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
