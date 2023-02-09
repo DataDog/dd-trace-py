@@ -231,6 +231,8 @@ venv = Venv(
                 # the dependencies required to build the package.
                 # https://github.com/jelmer/dulwich/issues/963.
                 "dulwich": "<0.20.36",
+                "furo": latest,
+                "sphinx-copybutton": latest,
             },
             command="scripts/build-docs",
         ),
@@ -241,6 +243,7 @@ venv = Venv(
             pkgs={
                 "pycryptodome": latest,
                 "cryptography": latest,
+                "astunparse": latest,
             },
         ),
         Venv(
