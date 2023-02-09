@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
@@ -216,3 +217,15 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+
+
+def test_rc_rules_data(tracer):
+    tracer.configure(appsec_enabled=True)
+    with override_env({APPSEC_ENV: "true"}):
+        with open("ddtrace/appsec/rules.json", "r") as dd_rules:
+            config = {
+                "rules_data": [],
+                "custom_rules": [],
+                "rules": json.load(dd_rules),
+            }
+            _appsec_rules_data(tracer, config)
