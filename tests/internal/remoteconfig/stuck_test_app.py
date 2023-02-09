@@ -3,8 +3,10 @@ import time
 
 from flask import Flask
 
+
 app = Flask(__name__)
-app.config['PROPAGATE_EXCEPTIONS'] = True
+app.config["PROPAGATE_EXCEPTIONS"] = True
+
 
 def start():
     pid1 = os.fork()
@@ -14,7 +16,8 @@ def start():
     else:
         os.waitpid(pid1, 0)
 
-@app.route('/')
+
+@app.route("/")
 def index():
     start()
     return "OK"

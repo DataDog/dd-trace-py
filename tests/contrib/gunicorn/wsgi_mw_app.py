@@ -42,10 +42,10 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = bytes("goodbye", encoding="utf-8")
     else:
-        has_config_worker = hasattr(remoteconfig_writer._worker, "_worker")
+        has_config_worker = hasattr(remoteconfig_writer, "_worker")
         payload = {
             "remoteconfig": {
-                "worker_alive": has_config_worker and remoteconfig_writer._worker._worker.is_alive(),
+                "worker_alive": has_config_worker and remoteconfig_writer._worker.is_alive(),
                 "enabled_after_gevent_monkeypatch": remoteconfig_writer._was_enabled_after_gevent_monkeypatch,
             },
         }
