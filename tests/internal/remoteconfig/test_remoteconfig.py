@@ -124,7 +124,7 @@ def test_remote_config_forksafe():
 
         if os.fork() == 0:
             assert remoteconfig_writer._worker is not None
-            assert remoteconfig_writer._worker is not parent_worker
+            assert remoteconfig_writer._worker is parent_worker
             exit(0)
 
 

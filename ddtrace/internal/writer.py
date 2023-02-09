@@ -533,8 +533,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
-                    remoteconfig_writer.enable()
-                    # appsec remote config should be enabled/started after the global tracer and configs
+                    # remote config should be enabled/started after the global tracer and configs are initialized
+                    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+                        remoteconfig_writer.enable()
+                    # appsec remote config products should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()
             except service.ServiceStatusError:
