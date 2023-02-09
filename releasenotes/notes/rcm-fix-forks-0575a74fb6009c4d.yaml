@@ -1,4 +1,8 @@
 ---
 fixes:
   - |
-    Fix Remote Configuration Worker creates stuck children processes when an application uses ``os.fork``
+    Fix for the Remote Configuration Worker creating stuck children under gevent
+    when an application uses ``os.fork``. When running Remote Configuration Management
+    with gevent, ensure that you set the `DD_GEVENT_PATCH_ALL`` to `true`. Remote Configuration
+    Management is enabled by default. If you want to disable it, set the `DD_REMOTE_CONFIGURATION_ENABLED`
+    environment variable to `false`.
