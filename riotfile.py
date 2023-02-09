@@ -291,6 +291,7 @@ venv = Venv(
                 Venv(pys=select_pys()),
                 Venv(
                     env={"PYTHONOPTIMIZE": "1"},
+                    # Test with the latest version of Python only
                     pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
                 ),
             ],
