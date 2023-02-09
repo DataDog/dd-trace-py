@@ -161,14 +161,18 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
-    _w(httpx.Client, "send", _wrapped_sync_send)
+    if HTTPX_VERSION >= (0, 11):
+        # httpx==0.11 created synchronous Client class
+        _w(httpx.Client, "send", _wrapped_sync_send)
+    else:
+        # httpx==0.9 Client class was asynchronous, httpx==0.10 made Client synonymous with AsyncClient
+        _w(httpx.Client, "send", _wrapped_async_send)
 
     pin = Pin()
     pin.onto(httpx.Client)
 
     if HTTPX_VERSION >= (0, 11):
-        # httpx==0.10.0 added AsyncClient as a synonym for Client for backwards compatibility
-        # httpx==0.11.0 broke backwards compatibility and added a synchronous Client
+        # httpx==0.10.0 renamed asynchronous Client class as the AsyncClient class
         _w(httpx.AsyncClient, "send", _wrapped_async_send)
         pin.onto(httpx.AsyncClient)
 
