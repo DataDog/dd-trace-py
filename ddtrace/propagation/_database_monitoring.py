@@ -10,6 +10,7 @@ from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:
+    from typing import Callable
     from typing import Optional
 
     from ddtrace import Span
@@ -26,7 +27,6 @@ log = get_logger(__name__)
 
 
 def _default_sql_injector(dbm_comment, sql_statement):
-    # type: (str, str) -> str
     try:
         return dbm_comment + sql_statement
     except TypeError:
@@ -41,12 +41,14 @@ def _default_sql_injector(dbm_comment, sql_statement):
 
 
 class _DBM_Propagator(object):
-    def __init__(self, sql_pos, sql_kw, sql_injector=_default_sql_injector):
-        self.sql_pos = sql_pos
-        self.sql_kw = sql_kw
+    def __init__(self, arg_pos, arg_kw, sql_injector=_default_sql_injector):
+        # type: (int, str, Callable) -> None
+        self.sql_pos = arg_pos
+        self.sql_kw = arg_kw
         self.sql_injector = sql_injector
 
     def inject(self, dbspan, args, kwargs):
+        """Adds sql comment to a database query"""
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
             # injection_mode is disabled
@@ -56,12 +58,12 @@ class _DBM_Propagator(object):
         # add dbm comment to original_sql_statement
         sql_with_dbm_tags = self.sql_injector(dbm_comment, original_sql_statement)
         # replace the original query or procedure with sql_with_dbm_tags
-        args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
+        args, kwargs = set_argument_value(list(args), kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
         return args, kwargs
 
     def _get_dbm_comment(self, db_span):
         # type: (Span) -> Optional[str]
-        """Generate DBM trace injection comment and updates span tags
+        """Generate DBM trace injection comment and update span tags
         This method will set the ``_dd.dbm_trace_injected: "true"`` tag
         on ``db_span`` if the configured injection mode is ``"full"``.
         """
