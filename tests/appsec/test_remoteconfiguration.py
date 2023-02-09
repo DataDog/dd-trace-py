@@ -1,8 +1,10 @@
+import json
 import os
 
 import mock
 import pytest
 
+from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
@@ -121,3 +123,15 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
     appsec_rc_reload_features(tracer)(None, rc_config)
 
     assert RemoteConfig._worker._client._products["ASM_DATA"]
+
+
+def test_rc_rules_data(tracer):
+    tracer.configure(appsec_enabled=True)
+    with override_env({APPSEC_ENV: "true"}):
+        with open("ddtrace/appsec/rules.json", "r") as dd_rules:
+            config = {
+                "rules_data": [],
+                "custom_rules": [],
+                "rules": json.load(dd_rules),
+            }
+            _appsec_rules_data(tracer, config)
