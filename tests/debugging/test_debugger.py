@@ -24,9 +24,6 @@ from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import call_program
 
 
-
-
-
 def good_probe():
     # DEV: We build this on demand to ensure that rate limiting gets reset.
     return create_snapshot_line_probe(
