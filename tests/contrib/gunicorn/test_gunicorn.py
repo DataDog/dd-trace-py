@@ -194,6 +194,7 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
         SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
     ],
 )
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
@@ -202,13 +203,13 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     assert_remoteconfig_started_successfully(r)
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
         SETTINGS_GEVENT_DDTRACERUN_PATCH,
     ],
 )
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
