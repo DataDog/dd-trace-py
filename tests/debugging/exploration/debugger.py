@@ -22,17 +22,17 @@ from ddtrace.debugging._snapshot.collector import SnapshotContext
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import remoteconfig_writer
 
 
-class NoopRemoteConfig(RemoteConfig):
+class NoopRemoteConfig(remoteconfig_writer):
     @classmethod
     def register(cls, product, handler):
         pass
 
 
 # Disable remote config as we don't need it for exploration tests
-_debugger.RemoteConfig = NoopRemoteConfig
+_debugger.remoteconfig_writer = NoopRemoteConfig
 
 try:
     COLS, _ = os.get_terminal_size()

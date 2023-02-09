@@ -3,18 +3,18 @@ import base64
 import datetime
 import hashlib
 import json
-from time import sleep
 import warnings
 
 import mock
 import pytest
 
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import RemoteConfigWriter
+from ddtrace.internal.remoteconfig import get_poll_interval_seconds
+from ddtrace.internal.remoteconfig import remoteconfig_writer
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 
@@ -89,47 +89,47 @@ def get_mock_encoded_msg(msg):
     }
 
 
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+@mock.patch.object(remoteconfig_writer, "_check_remote_config_enable_in_agent")
 def test_remote_config_register_auto_enable(mock_check_remote_config_enable_in_agent):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    assert RemoteConfig._worker is None
+    assert remoteconfig_writer._worker is None
 
     mock_check_remote_config_enable_in_agent.return_value = True
-    RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
+    remoteconfig_writer.register("LIVE_DEBUGGER", lambda m, c: None)
 
-    assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
+    assert remoteconfig_writer._client._products["LIVE_DEBUGGER"] is not None
 
-    RemoteConfig.disable()
+    remoteconfig_writer.disable()
 
-    assert RemoteConfig._worker is None
+    assert remoteconfig_writer._worker is None
 
 
 @pytest.mark.subprocess
 def test_remote_config_forksafe():
     import mock
 
-    from ddtrace.internal.remoteconfig import RemoteConfig
+    from ddtrace.internal.remoteconfig import remoteconfig_writer
 
     with mock.patch.object(
-        RemoteConfig, "_check_remote_config_enable_in_agent"
+        remoteconfig_writer, "_check_remote_config_enable_in_agent"
     ) as mock_check_remote_config_enable_in_agent:
         mock_check_remote_config_enable_in_agent.return_value = True
 
         import os
 
-        RemoteConfig.enable()
+        remoteconfig_writer.enable()
 
-        parent_worker = RemoteConfig._worker
+        parent_worker = remoteconfig_writer._worker
         assert parent_worker is not None
 
         if os.fork() == 0:
-            assert RemoteConfig._worker is not None
-            assert RemoteConfig._worker is not parent_worker
+            assert remoteconfig_writer._worker is not None
+            assert remoteconfig_writer._worker is not parent_worker
             exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+@mock.patch.object(RemoteConfigWriter, "_check_remote_config_enable_in_agent")
 def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
@@ -139,14 +139,12 @@ def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, 
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
-        mock_check_remote_config_enable_in_agent.return_value = True
-        mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-        rc = RemoteConfig()
-        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        sleep(0.2)
-        mock_send_request.assert_called_once()
-        assert callback.features == {"asm": {"enabled": True}}
+    mock_check_remote_config_enable_in_agent.return_value = True
+    mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+    remoteconfig_writer.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+    remoteconfig_writer.periodic()
+    mock_send_request.assert_called_once()
+    assert callback.features == {"asm": {"enabled": True}}
 
 
 def test_remote_configuration_check_deprecated_var():
@@ -191,4 +189,4 @@ def test_remoteconfig_semver():
 @mock.patch("ddtrace.internal.agent._healthcheck")
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
     mock_healthcheck.return_value = result
-    assert RemoteConfig._check_remote_config_enable_in_agent() is expected
+    assert remoteconfig_writer._check_remote_config_enable_in_agent() is expected

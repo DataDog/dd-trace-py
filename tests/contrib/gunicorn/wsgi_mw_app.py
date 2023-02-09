@@ -8,7 +8,7 @@ import sys
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import remoteconfig_writer
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa
 from tests.webclient import PingFilter
@@ -28,7 +28,7 @@ if sys.version_info < (3, 11):
 
 
 def aggressive_shutdown():
-    RemoteConfig.disable()
+    remoteconfig_writer.disable()
     if sys.version_info < (3, 11):
         DynamicInstrumentation.disable()
     tracer.shutdown(timeout=1)
@@ -42,11 +42,11 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = bytes("goodbye", encoding="utf-8")
     else:
-        has_config_worker = hasattr(RemoteConfig._worker, "_worker")
+        has_config_worker = hasattr(remoteconfig_writer._worker, "_worker")
         payload = {
             "remoteconfig": {
-                "worker_alive": has_config_worker and RemoteConfig._worker._worker.is_alive(),
-                "enabled_after_gevent_monkeypatch": RemoteConfig._was_enabled_after_gevent_monkeypatch,
+                "worker_alive": has_config_worker and remoteconfig_writer._worker._worker.is_alive(),
+                "enabled_after_gevent_monkeypatch": remoteconfig_writer._was_enabled_after_gevent_monkeypatch,
             },
         }
         json_payload = json.dumps(payload)

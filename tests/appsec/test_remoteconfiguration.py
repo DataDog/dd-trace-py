@@ -12,14 +12,14 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import remoteconfig_writer
 from tests.utils import override_env
 
 
 def _stop_remote_config_worker():
-    if RemoteConfig._worker:
-        RemoteConfig._worker._stop_service()
-        RemoteConfig._worker = None
+    if remoteconfig_writer._worker:
+        remoteconfig_writer._worker._stop_service()
+        remoteconfig_writer._worker = None
 
 
 @pytest.fixture
@@ -111,18 +111,18 @@ def test_rc_capabilities(rc_enabled, capability):
         assert _appsec_rc_capabilities() == capability
 
 
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+@mock.patch.object(remoteconfig_writer, "_check_remote_config_enable_in_agent")
 def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agent, tracer, remote_config_worker):
     mock_check_remote_config_enable_in_agent.return_value = True
     tracer.configure(appsec_enabled=False, api_version="v0.4")
 
     rc_config = {"asm": {"enabled": True}}
 
-    assert not RemoteConfig._worker
+    assert not remoteconfig_writer._worker
 
     appsec_rc_reload_features(tracer)(None, rc_config)
 
-    assert RemoteConfig._worker._client._products["ASM_DATA"]
+    assert remoteconfig_writer._worker._client._products["ASM_DATA"]
 
 
 def test_rc_rules_data(tracer):

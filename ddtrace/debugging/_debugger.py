@@ -51,7 +51,7 @@ from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import remoteconfig_writer
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
@@ -243,7 +243,7 @@ class Debugger(Service):
         )
 
         # Register the debugger with the RCM client.
-        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
+        remoteconfig_writer.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 

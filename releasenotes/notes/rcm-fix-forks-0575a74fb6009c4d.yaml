@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Remote Configuration Worker creates stuck children processes when an application uses ``os.fork``
