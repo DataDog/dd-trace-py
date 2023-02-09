@@ -44,8 +44,10 @@ def _url_to_str(url):
     """
     Helper to convert the httpx.URL parts from bytes to a str
     """
-    # httpx==0.13.0 added url.raw, removed in httpx==0.23.1. Otherwise must construct manually
+    # httpx==0.13.0 added URL.raw, removed in httpx==0.23.1. Otherwise, must construct manually
     if HTTPX_VERSION < (0, 13, 0):
+        # Manually construct the same way httpx==0.13 does it:
+        # https://github.com/encode/httpx/blob/2c2c6a71a9ff520d237f8283a586df2753f01f5e/httpx/_models.py#L161
         scheme = url.scheme.encode("ascii")
         host = url.host.encode("ascii")
         port = url.port
@@ -160,20 +162,18 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
+    pin = Pin()
+
     if HTTPX_VERSION >= (0, 11):
-        # httpx==0.11 created synchronous Client class
+        # httpx==0.11 created synchronous Client class separate from AsyncClient
         _w(httpx.Client, "send", _wrapped_sync_send)
+        _w(httpx.AsyncClient, "send", _wrapped_async_send)
+        pin.onto(httpx.AsyncClient)
     else:
         # httpx==0.9 Client class was asynchronous, httpx==0.10 made Client synonymous with AsyncClient
         _w(httpx.Client, "send", _wrapped_async_send)
 
-    pin = Pin()
     pin.onto(httpx.Client)
-
-    if HTTPX_VERSION >= (0, 11):
-        # httpx==0.10.0 renamed asynchronous Client class as the AsyncClient class
-        _w(httpx.AsyncClient, "send", _wrapped_async_send)
-        pin.onto(httpx.AsyncClient)
 
 
 def unpatch():
