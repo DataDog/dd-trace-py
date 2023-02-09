@@ -268,11 +268,44 @@ else:
     CONTEXTVARS_IS_AVAILABLE = True
 
 
+try:
+    from pep562 import Pep562  # noqa
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        if sys.version_info < (3, 7):
+            Pep562(module_name)
+
+
+except ImportError:
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        pass
+
+
 def maybe_stringify(obj):
     # type: (Any) -> Optional[str]
     if obj is not None:
         return stringify(obj)
     return None
+
+
+def to_bytes_py2(n, length, byteorder):
+    # type: (int, int, str) -> Text
+    """
+    Convert a string to bytes in the format expected by the remote config
+    capabilities string, considering the byteorder, which is needed
+    for Python 2.
+    """
+    if byteorder == "little":
+        order = range(length)
+    elif byteorder == "big":
+        order = reversed(range(length))  # type: ignore[assignment]
+    else:
+        raise ValueError("byteorder must be either 'little' or 'big'")
+
+    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
 
 
 NoneType = type(None)

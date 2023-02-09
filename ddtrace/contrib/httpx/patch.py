@@ -12,6 +12,7 @@ from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -116,8 +117,7 @@ async def _wrapped_async_send(
         return await wrapped(*args, **kwargs)
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.httpx.integration_name)
+        span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         _init_span(span, req)
         resp = None
@@ -142,8 +142,7 @@ def _wrapped_sync_send(
     req = get_argument_value(args, kwargs, 0, "request")
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.httpx.integration_name)
+        span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         _init_span(span, req)
         resp = None

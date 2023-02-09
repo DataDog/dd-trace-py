@@ -11,6 +11,7 @@ import xmltodict
 
 from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -84,8 +85,7 @@ class PylonsTraceMiddleware(object):
         )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", ddconfig.pylons.integration_name)
+            span.set_tag_str(COMPONENT, ddconfig.pylons.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be
@@ -107,11 +107,11 @@ class PylonsTraceMiddleware(object):
                         if hasattr(request, "json"):
                             req_body = request.json
                         else:
-                            req_body = json.loads(request.body.decode("UTF-8"))
+                            req_body = json.loads(request.body.decode(request.charset or "utf-8", errors="ignore"))
                     elif content_type in ("application/xml", "text/xml"):
-                        req_body = xmltodict.parse(request.body.decode("UTF-8"))
+                        req_body = xmltodict.parse(request.body.decode(request.charset or "utf-8", errors="ignore"))
                     else:  # text/plain, xml, others: take them as strings
-                        req_body = request.body.decode("UTF-8")
+                        req_body = request.body.decode(request.charset or "utf-8", errors="ignore")
 
                 except (
                     AttributeError,

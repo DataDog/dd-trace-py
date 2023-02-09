@@ -129,7 +129,7 @@ class PsycopgCore(TracerTestCase):
                     "out.host": "127.0.0.1",
                 },
                 metrics={
-                    "out.port": TEST_PORT,
+                    "network.destination.port": TEST_PORT,
                 },
             ),
         )
