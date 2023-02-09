@@ -23,6 +23,7 @@
       "http.url": "http://localhost:8000/template-view/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "3d99c0a9ed4e44d48fde55b67e5646db"
     },
     "metrics": {

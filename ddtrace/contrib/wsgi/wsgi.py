@@ -20,6 +20,8 @@ from six.moves.urllib.parse import quote
 import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
@@ -121,16 +123,14 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
-        req_span.set_tag_str("component", self._config.integration_name)
+        req_span.set_tag_str(COMPONENT, self._config.integration_name)
 
         self._request_span_modifier(req_span, environ)
 
         try:
             app_span = self.tracer.trace(self._application_span_name)
 
-            # set component tag equal to name of integration
-            app_span.set_tag_str("component", self._config.integration_name)
+            app_span.set_tag_str(COMPONENT, self._config.integration_name)
 
             intercept_start_response = functools.partial(
                 self._traced_start_response, start_response, req_span, app_span
@@ -148,8 +148,7 @@ class _DDWSGIMiddlewareBase(object):
         # start_span(child_of=...) is used to ensure correct parenting.
         resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
 
-        # set component tag equal to name of integration
-        resp_span.set_tag_str("component", self._config.integration_name)
+        resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
         self._response_span_modifier(resp_span, result)
 
@@ -239,7 +238,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
-        request_span.set_tag_str("http.status_msg", status_msg)
+        request_span.set_tag_str(http.STATUS_MSG, status_msg)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
 
         with self.tracer.start_span(
@@ -249,8 +248,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             span_type=SpanTypes.WEB,
             activate=True,
         ) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", self._config.integration_name)
+            span.set_tag_str(COMPONENT, self._config.integration_name)
 
             return start_response(status, environ, exc_info)
 

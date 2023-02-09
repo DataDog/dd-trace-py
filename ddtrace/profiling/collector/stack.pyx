@@ -336,38 +336,36 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 continue
 
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
+            if nframes:
+                stack_events.append(
+                    stack_event.StackSampleEvent(
+                        thread_id=thread_id,
+                        thread_native_id=thread_native_id,
+                        thread_name=thread_name,
+                        task_id=task_id,
+                        task_name=task_name,
+                        nframes=nframes, frames=frames,
+                        wall_time_ns=wall_time,
+                        sampling_period=int(interval * 1e9),
+                    )
+                )
 
+        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+        if nframes:
             event = stack_event.StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
-                task_id=task_id,
-                task_name=task_name,
-                nframes=nframes, frames=frames,
+                task_id=thread_task_id,
+                task_name=thread_task_name,
+                nframes=nframes,
+                frames=frames,
                 wall_time_ns=wall_time,
+                cpu_time_ns=cpu_time,
                 sampling_period=int(interval * 1e9),
             )
-
+            event.set_trace_info(span, collect_endpoint)
             stack_events.append(event)
-
-        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
-
-        event = stack_event.StackSampleEvent(
-            thread_id=thread_id,
-            thread_native_id=thread_native_id,
-            thread_name=thread_name,
-            task_id=thread_task_id,
-            task_name=thread_task_name,
-            nframes=nframes,
-            frames=frames,
-            wall_time_ns=wall_time,
-            cpu_time_ns=cpu_time,
-            sampling_period=int(interval * 1e9),
-        )
-
-        event.set_trace_info(span, collect_endpoint)
-
-        stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
@@ -448,7 +446,7 @@ class StackCollector(collector.PeriodicCollector):
     max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
-    endpoint_collection_enabled = attr.ib(factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool))
+    endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)

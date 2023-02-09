@@ -3,8 +3,8 @@ import base64
 import datetime
 import hashlib
 import json
-import re
 from time import sleep
+import warnings
 
 import mock
 import pytest
@@ -14,6 +14,8 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
+from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 
 
@@ -128,7 +130,7 @@ def test_remote_config_forksafe():
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
-def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_send_request):
+def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
 
@@ -137,7 +139,7 @@ def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_sen
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         mock_check_remote_config_enable_in_agent.return_value = True
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
@@ -147,12 +149,31 @@ def test_remote_configuration(mock_check_remote_config_enable_in_agent, mock_sen
         assert callback.features == {"asm": {"enabled": True}}
 
 
+def test_remote_configuration_check_deprecated_var():
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+            get_poll_interval_seconds()
+            assert len(capture) == 0
+
+
+def test_remote_configuration_check_deprecated_var_message():
+    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+        with warnings.catch_warnings(record=True) as capture:
+            get_poll_interval_seconds()
+            assert len(capture) == 1
+            assert str(capture[0].message).startswith("Using environment")
+
+
+def test_remote_configuration_check_deprecated_override():
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.5")):
+        with warnings.catch_warnings(record=True) as capture:
+            assert get_poll_interval_seconds() == 0.1
+            assert len(capture) == 1
+            assert str(capture[0].message).startswith("Using environment")
+
+
 def test_remoteconfig_semver():
-    assert re.match(
-        r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*["
-        r"a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
-        RemoteConfigClient()._client_tracer["tracer_version"],
-    )
+    _assert_and_get_version_agent_format(RemoteConfigClient()._client_tracer["tracer_version"])
 
 
 @pytest.mark.parametrize(

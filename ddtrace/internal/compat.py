@@ -1,4 +1,5 @@
 from inspect import isgeneratorfunction
+import ipaddress
 import platform
 import random
 import re
@@ -274,6 +275,23 @@ def maybe_stringify(obj):
     return None
 
 
+def to_bytes_py2(n, length, byteorder):
+    # type: (int, int, str) -> Text
+    """
+    Convert a string to bytes in the format expected by the remote config
+    capabilities string, considering the byteorder, which is needed
+    for Python 2.
+    """
+    if byteorder == "little":
+        order = range(length)
+    elif byteorder == "big":
+        order = reversed(range(length))  # type: ignore[assignment]
+    else:
+        raise ValueError("byteorder must be either 'little' or 'big'")
+
+    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
+
+
 NoneType = type(None)
 
 BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
@@ -312,3 +330,16 @@ except ImportError:
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
+
+
+def ip_is_global(ip):
+    # type: (str) -> bool
+    """
+    is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
+    """
+    parsed_ip = ipaddress.ip_address(six.text_type(ip))
+
+    if PY3:
+        return parsed_ip.is_global
+
+    return not (parsed_ip.is_loopback or parsed_ip.is_private)

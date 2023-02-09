@@ -1,4 +1,5 @@
 import collections
+import itertools
 import operator
 import platform
 import sysconfig
@@ -8,6 +9,7 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
@@ -107,41 +109,6 @@ _ITEMGETTER_ONE = operator.itemgetter(1)
 _ATTRGETTER_ID = operator.attrgetter("id")
 
 
-@attr.s
-class _Sequence(object):
-    start_at = attr.ib(default=1, type=int)
-    next_id = attr.ib(init=False, default=None, type=int)
-
-    def __attrs_post_init__(self) -> None:
-        self.next_id = self.start_at
-
-    def generate(self) -> int:
-        """Generate a new unique id and return it."""
-        generated_id = self.next_id
-        self.next_id += 1
-        return generated_id
-
-
-@attr.s
-class _StringTable(object):
-    _strings = attr.ib(init=False, factory=lambda: {"": 0})
-    _seq_id = attr.ib(init=False, factory=_Sequence)
-
-    def to_id(self, string: str) -> int:
-        try:
-            return self._strings[string]
-        except KeyError:
-            generated_id = self._strings[string] = self._seq_id.generate()
-            return generated_id
-
-    def __iter__(self) -> typing.Iterator[str]:
-        for string, _ in sorted(self._strings.items(), key=_ITEMGETTER_ONE):
-            yield string
-
-    def __len__(self) -> int:
-        return len(self._strings)
-
-
 cdef str _none_to_str(object value):
     return "" if value is None else str(value)
 
@@ -204,8 +171,8 @@ class _PprofConverter(object):
     _locations = attr.ib(init=False, factory=dict, type=typing.Dict[typing.Tuple[str, int, str], pprof_LocationType])
     _string_table = attr.ib(init=False, factory=_StringTable)
 
-    _last_location_id = attr.ib(init=False, factory=_Sequence)
-    _last_func_id = attr.ib(init=False, factory=_Sequence)
+    _last_location_id = attr.ib(init=False, factory=lambda: itertools.count(1))
+    _last_func_id = attr.ib(init=False, factory=lambda: itertools.count(1))
 
     # A dict where key is a (Location, [Labels]) and value is a a dict.
     # This dict has sample-type (e.g. "cpu-time") as key and the numeric value.
@@ -225,7 +192,7 @@ class _PprofConverter(object):
             return self._functions[(filename, funcname)]
         except KeyError:
             func = pprof_pb2.Function(
-                id=self._last_func_id.generate(),
+                id=next(self._last_func_id),
                 name=self._str(funcname),
                 filename=self._str(filename),
             )
@@ -242,7 +209,7 @@ class _PprofConverter(object):
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
             location = pprof_pb2.Location(
-                id=self._last_location_id.generate(),
+                id=next(self._last_location_id),
                 line=[
                     pprof_pb2.Line(
                         function_id=self._to_Function(filename, funcname).id,
@@ -255,7 +222,7 @@ class _PprofConverter(object):
 
     def _str(self, string: str) -> int:
         """Convert a string to an id from the string table."""
-        return self._string_table.to_id(str(string))
+        return self._string_table.index(str(string))
 
     def _to_locations(
         self,
@@ -463,7 +430,7 @@ class _PprofConverter(object):
                     "name": lib.name,
                     "kind": "library",
                     "version": lib.version,
-                    "paths": sorted(lib_and_filename[1] for lib_and_filename in libs_and_filenames),
+                    "paths": [lib_and_filename[1] for lib_and_filename in libs_and_filenames],
                 }
             )
             for lib, libs_and_filenames in groupby(
@@ -496,7 +463,7 @@ class _PprofConverter(object):
                 value=[values.get(sample_type_name, 0) for sample_type_name, unit in sample_types],
                 label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],
             )
-            for (locations, labels), values in sorted(six.iteritems(self._location_values), key=_ITEMGETTER_ZERO)
+            for (locations, labels), values in six.iteritems(self._location_values)
         ]
 
         period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))
@@ -512,10 +479,9 @@ class _PprofConverter(object):
                     filename=self._str(program_name),
                 ),
             ],
-            # Sort location and function by id so the output is reproducible
-            location=sorted(self._locations.values(), key=_ATTRGETTER_ID),
-            function=sorted(self._functions.values(), key=_ATTRGETTER_ID),
-            string_table=list(self._string_table),
+            location=self._locations.values(),
+            function=self._functions.values(),
+            string_table=self._string_table,
             time_nanos=start_time_ns,
             duration_nanos=duration_ns,
             period=period,
