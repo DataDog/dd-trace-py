@@ -71,6 +71,7 @@ extensions = [
     "reno.sphinxext",
     "sphinxcontrib.spelling",
     "envier.sphinx",
+    "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
 
 # Add filters for sphinxcontrib.spelling
@@ -169,17 +170,25 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
+# See https://pradyunsg.me/furo/customisation/
+DATADOG_DARK_PURPLE = "#632CA6"
+
 html_theme_options = {
-    "description": "Datadog's Python APM client",
-    # https://alabaster.readthedocs.io/en/latest/customization.html#basics
-    "page_width": "1200px",
-    "sidebar_width": "400px",
+    "light_css_variables": {
+        "color-brand-primary": DATADOG_DARK_PURPLE,
+        "color-brand-content": DATADOG_DARK_PURPLE,
+    },
+    "dark_css_variables": {
+        # TODO: update to use a correct color, since dark purple is hard to read
+        # "color-brand-primary": DATADOG_DARK_PURPLE,
+        # "color-brand-content": DATADOG_DARK_PURPLE,
+    },
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -203,7 +212,7 @@ html_theme_options = {
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-# html_favicon = None
+html_favicon = "favicon.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -229,7 +238,7 @@ html_theme_options = {
 
 # Custom sidebar templates, maps document names to template names.
 #
-html_sidebars = {"**": ["about.html", "navigation.html", "relations.html", "searchbox.html"]}
+# html_sidebars = {"**": [""]}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
