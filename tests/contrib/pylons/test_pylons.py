@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 import os
 
+import mock
 from paste import fixture
 from paste.deploy import loadapp
 import pylons
@@ -674,11 +676,60 @@ class PylonsTestCase(TracerTestCase):
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
-    def test_pylons_body_xml_attack(self):
+    def test_pylons_body_json_unicode_decode_error_charset(self):
+        # Regression test, if request.charset returns None, a TypeError is raised
+        with self.override_global_config(dict(_appsec_enabled=True)):
+
+            with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), mock.patch(
+                "ddtrace.contrib.pylons.middleware.Request.charset", new_callable=mock.PropertyMock
+            ) as mock_charset:
+                mock_charset.return_value = None
+                self.tracer._appsec_enabled = True
+                # Hack: need to pass an argument to configure so that the processors are recreated
+                self.tracer.configure(api_version="v0.4")
+                self.app.post(
+                    url_for(controller="root", action="index"),
+                    params=b"\x80",
+                    extra_environ={"CONTENT_TYPE": "application/json"},
+                )
+
+                spans = self.pop_spans()
+                assert spans
+
+                root_span = spans[0]
+                appsec_json = root_span.get_tag("_dd.appsec.json")
+                assert appsec_json is None
+
+                assert "UnicodeDecodeError" not in self._caplog.text
+                assert _context.get_item("http.request.body", span=root_span) is None
+
+    def test_pylons_body_json_unicode_decode_error(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+            with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+                self.tracer._appsec_enabled = True
+                # Hack: need to pass an argument to configure so that the processors are recreated
+                self.tracer.configure(api_version="v0.4")
+                self.app.post(
+                    url_for(controller="root", action="index"),
+                    params=b"\x80",
+                    extra_environ={"CONTENT_TYPE": "application/json"},
+                )
+
+                spans = self.pop_spans()
+                assert spans
+
+                root_span = spans[0]
+                appsec_json = root_span.get_tag("_dd.appsec.json")
+                assert appsec_json is None
+
+                assert "UnicodeDecodeError" not in self._caplog.text
+                assert _context.get_item("http.request.body", span=root_span) is None
+
+    def test_pylons_body_xml_attack_and_unicode_decode_error(self):
         with override_global_config(dict(_appsec_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = "<attack>1' or '1' = '1'</attack>"
+            payload = b"\x80<attack>1' or '1' = '1'</attack>"
             self.app.post(
                 url_for(controller="root", action="index"),
                 params=payload,
@@ -690,6 +741,8 @@ class PylonsTestCase(TracerTestCase):
 
             root_span = spans[0]
             assert root_span
+
+            assert "UnicodeDecodeError" not in self._caplog.text
             assert root_span.get_tag("_dd.appsec.json") is None
 
             span = dict(_context.get_item("http.request.body", span=root_span))
