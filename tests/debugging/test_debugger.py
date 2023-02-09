@@ -12,8 +12,8 @@ from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.registry import _get_probe_location
-from ddtrace.internal.remoteconfig import RemoteConfigWriter
-from ddtrace.internal.remoteconfig import remoteconfig_writer
+from ddtrace.internal.remoteconfig import RemoteConfigPoller
+from ddtrace.internal.remoteconfig import remoteconfig_poller
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_metric_line_probe
@@ -668,11 +668,11 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
         assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-@mock.patch.object(RemoteConfigWriter, "_check_remote_config_enable_in_agent")
+@mock.patch.object(RemoteConfigPoller, "_check_remote_config_enable_in_agent")
 def test_probe_status_logging(mock_check_remote_config_enable_in_agent, monkeypatch):
     mock_check_remote_config_enable_in_agent.return_value = True
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    remoteconfig_writer.disable()
+    remoteconfig_poller.disable()
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 

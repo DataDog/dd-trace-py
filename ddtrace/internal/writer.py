@@ -36,7 +36,7 @@ from .agent import get_connection
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
-from .remoteconfig import remoteconfig_writer
+from .remoteconfig import remoteconfig_poller
 from .runtime import container
 from .sma import SimpleMovingAverage
 
@@ -535,7 +535,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                         telemetry_writer.enable()
                     # remote config should be enabled/started after the global tracer and configs are initialized
                     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
-                        remoteconfig_writer.enable()
+                        remoteconfig_poller.enable()
                     # appsec remote config products should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()

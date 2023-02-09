@@ -41,15 +41,15 @@ def enable_appsec_rc():
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.appsec._constants import PRODUCTS
-        from ddtrace.internal.remoteconfig import remoteconfig_writer
+        from ddtrace.internal.remoteconfig import remoteconfig_poller
 
-        remoteconfig_writer.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
         if tracer._appsec_enabled:
-            remoteconfig_writer.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-            remoteconfig_writer.register(
+            remoteconfig_poller.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+            remoteconfig_poller.register(
                 PRODUCTS.ASM, appsec_rc_reload_features(tracer)
             )  # Exclusion Filters & Custom Rules
-            remoteconfig_writer.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+            remoteconfig_poller.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
 
 def _add_rules_to_list(features, feature, message, rule_list):
@@ -84,7 +84,7 @@ def _appsec_1click_activation(tracer, features):
 
     if rc_appsec_enabled is not None:
         from ddtrace.appsec._constants import PRODUCTS
-        from ddtrace.internal.remoteconfig import remoteconfig_writer
+        from ddtrace.internal.remoteconfig import remoteconfig_poller
 
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
         _appsec_enabled = True
@@ -93,15 +93,15 @@ def _appsec_1click_activation(tracer, features):
             not asbool(os.environ.get(APPSEC_ENV)) or not rc_appsec_enabled
         ):
             _appsec_enabled = False
-            remoteconfig_writer.unregister(PRODUCTS.ASM_DATA)
-            remoteconfig_writer.unregister(PRODUCTS.ASM)
-            remoteconfig_writer.unregister(PRODUCTS.ASM_DD)
+            remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+            remoteconfig_poller.unregister(PRODUCTS.ASM)
+            remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
         else:
-            remoteconfig_writer.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-            remoteconfig_writer.register(
+            remoteconfig_poller.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+            remoteconfig_poller.register(
                 PRODUCTS.ASM, appsec_rc_reload_features(tracer)
             )  # Exclusion Filters & Custom Rules
-            remoteconfig_writer.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+            remoteconfig_poller.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
         if tracer._appsec_enabled != _appsec_enabled:
             tracer.configure(appsec_enabled=_appsec_enabled)

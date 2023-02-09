@@ -3,7 +3,7 @@ import sys
 import gevent.monkey
 
 from ddtrace.debugging import DynamicInstrumentation
-from ddtrace.internal.remoteconfig import remoteconfig_writer
+from ddtrace.internal.remoteconfig import remoteconfig_poller
 
 
 # take some notes about the relative ordering of thread creation and
@@ -16,4 +16,4 @@ monkeypatch_happened = gevent.monkey.is_module_patched("threading")
 if sys.version_info < (3, 11):
     DynamicInstrumentation.enable()
 
-remoteconfig_writer._was_enabled_after_gevent_monkeypatch = monkeypatch_happened
+remoteconfig_poller._was_enabled_after_gevent_monkeypatch = monkeypatch_happened

@@ -14,9 +14,9 @@ import pytest
 import tenacity
 
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.remoteconfig import RemoteConfigWriter
+from ddtrace.internal.remoteconfig import RemoteConfigPoller
 from ddtrace.internal.remoteconfig import get_poll_interval_seconds
-from ddtrace.internal.remoteconfig import remoteconfig_writer
+from ddtrace.internal.remoteconfig import remoteconfig_poller
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
@@ -96,47 +96,47 @@ def get_mock_encoded_msg(msg):
     }
 
 
-@mock.patch.object(remoteconfig_writer, "_check_remote_config_enable_in_agent")
+@mock.patch.object(remoteconfig_poller, "_check_remote_config_enable_in_agent")
 def test_remote_config_register_auto_enable(mock_check_remote_config_enable_in_agent):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    assert remoteconfig_writer._worker is None
+    assert remoteconfig_poller._worker is None
 
     mock_check_remote_config_enable_in_agent.return_value = True
-    remoteconfig_writer.register("LIVE_DEBUGGER", lambda m, c: None)
+    remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
 
-    assert remoteconfig_writer._client._products["LIVE_DEBUGGER"] is not None
+    assert remoteconfig_poller._client._products["LIVE_DEBUGGER"] is not None
 
-    remoteconfig_writer.disable()
+    remoteconfig_poller.disable()
 
-    assert remoteconfig_writer._worker is None
+    assert remoteconfig_poller._worker is None
 
 
 @pytest.mark.subprocess
 def test_remote_config_forksafe():
     import mock
 
-    from ddtrace.internal.remoteconfig import remoteconfig_writer
+    from ddtrace.internal.remoteconfig import remoteconfig_poller
 
     with mock.patch.object(
-        remoteconfig_writer, "_check_remote_config_enable_in_agent"
+        remoteconfig_poller, "_check_remote_config_enable_in_agent"
     ) as mock_check_remote_config_enable_in_agent:
         mock_check_remote_config_enable_in_agent.return_value = True
 
         import os
 
-        remoteconfig_writer.enable()
+        remoteconfig_poller.enable()
 
-        parent_worker = remoteconfig_writer._worker
+        parent_worker = remoteconfig_poller._worker
         assert parent_worker is not None
 
         if os.fork() == 0:
-            assert remoteconfig_writer._worker is not None
-            assert remoteconfig_writer._worker is parent_worker
+            assert remoteconfig_poller._worker is not None
+            assert remoteconfig_poller._worker is parent_worker
             exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch.object(RemoteConfigWriter, "_check_remote_config_enable_in_agent")
+@mock.patch.object(RemoteConfigPoller, "_check_remote_config_enable_in_agent")
 def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, mock_send_request):
     class Callback:
         features = {}
@@ -148,8 +148,8 @@ def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, 
 
     mock_check_remote_config_enable_in_agent.return_value = True
     mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-    remoteconfig_writer.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-    remoteconfig_writer.periodic()
+    remoteconfig_poller.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+    remoteconfig_poller.periodic()
     mock_send_request.assert_called_once()
     assert callback.features == {"asm": {"enabled": True}}
 
@@ -196,7 +196,7 @@ def test_remoteconfig_semver():
 @mock.patch("ddtrace.internal.agent._healthcheck")
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
     mock_healthcheck.return_value = result
-    assert remoteconfig_writer._check_remote_config_enable_in_agent() is expected
+    assert remoteconfig_poller._check_remote_config_enable_in_agent() is expected
 
 
 def _count_running_processes(canary_str):

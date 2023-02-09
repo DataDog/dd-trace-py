@@ -245,8 +245,8 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
-    def exists_products(self):
-        return len(self._products) > 0
+    def has_products(self):
+        return bool(self._products)
 
     def register_product(self, product_name, func=None):
         # type: (str, Optional[ProductCallback]) -> None

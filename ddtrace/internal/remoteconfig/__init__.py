@@ -34,16 +34,16 @@ def get_poll_interval_seconds():
     )
 
 
-class RemoteConfigWriter(periodic.PeriodicService):
+class RemoteConfigPoller(periodic.PeriodicService):
     def __init__(self):
-        super(RemoteConfigWriter, self).__init__(interval=get_poll_interval_seconds())
+        super(RemoteConfigPoller, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def periodic(self):
         # type: () -> None
         with StopWatch() as sw:
-            if self._client.exists_products():
+            if self._client.has_products():
                 self._client.request()
 
         t = sw.elapsed()
@@ -108,7 +108,7 @@ class RemoteConfigWriter(periodic.PeriodicService):
         timeout=None,  # type: Optional[float]
     ):
         # type: (...) -> None
-        super(RemoteConfigWriter, self)._stop_service()
+        super(RemoteConfigPoller, self)._stop_service()
         self.join(timeout=timeout)
 
     def register(self, product, handler):
@@ -124,4 +124,4 @@ class RemoteConfigWriter(periodic.PeriodicService):
             log.warning("error starting the RCM client", exc_info=True)
 
 
-remoteconfig_writer = RemoteConfigWriter()
+remoteconfig_poller = RemoteConfigPoller()

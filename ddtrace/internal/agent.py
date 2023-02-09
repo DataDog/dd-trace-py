@@ -155,8 +155,8 @@ def _healthcheck():
         _conn.request("GET", "info", {}, {"content-type": "application/json"})
         resp = _conn.getresponse()
         data = resp.read()
-    except Exception as e:
-        log.warning("Unexpected error: HTTP error, reason %s", str(e))  # noqa: G200
+    except Exception:
+        log.warning("Unexpected error: HTTP error", exc_info=True)
         return False
     finally:
         _conn.close()
