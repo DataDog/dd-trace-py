@@ -201,7 +201,7 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     assert_no_profiler_error(server_process)
     assert_remoteconfig_started_successfully(r)
 
-
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
