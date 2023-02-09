@@ -22,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 5432,
+      "network.destination.port": 5432,
       "process_id": 1236
     },
     "duration": 10357000,
@@ -71,7 +71,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "out.port": 5432
+         "network.destination.port": 5432
        },
        "duration": 8586000,
        "start": 1666809594248958000
@@ -126,7 +126,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 5432,
+      "network.destination.port": 5432,
       "process_id": 1236
     },
     "duration": 9232000,
