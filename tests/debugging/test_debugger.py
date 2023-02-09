@@ -19,8 +19,12 @@ from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.submod.stuff import Stuff  # CAVEAT: NOT DELETE THIS LINE! we need Stuff class in tests
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import call_program
+
+
+
 
 
 def good_probe():
