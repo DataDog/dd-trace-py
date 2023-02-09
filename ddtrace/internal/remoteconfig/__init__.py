@@ -43,7 +43,8 @@ class RemoteConfigWriter(periodic.PeriodicService):
     def periodic(self):
         # type: () -> None
         with StopWatch() as sw:
-            self._client.request()
+            if self._client.exists_products():
+                self._client.request()
 
         t = sw.elapsed()
         if t >= self.interval:
