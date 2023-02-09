@@ -17,6 +17,14 @@ from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
+from ...propagation._database_monitoring import _DBM_Propagator
+
+
+def _psycopg2_sql_injector(dbm_comment, sql_statement):
+    # type: (str, Composable) -> Composable
+    if isinstance(sql_statement, Composable):
+        return psycopg2.sql.SQL(dbm_comment) + sql_statement
+    return dbm_comment + sql_statement
 
 
 config._add(
@@ -26,7 +34,7 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
-        _dbm_propagation_supported=True,
+        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg2_sql_injector),
     ),
 )
 
@@ -63,20 +71,13 @@ def unpatch():
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg2"""
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_operation, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
         if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
-
         return super(Psycopg2TracedCursor, self)._trace_method(
-            method, name, resource, extra_tags, dbm_operation, *args, **kwargs
+            method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
         )
-
-    def _dbm_sql_injector(self, dbm_comment, sql_statement):
-        if isinstance(sql_statement, Composable):
-            composable_dbm_comment = psycopg2.sql.SQL(dbm_comment)
-            return composable_dbm_comment + sql_statement
-        return super(Psycopg2TracedCursor, self)._dbm_sql_injector(dbm_comment, sql_statement)
 
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
