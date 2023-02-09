@@ -101,7 +101,9 @@ class TelemetryWriter(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
         forksafe.register(self._fork_writer)
 
-        # counter representing the number of events sent by the writer
+        # Counter representing the number of events sent by the writer. Here we are relying on the atomicity
+        # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry payloads is 
+        # only used in tests and is not a required to process Telemetry events.
         self._sequence = itertools.count(1)
         self._client = _TelemetryClient(self.ENDPOINT_V1)
 
