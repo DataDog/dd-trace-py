@@ -11,6 +11,7 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...ext import SpanTypes
@@ -76,8 +77,7 @@ class TraceTool(cherrypy.Tool):
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
-        cherrypy.request._datadog_span.set_tag_str("component", config.cherrypy.integration_name)
+        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy.integration_name)
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)

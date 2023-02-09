@@ -25,7 +25,7 @@
       "_dd1.sr.eausr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
-      "out.port": 3306,
+      "network.destination.port": 3306,
       "process_id": 9677
     },
     "duration": 1046000,

@@ -48,7 +48,7 @@
          "_dd.measured": 1,
          "_dd.top_level": 1,
          "db.row_count": 1,
-         "out.port": 5432
+         "network.destination.port": 5432
        },
        "duration": 1719000,
        "start": 1669648253048618000

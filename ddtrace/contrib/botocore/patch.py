@@ -25,6 +25,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -324,8 +325,7 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.botocore.integration_name)
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None
