@@ -353,6 +353,7 @@ setup(
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
+        "pep562; python_version<'3.7'",
     ]
     + bytecode,
     extras_require={

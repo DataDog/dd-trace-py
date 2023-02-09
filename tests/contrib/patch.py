@@ -686,17 +686,24 @@ class PatchTestCase(object):
                         from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
 
                         patched = False
+
                         def patch_hook(module):
                             def patch_wrapper(wrapped, _, args, kwrags):
                                 global patched
+
                                 result = wrapped(*args, **kwrags)
                                 sys.stdout.write("K")
                                 patched = True
                                 return result
+
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
+
                         sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+
                         sys.stdout.write("O")
+
                         import %s as mod
+
                         # If the module was already loaded during the sitecustomize
                         # we check that the module was marked as patched.
                         if not patched and (

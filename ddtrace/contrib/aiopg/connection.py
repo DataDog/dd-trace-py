@@ -9,6 +9,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import sql
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -34,8 +35,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
-            # set component tag equal to name of integration
-            s.set_tag_str("component", config.aiopg.integration_name)
+            s.set_tag_str(COMPONENT, config.aiopg.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag_str(sql.QUERY, resource)

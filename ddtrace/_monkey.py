@@ -86,6 +86,9 @@ PATCH_MODULES = {
 }
 
 
+# this information would make sense to live in the contrib modules,
+# but that would mean getting it would require importing those modules,
+# which we need to avoid until as late as possible.
 CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
@@ -130,15 +133,6 @@ class PatchException(Exception):
 
 
 class ModuleNotFoundException(PatchException):
-    pass
-
-
-class IntegrationNotAvailableException(PatchException):
-    """Exception for when an integration is not available.
-
-    Raised when the module required for an integration is not available.
-    """
-
     pass
 
 
