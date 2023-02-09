@@ -111,7 +111,7 @@ def test_remote_config_forksafe():
     from ddtrace.internal.remoteconfig import remoteconfig_poller
 
     with mock.patch.object(
-            remoteconfig_poller, "_check_remote_config_enable_in_agent"
+        remoteconfig_poller, "_check_remote_config_enable_in_agent"
     ) as mock_check_remote_config_enable_in_agent:
         mock_check_remote_config_enable_in_agent.return_value = True
 
