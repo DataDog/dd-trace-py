@@ -53,6 +53,23 @@ def application(tracer):
 
 
 @pytest.fixture
+def snapshot_app_with_middleware():
+    fastapi_patch()
+
+    application = app.get_app()
+
+    @application.middleware("http")
+    async def traced_middlware(request, call_next):
+        with ddtrace.tracer.trace("traced_middlware"):
+            response = await call_next(request)
+            return response
+
+    yield application
+
+    fastapi_unpatch()
+
+
+@pytest.fixture
 def client(tracer):
     with TestClient(app.get_app()) as test_client:
         yield test_client
@@ -608,3 +625,11 @@ def test_host_header(client, tracer, test_spans, host):
     assert test_spans.spans
     request_span = test_spans.spans[0]
     assert request_span.get_tag("http.url") == "http://%s/asynctask" % (host,)
+
+
+@snapshot()
+def test_tracing_in_middleware(snapshot_app_with_middleware):
+    """Test if fastapi middlewares are traced"""
+    with TestClient(snapshot_app_with_middleware) as test_client:
+        r = test_client.get("/", headers={"sleep": "False"})
+        assert r.status_code == 200
