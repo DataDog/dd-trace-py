@@ -53,15 +53,13 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def assert_remoteconfig_started_successfully(response, check_patch=True):
+def assert_remoteconfig_started_successfully(response):
     # ddtrace and gunicorn don't play nicely under python 3.5 or 3.11
     if sys.version_info[1] in (5, 11):
         return
     assert response.status_code == 200
     payload = parse_payload(response.content)
     assert payload["remoteconfig"]["worker_alive"] is True
-    if check_patch:
-        assert payload["remoteconfig"]["enabled_after_gevent_monkeypatch"] is True
 
 
 def _gunicorn_settings_factory(
@@ -73,7 +71,6 @@ def _gunicorn_settings_factory(
     bind="0.0.0.0:8080",  # type: str
     use_ddtracerun=True,  # type: bool
     import_sitecustomize_in_postworkerinit=False,  # type: bool
-    patch_gevent=None,  # type: Optional[bool]
     import_sitecustomize_in_app=None,  # type: Optional[bool]
     start_service_in_hook_named="post_fork",  # type: str
 ):
@@ -81,8 +78,6 @@ def _gunicorn_settings_factory(
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
     if env is None:
         env = os.environ.copy()
-    if patch_gevent is not None:
-        env["DD_GEVENT_PATCH_ALL"] = str(patch_gevent)
     if import_sitecustomize_in_app is not None:
         env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
     env["DD_REMOTECONFIG_POLL_SECONDS"] = str(SERVICE_INTERVAL)
@@ -167,22 +162,19 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
-SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
+SETTINGS_GEVENT_DDTRACERUN = _gunicorn_settings_factory(
     worker_class="gevent",
-    patch_gevent=True,
 )
-SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_app=True,
-    patch_gevent=True,
     start_service_in_hook_named="post_worker_init",
 )
-SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_postworkerinit=True,
-    patch_gevent=True,
     start_service_in_hook_named="post_worker_init",
 )
 
@@ -190,8 +182,9 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
-        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_DDTRACERUN,
     ],
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
@@ -199,20 +192,4 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r)
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        SETTINGS_GEVENT_DDTRACERUN_PATCH,
-    ],
-)
-def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        r = client.get("/")
-    # this particular error does not manifest in 3.8 and older
-    if sys.version_info[1] > 8:
-        assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
     assert_remoteconfig_started_successfully(r)
