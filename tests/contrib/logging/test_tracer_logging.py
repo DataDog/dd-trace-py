@@ -202,6 +202,7 @@ def test_logs_with_basicConfig(run_python_code_in_subprocess, ddtrace_run_python
 
         code = """
 import logging
+import ddtrace
 
 logging.basicConfig(format='%(message)s')
 
