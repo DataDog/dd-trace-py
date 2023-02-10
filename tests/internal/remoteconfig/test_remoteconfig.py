@@ -3,11 +3,15 @@ import base64
 import datetime
 import hashlib
 import json
+import os
+import signal
+import subprocess
 from time import sleep
 import warnings
 
 import mock
 import pytest
+import tenacity
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -15,8 +19,10 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
+from ddtrace.vendor import psutil
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
+from tests.webclient import Client
 
 
 def to_bytes(string):
@@ -192,3 +198,65 @@ def test_remoteconfig_semver():
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_healthcheck, result, expected):
     mock_healthcheck.return_value = result
     assert RemoteConfig._check_remote_config_enable_in_agent() is expected
+
+
+def _count_running_processes(canary_str):
+    found = 0
+    for proc in psutil.process_iter():
+        if canary_str in ' '.join(proc.cmdline()):
+            found += 1
+
+    return found
+
+
+def test_gevent_no_stuck_processes():  # type: () -> None
+    port = 8000
+    flask_app = "tests.internal.remoteconfig.stuck_test_app:app"
+    gunicorn_cmd = "gunicorn -b 0.0.0.0:%s -w 3 -k gevent %s" % (port, flask_app)
+    flask_env = os.environ.copy()
+    flask_env.update({
+        "DD_GEVENT_PATCH_ALL": "true",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+    })
+
+    proc = subprocess.Popen(
+        gunicorn_cmd.split(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        env=flask_env,
+        preexec_fn=os.setsid,
+    )
+
+    try:
+        client = Client("http://0.0.0.0:%s" % port)
+        # Wait for the server to start up
+        try:
+            client.wait()
+        except tenacity.RetryError:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            raise TimeoutError(
+                "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
+            )
+
+        # Do a bunch of requests and check that the number of processes doesn't increase
+        for i in range(20):
+            client.get("/")
+
+        sleep(2)
+        nprocesses = _count_running_processes(gunicorn_cmd)
+        assert nprocesses == 4
+
+        try:
+            client.get_ignored("/shutdown")
+        except Exception:
+            pass
+    finally:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+
+    nprocesses = _count_running_processes(gunicorn_cmd)
+
+    # Check that there are no zombie processes left
+    assert nprocesses == 0

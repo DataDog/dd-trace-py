@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
@@ -47,3 +48,12 @@ class RemoteConfigWorker(periodic.PeriodicService):
         else:
             log_level = logging.DEBUG
         log.log(log_level, "request config in %.5fs to %s", t, self._client.agent_url)
+
+    def _stop_service(self, timeout=None):
+        # type: (Optional[float]) -> None
+        super(RemoteConfigWorker, self)._stop_service(timeout)
+        self.join(timeout=timeout)
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        self.stop(timeout)

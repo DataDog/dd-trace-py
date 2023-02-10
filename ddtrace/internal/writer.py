@@ -36,6 +36,7 @@ from .agent import get_connection
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
+from .remoteconfig import RemoteConfig
 from .runtime import container
 from .sma import SimpleMovingAverage
 
@@ -532,6 +533,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+
+                    if asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", True)):
+                        RemoteConfig.enable()
+
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()
