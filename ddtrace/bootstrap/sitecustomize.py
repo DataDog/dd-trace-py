@@ -100,7 +100,7 @@ def is_installed(module_name):
 def should_cleanup_loaded_modules():
     dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
     if dd_unload_sitecustomize_modules == "0":
-        log.debug("skipping sitecustomize module unload because of DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == 0")
+        log.debug("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE==0: skipping sitecustomize module unload")
         return False
     elif dd_unload_sitecustomize_modules not in ("1", "auto"):
         log.debug(
