@@ -53,9 +53,8 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     [
         ("tests/appsec/iast/fixtures/aspects/str/function_str.py", "function_str"),
         ("tests/appsec/iast/fixtures/aspects/str/class_str.py", "class_str"),
-        # TODO: Require adding spec to ImportHookChainedLoader
-        # (None, "tests.appsec.iast.fixtures.aspects.str.class_str"),
-        # (None, "tests.appsec.iast.fixtures.aspects.str.function_str"),
+        (None, "tests.appsec.iast.fixtures.aspects.str.class_str"),
+        (None, "tests.appsec.iast.fixtures.aspects.str.function_str"),
     ],
 )
 @pytest.mark.skipif(PY2, reason="Python 3 only")
