@@ -1,0 +1,24 @@
+[
+    {
+        "a": "first",
+        "dict": "for",
+        "manually": "creating",
+        "merge": "conflicts"
+    },
+    {
+        "some": 1,
+        "data": 2,
+        "in": 3,
+        "the": 4,
+        "middle": 5,
+        "to": 6,
+        "seperate": 7,
+        "everything": 8
+    },
+    {
+        "another": "different",
+        "dict": "for",
+        "triggering": "merge",
+        "conflicts": "here"
+    }
+]
