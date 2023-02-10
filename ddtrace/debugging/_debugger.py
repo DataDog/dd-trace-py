@@ -243,8 +243,8 @@ class Debugger(Service):
         )
 
         # Register the debugger with the RCM client.
+        RemoteConfig.enable()
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
-
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
     def _on_encoder_buffer_full(self, item, encoded):
