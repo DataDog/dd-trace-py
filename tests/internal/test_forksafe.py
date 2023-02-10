@@ -289,7 +289,9 @@ def test_double_fork():
 
 
 @pytest.mark.subprocess(
-    out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"), err=None
+    out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"),
+    err=None,
+    env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
 )
 def test_gevent_gunicorn_behaviour():
     # emulate sitecustomize.py cleaning up imported modules
