@@ -91,7 +91,6 @@ import ddtrace
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
@@ -131,7 +130,6 @@ custom_logger.setLevel(logging.WARN)
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
@@ -169,7 +167,6 @@ custom_logger.setLevel(logging.WARN)
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 ddtrace_logger.warning('ddtrace warning log')
@@ -279,7 +276,6 @@ import logging
 import ddtrace
 
 logging.basicConfig(format='%(message)s')
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
@@ -339,7 +335,6 @@ import logging
 import os
 import ddtrace
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
@@ -349,7 +344,6 @@ assert ddtrace_logger.handlers[0].backupCount == 1
 if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
     ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 
 for attempt in range(100):
@@ -373,7 +367,6 @@ for attempt in range(100):
 import logging
 import os
 
-import logging
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
