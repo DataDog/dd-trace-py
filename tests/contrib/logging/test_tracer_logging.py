@@ -234,6 +234,7 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "200000"
     code = """
 import logging
+import ddtrace
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
 assert len(ddtrace_logger.handlers) == 1
