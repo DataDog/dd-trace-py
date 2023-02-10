@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-# import collections
 import gc
 import os
 import sys
@@ -172,40 +171,47 @@ def _fib(n):
         return _fib(n - 1) + _fib(n - 2)
 
 
-# TODO: This test assumes that it is running with a gevent-patched threading
-# module. Needs to be adapted to work again now.
-# @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-# def test_collect_gevent_thread_task():
-#     r = recorder.Recorder()
-#     s = stack.StackCollector(r)
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess
+def test_collect_gevent_thread_task():
+    from gevent import monkey  # noqa
 
-#     # Start some (green)threads
+    monkey.patch_all()
 
-#     def _dofib():
-#         for _ in range(10):
-#             # spend some time in CPU so the profiler can catch something
-#             _fib(28)
-#             # Just make sure gevent switches threads/greenlets
-#             time.sleep(0)
+    import threading
 
-#     threads = []
-#     with s:
-#         for i in range(10):
-#             t = threading.Thread(target=_dofib, name="TestThread %d" % i)
-#             t.start()
-#             threads.append(t)
-#         for t in threads:
-#             t.join()
+    import pytest
 
-#     for event in r.events[stack_event.StackSampleEvent]:
-#         if event.thread_name == "MainThread" and event.task_id in {thread.ident for thread in threads}:
-#             assert event.task_name.startswith("TestThread ")
-#             # This test is not uber-reliable as it has timing issue, therefore
-#             # if we find one of our TestThread with the correct info, we're
-#             # happy enough to stop here.
-#             break
-#     else:
-#         pytest.fail("No gevent thread found")
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+
+    # Start some (green)threads
+
+    def _dofib():
+        for _ in range(10):
+            # spend some time in CPU so the profiler can catch something
+            _fib(28)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
+
+    threads = []
+    with s:
+        for i in range(10):
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    for event in r.events[stack_event.StackSampleEvent]:
+        if event.thread_name == "MainThread" and event.task_id in {thread.ident for thread in threads}:
+            assert event.task_name.startswith("TestThread ")
+            # This test is not uber-reliable as it has timing issue, therefore
+            # if we find one of our TestThread with the correct info, we're
+            # happy enough to stop here.
+            break
+    else:
+        pytest.fail("No gevent thread found")
 
 
 def test_max_time_usage():
@@ -241,36 +247,6 @@ class CollectorTest(collector.PeriodicCollector):
         # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
         _fib(22)
         return []
-
-
-# TODO: This test assumes that the profiler threads are greenlets. This is no
-# longer the case, so presumably we can remove this test.
-# @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-# @pytest.mark.parametrize("ignore", (True, False))
-# def test_ignore_profiler_gevent_task(monkeypatch, ignore):
-#     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
-#     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", str(ignore))
-
-#     p = profiler.Profiler()
-#     p.start()
-#     # This test is particularly useful with gevent enabled: create a test
-#     # collector that run often and for long so we're sure to catch it with the
-#     # StackProfiler and that it's not ignored.
-#     c = CollectorTest(p._profiler._recorder, interval=0.00001)
-#     c.start()
-
-#     for _ in range(100):
-#         events = p._profiler._recorder.reset()
-#         ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
-#         if (c._worker.ident in ids) != ignore:
-#             break
-#         # Give some time for gevent to switch greenlets
-#         time.sleep(0.1)
-#     else:
-#         assert False
-
-#     c.stop()
-#     p.stop(flush=False)
 
 
 def test_collect():
@@ -665,76 +641,85 @@ def test_thread_time_cache():
         )
 
 
-# TODO: This test no longer creates greenlets and needs to be adapted if we want
-# to keep it. Probably need to run as subprocess test.
-# @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-# def test_collect_gevent_threads():
-#     # type: (...) -> None
-#     r = recorder.Recorder()
-#     s = stack.StackCollector(r, ignore_profiler=True, max_time_usage_pct=100)
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess
+def test_collect_gevent_threads():
+    import gevent.monkey
 
-#     iteration = 100
-#     sleep_time = 0.01
-#     nb_threads = 15
+    gevent.monkey.patch_all()
 
-#     # Start some greenthreads: they do nothing we just keep switching between them.
-#     def _nothing():
-#         for _ in range(iteration):
-#             # Do nothing and just switch to another greenlet
-#             time.sleep(sleep_time)
+    import collections
+    import threading
 
-#     threads = []
-#     with s:
-#         for i in range(nb_threads):
-#             t = threading.Thread(target=_nothing, name="TestThread %d" % i)
-#             t.start()
-#             threads.append(t)
-#         for t in threads:
-#             t.join()
+    import compat
+    import pytest
 
-#     main_thread_found = False
-#     sleep_task_found = False
-#     wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
+    # type: (...) -> None
+    r = recorder.Recorder()
+    s = stack.StackCollector(r, ignore_profiler=True, max_time_usage_pct=100)
 
-#     events = r.events[stack_event.StackSampleEvent]
-#     for event in events:
-#         if event.task_id == compat.main_thread.ident:
-#             if event.task_name is None:
-#                 pytest.fail("Task with no name detected, is it the Hub?")
-#             else:
-#                 main_thread_found = True
-#         elif event.task_id in {t.ident for t in threads}:
-#             for filename, lineno, funcname, classname in event.frames:
-#                 if funcname in (
-#                     "_nothing",
-#                     "sleep",
-#                 ):
-#                     # Make sure we capture the sleep call and not a gevent hub frame
-#                     sleep_task_found = True
-#                     break
+    iteration = 100
+    sleep_time = 0.01
+    nb_threads = 15
 
-#             wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
+    # Start some greenthreads: they do nothing we just keep switching between them.
+    def _nothing():
+        for _ in range(iteration):
+            # Do nothing and just switch to another greenlet
+            time.sleep(sleep_time)
 
-#     assert main_thread_found
-#     assert sleep_task_found
+    threads = []
+    with s:
+        for i in range(nb_threads):
+            t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
-#     # sanity check: we don't have duplicate in thread/task ids.
-#     assert len(wall_time_ns_per_thread) == nb_threads
+    main_thread_found = False
+    sleep_task_found = False
+    wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
 
-#     # In theory there should be only one value in this set, but due to timing,
-#     # it's possible one task has less event, so we're not checking the len() of
-#     # values here.
-#     values = set(wall_time_ns_per_thread.values())
+    events = r.events[stack_event.StackSampleEvent]
+    for event in events:
+        if event.task_id == compat.main_thread.ident:
+            if event.task_name is None:
+                pytest.fail("Task with no name detected, is it the Hub?")
+            else:
+                main_thread_found = True
+        elif event.task_id in {t.ident for t in threads}:
+            for filename, lineno, funcname, classname in event.frames:
+                if funcname in (
+                    "_nothing",
+                    "sleep",
+                ):
+                    # Make sure we capture the sleep call and not a gevent hub frame
+                    sleep_task_found = True
+                    break
 
-#     # NOTE(jd): I'm disabling this check because it works 90% of the test only.
-#     # There are some cases where this test is run inside the complete test suite
-#     # and fails, while it works 100% of the time in its own. Check that the sum
-#     # of wall time generated for each task is right. Accept a 30% margin though,
-#     # don't be crazy, we're just doing 5 seconds with a lot of tasks. exact_time
-#     # = iteration * sleep_time * 1e9 assert (exact_time * 0.7) <= values.pop()
-#     # <= (exact_time * 1.3)
+            wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
 
-#     assert values.pop() > 0
+    assert main_thread_found
+    assert sleep_task_found
+
+    # sanity check: we don't have duplicate in thread/task ids.
+    assert len(wall_time_ns_per_thread) == nb_threads
+
+    # In theory there should be only one value in this set, but due to timing,
+    # it's possible one task has less event, so we're not checking the len() of
+    # values here.
+    values = set(wall_time_ns_per_thread.values())
+
+    # NOTE(jd): I'm disabling this check because it works 90% of the test only.
+    # There are some cases where this test is run inside the complete test suite
+    # and fails, while it works 100% of the time in its own. Check that the sum
+    # of wall time generated for each task is right. Accept a 30% margin though,
+    # don't be crazy, we're just doing 5 seconds with a lot of tasks. exact_time
+    # = iteration * sleep_time * 1e9 assert (exact_time * 0.7) <= values.pop()
+    # <= (exact_time * 1.3)
+
+    assert values.pop() > 0
 
 
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
