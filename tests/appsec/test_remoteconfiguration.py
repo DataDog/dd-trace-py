@@ -63,6 +63,7 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     [
         ("", True),
         ("true", True),
+        ("true", False),
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
@@ -83,7 +84,6 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         ("", False),
         ("false", False),
         ("false", True),
-        ("true", False),
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
