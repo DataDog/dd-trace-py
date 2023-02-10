@@ -79,4 +79,5 @@ def test_gunicorn(gunicorn, tmp_path, monkeypatch):
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 def test_gunicorn_gevent(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
+    monkeypatch.setenv("DD_GEVENT_PATCH_ALL", "1")
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, "--worker-class", "gevent")

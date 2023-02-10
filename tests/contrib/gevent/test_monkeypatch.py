@@ -17,7 +17,7 @@ def test_gevent_warning(monkeypatch):
     )
     assert subp.wait() == 0
     assert subp.stdout.read() == b""
-    assert subp.stderr.read() == b""
+    assert b"RuntimeWarning: Loading ddtrace before using gevent monkey patching" in subp.stderr.read()
 
 
 @pytest.mark.subprocess

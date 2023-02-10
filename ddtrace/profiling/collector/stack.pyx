@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 
 import sys
-import threading as ddtrace_threading
+import threading
 import typing
 
 import attr
@@ -18,6 +18,10 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+
+
+# NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
+# module without having gevent crashing our dedicated thread.
 
 
 # These are special features that might not be available depending on your Python version and platform
@@ -292,12 +296,14 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
-    # Do not use `threading.enumerate` to not mess with locking (gevent!)
-    thread_id_ignore_list = {
-        thread_id
-        for thread_id, thread in ddtrace_threading._active.items()
-        if getattr(thread, "_ddtrace_profiling_ignore", False)
-    } if ignore_profiler else set()
+
+    if ignore_profiler:
+        # Do not use `threading.enumerate` to not mess with locking (gevent!)
+        thread_id_ignore_list = {thread_id
+                                 for thread_id, thread in threading._active.items()
+                                 if getattr(thread, "_ddtrace_profiling_ignore", False)}
+    else:
+        thread_id_ignore_list = set()
 
     running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
