@@ -22,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 5432,
+      "network.destination.port": 5432,
       "process_id": 377
     },
     "duration": 4070000,
@@ -56,7 +56,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 5432,
+      "network.destination.port": 5432,
       "process_id": 377
     },
     "duration": 1606000,
