@@ -127,7 +127,7 @@ def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(
     _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
-def test_send_metric_datapoint_equal_tags_different_type_expected_1_serie(
+def test_send_metric_datapoint_equal_tags_different_type_throws_error(
     test_agent_session_telemetry_metrics, mock_time
 ):
     """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
