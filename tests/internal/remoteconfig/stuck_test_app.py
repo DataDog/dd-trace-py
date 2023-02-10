@@ -3,6 +3,7 @@ import time
 
 from flask import Flask
 
+
 app = Flask(__name__)
 
 
@@ -15,7 +16,7 @@ def start():
         os.waitpid(pid1, 0)
 
 
-@app.route('/')
+@app.route("/")
 def index():
     start()
     return "OK"

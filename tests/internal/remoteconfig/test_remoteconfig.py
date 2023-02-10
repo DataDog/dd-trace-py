@@ -203,7 +203,7 @@ def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_he
 def _count_running_processes(canary_str):
     found = 0
     for proc in psutil.process_iter():
-        if canary_str in ' '.join(proc.cmdline()):
+        if canary_str in " ".join(proc.cmdline()):
             found += 1
 
     return found
@@ -214,10 +214,12 @@ def test_gevent_no_stuck_processes():  # type: () -> None
     flask_app = "tests.internal.remoteconfig.stuck_test_app:app"
     gunicorn_cmd = "gunicorn -b 0.0.0.0:%s -w 3 -k gevent %s" % (port, flask_app)
     flask_env = os.environ.copy()
-    flask_env.update({
-        "DD_GEVENT_PATCH_ALL": "true",
-        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
-    })
+    flask_env.update(
+        {
+            "DD_GEVENT_PATCH_ALL": "true",
+            "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+        }
+    )
 
     proc = subprocess.Popen(
         gunicorn_cmd.split(),
