@@ -67,15 +67,14 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=False)):
-        with override_env({APPSEC_ENV: appsec_enabled}):
-            if appsec_enabled == "":
-                del os.environ[APPSEC_ENV]
+    with override_global_config(dict(_appsec_enabled=False)), override_env({APPSEC_ENV: appsec_enabled}):
+        if appsec_enabled == "":
+            del os.environ[APPSEC_ENV]
 
-            appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
-            result = _set_and_get_appsec_tags(tracer)
-            assert result
-            assert "triggers" in result
+        appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
+        result = _set_and_get_appsec_tags(tracer)
+        assert result
+        assert "triggers" in result
 
 
 @pytest.mark.parametrize(
@@ -87,18 +86,17 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env({APPSEC_ENV: appsec_enabled}):
-            if appsec_enabled == "":
-                del os.environ[APPSEC_ENV]
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: appsec_enabled}):
+        if appsec_enabled == "":
+            del os.environ[APPSEC_ENV]
 
-            rc_config = {"asm": {"enabled": True}}
-            if rc_value is False:
-                rc_config = False
+        rc_config = {"asm": {"enabled": True}}
+        if rc_value is False:
+            rc_config = False
 
-            appsec_rc_reload_features(tracer)(None, rc_config)
-            result = _set_and_get_appsec_tags(tracer)
-            assert result is None
+        appsec_rc_reload_features(tracer)(None, rc_config)
+        result = _set_and_get_appsec_tags(tracer)
+        assert result is None
 
 
 @pytest.mark.parametrize(
@@ -127,12 +125,12 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
 
 
 def test_rc_rules_data(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env({APPSEC_ENV: "true"}):
-            with open("ddtrace/appsec/rules.json", "r") as dd_rules:
-                config = {
-                    "rules_data": [],
-                    "custom_rules": [],
-                    "rules": json.load(dd_rules),
-                }
-                _appsec_rules_data(tracer, config)
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}), open(
+        "ddtrace/appsec/rules.json", "r"
+    ) as dd_rules:
+        config = {
+            "rules_data": [],
+            "custom_rules": [],
+            "rules": json.load(dd_rules),
+        }
+        _appsec_rules_data(tracer, config)
