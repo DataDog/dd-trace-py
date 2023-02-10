@@ -269,7 +269,7 @@ def test_debugger_function_probe_on_function_with_exception():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] == "throwexcstuff()"
+    assert snapshot["message"] == "throwexcstuff(probe=LogFunctionProbe(), func=function())"
 
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert entry_capture["arguments"] == {}
