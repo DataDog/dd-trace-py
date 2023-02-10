@@ -369,6 +369,7 @@ venv = Venv(
                         "requests": latest,
                         "pytest-asyncio": latest,
                         "gunicorn": latest,
+                        "flask": latest,
                         "packaging": ["==17.1", "==22.0", latest],
                     },
                 ),
