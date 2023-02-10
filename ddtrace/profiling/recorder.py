@@ -1,11 +1,11 @@
 # -*- encoding: utf-8 -*-
 import collections
-import threading
 import typing
 
 import attr
 
 from ddtrace.internal import forksafe
+from ddtrace.internal import nogevent
 
 from . import event
 
@@ -39,7 +39,7 @@ class Recorder(object):
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
     events = attr.ib(init=False, repr=False, eq=False, type=EventsType)
-    _events_lock = attr.ib(init=False, repr=False, factory=threading.Lock, eq=False)
+    _events_lock = attr.ib(init=False, repr=False, factory=nogevent.DoubleLock, eq=False)
 
     def __attrs_post_init__(self):
         # type: (...) -> None

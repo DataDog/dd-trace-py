@@ -1,3 +1,4 @@
+import os
 import threading
 
 import pytest
@@ -6,6 +7,9 @@ from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import threading as collector_threading
 
 from . import _asyncio_compat
+
+
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
 @pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
@@ -32,12 +36,16 @@ def test_lock_acquire_events(tmp_path, monkeypatch):
 
     lock_found = 0
     for event in events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading_asyncio.py:%d" % (test_lock_acquire_events.__code__.co_firstlineno + 3):
+        if event.lock_name == "test_threading_asyncio.py:18":
             assert event.task_name.startswith("Task-")
             lock_found += 1
-        elif event.lock_name == "test_threading_asyncio.py:%d" % (test_lock_acquire_events.__code__.co_firstlineno + 7):
-            assert event.task_name is None
-            assert event.thread_name == "foobar"
+        elif event.lock_name == "test_threading_asyncio.py:22":
+            if TESTING_GEVENT:
+                assert event.task_name == "foobar"
+                assert event.thread_name == "MainThread"
+            else:
+                assert event.task_name is None
+                assert event.thread_name == "foobar"
             lock_found += 1
 
     if lock_found != 2:

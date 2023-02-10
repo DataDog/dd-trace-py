@@ -1,35 +1,25 @@
-import sys
 import weakref
 
 from ddtrace.internal import compat
-from ddtrace.vendor.wrapt.importer import when_imported
+from ddtrace.internal import nogevent
 
 from .. import _asyncio
 from .. import _threading
 
 
-_gevent_tracer = None
-
-
-@when_imported("gevent")
-def install_greenlet_tracer(gevent):
-    global _gevent_tracer
-
-    try:
-        import gevent.hub
-        import gevent.thread
-        from greenlet import getcurrent
-        from greenlet import greenlet
-        from greenlet import settrace
-    except ImportError:
-        # We don't seem to have the required dependencies.
-        return 
+try:
+    import gevent.hub
+    import gevent.thread
+    from greenlet import getcurrent
+    from greenlet import greenlet
+    from greenlet import settrace
+except ImportError:
+    _gevent_tracer = None
+else:
 
     class DDGreenletTracer(object):
-        def __init__(self, gevent):
+        def __init__(self):
             # type: (...) -> None
-            self.gevent = gevent
-
             self.previous_trace_function = settrace(self)
             self.greenlets = weakref.WeakValueDictionary()
             self.active_greenlet = getcurrent()
@@ -54,7 +44,9 @@ def install_greenlet_tracer(gevent):
             if self.previous_trace_function is not None:
                 self.previous_trace_function(event, args)
 
-    _gevent_tracer = DDGreenletTracer(gevent)
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
+    _gevent_tracer = DDGreenletTracer()
 
 
 cdef _asyncio_task_get_frame(task):
@@ -91,9 +83,8 @@ cpdef get_task(thread_id):
     # gevent greenlet support:
     # - we only support tracing tasks in the greenlets run in the MainThread.
     # - if both gevent and asyncio are in use (!) we only return asyncio
-    if task_id is None and _gevent_tracer is not None:
-        gevent_thread = _gevent_tracer.gevent.thread
-        task_id = gevent_thread.get_ident(_gevent_tracer.active_greenlet)
+    if task_id is None and thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
+        task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
         # Greenlets might be started as Thread in gevent
         task_name = _threading.get_thread_name(task_id)
         frame = _gevent_tracer.active_greenlet.gr_frame
@@ -114,7 +105,7 @@ cpdef list_tasks(thread_id):
 
     # We consider all Thread objects to be greenlet
     # This should be true as nobody could use a half-monkey-patched gevent
-    if _gevent_tracer is not None:
+    if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
         tasks.extend([
             (greenlet_id,
              _threading.get_thread_name(greenlet_id),

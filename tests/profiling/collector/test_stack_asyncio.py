@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import os
 import sys
 
 import pytest
@@ -9,6 +10,9 @@ from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack_event
 
 from . import _asyncio_compat
+
+
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
 @pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
@@ -57,18 +61,22 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
         if _asyncio_compat.PY37_AND_LATER:
             if event.task_name == "main":
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, test_asyncio.__code__.co_firstlineno + 12, "hello", "")]
+                assert event.frames == [(__file__, 30, "hello", "")]
                 assert event.nframes == 1
             elif event.task_name == t1_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, test_asyncio.__code__.co_firstlineno + 6, "stuff", "")]
+                assert event.frames == [(__file__, 24, "stuff", "")]
                 assert event.nframes == 1
             elif event.task_name == t2_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, test_asyncio.__code__.co_firstlineno + 6, "stuff", "")]
+                assert event.frames == [(__file__, 24, "stuff", "")]
                 assert event.nframes == 1
 
-        if event.thread_name == "MainThread" and event.task_name is None:
+        if event.thread_name == "MainThread" and (
+            # The task name is empty in asyncio (it's not a task) but the main thread is seen as a task in gevent
+            (event.task_name is None and not TESTING_GEVENT)
+            or (event.task_name == "MainThread" and TESTING_GEVENT)
+        ):
             # Make sure we account CPU time
             if event.cpu_time_ns > 0:
                 cpu_time_found = True
