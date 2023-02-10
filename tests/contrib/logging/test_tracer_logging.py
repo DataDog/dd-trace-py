@@ -205,7 +205,6 @@ import logging
 import ddtrace
 
 logging.basicConfig(format='%(message)s')
-
 ddtrace_logger = logging.getLogger('ddtrace')
 
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
