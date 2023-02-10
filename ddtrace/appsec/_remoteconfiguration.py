@@ -50,7 +50,9 @@ def enable_appsec_rc():
         from ddtrace.internal.remoteconfig import remoteconfig_poller
 
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-        remoteconfig_poller.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+        remoteconfig_poller.register(
+            PRODUCTS.ASM, appsec_rc_reload_features(tracer)
+        )  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
 
@@ -95,7 +97,9 @@ def _appsec_1click_activation(tracer, features):
 
         if rc_appsec_enabled:
             remoteconfig_poller.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-            remoteconfig_poller.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+            remoteconfig_poller.register(
+                PRODUCTS.ASM, appsec_rc_reload_features(tracer)
+            )  # Exclusion Filters & Custom Rules
             remoteconfig_poller.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
             if not tracer._appsec_enabled:
                 tracer.configure(appsec_enabled=True)
