@@ -87,7 +87,7 @@ else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 try:
-    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
+    from inspect import getfullargspec  # noqa
 
     def is_not_void_function(f, argspec):
         return (
