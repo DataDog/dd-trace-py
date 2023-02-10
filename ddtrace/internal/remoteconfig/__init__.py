@@ -47,7 +47,6 @@ class RemoteConfig(object):
             return True
         return False
 
-
     @classmethod
     def register(cls, product, handler):
         try:
@@ -77,5 +76,4 @@ class RemoteConfig(object):
         with cls._worker_lock:
             cls._worker = None
 
-        forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
