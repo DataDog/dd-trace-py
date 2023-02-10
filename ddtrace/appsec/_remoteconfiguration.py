@@ -38,9 +38,6 @@ def enable_appsec_rc():
     # type: () -> None
     # Import tracer here to avoid a circular import
     from ddtrace import tracer
-    from ddtrace.internal.remoteconfig import RemoteConfig
-    from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
-    from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.appsec._constants import PRODUCTS
