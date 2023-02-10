@@ -232,7 +232,7 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "200000"
-    code = """
+    patch_code = """
 import logging
 import ddtrace
 ddtrace_logger = logging.getLogger('ddtrace')
@@ -245,7 +245,22 @@ assert ddtrace_logger.handlers[0].backupCount == 1
 ddtrace_logger.warning('warning log')
 """
 
-    for run_in_subprocess in (run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
+    ddtrace_run_code = """
+import logging
+ddtrace_logger = logging.getLogger('ddtrace')
+assert ddtrace_logger.getEffectiveLevel() == logging.WARN
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
+assert ddtrace_logger.handlers[0].maxBytes == 200000
+assert ddtrace_logger.handlers[0].backupCount == 1
+
+ddtrace_logger.warning('warning log')
+"""
+
+    for run_in_subprocess, code in [
+        (run_python_code_in_subprocess, patch_code),
+        (ddtrace_run_python_code_in_subprocess, ddtrace_run_code),
+    ]:
         out, err, status, pid = run_in_subprocess(code, env=env)
         assert status == 0, err
         assert err == b"", err.decode()
