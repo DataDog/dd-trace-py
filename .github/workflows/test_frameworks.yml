@@ -6,6 +6,8 @@ on:
       - master
       - 0.x
       - 1.x
+  merge_group:
+    types: [checks_requested]
   pull_request:
 
 concurrency:
@@ -448,7 +450,7 @@ jobs:
       - name: Run tests
         run: |
           . ../ddtrace/.github/workflows/setup-tox.sh py39
-          
+
           pip install -e .
           pytest -p no:warnings -k "not test_import" tests/
 

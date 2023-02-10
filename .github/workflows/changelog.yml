@@ -5,6 +5,8 @@ on:
       - master
       - 0.x
       - 1.x
+  merge_group:
+    types: [checks_requested]
   pull_request:
     # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
     # DEV: [opened, reopened, synchronize] is the default
