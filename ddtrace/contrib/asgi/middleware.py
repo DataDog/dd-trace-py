@@ -129,7 +129,7 @@ class TraceMiddleware:
         else:
             ip = ""
 
-        resource = "{} {}".format(scope["method"], scope["path"])
+        resource = " ".join((scope["method"], scope["path"]))
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(
