@@ -71,11 +71,9 @@ class TelemetryWriter(PeriodicService):
             "DD-Telemetry-API-Version": "v1",
             "DD-Client-Library-Language": "python",
             "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
-            "DD-Agent-Env": "config.env",  # TODO
-            "DD-Agent-Hostname": "",  # TODO
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
-        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEGUG", "false"))
+
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 

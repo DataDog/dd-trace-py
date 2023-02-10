@@ -139,10 +139,10 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent
     with pytest.raises(TelemetryTypeError) as e:
         telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
 
-    assert e.value.args[0] == (
-        'Error: metric with name "dd.app_telemetry.tracers.test-metric" and type "count" '
-        'exists. You can\'t create a new metric with this name an type "gauge"'
-    )
+        assert e.value.args[0] == (
+            'Error: metric with name "dd.app_telemetry.tracers.test-metric" and type "count" '
+            'exists. You can\'t create a new metric with this name an type "gauge"'
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")

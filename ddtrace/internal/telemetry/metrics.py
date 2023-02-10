@@ -56,9 +56,11 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         pass
 
     def set_tags(self, tags):
-        # type: (Dict) -> None
+        # type: (MetricTagType) -> None
         """sets a metrics tag"""
-        self._tags = tags
+        if tags:
+            for k, v in iter(tags.items()):
+                self.set_tag(k, v)
 
     def set_tag(self, name, value):
         # type: (str, str) -> None
