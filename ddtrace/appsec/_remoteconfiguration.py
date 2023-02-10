@@ -93,12 +93,14 @@ def _appsec_1click_activation(tracer, features):
             RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
             RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
             RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
-            tracer.configure(appsec_enabled=True)
+            if not tracer._appsec_enabled:
+                tracer.configure(appsec_enabled=True)
         else:
             RemoteConfig.unregister(PRODUCTS.ASM_DATA)
             RemoteConfig.unregister(PRODUCTS.ASM)
             RemoteConfig.unregister(PRODUCTS.ASM_DD)
-            tracer.configure(appsec_enabled=False)
+            if tracer._appsec_enabled:
+                tracer.configure(appsec_enabled=False)
 
 
 def appsec_rc_reload_features(tracer):
