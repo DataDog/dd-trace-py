@@ -18,7 +18,6 @@ from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
-from tests.utils import call_program
 from tests.utils import override_global_config
 
 
