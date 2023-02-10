@@ -327,7 +327,6 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },
-    py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -377,9 +376,6 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-        ],
-        "gevent.plugins.monkey.did_patch_all": [
-            "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
     },
     classifiers=[
