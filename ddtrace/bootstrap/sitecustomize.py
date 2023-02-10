@@ -2,8 +2,12 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import os
 import sys
+
+
+MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
+
+import os  # noqa
 
 from ddtrace.internal.compat import PY2  # noqa
 
@@ -45,9 +49,7 @@ def should_cleanup_loaded_modules():
     return True
 
 
-if should_cleanup_loaded_modules():
-    MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
-else:
+if not should_cleanup_loaded_modules():
     # Perform gevent patching as early as possible in the application before
     # importing more of the library internals.
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):

@@ -169,8 +169,8 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
-SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
-    worker_class="gevent", patch_gevent=True, enable_module_cloning=True
+SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE = _gunicorn_settings_factory(
+    worker_class="gevent", patch_gevent=False, enable_module_cloning=True
 )
 SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
@@ -193,7 +193,7 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
     [
         SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
         SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_DDTRACERUN_PATCH,
+        SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
     ],
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
@@ -201,4 +201,4 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r)
+    assert_remoteconfig_started_successfully(r, gunicorn_server_settings.env["DD_GEVENT_PATCH_ALL"] == "True")
