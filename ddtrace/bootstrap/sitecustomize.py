@@ -119,7 +119,7 @@ def should_cleanup_loaded_modules():
     return True
 
 
-def cleanup_loaded_modules():
+def cleanup_loaded_modules_if_necessary():
     if not should_cleanup_loaded_modules():
         return
     modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
@@ -187,11 +187,11 @@ try:
         # that is already imported causes the module to be patched immediately.
         # So if we unload the module after registering hooks, we effectively
         # remove the patching, thus breaking the tracer integration.
-        cleanup_loaded_modules()
+        cleanup_loaded_modules_if_necessary()
 
         patch_all(**EXTRA_PATCHED_MODULES)
     else:
-        cleanup_loaded_modules()
+        cleanup_loaded_modules_if_necessary()
 
     # Only the import of the original sitecustomize.py is allowed after this
     # point.
