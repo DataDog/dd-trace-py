@@ -234,7 +234,7 @@ class ModuleWatchdog(dict):
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
         self._ast_transformers = []  # type: List[Tuple[Callable[[str], bool], ASTTrasformer]]
-        self._loader_class = _ImportHookChainedLoader  # type: Type[Loader]
+        self._loader_class = _ImportHookChainedLoader  # type: Type[_ImportHookChainedLoader]
 
     def __getitem__(self, item):
         # type: (str) -> ModuleType
@@ -409,7 +409,9 @@ class ModuleWatchdog(dict):
                 if not isinstance(loader, self._loader_class):
                     spec.loader = self._loader_class(loader, spec)
 
-                cast(self._loader_class, spec.loader).add_callback(type(self), self.after_import)
+                cast(self._loader_class, spec.loader).add_callback(  # type: ignore[name-defined]
+                    type(self), self.after_import
+                )
 
             return spec
 
@@ -579,6 +581,6 @@ class ModuleWatchdog(dict):
 
     @classmethod
     def use_loader(cls, loader_class):
-        # type: (Type[Loader]) -> None
+        # type: (Type[_ImportHookChainedLoader]) -> None
         if cls and cls._instance:
             cls._instance._loader_class = loader_class
