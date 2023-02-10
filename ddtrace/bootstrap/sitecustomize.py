@@ -58,6 +58,8 @@ EXTRA_PATCHED_MODULES = {
     "pyramid": True,
 }
 
+MODULES_THAT_REQUIRE_CLEANUP = ("gevent",)
+
 
 def update_patched_modules():
     modules_to_patch = os.getenv("DD_PATCH_MODULES")
@@ -73,17 +75,17 @@ if PY2:
     _unloaded_modules = []
 
 
-def gevent_is_installed():
+def is_installed(module_name):
     # https://stackoverflow.com/a/51491863/735204
     if sys.version_info >= (3, 4):
-        return importlib.util.find_spec("gevent")
+        return importlib.util.find_spec(module_name)
     elif sys.version_info >= (3, 3):
-        return importlib.find_loader("gevent")
+        return importlib.find_loader(module_name)
     elif sys.version_info >= (3, 1):
-        return importlib.find_module("gevent")
+        return importlib.find_module(module_name)
     elif sys.version_info >= (2, 7):
         try:
-            imp.find_module("gevent")
+            imp.find_module(module_name)
         except ImportError:
             return False
         else:
@@ -103,10 +105,12 @@ def should_cleanup_loaded_modules():
             dd_unload_sitecustomize_modules,
         )
         return False
-    elif dd_unload_sitecustomize_modules == "auto" and not gevent_is_installed():
+    elif dd_unload_sitecustomize_modules == "auto" and not any(
+        is_installed(module_name) for module_name in MODULES_THAT_REQUIRE_CLEANUP
+    ):
         log.debug(
             "skipping sitecustomize module unload because DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == auto and "
-            "gevent is not installed"
+            "no module requiring unloading is installed"
         )
         return False
     return True
