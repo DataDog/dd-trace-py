@@ -260,9 +260,8 @@ def test_gevent_no_stuck_processes():  # type: () -> None
         except Exception:
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
-            raise TimeoutError(
-                "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
-            )
+            print("Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr))
+            raise
 
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
