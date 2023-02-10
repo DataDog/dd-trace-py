@@ -13,7 +13,7 @@ import six
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
-from ddtrace.tracer import debug_mode
+from ddtrace.internal.utils.formats import asbool
 
 
 if six.PY2:
@@ -151,6 +151,7 @@ def extract_git_metadata(cwd=None):
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
+        debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         log.error("Error extracting git metadata: %s", str(e), exc_info=debug_mode)
 
     return tags
