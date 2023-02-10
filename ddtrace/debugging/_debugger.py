@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+import os
 import sys
 import threading
 from types import FunctionType
@@ -54,6 +55,7 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import Wrapper
 
 
@@ -243,8 +245,9 @@ class Debugger(Service):
         )
 
         # Register the debugger with the RCM client.
-        RemoteConfig.enable()
-        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
+        if asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", True)):
+            RemoteConfig.enable()
+            RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
     def _on_encoder_buffer_full(self, item, encoded):
