@@ -107,9 +107,9 @@ def _appsec_1click_activation(tracer, features):
                 config._appsec_enabled = True
 
         else:
-            RemoteConfig.unregister(PRODUCTS.ASM_DATA)
-            RemoteConfig.unregister(PRODUCTS.ASM)
-            RemoteConfig.unregister(PRODUCTS.ASM_DD)
+            remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+            remoteconfig_poller.unregister(PRODUCTS.ASM)
+            remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
             if tracer._appsec_enabled:
                 tracer.configure(appsec_enabled=False)
             else:
