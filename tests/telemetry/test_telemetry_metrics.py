@@ -56,7 +56,7 @@ def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
-def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_session_telemetry_metrics, mock_time):
+def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(test_agent_session_telemetry_metrics, mock_time):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
