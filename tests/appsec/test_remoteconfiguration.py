@@ -119,7 +119,7 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
     rc_config = {"asm": {"enabled": True}}
 
     assert not RemoteConfig._worker
-
+    RemoteConfig.enable()
     appsec_rc_reload_features(tracer)(None, rc_config)
 
     assert RemoteConfig._worker._client._products["ASM_DATA"]

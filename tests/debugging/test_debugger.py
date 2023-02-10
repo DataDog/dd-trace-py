@@ -707,13 +707,13 @@ def test_probe_status_logging(mock_check_remote_config_enable_in_agent, monkeypa
             def count_status(queue):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-            sleep(0.2)
+            sleep(1)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.5)
+            sleep(4)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.5)
+            sleep(5)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request

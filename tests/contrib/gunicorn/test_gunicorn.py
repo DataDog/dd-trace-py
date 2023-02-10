@@ -151,9 +151,17 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     )
     try:
         client = Client("http://%s" % gunicorn_server_settings.bind)
+
         try:
-            client.wait(max_tries=100, delay=0.1)
+            # Remote Configuration and Telemetry start after the first request
+            client.wait(max_tries=5, path="/start", delay=0.2)
+            # get http://0.0.0.0:8080/
+            client.wait(max_tries=5, delay=0.1)
         except tenacity.RetryError:
+            print("===================== STDOUT ========================")
+            print(server_process.stdout.read())
+            print("===================== STDERR ========================")
+            print(server_process.stderr.read())
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         # wait for services to wake up and decide whether to self-destruct due to PeriodicThread._is_proper_class
         time.sleep(SERVICE_INTERVAL)

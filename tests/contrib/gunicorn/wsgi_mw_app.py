@@ -42,7 +42,7 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = bytes("goodbye", encoding="utf-8")
     else:
-        has_config_worker = hasattr(RemoteConfig._worker, "_worker")
+        has_config_worker = hasattr(RemoteConfig, "_worker") and RemoteConfig._worker is not None
         payload = {
             "remoteconfig": {
                 "worker_alive": has_config_worker and RemoteConfig._worker._worker.is_alive(),
