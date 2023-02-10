@@ -60,9 +60,9 @@ EXTRA_PATCHED_MODULES = {
 
 MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
 
-MODULES_TO_NOT_CLEANUP = set("atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing")
+MODULES_TO_NOT_CLEANUP = set(["atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing"])
 if PY2:
-    MODULES_TO_NOT_CLEANUP |= set("encodings", "codecs")
+    MODULES_TO_NOT_CLEANUP |= set(["encodings", "codecs"])
 
 
 def update_patched_modules():
