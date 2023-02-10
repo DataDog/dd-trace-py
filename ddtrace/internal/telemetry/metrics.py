@@ -33,8 +33,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         """
         self.name = name
         self.common = common
-        self.interval = interval
-        self._roll_up_interval = interval
+        self.interval = self._roll_up_interval = interval
         self.namespace = namespace
         self._points = []  # type: List[Tuple[int, float]]
         self._tags = tags  # type: MetricTagType
