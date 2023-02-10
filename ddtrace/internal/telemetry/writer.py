@@ -118,7 +118,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_namespace_metrics(self):
         # type () -> List[Metric]
-        """Returns a list of all generate-metrics"""
+        """Returns a list of all generated metrics and clears the namespace's list"""
         log.debug("[METRICS] _flush_namespace_metrics")
         with self._lock:
             namespace_metrics = self._namespace.get()
