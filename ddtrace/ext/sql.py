@@ -6,6 +6,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 # tags
 QUERY = "sql.query"  # the query text
+ROWS = "sql.rows"  # number of rows returned by a query
 DB = "sql.db"  # the name of the database
 
 
@@ -22,18 +23,14 @@ def normalize_vendor(vendor):
         return vendor
 
 
-try:
-    from psycopg2.extensions import parse_dsn as parse_pg_dsn
-except ImportError:
-
-    def parse_pg_dsn(dsn):
-        # type: (str) -> Dict[str, str]
-        """
-        Return a dictionary of the components of a postgres DSN.
-        >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')
-        {'user':'dog', 'port':'1543', 'dbname':'dogdata'}
-        """
-        return dict(_.split("=", maxsplit=1) for _ in dsn.split())
+def parse_pg_dsn(dsn):
+    # type: (str) -> Dict[str, str]
+    """
+    Return a dictionary of the components of a postgres DSN.
+    >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')
+    {'user':'dog', 'port':'1543', 'dbname':'dogdata'}
+    """
+    return dict(_.split("=", 1) for _ in dsn.split())
 
 
 def __getattr__(name):
