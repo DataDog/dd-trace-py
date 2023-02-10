@@ -268,6 +268,7 @@ try:
         if sys.version_info < (3, 7):
             Pep562(module_name)
 
+
 except ImportError:
 
     def ensure_pep562(module_name):
