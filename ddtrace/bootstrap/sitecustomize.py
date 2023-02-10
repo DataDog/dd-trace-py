@@ -104,14 +104,15 @@ def should_cleanup_loaded_modules():
         return False
     elif dd_unload_sitecustomize_modules not in ("1", "auto"):
         log.debug(
-            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE=={}: skipping sitecustomize module unload because of invalid value", dd_unload_sitecustomize_modules,
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE=={}: skipping sitecustomize module unload because of invalid value",
+            dd_unload_sitecustomize_modules,
         )
         return False
     elif dd_unload_sitecustomize_modules == "auto" and not any(
         is_installed(module_name) for module_name in MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED
     ):
         log.debug(
-            "skipping sitecustomize module unload because DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == auto and "
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE==auto: skipping sitecustomize module unload because "
             "no module requiring unloading is installed"
         )
         return False
