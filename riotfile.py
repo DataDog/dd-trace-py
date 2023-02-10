@@ -2604,6 +2604,7 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
+                    # TODO: undefined behavior manifests under other python versions, notably 3.11
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
