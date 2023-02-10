@@ -41,7 +41,7 @@ class RemoteConfig(object):
             with cls._worker_lock:
                 if cls._worker is None:
                     cls._worker = RemoteConfigWorker()
-            cls._worker.start()
+                    cls._worker.start()
             atexit.register(cls.disable)
             return True
         return False
