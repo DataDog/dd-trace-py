@@ -568,6 +568,7 @@ def _patch(django):
 
 
 def patch():
+    # DEV: this import will eventually be replaced with the module given from an import hook
     import django
 
     if django.VERSION < (1, 10, 0):
