@@ -7,6 +7,8 @@ import threading
 import typing
 import weakref
 
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
 
@@ -20,6 +22,26 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 # like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
 # to be executed after the actual fork, which seems to prevent the issue.
 _soft = True
+
+
+def patch_gevent_hub_reinit(module):
+    # The gevent hub is re-initialized *after* the after-in-child fork hooks are
+    # called, so we patch the gevent.hub.reinit function to ensure that the
+    # fork hooks run again after this further re-initialisation, if it is ever
+    # called.
+    from ddtrace.internal.wrapping import wrap
+
+    def wrapped_reinit(f, args, kwargs):
+        try:
+            return f(*args, **kwargs)
+        finally:
+            ddtrace_after_in_child()
+
+    wrap(module.reinit, wrapped_reinit)
+
+
+if asbool(os.getenv("_DD_TRACE_GEVENT_HUB_PATCHED", default=False)):
+    ModuleWatchdog.register_module_hook("gevent.hub", patch_gevent_hub_reinit)
 
 
 def ddtrace_after_in_child():
