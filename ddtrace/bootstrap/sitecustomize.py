@@ -58,7 +58,11 @@ EXTRA_PATCHED_MODULES = {
     "pyramid": True,
 }
 
-MODULES_THAT_REQUIRE_CLEANUP = ("gevent",)
+MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
+
+MODULES_TO_NOT_CLEANUP = set("atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing")
+if PY2:
+    MODULES_TO_NOT_CLEANUP |= set("encodings", "codecs")
 
 
 def update_patched_modules():
@@ -106,7 +110,7 @@ def should_cleanup_loaded_modules():
         )
         return False
     elif dd_unload_sitecustomize_modules == "auto" and not any(
-        is_installed(module_name) for module_name in MODULES_THAT_REQUIRE_CLEANUP
+        is_installed(module_name) for module_name in MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED
     ):
         log.debug(
             "skipping sitecustomize module unload because DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE == auto and "
@@ -119,32 +123,18 @@ def should_cleanup_loaded_modules():
 def cleanup_loaded_modules():
     if not should_cleanup_loaded_modules():
         return
+    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
+    modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
     # Unload all the modules that we have imported, except for ddtrace and a few
     # others that don't like being cloned.
     # Doing so will allow ddtrace to continue using its local references to modules unpatched by
     # gevent, while avoiding conflicts with user-application code potentially running
     # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
-    for m in list(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP):
-        if m.startswith("atexit"):
+    for m in modules_to_cleanup:
+        if any(m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP):
             continue
-        if m.startswith("asyncio"):
-            continue
-        if m.startswith("attr"):
-            continue
-        if m.startswith("concurrent"):
-            continue
-        if m.startswith("ddtrace"):
-            continue
-        if m.startswith("logging"):
-            continue
-        if m.startswith("typing"):  # required by Python < 3.7
-            continue
-
         if PY2:
-            if m.startswith("encodings") or m.startswith("codecs"):
-                continue
-            # Store a reference to deleted modules to avoid them being garbage
-            # collected
+            # Store a reference to deleted modules to avoid them being garbage collected
             _unloaded_modules.append(sys.modules[m])
 
         del sys.modules[m]
