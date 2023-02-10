@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def _stop_remote_config_worker():
@@ -62,16 +63,17 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     [
         ("", True),
         ("true", True),
+        ("true", False),
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    tracer.configure(appsec_enabled=False)
-    with override_env({APPSEC_ENV: appsec_enabled}):
+    with override_global_config(dict(_appsec_enabled=False)), override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
         appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
+        assert result
         assert "triggers" in result
 
 
@@ -81,12 +83,10 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         ("", False),
         ("false", False),
         ("false", True),
-        ("true", False),
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    tracer.configure(appsec_enabled=True)
-    with override_env({APPSEC_ENV: appsec_enabled}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
@@ -114,24 +114,23 @@ def test_rc_capabilities(rc_enabled, capability):
 @mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
 def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agent, tracer, remote_config_worker):
     mock_check_remote_config_enable_in_agent.return_value = True
-    tracer.configure(appsec_enabled=False, api_version="v0.4")
+    with override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
+        rc_config = {"asm": {"enabled": True}}
 
-    rc_config = {"asm": {"enabled": True}}
+        assert not RemoteConfig._worker
+        RemoteConfig.enable()
+        appsec_rc_reload_features(tracer)(None, rc_config)
 
-    assert not RemoteConfig._worker
-    RemoteConfig.enable()
-    appsec_rc_reload_features(tracer)(None, rc_config)
-
-    assert RemoteConfig._worker._client._products["ASM_DATA"]
+        assert RemoteConfig._worker._client._products["ASM_DATA"]
 
 
 def test_rc_rules_data(tracer):
-    tracer.configure(appsec_enabled=True)
-    with override_env({APPSEC_ENV: "true"}):
-        with open("ddtrace/appsec/rules.json", "r") as dd_rules:
-            config = {
-                "rules_data": [],
-                "custom_rules": [],
-                "rules": json.load(dd_rules),
-            }
-            _appsec_rules_data(tracer, config)
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}), open(
+        "ddtrace/appsec/rules.json", "r"
+    ) as dd_rules:
+        config = {
+            "rules_data": [],
+            "custom_rules": [],
+            "rules": json.load(dd_rules),
+        }
+        _appsec_rules_data(tracer, config)
