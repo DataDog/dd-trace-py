@@ -12,13 +12,9 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-log = get_logger(__name__)
 
 
 def _stop_remote_config_worker():
