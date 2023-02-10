@@ -23,6 +23,7 @@ from . import agent
 from . import compat
 from . import periodic
 from . import service
+from .remoteconfig import RemoteConfig
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool

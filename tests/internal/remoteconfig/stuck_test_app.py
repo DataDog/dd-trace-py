@@ -3,10 +3,7 @@ import time
 
 from flask import Flask
 
-
 app = Flask(__name__)
-
-_CURRENT_MODULE_PATH = os.path.realpath(__file__)
 
 
 def start():
