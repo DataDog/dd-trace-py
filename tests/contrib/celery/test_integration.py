@@ -810,7 +810,6 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             )
             sleep(5)
             celery.terminate()
-
             while True:
                 err = celery.stdout.readline().strip()
                 if not err:
