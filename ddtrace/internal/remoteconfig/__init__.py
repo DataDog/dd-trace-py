@@ -56,7 +56,6 @@ class RemoteConfig(object):
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
 
-
     @classmethod
     def unregister(cls, product):
         try:
