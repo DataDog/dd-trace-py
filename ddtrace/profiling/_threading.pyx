@@ -1,52 +1,61 @@
 from __future__ import absolute_import
 
-import threading
+import sys
+import threading as ddtrace_threading
 import typing
 import weakref
 
 import attr
-
-from ddtrace.internal import nogevent
+from six.moves import _thread
 
 
 cpdef get_thread_name(thread_id):
-    # This is a special case for gevent:
-    # When monkey patching, gevent replaces all active threads by their greenlet equivalent.
-    # This means there's no chance to find the MainThread in the list of _active threads.
-    # Therefore we special case the MainThread that way.
-    # If native threads are started using gevent.threading, they will be inserted in threading._active
-    # so we will find them normally.
-    if thread_id == nogevent.main_thread_id:
-        return "MainThread"
+    # Do not force-load the threading module if it's not already loaded
+    if "threading" not in sys.modules:
+        return None
 
-    # We don't want to bother to lock anything here, especially with eventlet involved 😓. We make a best effort to
-    # get the thread name; if we fail, it'll just be an anonymous thread because it's either starting or dying.
-    try:
-        return threading._active[thread_id].name
-    except KeyError:
+    import threading
+
+    # Look for all threads, including the ones we create
+    for threading_mod in (threading, ddtrace_threading):
+        # We don't want to bother to lock anything here, especially with
+        # eventlet involved 😓. We make a best effort to get the thread name; if
+        # we fail, it'll just be an anonymous thread because it's either
+        # starting or dying.
         try:
-            return threading._limbo[thread_id].name
+            return threading_mod._active[thread_id].name
         except KeyError:
-            return None
+            try:
+                return threading_mod._limbo[thread_id].name
+            except KeyError:
+                pass
+
+    return None
 
 
 cpdef get_thread_native_id(thread_id):
+    # Do not force-load the threading module if it's not already loaded
+    if "threading" not in sys.modules:
+        return None
+
+    import threading
+
     try:
         thread_obj = threading._active[thread_id]
     except KeyError:
-        # This should not happen, unless somebody started a thread without
-        # using the `threading` module.
-        # In that case, well… just use the thread_id as native_id 🤞
-        return thread_id
-    else:
-        # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
-        # for hashes since they are relative to the memory address which can easily be the same across different
-        # objects.
         try:
-            return thread_obj.native_id
-        except AttributeError:
-            # Python < 3.8
-            return hash(thread_obj)
+            thread_obj = ddtrace_threading._active[thread_id]
+        except KeyError:
+            # This should not happen, unless somebody started a thread without
+            # using the `threading` module.
+            # In that case, well… just use the thread_id as native_id 🤞
+            return thread_id
+
+    try:
+        return thread_obj.native_id
+    except AttributeError:
+        # Python < 3.8
+        return hash(thread_obj)
 
 
 # cython does not play well with mypy
@@ -76,7 +85,7 @@ class _ThreadLink(_thread_link_base):
     ):
         # type: (...) -> None
         """Link an object to the current running thread."""
-        self._thread_id_to_object[nogevent.thread_get_ident()] = weakref.ref(obj)
+        self._thread_id_to_object[_thread.get_ident()] = weakref.ref(obj)
 
     def clear_threads(self,
                       existing_thread_ids,  # type: typing.Set[int]
