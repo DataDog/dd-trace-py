@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from ddtrace.internal import agent
@@ -38,45 +39,42 @@ class RemoteConfig(object):
     def enable(cls):
         # type: () -> bool
         if cls._check_remote_config_enable_in_agent():
-            with cls._worker_lock:
-                if cls._worker is None:
-                    cls._worker = RemoteConfigWorker()
-                    cls._worker.start()
-
-                    forksafe.register(cls._restart)
-                    atexit.register(cls.disable)
+            if cls._worker is None:
+                cls._worker = RemoteConfigWorker()
+            cls._worker.start()
+            atexit.register(cls.disable)
             return True
         return False
 
-    @classmethod
-    def _restart(cls):
-        cls.disable()
-        cls.enable()
 
     @classmethod
     def register(cls, product, handler):
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            if cls.enable():
+            # if cls.enable():
+            if cls._worker is not None:
                 cls._worker._client.register_product(product, handler)
+            else:
+                log.warning("Trying to register RCM product with unexisting worker")
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
 
     @classmethod
     def unregister(cls, product):
         try:
-            cls._worker._client.unregister_product(product)
+            if cls._worker is not None:
+                cls._worker._client.unregister_product(product)
+            else:
+                log.warning("Trying to unregister RCM product with unexisting worker")
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
 
     @classmethod
     def disable(cls):
         # type: () -> None
-        with cls._worker_lock:
-            if cls._worker is not None:
-                cls._worker.stop()
-                cls._worker = None
+        if cls._worker is not None:
+            cls._worker.stop()
+            cls._worker = None
 
-                forksafe.unregister(cls._restart)
-                atexit.unregister(cls.disable)
+        atexit.unregister(cls.disable)

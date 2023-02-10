@@ -23,6 +23,7 @@ from . import agent
 from . import compat
 from . import periodic
 from . import service
+from .remoteconfig import RemoteConfig
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool
@@ -532,6 +533,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+
+                    if asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", True)):
+                        RemoteConfig.enable()
+
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()
