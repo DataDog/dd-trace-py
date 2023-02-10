@@ -145,18 +145,28 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         cmd,
         env=gunicorn_server_settings.env,
         cwd=gunicorn_server_settings.directory,
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=True,
         preexec_fn=os.setsid,
     )
     try:
         client = Client("http://%s" % gunicorn_server_settings.bind)
+
         try:
-            client.wait(max_tries=100, delay=0.1)
+            # Remote Configuration and Telemetry start after the first request
+            client.wait(max_tries=5, path="/start", delay=0.2)
+            # get http://0.0.0.0:8080/
+            client.wait(max_tries=5, delay=0.1)
         except tenacity.RetryError:
+            print("===================== STDOUT ========================")
+            print(server_process.stdout.read())
+            print("===================== STDERR ========================")
+            print(server_process.stderr.read())
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         # wait for services to wake up and decide whether to self-destruct due to PeriodicThread._is_proper_class
         time.sleep(SERVICE_INTERVAL)
+
         yield server_process, client
         try:
             client.get_ignored("/shutdown")
@@ -194,7 +204,6 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
         SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
     ],
 )
-@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
@@ -209,7 +218,6 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
         SETTINGS_GEVENT_DDTRACERUN_PATCH,
     ],
 )
-@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Skip Python 3.11")
 def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context

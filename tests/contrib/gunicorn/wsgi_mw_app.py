@@ -41,8 +41,10 @@ def simple_app(environ, start_response):
     if environ["RAW_URI"] == "/shutdown":
         aggressive_shutdown()
         data = bytes("goodbye", encoding="utf-8")
+    elif environ["RAW_URI"] == "/start":
+        data = bytes("starting!", encoding="utf-8")
     else:
-        has_config_worker = hasattr(remoteconfig_poller, "_worker")
+        has_config_worker = hasattr(remoteconfig_poller, "_worker") and remoteconfig_poller._worker is not None
         payload = {
             "remoteconfig": {
                 "worker_alive": has_config_worker and remoteconfig_poller._worker.is_alive(),
