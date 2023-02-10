@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 # The architecture function spawns the file subprocess on the interpreter
 # executable. We make sure we call this once and cache the result.
-architecture = callonce(platform.architecture)
+architecture = callonce(lambda: platform.architecture())
 
 
 def in_venv():
