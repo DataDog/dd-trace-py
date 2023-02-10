@@ -235,6 +235,7 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     patch_code = """
 import logging
 import ddtrace
+
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
 assert len(ddtrace_logger.handlers) == 1
@@ -247,6 +248,7 @@ ddtrace_logger.warning('warning log')
 
     ddtrace_run_code = """
 import logging
+
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
 assert len(ddtrace_logger.handlers) == 1
