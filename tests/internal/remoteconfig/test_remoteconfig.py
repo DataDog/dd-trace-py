@@ -149,6 +149,7 @@ def test_remote_configuration_1_click(mock_check_remote_config_enable_in_agent, 
         mock_check_remote_config_enable_in_agent.return_value = True
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
+        rc.enable()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
         sleep(0.2)
         mock_send_request.assert_called_once()
