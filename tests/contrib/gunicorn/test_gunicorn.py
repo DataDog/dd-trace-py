@@ -76,6 +76,7 @@ def _gunicorn_settings_factory(
     patch_gevent=None,  # type: Optional[bool]
     import_sitecustomize_in_app=None,  # type: Optional[bool]
     start_service_in_hook_named="post_fork",  # type: str
+    enable_module_cloning=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
@@ -85,6 +86,7 @@ def _gunicorn_settings_factory(
         env["DD_GEVENT_PATCH_ALL"] = str(patch_gevent)
     if import_sitecustomize_in_app is not None:
         env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
+    env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
     env["DD_REMOTECONFIG_POLL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     return GunicornServerSettings(
@@ -168,8 +170,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
 
 
 SETTINGS_GEVENT_DDTRACERUN_PATCH = _gunicorn_settings_factory(
-    worker_class="gevent",
-    patch_gevent=True,
+    worker_class="gevent", patch_gevent=True, enable_module_cloning=True
 )
 SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_factory(
     worker_class="gevent",
