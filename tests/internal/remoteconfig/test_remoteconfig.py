@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import time
 import warnings
 
@@ -208,6 +209,7 @@ def _count_running_processes(canary_str):
     return found
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python versions below 3.6 sort dictionaries differently")
 def test_gevent_no_stuck_processes():  # type: () -> None
     port = 8000
     flask_app = "tests.internal.remoteconfig.stuck_test_app:app"
@@ -250,13 +252,18 @@ def test_gevent_no_stuck_processes():  # type: () -> None
             client.get("/")
 
         time.sleep(2)
-        nprocesses = _count_running_processes(gunicorn_cmd)
-        assert nprocesses == 4
-
         try:
+            nprocesses = _count_running_processes(gunicorn_cmd)
+            assert nprocesses == 4
+
             client.get_ignored("/shutdown")
         except Exception:
-            pass
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            raise TimeoutError(
+                "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
+            )
+
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
