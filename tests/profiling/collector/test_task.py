@@ -1,8 +1,10 @@
 import os
+import threading
 
 import pytest
 
 from ddtrace.internal import compat
+from ddtrace.internal import nogevent
 from ddtrace.profiling.collector import _task
 
 
@@ -12,25 +14,18 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 def test_get_task_main():
     # type: (...) -> None
     if _task._gevent_tracer is None:
-        assert _task.get_task(compat.main_thread.ident) == (None, None, None)
+        assert _task.get_task(nogevent.main_thread_id) == (None, None, None)
+    else:
+        assert _task.get_task(nogevent.main_thread_id) == (compat.main_thread.ident, "MainThread", None)
 
 
+@pytest.mark.skipif(TESTING_GEVENT, reason="only works without gevent")
 def test_list_tasks_nogevent():
-    assert _task.list_tasks(compat.main_thread.ident) == []
+    assert _task.list_tasks(nogevent.main_thread_id) == []
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
-@pytest.mark.subprocess
 def test_list_tasks_gevent():
-    import gevent.monkey
-
-    gevent.monkey.patch_all()
-
-    import threading
-
-    from ddtrace.internal import compat
-    from ddtrace.profiling.collector import _task
-
     l1 = threading.Lock()
     l1.acquire()
 
@@ -44,7 +39,7 @@ def test_list_tasks_gevent():
     t1 = threading.Thread(target=wait, name="t1")
     t1.start()
 
-    tasks = _task.list_tasks(compat.main_thread.ident)
+    tasks = _task.list_tasks(nogevent.main_thread_id)
     # can't check == 2 because there are left over from other tests
     assert len(tasks) >= 2
 
