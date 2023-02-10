@@ -24,7 +24,7 @@ from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
-if sys.version_info < (3, 1):
+if PY2:
     import imp
 else:
     import importlib
