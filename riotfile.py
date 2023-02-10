@@ -356,6 +356,7 @@ venv = Venv(
                         "httpretty": "==0.9.7",
                         "requests": latest,
                         "pytest-asyncio": latest,
+                        "gunicorn": latest,
                         "packaging": ["==17.1", latest],
                     },
                 ),
@@ -366,6 +367,7 @@ venv = Venv(
                         "httpretty": "==0.9.7",
                         "requests": latest,
                         "pytest-asyncio": latest,
+                        "gunicorn": latest,
                         "packaging": ["==17.1", "==22.0", latest],
                     },
                 ),
@@ -2611,7 +2613,7 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
             ],
