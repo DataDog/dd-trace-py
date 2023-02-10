@@ -30,7 +30,7 @@ def test_env_var_iast_enabled(capfd):
     env["DD_IAST_ENABLED"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
-    assert "DEBUG:ddtrace.internal.module:IAST enabled" in captured.err
+    assert "IAST enabled" in captured.err
     assert "hi" in captured.out
 
 
@@ -42,7 +42,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "DEBUG:ddtrace.internal.module:IAST enabled" not in captured.err
+    assert "IAST enabled" not in captured.err
 
 
 @pytest.mark.skipif(PY2, reason="Not testing Python 2")
@@ -51,4 +51,4 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     _run_python_file()
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "DEBUG:ddtrace.internal.module:IAST enabled" not in captured.err
+    assert "IAST enabled" not in captured.err

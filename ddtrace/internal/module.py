@@ -16,10 +16,10 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -33,12 +33,6 @@ ASTTrasformer = Callable[[AST], AST]
 
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
-
-IS_IAST_ENABLED = _is_iast_enabled()
-
-if IS_IAST_ENABLED:
-    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-    from ddtrace.appsec.iast._ast.ast_patching import astpatch_source
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -240,6 +234,7 @@ class ModuleWatchdog(dict):
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
         self._ast_transformers = []  # type: List[Tuple[Callable[[str], bool], ASTTrasformer]]
+        self._loader_class = _ImportHookChainedLoader  # type: Type[Loader]
 
     def __getitem__(self, item):
         # type: (str) -> ModuleType
@@ -367,7 +362,7 @@ class ModuleWatchdog(dict):
         return self._modules.__iter__()
 
     def find_module(self, fullname, path=None):
-        # type: (str, Optional[str]) -> Union[ModuleWatchdog, _ImportHookChainedLoader, None]
+        # type: (str, Optional[str]) -> Union[Loader, None]
         if fullname in self._finding:
             return None
 
@@ -376,8 +371,8 @@ class ModuleWatchdog(dict):
         try:
             loader = find_loader(fullname)
             if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    loader = _ImportHookChainedLoader(loader)
+                if not isinstance(loader, self._loader_class):
+                    loader = self._loader_class(loader)
 
                 if PY2:
                     # With Python 2 we don't get all the finders invoked, so we
@@ -411,10 +406,10 @@ class ModuleWatchdog(dict):
             loader = getattr(spec, "loader", None)
 
             if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    spec.loader = _ImportHookChainedLoader(loader, spec)
+                if not isinstance(loader, self._loader_class):
+                    spec.loader = self._loader_class(loader, spec)
 
-                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
+                cast(self._loader_class, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 
@@ -581,3 +576,9 @@ class ModuleWatchdog(dict):
                 return
             parent = current
             current = current._modules
+
+    @classmethod
+    def use_loader(cls, loader_class):
+        # type: (Type[Loader]) -> None
+        if cls and cls._instance:
+            cls._instance._loader_class = loader_class
