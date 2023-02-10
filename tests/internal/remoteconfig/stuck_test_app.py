@@ -18,6 +18,11 @@ def start():
 
 
 @app.route("/")
-def index():
+def index_view():
     start()
     return "OK"
+
+
+@app.route("/start")
+def start_view():
+    return "start"
