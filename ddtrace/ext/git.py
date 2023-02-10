@@ -13,6 +13,7 @@ import six
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.tracer import debug_mode
 
 
 if six.PY2:
@@ -149,8 +150,8 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        log.error("Error extracting git metadata: %s", str(e), exc_info=debug_mode)
 
     return tags
 

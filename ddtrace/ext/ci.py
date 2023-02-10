@@ -12,6 +12,7 @@ from typing import Optional
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
+from ddtrace.tracer import debug_mode
 
 
 # CI app dd_origin tag
@@ -102,8 +103,8 @@ def tags(env=None, cwd=None):
         git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
     except git.GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        log.error("Error extracting git metadata: %s", str(e), exc_info=debug_mode)
 
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
