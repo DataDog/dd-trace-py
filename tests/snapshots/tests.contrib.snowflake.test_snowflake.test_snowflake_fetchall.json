@@ -28,7 +28,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
-      "out.port": 443,
+      "network.destination.port": 443,
       "process_id": 88705,
       "sql.rows": 1
     },
