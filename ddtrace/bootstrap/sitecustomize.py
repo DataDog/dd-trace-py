@@ -2,10 +2,59 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+import os
 import sys
 
+from ddtrace.internal.compat import PY2  # noqa
 
-MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
+
+if PY2:
+    import imp
+else:
+    import importlib
+
+
+def is_installed(module_name):
+    # https://stackoverflow.com/a/51491863/735204
+    if sys.version_info >= (3, 4):
+        return importlib.util.find_spec(module_name)
+    elif sys.version_info >= (3, 3):
+        return importlib.find_loader(module_name)
+    elif sys.version_info >= (3, 1):
+        return importlib.find_module(module_name)
+    elif sys.version_info >= (2, 7):
+        try:
+            imp.find_module(module_name)
+        except ImportError:
+            return False
+        else:
+            return True
+    return False
+
+
+def should_cleanup_loaded_modules():
+    dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="0").lower()
+    if dd_unload_sitecustomize_modules == "0":
+        return False
+    elif dd_unload_sitecustomize_modules not in ("1", "auto"):
+        return False
+    elif dd_unload_sitecustomize_modules == "auto" and not any(
+        is_installed(module_name) for module_name in MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED
+    ):
+        return False
+    return True
+
+
+if should_cleanup_loaded_modules():
+    MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
+else:
+    # Perform gevent patching as early as possible in the application before
+    # importing more of the library internals.
+    if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+        import gevent.monkey
+
+        gevent.monkey.patch_all()
+
 
 import logging  # noqa
 import os  # noqa
@@ -22,12 +71,6 @@ from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
-
-
-if PY2:
-    import imp
-else:
-    import importlib
 
 
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
@@ -77,46 +120,6 @@ def update_patched_modules():
 
 if PY2:
     _unloaded_modules = []
-
-
-def is_installed(module_name):
-    # https://stackoverflow.com/a/51491863/735204
-    if sys.version_info >= (3, 4):
-        return importlib.util.find_spec(module_name)
-    elif sys.version_info >= (3, 3):
-        return importlib.find_loader(module_name)
-    elif sys.version_info >= (3, 1):
-        return importlib.find_module(module_name)
-    elif sys.version_info >= (2, 7):
-        try:
-            imp.find_module(module_name)
-        except ImportError:
-            return False
-        else:
-            return True
-    return False
-
-
-def should_cleanup_loaded_modules():
-    dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
-    if dd_unload_sitecustomize_modules == "0":
-        log.debug("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE==0: skipping sitecustomize module unload")
-        return False
-    elif dd_unload_sitecustomize_modules not in ("1", "auto"):
-        log.debug(
-            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE=={}: skipping sitecustomize module unload because of invalid value",
-            dd_unload_sitecustomize_modules,
-        )
-        return False
-    elif dd_unload_sitecustomize_modules == "auto" and not any(
-        is_installed(module_name) for module_name in MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED
-    ):
-        log.debug(
-            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE==auto: skipping sitecustomize module unload because "
-            "no module requiring unloading is installed"
-        )
-        return False
-    return True
 
 
 def cleanup_loaded_modules_if_necessary():
