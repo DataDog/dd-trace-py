@@ -199,6 +199,15 @@ below:
      default: 1.0
      description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
 
+   DD_TRACE_RATE_LIMIT:
+     type: int
+     default: 100
+     description: |
+        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes.
+
+     version_added:
+        v0.33.0:
+
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
@@ -222,7 +231,7 @@ below:
 
      version_added:
         v1.4.0:
-    
+
    DD_SPAN_SAMPLING_RULES_FILE:
      type: string
      description: |
