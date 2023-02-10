@@ -53,7 +53,7 @@ class RemoteConfig(object):
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            if cls.enable():
+            if cls._worker is not None:
                 cls._worker._client.register_product(product, handler)
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
