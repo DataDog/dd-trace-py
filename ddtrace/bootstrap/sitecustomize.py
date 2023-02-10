@@ -244,8 +244,6 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
-
-
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)
