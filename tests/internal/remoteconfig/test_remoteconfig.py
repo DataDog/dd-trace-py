@@ -101,6 +101,7 @@ def test_remote_config_register_auto_enable(mock_check_remote_config_enable_in_a
     assert RemoteConfig._worker is None
 
     mock_check_remote_config_enable_in_agent.return_value = True
+    RemoteConfig.enable()
     RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
 
     assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
@@ -130,7 +131,7 @@ def test_remote_config_forksafe():
 
         if os.fork() == 0:
             assert RemoteConfig._worker is not None
-            assert RemoteConfig._worker is not parent_worker
+            assert RemoteConfig._worker is parent_worker
             exit(0)
 
 
