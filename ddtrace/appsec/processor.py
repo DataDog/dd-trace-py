@@ -30,7 +30,7 @@ from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
-from ddtrace.internal.constants import TELEMETRY_APPSEC
+from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -304,15 +304,21 @@ class AppSecSpanProcessor(SpanProcessor):
             # telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "waf.version", version(), {})
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
-            telemetry_writer.add_count_metric(TELEMETRY_APPSEC, "event_rules.loaded", float(info.loaded), {})
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_APPSEC, "event_rules.loaded", float(info.loaded), {}
+            )
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            telemetry_writer.add_count_metric(TELEMETRY_APPSEC, "event_rules.error_count", float(info.failed), {})
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_APPSEC, "event_rules.error_count", float(info.failed), {}
+            )
             if ddwaf_result:
                 span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
-                telemetry_writer.add_count_metric(TELEMETRY_APPSEC, "waf.duration", float(ddwaf_result.runtime), {})
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration", float(ddwaf_result.runtime), {}
+                )
                 span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
                 telemetry_writer.add_count_metric(
-                    TELEMETRY_APPSEC, "waf.duration_ext", float(ddwaf_result.total_runtime), {}
+                    TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration_ext", float(ddwaf_result.total_runtime), {}
                 )
         except JSONDecodeError:
             log.warning("Error parsing data AppSec In-App WAF metrics report")

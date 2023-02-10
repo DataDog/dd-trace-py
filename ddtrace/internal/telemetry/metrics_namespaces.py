@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Dict
 
-from ddtrace.internal.constants import TELEMETRY_APPSEC
-from ddtrace.internal.constants import TELEMETRY_TRACER
+from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.metrics import CountMetric
 from ddtrace.internal.telemetry.metrics import GaugeMetric
 from ddtrace.internal.telemetry.metrics import Metric
@@ -19,11 +19,14 @@ class TelemetryTypeError(Exception):
 
 
 class MetricNamespace:
-    _metrics_data = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}  # type: NamespaceMetricType
+    _metrics_data = {
+        TELEMETRY_NAMESPACE_TAG_TRACER: {},
+        TELEMETRY_NAMESPACE_TAG_APPSEC: {},
+    }  # type: NamespaceMetricType
     metric_class = {"count": CountMetric, "gauge": GaugeMetric, "rate": RateMetric}
 
     def _flush(self):
-        self._metrics_data = {TELEMETRY_TRACER: {}, TELEMETRY_APPSEC: {}}
+        self._metrics_data = {TELEMETRY_NAMESPACE_TAG_TRACER: {}, TELEMETRY_NAMESPACE_TAG_APPSEC: {}}
 
     def get(self):
         # type: () -> Dict[str, Any]

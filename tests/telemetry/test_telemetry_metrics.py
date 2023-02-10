@@ -3,15 +3,17 @@ import sys
 from mock.mock import ANY
 import pytest
 
-from ddtrace.internal.constants import TELEMETRY_APPSEC
-from ddtrace.internal.constants import TELEMETRY_TRACER
+from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.metrics_namespaces import TelemetryTypeError
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 
 
-def _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_TRACER, seq_id=1):
+def _assert_metric(
+    test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_TRACER, seq_id=1
+):
     test_agent_session_telemetry_metrics.telemetry_writer.periodic()
     events = test_agent_session_telemetry_metrics.get_events()
     # TODO: test_agent_session.clear() creates many telemetry events 'app-closing' type
@@ -30,12 +32,9 @@ def _assert_metric(test_agent_session_telemetry_metrics, expected_series, namesp
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
-    """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
-    But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
-    https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
-    """
+    """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric2", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, {"a": "b"})
     expected_series = [
         {
             "common": True,
@@ -51,20 +50,21 @@ def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_
     _assert_metric(test_agent_session_telemetry_metrics, expected_series)
     test_agent_session_telemetry_metrics.clear()
 
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric2", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, {"a": "b"})
 
     _assert_metric(test_agent_session_telemetry_metrics, expected_series, seq_id=2)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_session_telemetry_metrics, mock_time):
-    """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
+    """Check metrics datapoints and the aggregations by datapoint ID.
+    A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 2, {"a": "b"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 3, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 2, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 3, {"a": "b"})
 
     expected_series = [
         {
@@ -85,14 +85,15 @@ def test_send_metric_datapoint_equal_type_and_tags_expected_1_serie(test_agent_s
 def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(
     test_agent_session_telemetry_metrics, mock_time
 ):
-    """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
+    """Check metrics datapoints and the aggregations by datapoint ID.
+    A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 4, {"a": "b"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 5, {"a": "b", "c": "d"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 6, {})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": "d"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, {})
 
     expected_series = [
         {
@@ -127,17 +128,16 @@ def test_send_metric_datapoint_equal_type_different_tags_expected_3_serie(
     _assert_metric(test_agent_session_telemetry_metrics, expected_series)
 
 
-def test_send_metric_datapoint_equal_tags_different_type_throws_error(
-    test_agent_session_telemetry_metrics, mock_time
-):
-    """A datapoint is at least: a metric name, a metric value, and the time at which the value was collected.
+def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent_session_telemetry_metrics, mock_time):
+    """Check metrics datapoints and the aggregations by datapoint ID.
+    A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
     with pytest.raises(TelemetryTypeError) as e:
-        telemetry_writer.add_gauge_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
+        telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
 
     assert e.value.args[0] == (
         'Error: metric with name "dd.app_telemetry.tracers.test-metric" and type "count" '
@@ -148,10 +148,12 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"a": "b"})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {})
-    telemetry_writer.add_count_metric(TELEMETRY_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {})
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"}
+    )
 
     expected_series = [
         {
@@ -188,9 +190,9 @@ def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_ti
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
-    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
-    telemetry_writer.add_rate_metric(TELEMETRY_APPSEC, "test-metric", 1, {})
+    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
+    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
 
     expected_series = [
         {
@@ -213,15 +215,17 @@ def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time
         },
     ]
 
-    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_APPSEC)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_time):
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
-    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"})
-    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 5, {"a": "b"})
-    telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "test-metric", 6, {})
+    telemetry_writer.add_gauge_metric(
+        TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"}
+    )
+    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {"a": "b"})
+    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
 
     expected_series = [
         {
@@ -252,4 +256,4 @@ def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_tim
             "type": "gauge",
         },
     ]
-    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_APPSEC)
+    _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
