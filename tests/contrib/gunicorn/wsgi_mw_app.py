@@ -42,9 +42,11 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = bytes("goodbye", encoding="utf-8")
     else:
+        has_config_worker = hasattr(RemoteConfig._worker, "_worker")
         payload = {
             "remoteconfig": {
-                "worker_alive": hasattr(RemoteConfig._worker, "_worker") and RemoteConfig._worker._worker.is_alive(),
+                "worker_alive": has_config_worker and RemoteConfig._worker._worker.is_alive(),
+                "enabled_after_gevent_monkeypatch": RemoteConfig._was_enabled_after_gevent_monkeypatch,
             },
         }
         json_payload = json.dumps(payload)
