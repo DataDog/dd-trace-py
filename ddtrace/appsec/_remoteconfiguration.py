@@ -2,6 +2,8 @@ import json
 import os
 from typing import TYPE_CHECKING
 
+from ddtrace import config
+from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
@@ -40,11 +42,13 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
-        from ddtrace.appsec._constants import PRODUCTS
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
+
     if tracer._appsec_enabled:
+        from ddtrace.internal.remoteconfig import RemoteConfig
+
         RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
         RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
         RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
@@ -95,12 +99,17 @@ def _appsec_1click_activation(tracer, features):
             RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
             if not tracer._appsec_enabled:
                 tracer.configure(appsec_enabled=True)
+            else:
+                config._appsec_enabled = True
+
         else:
             RemoteConfig.unregister(PRODUCTS.ASM_DATA)
             RemoteConfig.unregister(PRODUCTS.ASM)
             RemoteConfig.unregister(PRODUCTS.ASM_DD)
             if tracer._appsec_enabled:
                 tracer.configure(appsec_enabled=False)
+            else:
+                config._appsec_enabled = False
 
 
 def appsec_rc_reload_features(tracer):
