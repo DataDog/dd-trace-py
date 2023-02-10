@@ -1,6 +1,6 @@
 ---
 deprecations:
   - |
-    ``ddtrace.ext.sql.ROWS`` is deprecated. Use ``ddtrace.ext.db.ROWCOUNT`` instead.
+    dbapi: ``ddtrace.ext.sql.ROWS`` is deprecated. Use ``ddtrace.ext.db.ROWCOUNT`` instead.
   - |
-    ``ddtrace.ext.cassandra.ROW_COUNT`` is deprecated. Use ``ddtrace.ext.db.ROWCOUNT`` instead.
+    cassandra: ``ddtrace.ext.cassandra.ROW_COUNT`` is deprecated. Use ``ddtrace.ext.db.ROWCOUNT`` instead.
