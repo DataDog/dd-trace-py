@@ -130,7 +130,7 @@ def test_remote_config_forksafe():
 
         if os.fork() == 0:
             assert RemoteConfig._worker is not None
-            assert RemoteConfig._worker is not parent_worker
+            assert RemoteConfig._worker is parent_worker
             exit(0)
 
 
