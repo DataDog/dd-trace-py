@@ -11,16 +11,13 @@ MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
 
 import os  # noqa
 
-from ddtrace.internal.compat import PY2  # noqa
-
 
 MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing"}
-if PY2:
+if sys.version_info <= (2, 7):
     MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
-
-
-if PY2:
     import imp
+
+    _unloaded_modules = []
 else:
     import importlib
 
@@ -56,15 +53,13 @@ def should_cleanup_loaded_modules():
     return True
 
 
-if PY2:
-    _unloaded_modules = []
-
-
 def cleanup_loaded_modules_if_necessary(force=False):
     if not force and not should_cleanup_loaded_modules():
         return
     modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
     modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
+    if force:
+        modules_to_cleanup = modules_loaded_since_startup
     # Unload all the modules that we have imported, except for ddtrace and a few
     # others that don't like being cloned.
     # Doing so will allow ddtrace to continue using its local references to modules unpatched by
