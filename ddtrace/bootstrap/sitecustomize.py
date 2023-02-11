@@ -69,7 +69,7 @@ def cleanup_loaded_modules_if_necessary(force=False):
     for m in modules_to_cleanup:
         if any(m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP):
             continue
-        if PY2:
+        if not force and PY2:
             # Store a reference to deleted modules to avoid them being garbage collected
             _unloaded_modules.append(sys.modules[m])
 
