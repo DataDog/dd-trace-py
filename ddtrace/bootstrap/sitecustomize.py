@@ -49,14 +49,39 @@ def should_cleanup_loaded_modules():
     return True
 
 
+def cleanup_loaded_modules_if_necessary(force=False):
+    if not force and not should_cleanup_loaded_modules():
+        return
+    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
+    modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
+    # Unload all the modules that we have imported, except for ddtrace and a few
+    # others that don't like being cloned.
+    # Doing so will allow ddtrace to continue using its local references to modules unpatched by
+    # gevent, while avoiding conflicts with user-application code potentially running
+    # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
+    for m in modules_to_cleanup:
+        if any(m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP):
+            continue
+        if PY2:
+            # Store a reference to deleted modules to avoid them being garbage collected
+            _unloaded_modules.append(sys.modules[m])
+
+        del sys.modules[m]
+
+    # TODO: The better strategy is to identify the core modules in MODULES_LOADED_AT_STARTUP
+    # that should not be unloaded, and then unload as much as possible.
+    if "time" in sys.modules:
+        del sys.modules["time"]
+
+
 if not should_cleanup_loaded_modules():
     # Perform gevent patching as early as possible in the application before
     # importing more of the library internals.
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+        cleanup_loaded_modules_if_necessary(force=True)
         import gevent.monkey
 
         gevent.monkey.patch_all()
-
 
 import logging  # noqa
 import os  # noqa
@@ -122,31 +147,6 @@ def update_patched_modules():
 
 if PY2:
     _unloaded_modules = []
-
-
-def cleanup_loaded_modules_if_necessary():
-    if not should_cleanup_loaded_modules():
-        return
-    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
-    modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
-    # Unload all the modules that we have imported, except for ddtrace and a few
-    # others that don't like being cloned.
-    # Doing so will allow ddtrace to continue using its local references to modules unpatched by
-    # gevent, while avoiding conflicts with user-application code potentially running
-    # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
-    for m in modules_to_cleanup:
-        if any(m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP):
-            continue
-        if PY2:
-            # Store a reference to deleted modules to avoid them being garbage collected
-            _unloaded_modules.append(sys.modules[m])
-
-        del sys.modules[m]
-
-    # TODO: The better strategy is to identify the core modules in MODULES_LOADED_AT_STARTUP
-    # that should not be unloaded, and then unload as much as possible.
-    if "time" in sys.modules:
-        del sys.modules["time"]
 
 
 try:
