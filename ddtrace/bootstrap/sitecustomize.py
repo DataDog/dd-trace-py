@@ -56,6 +56,10 @@ def should_cleanup_loaded_modules():
     return True
 
 
+if PY2:
+    _unloaded_modules = []
+
+
 def cleanup_loaded_modules_if_necessary(force=False):
     if not force and not should_cleanup_loaded_modules():
         return
@@ -146,10 +150,6 @@ def update_patched_modules():
     modules = parse_tags_str(modules_to_patch)
     for module, should_patch in modules.items():
         EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
-
-
-if PY2:
-    _unloaded_modules = []
 
 
 try:
