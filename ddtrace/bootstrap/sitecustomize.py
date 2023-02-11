@@ -80,10 +80,13 @@ def cleanup_loaded_modules_if_necessary(aggressive=False):
         del sys.modules["time"]
 
 
-if not should_cleanup_loaded_modules():
+will_run_module_cloning = should_cleanup_loaded_modules()
+if not will_run_module_cloning:
     # Perform gevent patching as early as possible in the application before
     # importing more of the library internals.
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+        # in fact, successfully running `gevent.monkey.patch_all()` this late into
+        # sitecustomize requires aggressive module unloading beforehand.
         cleanup_loaded_modules_if_necessary(aggressive=True)
         import gevent.monkey
 
