@@ -6,10 +6,17 @@ import sys
 
 
 MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
+MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
+
 
 import os  # noqa
 
 from ddtrace.internal.compat import PY2  # noqa
+
+
+MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing"}
+if PY2:
+    MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
 
 
 if PY2:
@@ -127,12 +134,6 @@ EXTRA_PATCHED_MODULES = {
     "pylons": True,
     "pyramid": True,
 }
-
-MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
-
-MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing"}
-if PY2:
-    MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
 
 
 def update_patched_modules():
