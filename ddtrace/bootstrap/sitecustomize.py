@@ -67,7 +67,9 @@ def cleanup_loaded_modules_if_necessary(force=False):
     # gevent, while avoiding conflicts with user-application code potentially running
     # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
     for m in modules_to_cleanup:
-        if any(m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP):
+        if not force and any(
+            m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP
+        ):
             continue
         if not force and PY2:
             # Store a reference to deleted modules to avoid them being garbage collected
