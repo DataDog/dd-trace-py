@@ -85,7 +85,7 @@ if not will_run_module_cloning:
     # Perform gevent patching as early as possible in the application before
     # importing more of the library internals.
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
-        # in fact, successfully running `gevent.monkey.patch_all()` this late into
+        # successfully running `gevent.monkey.patch_all()` this late into
         # sitecustomize requires aggressive module unloading beforehand.
         cleanup_loaded_modules_if_necessary(aggressive=True)
         import gevent.monkey
@@ -106,6 +106,13 @@ from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
+
+
+if config.logs_injection:
+    # immediately patch logging if trace id injected
+    from ddtrace import patch
+
+    patch(logging=True)
 
 
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
