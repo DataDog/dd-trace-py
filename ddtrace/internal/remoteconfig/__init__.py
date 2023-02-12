@@ -38,11 +38,12 @@ class RemoteConfig(object):
     def enable(cls):
         # type: () -> bool
         if cls._check_remote_config_enable_in_agent():
-            with cls._worker_lock:
-                if cls._worker is None:
-                    cls._worker = RemoteConfigWorker()
-                    cls._worker.start()
+            # with cls._worker_lock:
+            if cls._worker is None:
+                cls._worker = RemoteConfigWorker()
+                cls._worker.start()
 
+            # forksafe?
             atexit.register(cls.disable)
             return True
         return False
