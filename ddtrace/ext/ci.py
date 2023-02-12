@@ -105,7 +105,8 @@ def tags(env=None, cwd=None):
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
         debug_mode = log.isEnabledFor(logging.DEBUG)
-        log.error("Error extracting git metadata: %s", str(e), exc_info=debug_mode)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.

@@ -80,7 +80,7 @@ def _git_subprocess_cmd(cmd, cwd=None):
     stdout, stderr = process.communicate()
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()
-    raise ValueError(stderr)
+    raise ValueError(compat.ensure_text(stderr).strip())
 
 
 def extract_user_info(cwd=None):
@@ -152,7 +152,8 @@ def extract_git_metadata(cwd=None):
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
         debug_mode = log.isEnabledFor(logging.DEBUG)
-        log.error("Error extracting git metadata: %s", str(e), exc_info=debug_mode)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     return tags
 
