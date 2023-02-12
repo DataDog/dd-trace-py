@@ -146,10 +146,9 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader, module_spec=None):
-        # type: (Loader, Optional[ModuleSpec]) -> None
+    def __init__(self, loader):
+        # type: (Loader) -> None
         self.loader = loader
-        self.module_spec = module_spec
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
@@ -390,7 +389,7 @@ class ModuleWatchdog(dict):
 
             if loader is not None:
                 if not isinstance(loader, self._loader_class):
-                    spec.loader = self._loader_class(loader, spec)
+                    spec.loader = self._loader_class(loader)
 
                 cast(self._loader_class, spec.loader).add_callback(  # type: ignore[name-defined]
                     type(self), self.after_import

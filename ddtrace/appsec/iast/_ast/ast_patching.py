@@ -3,12 +3,12 @@
 import ast
 import codecs
 import os
-import pkgutil
 from typing import Optional
 from typing import Tuple
 
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 
 
 # Prefixes for modules where IAST patching is allowed
@@ -58,9 +58,8 @@ def visit_ast(
 
 def astpatch_source(
     module_name,  # type: str
-    module_path="",  # type: str
+    module_path,  # type: Optional[str]
 ):  # type: (...) -> Tuple[str, str]
-
     if not module_path and not module_name:
         log.debug("astpatch_source called with no module path or name")
         return "", ""
@@ -68,20 +67,19 @@ def astpatch_source(
     detected_module_path = module_path
     if not detected_module_path:
         # Get the module path from the module name (foo.bar -> foo/bar.py)
-        loader = pkgutil.get_loader(module_name)
+        module_watchdog = ModuleWatchdog()
 
-        assert loader
-        if hasattr(loader, "module_spec"):
-            detected_module_path = loader.module_spec.origin
+        detected_module_spec = module_watchdog.find_spec(module_name)
+        if detected_module_spec and hasattr(detected_module_spec, "origin"):
+            detected_module_path = detected_module_spec.origin
             if not detected_module_path:
                 log.debug("astpatch_source couldn't get module spec origin for: %s", module_name)
                 return "", ""
         else:
-            # Enter in this else if the loader is instance of BuiltinImporter but
-            # isinstance(loader, BuiltinImporter) doesn't work
-            log.debug("astpatch_source couldn't get loader for: %s", module_name)
+            log.debug("astpatch_source: ModuleWatchdog couldn't get module spec for: %s", module_name)
             return "", ""
 
+    assert detected_module_path
     try:
         if os.stat(detected_module_path).st_size == 0:
             # Don't patch empty files like __init__.py

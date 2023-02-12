@@ -20,7 +20,7 @@ class _IASTLoader(_ImportHookChainedLoader):
         patched_source = None
         if IS_IAST_ENABLED and _should_iast_patch(module.__name__):
             log.debug("IAST enabled")
-            module_path, patched_source = astpatch_source(module.__name__)
+            module_path, patched_source = astpatch_source(module.__name__, None)
 
         if patched_source:
             # Patched source is executed instead of original module
