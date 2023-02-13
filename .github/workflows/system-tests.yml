@@ -77,7 +77,7 @@ jobs:
         run: ./lib-injection/build.sh
 
       - name: Run
-        run: ./lib-injection/run-manual-lib-injection.sh
+        run: ./lib-injection/run-lib-injection.sh
 
   parametric:
     runs-on: ubuntu-latest
