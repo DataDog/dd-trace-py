@@ -7,10 +7,10 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.internal.constants import COMPONENT
+
 from ...appsec import utils
 from ...internal import _context
-
-from ddtrace.internal.constants import COMPONENT
 
 
 # Not all versions of flask/werkzeug have this mixin
