@@ -12,7 +12,7 @@ MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
 import os  # noqa
 
 
-MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging", "typing"}
+MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging"}
 if sys.version_info <= (2, 7):
     MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
     import imp
