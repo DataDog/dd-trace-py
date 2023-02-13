@@ -14,6 +14,7 @@ from typing import TextIO
 
 import six
 import tenacity
+from ddtrace.internal import forksafe
 
 import ddtrace
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
@@ -536,6 +537,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
                     if asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", True)):
                         RemoteConfig.enable()
+                        forksafe.register(RemoteConfig.enable)  # JJJ
 
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized

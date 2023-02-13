@@ -37,7 +37,7 @@ class RemoteConfig(object):
 
     @classmethod
     def restart(cls):
-        cls.disable()
+        # cls.disable()
         cls.enable()
 
 
@@ -46,8 +46,9 @@ class RemoteConfig(object):
         # type: () -> bool
         if cls._check_remote_config_enable_in_agent():
             with cls._worker_lock:
-                if cls._worker is None:
-                    cls._worker = RemoteConfigWorker()
+                if cls._worker is not None:
+                    cls._worker.stop()
+                cls._worker = RemoteConfigWorker()
             cls._worker.start()
 
             # forksafe.register(cls.restart)
