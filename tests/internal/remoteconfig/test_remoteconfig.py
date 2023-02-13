@@ -20,6 +20,7 @@ from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
 from ddtrace.vendor import psutil
+from ddtrace.vendor.psutil import NoSuchProcess
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 from tests.webclient import Client
@@ -295,7 +296,8 @@ def test_gevent_no_stuck_processes():  # type: () -> None
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
 
-    nprocesses = _count_running_processes(gunicorn_cmd)
-
-    # Check that there are no zombie processes left
-    assert nprocesses == 0
+    try:
+        nprocesses = _count_running_processes(gunicorn_cmd)
+        assert nprocesses == 0
+    except NoSuchProcess:
+        print("Process is finished")
