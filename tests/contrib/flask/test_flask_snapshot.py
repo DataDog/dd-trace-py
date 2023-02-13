@@ -39,7 +39,7 @@ def flask_wsgi_application():
 @pytest.fixture
 def flask_command(flask_wsgi_application, flask_port):
     # type: (str, str) -> List[str]
-    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % flask_port
+    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
