@@ -1,3 +1,4 @@
+from ast import AST
 from collections import defaultdict
 from os.path import abspath
 from os.path import expanduser
@@ -14,6 +15,7 @@ from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -25,6 +27,7 @@ from ddtrace.internal.utils import get_argument_value
 log = get_logger(__name__)
 
 ModuleHookType = Callable[[ModuleType], None]
+ASTTrasformer = Callable[[AST], AST]
 
 
 _run_code = None
@@ -189,7 +192,21 @@ class _ImportHookChainedLoader(Loader):
         return self.loader.create_module(spec)
 
     def _exec_module(self, module):
-        self.loader.exec_module(module)
+        # Collect all the transformers registered by other ModuleWatchdog
+        # instances so that we can run them all in order.
+        ast_transformers = [
+            transformer
+            for cond, transformer in (_._ast_transformers for _ in sys.meta_path if isinstance(_, ModuleWatchdog))
+            if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__)
+        ]
+        if ast_transformers:
+            # Get the AST of the original module
+            # Pipe it through the transformers
+            # Compile and exec
+            pass
+        else:
+            self.loader.exec_module(module)
+
         for callback in self.callbacks.values():
             callback(module)
 
@@ -214,6 +231,7 @@ class ModuleWatchdog(dict):
         self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
+        self._ast_transformers = []  # type: List[Tuple[Callable[[str], bool], ASTTrasformer]]
 
     def __getitem__(self, item):
         # type: (str) -> ModuleType
@@ -493,6 +511,22 @@ class ModuleWatchdog(dict):
                     del instance._hook_map[module]
         except ValueError:
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
+
+    @classmethod
+    def register_ast_transformer(cls, cond, transformer):
+        # type: (str, Union[str, Callable[[str], bool]], Callable[[AST], AST]) -> None
+        """Register an AST transformer.
+
+        The transformer is executed before the module is executed to allow for
+        the AST to be transformed as required. To ensure that the transformer
+        is applied only to the modules that are required, the condition is
+        evaluated against the module name.
+        """
+        cls._check_installed()
+
+        log.debug("Registering AST transformer '%r' on condition '%s'", transformer, cond)
+        instance = cast(ModuleWatchdog, cls._instance)
+        instance._ast_transformers.append((cond, transformer))
 
     @classmethod
     def _check_installed(cls):
