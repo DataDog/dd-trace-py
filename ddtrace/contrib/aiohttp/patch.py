@@ -4,7 +4,6 @@ from yarl import URL
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -79,7 +78,8 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.aiohttp_client.integration_name)
 
         # set span.kind tag equal to type of request
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

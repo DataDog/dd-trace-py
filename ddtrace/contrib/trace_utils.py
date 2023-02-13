@@ -470,7 +470,7 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    request_ip = peer_ip
+    ip = None
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -479,15 +479,10 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
-            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = _context.get_item("http.request.remote_ip", span=span)
-
-            if not request_ip:
-                # Not calculated: framework does not support IP blocking or testing env
-                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
-
-            span.set_tag_str(http.CLIENT_IP, request_ip)
-            span.set_tag_str("network.client.ip", request_ip)
+            ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+            if ip:
+                span.set_tag_str(http.CLIENT_IP, ip)
+                span.set_tag_str("network.client.ip", ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -517,7 +512,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", request_ip),
+                    ("http.request.remote_ip", ip),
                 ]
                 if v is not None
             },

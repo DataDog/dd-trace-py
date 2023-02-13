@@ -3,7 +3,6 @@ import pytest
 import six
 
 from ddtrace import config
-from ddtrace.contrib.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.httpx.patch import patch
 from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.pin import Pin
@@ -20,8 +19,6 @@ PORT = 8001
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
-
-pytestmark = pytest.mark.skipif(HTTPX_VERSION < (0, 11), reason="httpx<=0.10 Client is asynchronous")
 
 
 def get_url(path):

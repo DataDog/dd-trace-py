@@ -43,7 +43,7 @@ class TestKombuPatch(TracerTestCase):
     def test_extract_conn_tags(self):
         result = utils.extract_conn_tags(self.conn)
         assert result["out.host"] == "127.0.0.1"
-        assert result["network.destination.port"] == str(self.TEST_PORT)
+        assert result["out.port"] == str(self.TEST_PORT)
 
     def _publish_consume(self):
         results = []

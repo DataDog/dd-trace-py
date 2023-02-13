@@ -194,7 +194,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "simple")
             self.assertTrue(net.TARGET_HOST not in span.get_tags())
-            self.assertTrue("network.destination.port" not in span.get_tags())
+            self.assertTrue(net.TARGET_PORT not in span.get_tags())
 
     def test_default_span_tags_for_redis(self):
         # create the TracedCache instance for a Flask app
@@ -211,7 +211,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "redis")
             self.assertEqual(span.get_tag(net.TARGET_HOST), "localhost")
-            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_REDIS_PORT)
+            self.assertEqual(span.get_metric(net.TARGET_PORT), self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
@@ -228,7 +228,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "memcached")
             self.assertEqual(span.get_tag(net.TARGET_HOST), "127.0.0.1")
-            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_MEMCACHED_PORT)
+            self.assertEqual(span.get_metric(net.TARGET_PORT), self.TEST_MEMCACHED_PORT)
 
     def test_simple_cache_get_ot(self):
         """OpenTracing version of test_simple_cache_get."""

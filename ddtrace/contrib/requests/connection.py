@@ -2,7 +2,6 @@ from typing import Optional
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -82,7 +81,8 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     with tracer.trace("requests.request", service=service, span_type=SpanTypes.HTTP) as span:
-        span.set_tag_str(COMPONENT, config.requests.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

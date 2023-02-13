@@ -61,7 +61,7 @@ CPU_TOLERANCE = 0.05
 
 
 def almost_equal(value, target, tolerance=TOLERANCE):
-    return abs(value - target) / target <= tolerance
+    return target * (1 + tolerance) >= value >= target * (1 - tolerance)
 
 
 def total_time(time_data, funcname):

@@ -1,4 +1,3 @@
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -44,35 +43,14 @@ def _inject_hook(code, hook, lineno, arg):
     # >>> hook(arg)
     # Additionally, we must discard the return value (top of the stack) to
     # restore the stack to the state prior to the call.
-    if sys.version_info[:2] < (3, 11):
-        code[i:i] = Bytecode(
-            [
-                Instr("LOAD_CONST", hook, lineno=lineno),
-                Instr("LOAD_CONST", arg, lineno=lineno),
-                Instr("CALL_FUNCTION", 1, lineno=lineno),
-                Instr("POP_TOP", lineno=lineno),
-            ]
-        )
-    else:
-        code[i:i] = Bytecode(
-            [
-                Instr("PUSH_NULL", lineno=lineno),
-                Instr("LOAD_CONST", hook, lineno=lineno),
-                Instr("LOAD_CONST", arg, lineno=lineno),
-                Instr("PRECALL", 1, lineno=lineno),
-                Instr("CALL", 1, lineno=lineno),
-                Instr("POP_TOP", lineno=lineno),
-            ]
-        )
-
-
-_INJECT_HOOK_OPCODES = (
-    ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-    if sys.version_info < (3, 11)
-    else ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
-)
-_INJECT_HOOK_OPCODE_POS = 0 if sys.version_info < (3, 11) else 1
-_INJECT_ARG_OPCODE_POS = 1 if sys.version_info < (3, 11) else 2
+    code[i:i] = Bytecode(
+        [
+            Instr("LOAD_CONST", hook, lineno=lineno),
+            Instr("LOAD_CONST", arg, lineno=lineno),
+            Instr("CALL_FUNCTION", 1, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+        ]
+    )
 
 
 def _eject_hook(code, hook, line, arg):
@@ -88,9 +66,9 @@ def _eject_hook(code, hook, line, arg):
             # hook and we also test for the expected opcode arguments
             if (
                 instr.lineno == line
-                and code[i + _INJECT_HOOK_OPCODE_POS].arg == hook  # bound methods don't like identity comparisons
-                and code[i + _INJECT_ARG_OPCODE_POS].arg is arg
-                and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES
+                and code[i].arg == hook  # bound methods don't like identity comparisons
+                and code[i + 1].arg is arg
+                and [code[_].name for _ in range(i, i + 4)] == ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
             ):
                 # gotcha!
                 break
@@ -102,7 +80,7 @@ def _eject_hook(code, hook, line, arg):
     else:
         raise InvalidLine("Line %d does not contain a hook" % line)
 
-    del code[i : i + len(_INJECT_HOOK_OPCODES)]
+    del code[i : i + 4]
 
 
 def _function_with_new_code(f, abstract_code):

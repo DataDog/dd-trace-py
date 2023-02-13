@@ -3,12 +3,10 @@ import json
 import os
 
 import mock
-import pytest
 
 from ddtrace.internal import runtime
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
 
 
@@ -29,7 +27,7 @@ def _expected_payload(
             "client_tracer": {
                 "runtime_id": runtime.get_runtime_id(),
                 "language": "python",
-                "tracer_version": _pep440_to_semver(),
+                "tracer_version": RemoteConfigClient._get_version(),
                 "service": None,
                 "env": None,
                 "app_version": None,
@@ -61,10 +59,6 @@ def _assert_response(mock_send_request, expected_response):
     response = json.loads(mock_send_request.call_args.args[0])
     response["cached_target_files"].sort(key=lambda x: x["path"], reverse=True)
     response["client"]["state"]["config_states"].sort(key=lambda x: x["id"], reverse=True)
-
-    assert response["client"]["client_tracer"]["tags"]
-    del response["client"]["client_tracer"]["tags"]
-
     assert response == expected_response
 
 
@@ -662,27 +656,3 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
-
-
-@pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
-def test_remote_config_client_tags():
-
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-
-    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-
-    assert tags["env"] == "foo"
-    assert tags["version"] == "bar"
-
-
-@pytest.mark.subprocess(
-    env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
-)
-def test_remote_config_client_tags_override():
-
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-
-    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-
-    assert tags["env"] == "foo"
-    assert tags["version"] == "bar"

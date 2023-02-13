@@ -66,7 +66,7 @@ class PyMySQLCore(object):
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+        assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         assert span.get_tag("component") == "pymysql"
         assert span.get_tag("span.kind") == "client"
         meta = {}
@@ -90,7 +90,7 @@ class PyMySQLCore(object):
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+            assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
             assert span.get_tag("component") == "pymysql"
             assert span.get_tag("span.kind") == "client"
             meta = {}
@@ -241,7 +241,7 @@ class PyMySQLCore(object):
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+        assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.get_tags(), meta)
@@ -273,7 +273,7 @@ class PyMySQLCore(object):
         assert dd_span.name == "pymysql.query"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
-        assert dd_span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+        assert dd_span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(dd_span.get_tags(), meta)
@@ -306,7 +306,7 @@ class PyMySQLCore(object):
             assert dd_span.name == "pymysql.query"
             assert dd_span.span_type == "sql"
             assert dd_span.error == 0
-            assert dd_span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+            assert dd_span.get_metric("out.port") == MYSQL_CONFIG.get("port")
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(dd_span.get_tags(), meta)
@@ -416,7 +416,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+            assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
 
             meta = {}
             meta.update(self.DB_INFO)

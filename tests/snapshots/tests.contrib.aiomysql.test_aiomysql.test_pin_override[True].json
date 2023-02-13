@@ -27,7 +27,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "db.rownumber": 0,
-      "network.destination.port": 3306,
+      "out.port": 3306,
       "process_id": 40190
     },
     "duration": 2932000,

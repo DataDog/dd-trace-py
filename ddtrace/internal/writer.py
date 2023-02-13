@@ -295,7 +295,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         )
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
-                "There is a known compatibility issue with v0.5 API and Windows, "
+                "There is a known compatibiltiy issue with v0.5 API and Windows, "
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 
@@ -555,12 +555,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
                 len(self._encoder),
                 self._encoder.size,
                 self._encoder.max_size,
                 payload_size,
-                self.status.value,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])

@@ -485,18 +485,6 @@ class Span(object):
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
 
-    def finish_with_ancestors(self):
-        # type: () -> None
-        """Finish this span along with all (accessible) ancestors of this span.
-
-        This method is useful if a sudden program shutdown is required and finishing
-        the trace is desired.
-        """
-        span = self  # type: Optional[Span]
-        while span is not None:
-            span.finish()
-            span = span._parent
-
     def __enter__(self):
         return self
 

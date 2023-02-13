@@ -11,7 +11,6 @@ from ddtrace.contrib.redis.patch import traced_pipeline
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import redis as redisx
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin

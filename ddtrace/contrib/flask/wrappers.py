@@ -1,5 +1,4 @@
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import function_wrapper
 
 from .. import trace_utils
@@ -23,7 +22,8 @@ def wrap_function(instance, func, name=None, resource=None):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.flask.integration_name)
 
             return wrapped(*args, **kwargs)
 
@@ -45,7 +45,8 @@ def wrap_signal(app, signal, func):
             return wrapped(*args, **kwargs)
 
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask)) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+            # set component tag equal to name of integration
+            span.set_tag_str("component", config.flask.integration_name)
 
             span.set_tag_str("flask.signal", signal)
             return wrapped(*args, **kwargs)

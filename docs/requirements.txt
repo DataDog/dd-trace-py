@@ -5,5 +5,3 @@ opentracing
 reno
 sphinxcontrib-spelling
 PyEnchant
-furo
-sphinx-copybutton

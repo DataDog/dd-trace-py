@@ -8,7 +8,6 @@ import pymongo
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import ObjectProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -108,7 +107,8 @@ class TracedServer(ObjectProxy):
 
         span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
 
-        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pymongo.integration_name)
 
         # set span.kind to the operation type being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
@@ -223,7 +223,8 @@ class TracedSocket(ObjectProxy):
         pin = ddtrace.Pin.get_from(self)
         s = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
 
-        s.set_tag_str(COMPONENT, config.pymongo.integration_name)
+        # set component tag equal to name of integration
+        s.set_tag_str("component", config.pymongo.integration_name)
 
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

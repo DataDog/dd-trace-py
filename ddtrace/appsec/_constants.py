@@ -111,13 +111,3 @@ class WAF_ACTIONS(object):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
-
-
-@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
-class PRODUCTS(object):
-    """string identifier for remote config products"""
-
-    ASM = "ASM"
-    ASM_DATA = "ASM_DATA"
-    ASM_DD = "ASM_DD"
-    ASM_FEATURES = "ASM_FEATURES"

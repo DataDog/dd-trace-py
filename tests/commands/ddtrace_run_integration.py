@@ -34,7 +34,7 @@ if __name__ == "__main__":
     assert span.name == "redis.command"
     assert span.span_type == "redis"
     assert span.error == 0
-    assert span.get_metric("network.destination.port") == REDIS_CONFIG["port"]
+    assert span.get_metric("out.port") == REDIS_CONFIG["port"]
     assert span.get_metric("out.redis_db") == 0
     assert span.get_tag("out.host") == "localhost"
     assert span.get_tag("redis.raw_command").startswith(u"mget 0 1 2 3")

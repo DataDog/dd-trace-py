@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
@@ -77,7 +76,8 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.asyncpg.integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
@@ -92,7 +92,8 @@ async def _traced_query(pin, method, query, args, kwargs):
     with pin.tracer.trace(
         "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.asyncpg.integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

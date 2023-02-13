@@ -5,7 +5,6 @@ from pyramid.settings import asbool
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -53,7 +52,8 @@ def trace_render(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pyramid.integration_name)
 
         return func(*args, **kwargs)
 
@@ -74,7 +74,8 @@ def trace_tween_factory(handler, registry):
             )
 
             with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
-                span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+                # set component tag equal to name of integration
+                span.set_tag_str("component", config.pyramid.integration_name)
 
                 # set span.kind to the type of operation being performed
                 span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

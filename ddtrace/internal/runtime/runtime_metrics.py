@@ -7,7 +7,6 @@ from typing import Set
 import attr
 
 import ddtrace
-from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 
 from .. import periodic
@@ -93,15 +92,7 @@ class RuntimeWorker(periodic.PeriodicService):
             forksafe.unregister(cls._restart)
 
             cls._instance.stop()
-            # DEV: Use timeout to avoid locking on shutdown. This seems to be
-            # required on some occasions by Python 2.7. Deadlocks seem to happen
-            # when some functionalities (e.g. platform.architecture) are used
-            # which end up calling
-            #    _execute_child (/usr/lib/python2.7/subprocess.py:1023)
-            # This is a continuous attempt to read:
-            #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
-            # which is the eventual cause of the deadlock.
-            cls._instance.join(1)
+            cls._instance.join()
             cls._instance = None
             cls.enabled = False
 
@@ -124,7 +115,6 @@ class RuntimeWorker(periodic.PeriodicService):
             runtime_worker.update_runtime_tags()
 
             forksafe.register(cls._restart)
-            atexit.register(cls.disable)
 
             cls._instance = runtime_worker
             cls.enabled = True

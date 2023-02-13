@@ -1,5 +1,3 @@
-from dis import dis
-
 import pytest
 
 from ddtrace.debugging._expressions import dd_compile
@@ -109,7 +107,7 @@ def test_parse_expressions(ast, _locals, value):
         with pytest.raises(value):
             compiled(_locals)
     else:
-        assert compiled(_locals) == value, dis(compiled)
+        assert compiled(_locals) == value
 
 
 def test_side_effects():

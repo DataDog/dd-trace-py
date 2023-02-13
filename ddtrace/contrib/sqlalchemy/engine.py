@@ -18,7 +18,6 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -90,7 +89,8 @@ class EngineTracer(object):
             span_type=SpanTypes.SQL,
             resource=statement,
         )
-        span.set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.sqlalchemy.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

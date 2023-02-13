@@ -7,7 +7,6 @@ from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
 
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -33,7 +32,8 @@ class TracedCursor(cursor):
             return cursor.execute(self, query, vars)
 
         with self._datadog_tracer.trace("postgres.query", service=self._datadog_service, span_type=SpanTypes.SQL) as s:
-            s.set_tag_str(COMPONENT, config.psycopg.integration_name)
+            # set component tag equal to name of integration
+            s.set_tag_str("component", config.psycopg.integration_name)
 
             # set span.kind to the type of operation being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

@@ -1,9 +1,4 @@
-try:
-    import dogpile.cache as dogpile_cache
-    import dogpile.lock as dogpile_lock
-except AttributeError:
-    from dogpile import cache as dogpile_cache
-    from dogpile import lock as dogpile_lock
+import dogpile
 
 from ddtrace.pin import Pin
 from ddtrace.pin import _DD_PIN_NAME
@@ -15,32 +10,32 @@ from .region import _wrap_get_create
 from .region import _wrap_get_create_multi
 
 
-_get_or_create = dogpile_cache.region.CacheRegion.get_or_create
-_get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
-_lock_ctor = dogpile_lock.Lock.__init__
+_get_or_create = dogpile.cache.region.CacheRegion.get_or_create
+_get_or_create_multi = dogpile.cache.region.CacheRegion.get_or_create_multi
+_lock_ctor = dogpile.lock.Lock.__init__
 
 
 def patch():
-    if getattr(dogpile_cache, "_datadog_patch", False):
+    if getattr(dogpile.cache, "_datadog_patch", False):
         return
-    setattr(dogpile_cache, "_datadog_patch", True)
+    setattr(dogpile.cache, "_datadog_patch", True)
 
     _w("dogpile.cache.region", "CacheRegion.get_or_create", _wrap_get_create)
     _w("dogpile.cache.region", "CacheRegion.get_or_create_multi", _wrap_get_create_multi)
     _w("dogpile.lock", "Lock.__init__", _wrap_lock_ctor)
 
-    Pin(service="dogpile.cache").onto(dogpile_cache)
+    Pin(service="dogpile.cache").onto(dogpile.cache)
 
 
 def unpatch():
-    if not getattr(dogpile_cache, "_datadog_patch", False):
+    if not getattr(dogpile.cache, "_datadog_patch", False):
         return
-    setattr(dogpile_cache, "_datadog_patch", False)
+    setattr(dogpile.cache, "_datadog_patch", False)
     # This looks silly but the unwrap util doesn't support class instance methods, even
     # though wrapt does. This was causing the patches to stack on top of each other
     # during testing.
-    dogpile_cache.region.CacheRegion.get_or_create = _get_or_create
-    dogpile_cache.region.CacheRegion.get_or_create_multi = _get_or_create_multi
-    dogpile_lock.Lock.__init__ = _lock_ctor
-    setattr(dogpile_cache, _DD_PIN_NAME, None)
-    setattr(dogpile_cache, _DD_PIN_PROXY_NAME, None)
+    dogpile.cache.region.CacheRegion.get_or_create = _get_or_create
+    dogpile.cache.region.CacheRegion.get_or_create_multi = _get_or_create_multi
+    dogpile.lock.Lock.__init__ = _lock_ctor
+    setattr(dogpile.cache, _DD_PIN_NAME, None)
+    setattr(dogpile.cache, _DD_PIN_PROXY_NAME, None)

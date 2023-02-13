@@ -109,7 +109,8 @@ def trace_before_publish(*args, **kwargs):
     service = config.celery["producer_service_name"]
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
 
-    span.set_tag_str(COMPONENT, config.celery.integration_name)
+    # set component tag equal to name of integration
+    span.set_tag_str("component", config.celery.integration_name)
 
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)

@@ -5,7 +5,6 @@ import pymongo
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_KIND
@@ -72,7 +71,8 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
     ) as span:
-        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+        # set component tag equal to name of integration
+        span.set_tag_str("component", config.pymongo.integration_name)
 
         # set span.kind tag equal to type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

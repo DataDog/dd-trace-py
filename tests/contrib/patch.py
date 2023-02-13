@@ -1,15 +1,11 @@
 import functools
 import importlib
-import os
 import sys
-from tempfile import NamedTemporaryFile
-from textwrap import dedent
 import unittest
 
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
-from tests.utils import call_program
 
 
 class PatchMixin(unittest.TestCase):
@@ -673,52 +669,3 @@ class PatchTestCase(object):
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_not_module_patched(module)
-
-        def test_ddtrace_run_patch_on_import(self):
-            # We check that the integration's patch function is called only
-            # after import of the relevant module when using ddtrace-run.
-            with NamedTemporaryFile(mode="w", suffix=".py") as f:
-                f.write(
-                    dedent(
-                        """
-                        import sys
-
-                        from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
-
-                        patched = False
-
-                        def patch_hook(module):
-                            def patch_wrapper(wrapped, _, args, kwrags):
-                                global patched
-
-                                result = wrapped(*args, **kwrags)
-                                sys.stdout.write("K")
-                                patched = True
-                                return result
-
-                            wrap(module.__name__, module.patch.__name__, patch_wrapper)
-
-                        sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
-
-                        sys.stdout.write("O")
-
-                        import %s as mod
-
-                        # If the module was already loaded during the sitecustomize
-                        # we check that the module was marked as patched.
-                        if not patched and (
-                            getattr(mod, "__datadog_patch", False) or getattr(mod, "_datadog_patch", False)
-                        ):
-                            sys.stdout.write("K")
-                        """
-                        % (self.__integration_name__, self.__module_name__)
-                    )
-                )
-                f.flush()
-
-                env = os.environ.copy()
-                env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
-
-                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
-
-                self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())

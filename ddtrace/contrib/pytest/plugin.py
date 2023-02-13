@@ -18,7 +18,6 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
 
@@ -146,7 +145,8 @@ def pytest_runtest_protocol(item, nextitem):
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
     ) as span:
-        span.set_tag_str(COMPONENT, "pytest")
+        # set component tag equal to name of integration
+        span.set_tag_str("component", "pytest")
 
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.context.sampling_priority = AUTO_KEEP

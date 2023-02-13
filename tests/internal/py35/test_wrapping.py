@@ -1,9 +1,13 @@
+import sys
 from types import CoroutineType
 
 import pytest
 
 from ddtrace.internal.wrapping import wrap
 from tests.internal.py35.asyncstuff import async_func as asyncfoo
+
+
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="FIXME[debugger-311]")
 
 
 def test_wrap_generator_yield_from():

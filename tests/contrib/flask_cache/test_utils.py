@@ -27,7 +27,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         traced_cache = Cache(app, config=config)
         # extract client data
         meta = _extract_conn_tags(_extract_client(traced_cache.cache))
-        expected_meta = {"out.host": "localhost", "network.destination.port": REDIS_CONFIG["port"], "out.redis_db": 0}
+        expected_meta = {"out.host": "localhost", "out.port": REDIS_CONFIG["port"], "out.redis_db": 0}
         assert meta == expected_meta
 
     def test_extract_memcached_connection_metadata(self):
@@ -42,7 +42,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         traced_cache = Cache(app, config=config)
         # extract client data
         meta = _extract_conn_tags(_extract_client(traced_cache.cache))
-        expected_meta = {"out.host": "127.0.0.1", "network.destination.port": MEMCACHED_CONFIG["port"]}
+        expected_meta = {"out.host": "127.0.0.1", "out.port": MEMCACHED_CONFIG["port"]}
         assert meta == expected_meta
 
     def test_extract_memcached_multiple_connection_metadata(self):
@@ -62,7 +62,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         meta = _extract_conn_tags(_extract_client(traced_cache.cache))
         expected_meta = {
             "out.host": "127.0.0.1",
-            "network.destination.port": MEMCACHED_CONFIG["port"],
+            "out.port": MEMCACHED_CONFIG["port"],
         }
         assert meta == expected_meta
 

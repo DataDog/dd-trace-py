@@ -26,7 +26,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
     def check_meta(self, span):
         # check database connection tags
         self.assertEqual(span.get_tag("out.host"), MYSQL_CONFIG["host"])
-        self.assertEqual(span.get_metric("network.destination.port"), MYSQL_CONFIG["port"])
+        self.assertEqual(span.get_metric("out.port"), MYSQL_CONFIG["port"])
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported

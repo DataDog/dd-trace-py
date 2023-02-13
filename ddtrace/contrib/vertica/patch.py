@@ -2,7 +2,6 @@ import importlib
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -210,7 +209,8 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
-                span.set_tag_str(COMPONENT, config.integration_name)
+                # set component tag equal to name of integration
+                span.set_tag_str("component", config.integration_name)
 
                 # set span.kind to the type of operation being performed
                 span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

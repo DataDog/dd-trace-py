@@ -3,8 +3,6 @@ Some utils used by the dogtrace redis integration
 """
 from contextlib import contextmanager
 
-from ddtrace.internal.constants import COMPONENT
-
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

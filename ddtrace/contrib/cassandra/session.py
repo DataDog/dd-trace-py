@@ -3,14 +3,9 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
-
-try:
-    import cassandra.cluster as cassandra_cluster
-except AttributeError:
-    from cassandra import cluster as cassandra_cluster
+import cassandra.cluster
 
 from ddtrace import config
-from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
@@ -38,17 +33,17 @@ CURRENT_SPAN = "_ddtrace_current_span"
 PAGE_NUMBER = "_ddtrace_page_number"
 
 # Original connect connect function
-_connect = cassandra_cluster.Cluster.connect
+_connect = cassandra.cluster.Cluster.connect
 
 
 def patch():
     """patch will add tracing to the cassandra library."""
-    setattr(cassandra_cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE).onto(cassandra_cluster.Cluster)
+    setattr(cassandra.cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
+    Pin(service=SERVICE).onto(cassandra.cluster.Cluster)
 
 
 def unpatch():
-    cassandra_cluster.Cluster.connect = _connect
+    cassandra.cluster.Cluster.connect = _connect
 
 
 def traced_connect(func, instance, args, kwargs):
@@ -65,7 +60,7 @@ def _close_span_on_success(result, future):
         log.debug("traced_set_final_result was not able to get the current span from the ResponseFuture")
         return
     try:
-        span.set_tags(_extract_result_metas(cassandra_cluster.ResultSet(future, result)))
+        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
     except Exception:
         log.debug("an exception occurred while setting tags", exc_info=True)
     finally:
@@ -179,7 +174,8 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     tracer = pin.tracer
     span = tracer.trace("cassandra.query", service=service, span_type=SpanTypes.CASSANDRA)
 
-    span.set_tag_str(COMPONENT, config.cassandra.integration_name)
+    # set component tag equal to name of integration
+    span.set_tag_str("component", config.cassandra.integration_name)
 
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

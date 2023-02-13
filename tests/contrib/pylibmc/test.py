@@ -191,7 +191,7 @@ class PylibmcCore(object):
         assert s.get_tag("out.host") == cfg["host"]
         assert s.get_tag("component") == "pylibmc"
         assert s.get_tag("span.kind") == "client"
-        assert s.get_metric("network.destination.port") == cfg["port"]
+        assert s.get_metric("out.port") == cfg["port"]
 
     def test_analytics_default(self):
         client, tracer = self.get_client()

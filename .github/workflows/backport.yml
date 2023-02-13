@@ -27,5 +27,5 @@ jobs:
           body_template: "Backport <%= mergeCommitSha %> from #<%= number %> to <%= base %>.\n\n<%= body %>"
           label_pattern: "^backport (?<base>([0-9]+\\.[0-9]+))$"
           # Include the original labels from the merged PR (minus any matching label_pattern)
-          labels_template: "<% print(JSON.stringify(labels)) %>"
+          labels_template: "[<%= labels %>]"
           title_template: "<%= title %> [backport <%= base %>]"

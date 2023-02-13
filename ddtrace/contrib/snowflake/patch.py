@@ -34,34 +34,24 @@ class _SFTracedCursor(TracedCursor):
 
 
 def patch():
-    try:
-        import snowflake.connector as c
-    except AttributeError:
-        import sys
+    import snowflake.connector
 
-        c = sys.modules.get("snowflake.connector")
-
-    if getattr(c, "_datadog_patch", False):
+    if getattr(snowflake.connector, "_datadog_patch", False):
         return
-    setattr(c, "_datadog_patch", True)
+    setattr(snowflake.connector, "_datadog_patch", True)
 
-    wrapt.wrap_function_wrapper(c, "Connect", patched_connect)
-    wrapt.wrap_function_wrapper(c, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(snowflake.connector, "Connect", patched_connect)
+    wrapt.wrap_function_wrapper(snowflake.connector, "connect", patched_connect)
 
 
 def unpatch():
-    try:
-        import snowflake.connector as c
-    except AttributeError:
-        import sys
+    import snowflake.connector
 
-        c = sys.modules.get("snowflake.connector")
+    if getattr(snowflake.connector, "_datadog_patch", False):
+        setattr(snowflake.connector, "_datadog_patch", False)
 
-    if getattr(c, "_datadog_patch", False):
-        setattr(c, "_datadog_patch", False)
-
-        unwrap(c, "Connect")
-        unwrap(c, "connect")
+        unwrap(snowflake.connector, "Connect")
+        unwrap(snowflake.connector, "connect")
 
 
 def patched_connect(connect_func, _, args, kwargs):

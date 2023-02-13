@@ -26,7 +26,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
-      "network.destination.port": 5432,
+      "out.port": 5432,
       "process_id": 78166,
       "sql.rows": 2
     },

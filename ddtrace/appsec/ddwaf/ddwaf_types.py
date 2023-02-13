@@ -41,7 +41,7 @@ ARCHI = machine().lower()
 if system() == "Windows" and ARCHI == "amd64":
     from sys import maxsize
 
-    if maxsize <= (1 << 32):
+    if not (maxsize > 2 ** 32):
         ARCHI = "x86"
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
@@ -52,11 +52,6 @@ ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "lib
 # Constants
 #
 
-DDWAF_MAX_STRING_LENGTH = 4096
-DDWAF_MAX_CONTAINER_DEPTH = 20
-DDWAF_MAX_CONTAINER_SIZE = 256
-DDWAF_NO_LIMIT = 1 << 31
-DDWAF_DEPTH_NO_LIMIT = 1000
 DDWAF_RUN_TIMEOUT = 5000
 
 
@@ -111,63 +106,40 @@ class ddwaf_object(ctypes.Structure):
     # 16 is a map : array of length "nbEntries" with parameterName
     # 32 is boolean
 
-    def __init__(
-        self,
-        struct=None,
-        max_objects=DDWAF_MAX_CONTAINER_SIZE,
-        max_depth=DDWAF_MAX_CONTAINER_DEPTH,
-        max_string_length=DDWAF_MAX_STRING_LENGTH,
-    ):
-        # type: (DDWafRulesType, int, int, int) -> None
+    def __init__(self, struct=None):
+        # type: (ddwaf_object, DDWafRulesType|None) -> None
         if isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
+            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore"))
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, struct)
         elif isinstance(struct, float):
-            res = unicode(struct).encode("UTF-8", errors="ignore")[: max_string_length - 1]
+            res = unicode(struct).encode("UTF-8", errors="ignore")
             ddwaf_object_string(self, res)
         elif isinstance(struct, list):
-            if max_depth <= 0:
-                max_objects = 0
             array = ddwaf_object_array(self)
-            for counter_object, elt in enumerate(struct):
-                if counter_object >= max_objects:
-                    break
-                obj = ddwaf_object(
-                    elt, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
-                )
+            assert array
+            for elt in struct:
+                obj = ddwaf_object(elt)
                 if obj.type:  # discards invalid objects
-                    ddwaf_object_array_add(array, obj)
+                    assert ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
-            if max_depth <= 0:
-                max_objects = 0
             map_o = ddwaf_object_map(self)
+            assert map_o
             # order is unspecified and could lead to problems if max_objects is reached
-            for counter_object, (key, val) in enumerate(struct.items()):
+            for key, val in struct.items():
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
-                if counter_object >= max_objects:
-                    break
-                res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
-                    : max_string_length - 1
-                ]
-                obj = ddwaf_object(
-                    val, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
-                )
+                res_key = key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key
+                obj = ddwaf_object(val)
                 if obj.type:  # discards invalid objects
-                    ddwaf_object_map_add(map_o, res_key, obj)
+                    assert ddwaf_object_map_add(map_o, res_key, obj)
         else:
             if struct is not None:
                 log.warning("DDWAF object init called with unknown data structure: %s", repr(type(struct)))
 
             ddwaf_object_invalid(self)
-
-    @classmethod
-    def create_without_limits(cls, struct):
-        # type: (type, DDWafRulesType) -> ddwaf_object
-        return cls(struct, DDWAF_NO_LIMIT, DDWAF_DEPTH_NO_LIMIT, DDWAF_NO_LIMIT)
 
     @property
     def struct(self):

@@ -41,7 +41,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "network.destination.port": 6379,
+         "out.port": 6379,
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
@@ -66,7 +66,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "network.destination.port": 6379,
+         "out.port": 6379,
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },

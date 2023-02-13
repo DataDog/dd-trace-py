@@ -5,10 +5,10 @@ from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
-from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from tests.debugging.utils import create_snapshot_function_probe
 
 
 # Track all instrumented functions and their call count.

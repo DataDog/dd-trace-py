@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import application
+from . import compat
 from . import context_provider
 from . import decorators
 from . import handlers
@@ -44,6 +45,9 @@ def patch():
     # patch Template system
     _w("tornado.template", "Template.generate", template.generate)
 
+    # patch Python Futures if available when an Executor pool is used
+    compat.wrap_futures()
+
     # configure the global tracer
     ddtrace.tracer.configure(
         context_provider=context_provider,
@@ -65,3 +69,6 @@ def unpatch():
     _u(tornado.web.RequestHandler, "log_exception")
     _u(tornado.web.Application, "__init__")
     _u(tornado.template.Template, "generate")
+
+    # unpatch `futures`
+    compat.unwrap_futures()

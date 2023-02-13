@@ -7,11 +7,8 @@ from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
-from tests.appsec.iast.fixtures.weak_algorithms import hashlib_new
-from tests.appsec.iast.fixtures.weak_algorithms import parametrized_week_hash
-
-
-FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
+from tests.appsec.iast.fixtures import hashlib_new
+from tests.appsec.iast.fixtures import parametrized_week_hash
 
 
 @pytest.mark.parametrize(
@@ -22,7 +19,7 @@ def test_weak_hash_hashlib(iast_span_defaults, hash_func, method):
 
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
+    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
     assert list(span_report.vulnerabilities)[0].location.line == 14 if sys.version_info > (3, 0, 0) else 11
     assert list(span_report.vulnerabilities)[0].evidence.value == hash_func
     assert list(span_report.vulnerabilities)[0].evidence.type == EVIDENCE_ALGORITHM_TYPE
@@ -58,7 +55,7 @@ def test_weak_hash_new(iast_span_defaults):
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
+    assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
     assert list(span_report.vulnerabilities)[0].location.line == 23 if sys.version_info > (3, 0, 0) else 20
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
     assert list(span_report.vulnerabilities)[0].evidence.type == EVIDENCE_ALGORITHM_TYPE
@@ -72,11 +69,11 @@ def test_weak_hash_new_with_child_span(tracer, iast_span_defaults):
     span_report2 = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
 
     assert list(span_report1.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report1.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
+    assert list(span_report1.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
     assert list(span_report1.vulnerabilities)[0].evidence.value == "md5"
 
     assert list(span_report2.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report2.vulnerabilities)[0].location.path.endswith(FIXTURES_PATH)
+    assert list(span_report2.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
     assert list(span_report2.vulnerabilities)[0].evidence.value == "md5"
 
 

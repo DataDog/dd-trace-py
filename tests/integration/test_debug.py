@@ -266,37 +266,51 @@ class TestGlobalConfig(SubprocessTestCase):
         assert mock_logger.mock_calls == []
 
 
-@pytest.mark.subprocess(ddtrace_run=True)
-def test_runtime_metrics_enabled_via_manual_start():
-    import ddtrace
-    from ddtrace.internal import debug
-    from ddtrace.runtime import RuntimeMetrics
+def test_runtime_metrics_enabled_via_manual_start(ddtrace_run_python_code_in_subprocess):
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+from ddtrace.runtime import RuntimeMetrics
 
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
 
-    RuntimeMetrics.enable()
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is True
+RuntimeMetrics.enable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
 
-    RuntimeMetrics.disable()
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
-
-
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_RUNTIME_METRICS_ENABLED": ["0", "true"]})
-def test_runtime_metrics_enabled_via_env_var_start():
-    import os
-
-    import ddtrace
-    from ddtrace.internal import debug
-    from ddtrace.internal.utils.formats import asbool
-
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")), (
-        f.get("runtime_metrics_enabled"),
-        asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")),
+RuntimeMetrics.disable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
     )
+    assert status == 0
+
+
+def test_runtime_metrics_enabled_via_env_var_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
+    # default, no env variable set
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
+    )
+    assert status == 0
+
+    # Explicitly set env variable
+    monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
+""",
+    )
+    assert status == 0
 
 
 def test_to_json():
