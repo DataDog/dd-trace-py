@@ -14,6 +14,7 @@ from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import Tuple
 from typing import Type
 from typing import Union
 from typing import cast
@@ -26,6 +27,7 @@ from ddtrace.internal.utils import get_argument_value
 log = get_logger(__name__)
 
 ModuleHookType = Callable[[ModuleType], None]
+PreExecHookType = Callable[[Any, ModuleType], None]
 
 
 _run_code = None
@@ -146,9 +148,10 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader):
-        # type: (Loader) -> None
+    def __init__(self, loader, module_spec=None):
+        # type: (Loader, Optional[ModuleSpec]) -> None
         self.loader = loader
+        self.module_spec = module_spec
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
@@ -190,7 +193,21 @@ class _ImportHookChainedLoader(Loader):
         return self.loader.create_module(spec)
 
     def _exec_module(self, module):
-        self.loader.exec_module(module)
+        # Collect all the transformers registered by other ModuleWatchdog
+        # instances so that we can run them all in order.
+        pre_exec_hooks = []
+
+        for _ in sys.meta_path:
+            if isinstance(_, ModuleWatchdog):
+                for cond, hook in _._pre_exec_module_hooks:
+                    if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
+                        pre_exec_hooks.append(hook)
+
+        if pre_exec_hooks:
+            for hook in pre_exec_hooks:
+                hook(self, module)
+        else:
+            self.loader.exec_module(module)
 
         for callback in self.callbacks.values():
             callback(module)
@@ -216,7 +233,8 @@ class ModuleWatchdog(dict):
         self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
-        self._loader_class = _ImportHookChainedLoader  # type: Type[_ImportHookChainedLoader]
+        self._pre_exec_module_hooks = []  # type: List[Tuple[Callable[[str], bool], PreExecHookType]]
+        # self._loader_class = _ImportHookChainedLoader  # type: Type[_ImportHookChainedLoader]
 
     def __getitem__(self, item):
         # type: (str) -> ModuleType
@@ -353,8 +371,8 @@ class ModuleWatchdog(dict):
         try:
             loader = find_loader(fullname)
             if loader is not None:
-                if not isinstance(loader, self._loader_class):
-                    loader = self._loader_class(loader)
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    loader = _ImportHookChainedLoader(loader)
 
                 if PY2:
                     # With Python 2 we don't get all the finders invoked, so we
@@ -388,12 +406,10 @@ class ModuleWatchdog(dict):
             loader = getattr(spec, "loader", None)
 
             if loader is not None:
-                if not isinstance(loader, self._loader_class):
-                    spec.loader = self._loader_class(loader)
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    spec.loader = _ImportHookChainedLoader(loader)
 
-                cast(self._loader_class, spec.loader).add_callback(  # type: ignore[name-defined]
-                    type(self), self.after_import
-                )
+                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 
@@ -500,6 +516,22 @@ class ModuleWatchdog(dict):
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
 
     @classmethod
+    def register_pre_exec_module_hook(cls, cond, hook):
+        # ttype: (str, Union[str, Callable[[str], bool]], PreExecHookType) -> None
+        """Register an AST transformer.
+
+        The pre exec_module hook is executed before the module is executed to allow for
+        changed modules to be executed as needed. To ensure that the hook
+        is applied only to the modules that are required, the condition is
+        evaluated against the module name.
+        """
+        cls._check_installed()
+
+        log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
+        instance = cast(ModuleWatchdog, cls._instance)
+        instance._pre_exec_module_hooks.append((cond, hook))
+
+    @classmethod
     def _check_installed(cls):
         # type: () -> None
         if not cls.is_installed():
@@ -544,9 +576,3 @@ class ModuleWatchdog(dict):
                 return
             parent = current
             current = current._modules
-
-    @classmethod
-    def use_loader(cls, loader_class):
-        # type: (Type[_ImportHookChainedLoader]) -> None
-        if cls and cls._instance:
-            cls._instance._loader_class = loader_class
