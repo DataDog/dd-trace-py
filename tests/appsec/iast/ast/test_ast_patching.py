@@ -72,6 +72,21 @@ def test_astpatch_source_changed(module_path, module_name):
 @pytest.mark.parametrize(
     "module_path, module_name",
     [
+        ("tests/appsec/iast/fixtures/aspects/add_operator/basic.py", "basic"),
+    ],
+)
+@pytest.mark.skipif(PY2, reason="Python 3 only")
+def test_astpatch_source_changed_add_operator(module_path, module_name):
+    module_path, new_source = astpatch_source(module_name, module_path)
+    assert ("", "") != (module_path, new_source)
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
+    assert "ddtrace_aspects.add_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_path, module_name",
+    [
         ("tests/appsec/iast/fixtures/aspects/str/future_import_function_str.py", "function_str"),
         ("tests/appsec/iast/fixtures/aspects/str/future_import_class_str.py", "class_str"),
         # TODO: Require adding spec to ImportHookChainedLoader

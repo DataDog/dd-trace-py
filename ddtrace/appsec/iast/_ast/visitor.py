@@ -23,7 +23,7 @@ class AstVisitor(ast.NodeTransformer):
                 "str": "ddtrace_aspects.str_aspect",
             },
             "operators": {
-                ast.Add: "ddtrace_aspcts.add_aspect",
+                ast.Add: "ddtrace_aspects.add_aspect",
             },
         }
         self._aspect_functions = self._aspects_spec["functions"]
@@ -151,6 +151,7 @@ class AstVisitor(ast.NodeTransformer):
 
         aspect = self._aspect_operators.get(operator.__class__)
         if aspect:
+            self.ast_modified = True
             return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], {})
 
         return call_node
