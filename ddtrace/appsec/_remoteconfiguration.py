@@ -1,4 +1,3 @@
-import json
 import os
 from typing import TYPE_CHECKING
 
@@ -73,8 +72,7 @@ def _appsec_rules_data(tracer, features):
         _add_rules_to_list(features, "custom_rules", "custom rules", rule_list)
         _add_rules_to_list(features, "rules", "Datadog rules", rule_list)
         if rule_list:
-            payload = {"version": "2.2", "rules": rule_list}
-            tracer._appsec_processor._update_rules(json.dumps(payload))
+            tracer._appsec_processor._update_rules(rule_list)
 
 
 def _appsec_1click_activation(tracer, features):
@@ -132,7 +130,9 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Updating ASM Remote Configuration: %s", features)
-            _appsec_rules_data(tracer, features)
+            # The order of this matters since 1click could reconfigure the AppSecProcessor
+            # which the second checks
             _appsec_1click_activation(tracer, features)
+            _appsec_rules_data(tracer, features)
 
     return _reload_features
