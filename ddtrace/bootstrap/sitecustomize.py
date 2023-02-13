@@ -24,7 +24,7 @@ else:
 
 def is_installed(module_name):
     # https://stackoverflow.com/a/51491863/735204
-    if sys.version_info >= (3, 4):
+    if sys.version_info >= (3, 5):
         return importlib.util.find_spec(module_name)
     elif sys.version_info >= (2, 7):
         try:
@@ -71,9 +71,6 @@ def cleanup_loaded_modules(aggressive=False):
         ):
             continue
         del sys.modules[m]
-
-    if "time" in sys.modules:
-        del sys.modules["time"]
 
 
 will_run_module_cloning = should_cleanup_loaded_modules()
