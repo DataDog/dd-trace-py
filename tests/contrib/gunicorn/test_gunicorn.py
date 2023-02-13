@@ -189,22 +189,21 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE = _gunicorn_settings_fa
 )
 
 
-if sys.version_info <= (3, 10):
-
-    @pytest.mark.parametrize(
-        "gunicorn_server_settings",
-        [
-            SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
-            SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
-            SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
-        ],
-    )
-    def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
-        with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-            server_process, client = context
-            r = client.get("/")
-        assert_no_profiler_error(server_process)
-        assert_remoteconfig_started_successfully(r, gunicorn_server_settings.env["DD_GEVENT_PATCH_ALL"] == "True")
+@pytest.mark.skipif(sys.version_info > (3, 10), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        SETTINGS_GEVENT_APPIMPORT_PATCH_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_POSTWORKERIMPORT_PATCH_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
+    ],
+)
+def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
+    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+        server_process, client = context
+        r = client.get("/")
+    assert_no_profiler_error(server_process)
+    assert_remoteconfig_started_successfully(r, gunicorn_server_settings.env["DD_GEVENT_PATCH_ALL"] == "True")
 
 
 @pytest.mark.parametrize(

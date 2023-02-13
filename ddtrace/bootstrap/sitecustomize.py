@@ -26,7 +26,6 @@ if sys.version_info <= (2, 7):
             return False
         return True
 
-
 else:
     import importlib
 
@@ -52,23 +51,26 @@ def cleanup_loaded_modules(aggressive=False):
     This distinction is necessary because this function is used both to prepare for gevent monkeypatching
     (requiring aggressive cleanup) and to implement "module cloning" (requiring non-aggressive cleanup)
     """
-    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
     # Figuring out modules_loaded_since_startup is necessary because sys.modules has more in it than just what's in
     # import statements in this file, and unloading some of them can break the interpreter.
-    modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
-    if aggressive:
-        modules_to_cleanup = modules_loaded_since_startup
+    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
     # Unload all the modules that we have imported, except for ddtrace and a few
     # others that don't like being cloned.
     # Doing so will allow ddtrace to continue using its local references to modules unpatched by
     # gevent, while avoiding conflicts with user-application code potentially running
     # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
-    for m in modules_to_cleanup:
-        if not aggressive and any(
-            m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP
-        ):
+    for module_name in modules_loaded_since_startup:
+        if aggressive:
+            del sys.modules[module_name]
             continue
-        del sys.modules[m]
+
+        for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP:
+            if module_name == module_to_not_cleanup:
+                break
+            elif module_name.startswith("%s." % module_to_not_cleanup):
+                break
+        else:
+            del sys.modules[module_name]
 
 
 will_run_module_cloning = should_cleanup_loaded_modules()
@@ -182,6 +184,12 @@ try:
     if not opts:
         tracer.configure(**opts)
 
+    # We need to clean up after we have imported everything we need from
+    # ddtrace, but before we register the patch-on-import hooks for the
+    # integrations. This is because registering a hook for a module
+    # that is already imported causes the module to be patched immediately.
+    # So if we unload the module after registering hooks, we effectively
+    # remove the patching, thus breaking the tracer integration.
     if will_run_module_cloning:
         cleanup_loaded_modules()
     if trace_enabled:
