@@ -8,6 +8,7 @@ from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...internal import _context
@@ -139,8 +140,7 @@ class TraceMiddleware:
                 span_type=SpanTypes.WEB,
             )
 
-            # set component tag equal to name of integration
-            span.set_tag_str("component", self.integration_config.integration_name)
+        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
 
             if "datadog" not in scope:
                 scope["datadog"] = {"request_spans": [span]}

@@ -26,6 +26,7 @@ from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import _context
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
@@ -64,7 +65,22 @@ config._add(
 )
 
 
+_NotSet = object()
+psycopg_cursor_cls = Psycopg2TracedCursor = _NotSet
+
+
 def patch_conn(django, conn):
+    global psycopg_cursor_cls, Psycopg2TracedCursor
+
+    if psycopg_cursor_cls is _NotSet:
+        try:
+            from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+            from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+        except ImportError:
+            psycopg_cursor_cls = None
+            Psycopg2TracedCursor = None
+
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
@@ -130,8 +146,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
     # get the original function method
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.django.integration_name)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
@@ -224,8 +239,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as s:
-            # set component tag equal to name of integration
-            s.set_tag_str("component", config.django.integration_name)
+            s.set_tag_str(COMPONENT, config.django.integration_name)
 
             if ignored_excs:
                 for exc in ignored_excs:
@@ -238,8 +252,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.django.integration_name)
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
             resp = func(*args, **kwargs)
 
@@ -347,8 +360,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.django.integration_name)
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
             utils._before_request_tags(pin, span, request)
             span._metrics[SPAN_MEASURED_KEY] = 1
@@ -381,8 +393,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.django.integration_name)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
         if template_name:
             span.set_tag_str("django.template.name", template_name)
