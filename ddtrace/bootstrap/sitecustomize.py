@@ -18,16 +18,18 @@ if sys.version_info <= (2, 7):
     import imp
 
     _unloaded_modules = []
-    
+
     def is_installed(module_name):
         try:
             imp.find_module(module_name)
         except ImportError:
             return False
         return True
+
+
 else:
     import importlib
-    
+
     def is_installed(module_name):
         return importlib.util.find_spec(module_name)
 
