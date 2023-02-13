@@ -53,9 +53,13 @@ def should_cleanup_loaded_modules():
     return True
 
 
-def cleanup_loaded_modules_if_necessary(aggressive=False):
-    if not aggressive and not should_cleanup_loaded_modules():
-        return
+def cleanup_loaded_modules(aggressive=False):
+    """
+    "Aggressive" here means "cleanup absolutely every module that has been loaded since startup".
+    Non-aggressive cleanup entails leaving untouched certain modules
+    This distinction is necessary because this function is used both to prepare for gevent monkeypatching
+    (requiring aggressive cleanup) and to implement "module cloning" (requiring non-aggressive cleanup)
+    """
     modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
     modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
     if aggressive:
@@ -70,10 +74,6 @@ def cleanup_loaded_modules_if_necessary(aggressive=False):
             m.startswith("%s." % module_to_not_cleanup) for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP
         ):
             continue
-        if not aggressive and sys.version_info <= (2, 7):
-            # Store a reference to deleted modules to avoid them being garbage collected
-            _unloaded_modules.append(sys.modules[m])
-
         del sys.modules[m]
 
     if "time" in sys.modules:
@@ -87,7 +87,7 @@ if not will_run_module_cloning:
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
         # successfully running `gevent.monkey.patch_all()` this late into
         # sitecustomize requires aggressive module unloading beforehand.
-        cleanup_loaded_modules_if_necessary(aggressive=True)
+        cleanup_loaded_modules(aggressive=True)
         import gevent.monkey
 
         gevent.monkey.patch_all()
@@ -197,11 +197,13 @@ try:
         # that is already imported causes the module to be patched immediately.
         # So if we unload the module after registering hooks, we effectively
         # remove the patching, thus breaking the tracer integration.
-        cleanup_loaded_modules_if_necessary()
+        if should_cleanup_loaded_modules():
+            cleanup_loaded_modules()
 
         patch_all(**EXTRA_PATCHED_MODULES)
     else:
-        cleanup_loaded_modules_if_necessary()
+        if should_cleanup_loaded_modules():
+            cleanup_loaded_modules()
 
     # Only the import of the original sitecustomize.py is allowed after this
     # point.
