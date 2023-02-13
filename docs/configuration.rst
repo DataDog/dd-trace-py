@@ -4,8 +4,11 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variables. They are listed
-below:
+`ddtrace` can be configured using environment variables.
+Many :ref:`integrations` can also be configured using environment variables,
+see specific integration documentation for more details.
+
+The following environment variables for the tracer are supported:
 
 
 .. ddtrace-configuration-options::
