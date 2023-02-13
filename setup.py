@@ -290,6 +290,15 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
+    if sys.version_info[0] >= 3:
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec.iast._taint_tracking",
+                # Sort source files for reproducibility
+                sources=["ddtrace/appsec/iast/_taint_tracking.cpp",],
+                extra_compile_args=debug_compile_args + ["-g", "-std=c++17"],
+            )
+        )
 else:
     ext_modules = []
 
