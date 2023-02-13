@@ -199,12 +199,12 @@ try:
         # that is already imported causes the module to be patched immediately.
         # So if we unload the module after registering hooks, we effectively
         # remove the patching, thus breaking the tracer integration.
-        if should_cleanup_loaded_modules():
+        if will_run_module_cloning:
             cleanup_loaded_modules()
 
         patch_all(**EXTRA_PATCHED_MODULES)
     else:
-        if should_cleanup_loaded_modules():
+        if will_run_module_cloning:
             cleanup_loaded_modules()
 
     # Only the import of the original sitecustomize.py is allowed after this
