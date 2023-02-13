@@ -34,7 +34,6 @@ class RemoteConfig(object):
         )
         return False
 
-
     @classmethod
     def enable(cls):
         # type: () -> bool
