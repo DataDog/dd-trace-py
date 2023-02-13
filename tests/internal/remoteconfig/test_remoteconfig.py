@@ -132,10 +132,6 @@ def test_remote_config_forksafe():
         if os.fork() == 0:
             assert RemoteConfig._worker is not None
             assert RemoteConfig._worker is parent_worker
-            # assert not RemoteConfig._worker._real_thread
-            # assert RemoteConfig._worker._worker is not parent_worker._worker
-            print("JJJ worker: %s" % RemoteConfig._worker._worker.ident)
-            print("JJJ worker: %s" % parent_worker._worker.ident)
             exit(0)
 
 
