@@ -34,6 +34,10 @@ class RemoteConfig(object):
         )
         return False
 
+
+    def hello_world_please_ignore(self):
+        print("Hello world")
+
     @classmethod
     def enable(cls):
         # type: () -> bool
