@@ -87,14 +87,7 @@ else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 try:
-    from inspect import getargspec as getfullargspec
-
-    def is_not_void_function(f, argspec):
-        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
-
-
-except ImportError:
-    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
+    from inspect import getfullargspec  # noqa
 
     def is_not_void_function(f, argspec):
         return (
@@ -106,6 +99,13 @@ except ImportError:
             or argspec.kwonlydefaults
             or isgeneratorfunction(f)
         )
+
+
+except ImportError:
+    from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
+
+    def is_not_void_function(f, argspec):
+        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
 
 def is_integer(obj):

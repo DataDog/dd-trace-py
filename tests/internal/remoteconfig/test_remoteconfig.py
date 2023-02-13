@@ -172,6 +172,41 @@ def test_remote_configuration_check_deprecated_override():
             assert str(capture[0].message).startswith("Using environment")
 
 
+@mock.patch.object(RemoteConfigClient, "_send_request")
+@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
+def test_remote_configuration_ip_blocking(mock_check_remote_config_enable_in_agent, mock_send_request):
+    class Callback:
+        features = {}
+
+        def _reload_features(self, metadata, features):
+            self.features = features
+
+    callback = Callback()
+
+    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        mock_check_remote_config_enable_in_agent.return_value = True
+        mock_send_request.return_value = get_mock_encoded_msg(
+            b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
+            b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
+            b'"type": "ip_with_expiration"}]}'
+        )
+        rc = RemoteConfig()
+        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+        sleep(0.15)
+        assert callback.features == {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": 1662804872, "value": "127.0.0.0"},
+                        {"expiration": 1662804872, "value": "52.80.198.1"},
+                    ],
+                    "id": "blocking_ips",
+                    "type": "ip_with_expiration",
+                }
+            ]
+        }
+
+
 def test_remoteconfig_semver():
     _assert_and_get_version_agent_format(RemoteConfigClient()._client_tracer["tracer_version"])
 
