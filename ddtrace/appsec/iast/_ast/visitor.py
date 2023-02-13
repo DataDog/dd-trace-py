@@ -142,7 +142,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_BinOp(self, call_node):  # type: (ast.Call) -> Any
+    def visit_BinOp(self, call_node):  # type: (ast.BinOp) -> Any
         """
         Replace a binary operator
         """
