@@ -26,10 +26,6 @@ def is_installed(module_name):
     # https://stackoverflow.com/a/51491863/735204
     if sys.version_info >= (3, 4):
         return importlib.util.find_spec(module_name)
-    elif sys.version_info >= (3, 3):
-        return importlib.find_loader(module_name)
-    elif sys.version_info >= (3, 1):
-        return importlib.find_module(module_name)
     elif sys.version_info >= (2, 7):
         try:
             imp.find_module(module_name)
