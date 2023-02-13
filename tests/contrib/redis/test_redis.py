@@ -46,7 +46,7 @@ class TestRedisPatch(TracerTestCase):
             "out.host": u"localhost",
         }
         metrics = {
-            "out.port": self.TEST_PORT,
+            "network.destination.port": self.TEST_PORT,
             "out.redis_db": 0,
         }
         for k, v in meta.items():

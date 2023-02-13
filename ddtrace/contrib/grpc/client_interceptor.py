@@ -7,6 +7,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -182,8 +183,7 @@ class _ClientInterceptor(
             resource=client_call_details.method,
         )
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.grpc.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

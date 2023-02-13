@@ -185,7 +185,6 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],

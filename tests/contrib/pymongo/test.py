@@ -109,7 +109,7 @@ class PymongoCore(object):
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         expected_resources = set(
             [
@@ -168,7 +168,7 @@ class PymongoCore(object):
             assert span.get_tag("mongodb.collection") == collection_name
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         if pymongo.version_tuple >= (4, 0):
             expected_resources = [
@@ -247,7 +247,7 @@ class PymongoCore(object):
             assert span.get_tag("mongodb.collection") == "teams"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
             assert span.start > start
             assert span.duration < end - start
 
@@ -320,7 +320,7 @@ class PymongoCore(object):
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         expected_resources = set(
             [
@@ -586,7 +586,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("component") == "pymongo"
         assert span.get_tag("span.kind") == "client"
-        assert span.get_metric("out.port") == MONGO_CONFIG["port"]
+        assert span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")

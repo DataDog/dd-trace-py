@@ -26,7 +26,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
-      "out.port": 3306,
+      "network.destination.port": 3306,
       "process_id": 9600,
       "sql.rows": 2
     },
@@ -60,7 +60,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 0,
-      "out.port": 3306,
+      "network.destination.port": 3306,
       "process_id": 9600,
       "sql.rows": 0
     },
@@ -93,7 +93,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
-      "out.port": 3306,
+      "network.destination.port": 3306,
       "process_id": 9600,
       "sql.rows": 2
     },
