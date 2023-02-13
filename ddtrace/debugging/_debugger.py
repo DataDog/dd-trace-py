@@ -318,7 +318,7 @@ class Debugger(Service):
                 return wrapped(*args, **kwargs)
 
             argnames = wrapped.__code__.co_varnames
-            actual_frame = sys._getframe(2)
+            actual_frame = sys._getframe(1)
             allargs = list(chain(zip(argnames, args), kwargs.items()))
             thread = threading.current_thread()
             trace_context = self._tracer.current_trace_context()

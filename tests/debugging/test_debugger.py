@@ -244,12 +244,16 @@ def test_debugger_function_probe_on_instance_method():
         "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
     )
 
-    entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+
+    entry_capture = snapshot_data["captures"]["entry"]
     assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
     assert entry_capture["locals"] == {}
     assert entry_capture["throwable"] is None
 
-    return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
+    return_capture = snapshot_data["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
     assert set(return_capture["locals"].keys()) == {"@return"}
     assert return_capture["throwable"] is None
@@ -269,14 +273,18 @@ def test_debugger_function_probe_on_function_with_exception():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] == "throwexcstuff(probe=LogFunctionProbe(), func=function())"
+    assert snapshot["message"] == "throwexcstuff()"
 
-    entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
+
+    entry_capture = snapshot_data["captures"]["entry"]
     assert entry_capture["arguments"] == {}
     assert entry_capture["locals"] == {}
     assert entry_capture["throwable"] is None
 
-    return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
+    return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
     assert return_capture["locals"] == {}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
@@ -317,7 +325,12 @@ def test_debugger_conditional_line_probe_on_instance_method():
 
     (snapshot,) = snapshots
     assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
-    captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
+
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+
+    captures = snapshot_data["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
 
