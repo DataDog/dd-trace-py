@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import Union
 
 import ddtrace
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
@@ -22,6 +23,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 logger = get_logger(__name__)
+
+# The architecture function spawns the file subprocess on the interpreter
+# executable. We make sure we call this once and cache the result.
+architecture = callonce(lambda: platform.architecture())
 
 
 def in_venv():
@@ -118,7 +123,7 @@ def collect(tracer):
         # eg. 12.5.0
         os_version=platform.release(),
         is_64_bit=sys.maxsize > 2 ** 32,
-        architecture=platform.architecture()[0],
+        architecture=architecture()[0],
         vm=platform.python_implementation(),
         version=ddtrace.__version__,
         lang="python",
