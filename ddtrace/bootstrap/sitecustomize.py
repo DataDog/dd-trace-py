@@ -18,22 +18,18 @@ if sys.version_info <= (2, 7):
     import imp
 
     _unloaded_modules = []
-else:
-    import importlib
-
-
-def is_installed(module_name):
-    # https://stackoverflow.com/a/51491863/735204
-    if sys.version_info >= (3, 5):
-        return importlib.util.find_spec(module_name)
-    elif sys.version_info >= (2, 7):
+    
+    def is_installed(module_name):
         try:
             imp.find_module(module_name)
         except ImportError:
             return False
-        else:
-            return True
-    return False
+        return True
+else:
+    import importlib
+    
+    def is_installed(module_name):
+        return importlib.util.find_spec(module_name)
 
 
 def should_cleanup_loaded_modules():
