@@ -8,6 +8,10 @@ if TYPE_CHECKING:
     from typing import Iterator
 
 
+def ignore_me():
+    print("Hello world")
+
+
 class Constant_Class(type):
     """
     metaclass for Constant Classes
