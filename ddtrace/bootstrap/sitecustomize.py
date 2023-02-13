@@ -80,6 +80,10 @@ if not will_run_module_cloning:
     if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
         # successfully running `gevent.monkey.patch_all()` this late into
         # sitecustomize requires aggressive module unloading beforehand.
+        # gevent's documentation strongly warns against calling monkey.patch_all() anywhere other
+        # than the first line of the program. since that's what we're doing here,
+        # we cleanup aggressively beforehand to replicate the conditions at program start
+        # as closely as possible.
         cleanup_loaded_modules(aggressive=True)
         import gevent.monkey
 
