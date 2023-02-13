@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 from time import sleep
 import warnings
 
@@ -247,6 +248,7 @@ def _count_running_processes(canary_str):
     return found
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python versions below 3.6 sort dictionaries differently")
 def test_gevent_no_stuck_processes():  # type: () -> None
     port = 8000
     flask_app = "tests.internal.remoteconfig.stuck_test_app:app"
