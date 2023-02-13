@@ -14,6 +14,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import memcached
 from ddtrace.ext import net
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy
 
@@ -142,8 +143,7 @@ class TracedClient(ObjectProxy):
             span_type=SpanTypes.CACHE,
         )
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.pylibmc.integration_name)
+        span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

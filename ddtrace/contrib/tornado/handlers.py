@@ -1,6 +1,7 @@
 from tornado.web import HTTPError
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -40,8 +41,7 @@ def execute(func, handler, args, kwargs):
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
-        request_span.set_tag_str("component", config.tornado.integration_name)
+        request_span.set_tag_str(COMPONENT, config.tornado.integration_name)
 
         # set span.kind to the type of operation being performed
         request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

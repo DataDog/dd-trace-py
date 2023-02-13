@@ -5,6 +5,7 @@ Trace queries to botocore api done via a pynamodb client
 import pynamodb.connection.base
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -56,8 +57,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         "pynamodb.command", service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), span_type=SpanTypes.HTTP
     ) as span:
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.pynamodb.integration_name)
+        span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

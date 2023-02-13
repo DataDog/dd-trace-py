@@ -165,12 +165,6 @@ class Debugger(Service):
         This class method is idempotent. Dynamic instrumentation will be
         disabled automatically at exit.
         """
-        if sys.version_info >= (3, 11, 0):
-            raise RuntimeError(
-                "Dynamic Instrumentation is not yet compatible with Python 3.11. "
-                "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
-            )
-
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -193,8 +187,8 @@ class Debugger(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls, join=True):
+        # type: (bool) -> None
         """Disable dynamic instrumentation.
 
         This class method is idempotent. Called automatically at exit, if
@@ -210,7 +204,7 @@ class Debugger(Service):
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
-        cls._instance.stop()
+        cls._instance.stop(join=join)
         cls._instance = None
 
         cls.__watchdog__.uninstall()
@@ -632,12 +626,13 @@ class Debugger(Service):
         else:
             raise ValueError("Unknown probe poller event %r" % event)
 
-    def _stop_service(self):
-        # type: () -> None
+    def _stop_service(self, join=True):
+        # type: (bool) -> None
         self._function_store.restore_all()
         for service in self._services:
             service.stop()
-            service.join()
+            if join:
+                service.join()
 
     def _start_service(self):
         # type: () -> None
@@ -647,7 +642,7 @@ class Debugger(Service):
     @classmethod
     def _restart(cls):
         log.info("Restarting the debugger in child process")
-        cls.disable()
+        cls.disable(join=False)
         cls.enable()
 
     @classmethod

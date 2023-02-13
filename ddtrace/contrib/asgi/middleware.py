@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...internal.compat import reraise
@@ -122,8 +123,7 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", self.integration_config.integration_name)
+        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

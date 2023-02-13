@@ -2,6 +2,7 @@ import molten
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -21,8 +22,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
     with pin.tracer.trace(
         func_name(wrapped), service=trace_utils.int_service(pin, config.molten), resource=resource
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.molten.integration_name)
+        span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         # set span.kind to the operation type being performed
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
@@ -43,8 +43,7 @@ def trace_func(resource):
         with pin.tracer.trace(
             func_name(wrapped), service=trace_utils.int_service(pin, config.molten, pin), resource=resource
         ) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.molten.integration_name)
+            span.set_tag_str(COMPONENT, config.molten.integration_name)
 
             # set span.kind to the operation type being performed
             span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

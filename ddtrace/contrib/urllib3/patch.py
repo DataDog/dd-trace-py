@@ -3,6 +3,7 @@ import os
 import urllib3
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -98,8 +99,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     with pin.tracer.trace(
         "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.urllib3.integration_name)
+        span.set_tag_str(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

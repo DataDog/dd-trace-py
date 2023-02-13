@@ -4,6 +4,7 @@ import sys
 import aioredis
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -120,11 +121,10 @@ def traced_13_execute_command(func, instance, args, kwargs):
         activate=False,
         child_of=parent,
     )
-    span.set_tag_str("component", config.aioredis.integration_name)
-
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
+    span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag(SPAN_MEASURED_KEY)
     query = stringify_cache_args(args)
     span.resource = query
@@ -181,11 +181,10 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.aioredis),
         span_type=SpanTypes.REDIS,
     ) as span:
-        span.set_tag_str("component", config.aioredis.integration_name)
-
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
+        span.set_tag_str(COMPONENT, config.aioredis.integration_name)
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],

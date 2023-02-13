@@ -8,6 +8,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -200,8 +201,7 @@ def _create_sanic_request_span(request):
         resource=resource,
         span_type=SpanTypes.WEB,
     )
-    # set component tag equal to name of integration
-    span.set_tag_str("component", config.sanic.integration_name)
+    span.set_tag_str(COMPONENT, config.sanic.integration_name)
 
     # set span.kind to the type of operation being performed
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

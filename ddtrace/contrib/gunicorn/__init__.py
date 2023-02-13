@@ -3,7 +3,7 @@
 
 ``ddtrace`` only supports Gunicorn's ``gevent`` worker type when configured as follows:
 
-- The application is running under Python 3
+- The application is running under a Python version >=3.6 and <=3.10
 - `ddtrace-run` is not used
 - The `DD_GEVENT_PATCH_ALL=1` environment variable is set
 - Gunicorn's ```post_fork`` <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`__ hook does not import from
