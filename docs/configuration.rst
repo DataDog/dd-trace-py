@@ -474,7 +474,7 @@ below:
      type: String
      default: "0"
      description: |
-        Controls whether module cloning logic is executed by ``sitecustomize.py``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
+        Controls whether module cloning logic is executed by ``ddtrace-run``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
         that will be unaffected by future imports of and changes to those modules by application code. Valid values for this variable are ``1``, ``0``, and ``auto``. ``1`` tells
         ``ddtrace`` to run its module cloning logic unconditionally, ``0`` tells it not to run that logic, and ``auto`` tells it to run module cloning logic only if ``gevent``
         is accessible from the application's runtime.
