@@ -180,23 +180,13 @@ try:
     if not opts:
         tracer.configure(**opts)
 
+    if will_run_module_cloning:
+        cleanup_loaded_modules()
     if trace_enabled:
         update_patched_modules()
         from ddtrace import patch_all
 
-        # We need to clean up after we have imported everything we need from
-        # ddtrace, but before we register the patch-on-import hooks for the
-        # integrations. This is because registering a hook for a module
-        # that is already imported causes the module to be patched immediately.
-        # So if we unload the module after registering hooks, we effectively
-        # remove the patching, thus breaking the tracer integration.
-        if will_run_module_cloning:
-            cleanup_loaded_modules()
-
         patch_all(**EXTRA_PATCHED_MODULES)
-    else:
-        if will_run_module_cloning:
-            cleanup_loaded_modules()
 
     # Only the import of the original sitecustomize.py is allowed after this
     # point.
