@@ -34,12 +34,10 @@ class RemoteConfig(object):
         )
         return False
 
-
     @classmethod
     def restart(cls):
         # cls.disable()
         cls.enable()
-
 
     @classmethod
     def enable(cls):
