@@ -61,6 +61,8 @@ def cleanup_loaded_modules(aggressive=False):
     (requiring aggressive cleanup) and to implement "module cloning" (requiring non-aggressive cleanup)
     """
     modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
+    # Figuring out modules_loaded_since_startup is necessary because sys.modules has more in it than just what's in
+    # import statements in this file, and unloading some of them can break the interpreter.
     modules_to_cleanup = modules_loaded_since_startup - MODULES_TO_NOT_CLEANUP
     if aggressive:
         modules_to_cleanup = modules_loaded_since_startup
