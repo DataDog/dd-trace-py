@@ -98,6 +98,8 @@ if _DDWAF_LOADED:
             # type: (DDWafRulesType) -> int
             rules = ddwaf_object.create_without_limits(new_rules)
             result = ddwaf_update_rule_data(self._handle, rules)
+            if result < 0:
+                LOGGER.debug("Error updating ddwaf rules")
             return result
 
         def run(
