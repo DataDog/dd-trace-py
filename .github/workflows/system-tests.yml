@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
-          ref: 8673a616565c3b9c0e867d169bdf60925f55d748
+          ref: 4cd01c3ac62ca61e489b6e0cd1679052ae531777
 
       - name: Build
         run: ./lib-injection/build.sh
