@@ -263,6 +263,7 @@ def test_gevent_no_stuck_processes():  # type: () -> None
             "DD_TRACE_SQLITE3_ENABLED": "0",
             "DD_GEVENT_PATCH_ALL": "true",
             "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "1",
         }
     )
 
