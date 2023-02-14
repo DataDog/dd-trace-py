@@ -4,6 +4,7 @@ import sys
 import six
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -76,8 +77,7 @@ def _wrap_request(func, instance, args, kwargs):
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.httplib.integration_name)
+        span.set_tag_str(COMPONENT, config.httplib.integration_name)
 
         setattr(instance, "_datadog_span", span)
 
@@ -119,8 +119,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.httplib.integration_name)
+            span.set_tag_str(COMPONENT, config.httplib.integration_name)
 
             setattr(instance, "_datadog_span", span)
 
