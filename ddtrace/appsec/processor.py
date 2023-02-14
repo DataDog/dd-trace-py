@@ -272,7 +272,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if waf_results:
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
-        except (json.decoder.JSONDecodeError, ValueError):
+        except (JSONDecodeError, ValueError):
             log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
         except Exception:
             log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
