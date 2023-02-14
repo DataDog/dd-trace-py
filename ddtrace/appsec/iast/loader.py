@@ -4,7 +4,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
 from ._ast.ast_patching import _should_iast_patch
-from ._ast.ast_patching import astpatch_source
+from ._ast.ast_patching import astpatch_module
 from ._util import _is_iast_enabled
 
 
@@ -18,7 +18,7 @@ def _exec_iast_patched_module(module_watchdog, module):
     patched_source = None
     if IS_IAST_ENABLED:
         log.debug("IAST enabled")
-        module_path, patched_source = astpatch_source(module)
+        module_path, patched_source = astpatch_module(module)
 
     if patched_source:
         # Patched source is executed instead of original module

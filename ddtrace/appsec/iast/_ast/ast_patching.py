@@ -10,6 +10,7 @@ from typing import Tuple
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import origin
 
 
 # Prefixes for modules where IAST patching is allowed
@@ -58,7 +59,7 @@ def visit_ast(
 
 
 def astpatch_module(module):  # type: (ModuleType) -> Tuple[str, str]
-    return astpatch_source(module.__name__, module.origin)
+    return astpatch_source(module.__name__, origin(module))
 
 
 def astpatch_source(
