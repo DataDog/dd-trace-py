@@ -7,14 +7,14 @@ import threading
 
 import pytest
 
+from ddtrace.debugging._capture import utils
+from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._encoding import _capture_context
 from ddtrace.debugging._encoding import format_message
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import MAXSIZE
-from ddtrace.debugging._snapshot import utils
-from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
@@ -140,13 +140,13 @@ def test_capture_exc_info():
     assert serialized["message"] == "'bad'"
 
 
-def test_captured_context_default_level():
+def test_capture_context_default_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=0))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["notCapturedReason"] == "depth"
 
 
-def test_captured_context_one_level():
+def test_capture_context_one_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=1))
     self = context["arguments"]["self"]
 
@@ -156,13 +156,13 @@ def test_captured_context_one_level():
     assert "fields" not in self["fields"]["root"]["fields"]["name"]
 
 
-def test_captured_context_two_level():
+def test_capture_context_two_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=2))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
 
 
-def test_captured_context_three_level():
+def test_capture_context_three_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=3))
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["isNull"], context
@@ -170,7 +170,7 @@ def test_captured_context_three_level():
     assert "fields" not in self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"], context
 
 
-def test_captured_context_exc():
+def test_capture_context_exc():
     try:
         raise Exception("test", "me")
     except Exception:
@@ -186,11 +186,9 @@ def test_captured_context_exc():
 
 def test_batch_json_encoder():
     s = Snapshot(
-        create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        inspect.currentframe(),
-        threading.current_thread(),
-        sys.exc_info(),
-        None,
+        probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
+        frame=inspect.currentframe(),
+        thread=threading.current_thread(),
     )
 
     # DEV: This local variable will appear in the snapshot and we are using it
@@ -199,6 +197,9 @@ def test_batch_json_encoder():
 
     buffer_size = 30 * (1 << 10)
     encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)}, buffer_size=buffer_size)
+
+    s.line()
+
     snapshot_size = encoder.put(s)
 
     n_snapshots = buffer_size // snapshot_size
@@ -222,12 +223,12 @@ def test_batch_json_encoder():
 
 def test_batch_flush_reencode():
     s = Snapshot(
-        create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        inspect.currentframe(),
-        threading.current_thread(),
-        sys.exc_info(),
-        None,
+        probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
+        frame=inspect.currentframe(),
+        thread=threading.current_thread(),
     )
+
+    s.line()
 
     encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)})
 
