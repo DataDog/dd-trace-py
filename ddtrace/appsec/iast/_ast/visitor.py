@@ -15,7 +15,6 @@ class AstVisitor(ast.NodeTransformer):
         filename="",
         module_name="",
     ):
-
         # Offset caused by inserted lines. Will be adjusted in visit_Generic
         self._aspects_spec = {
             "definitions_module": "ddtrace.appsec.iast._ast.aspects",
@@ -23,8 +22,12 @@ class AstVisitor(ast.NodeTransformer):
             "functions": {
                 "str": "ddtrace_aspects.str_aspect",
             },
+            "operators": {
+                ast.Add: "ddtrace_aspects.add_aspect",
+            },
         }
         self._aspect_functions = self._aspects_spec["functions"]
+        self._aspect_operators = self._aspects_spec["operators"]
 
         self.ast_modified = False
         self.filename = filename
@@ -132,10 +135,23 @@ class AstVisitor(ast.NodeTransformer):
         if isinstance(func_member, ast.Name) and func_member.id:
             # Normal function call with func=Name(...), just change the name
             func_name_node = func_member.id
-
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = True
+
+        return call_node
+
+    def visit_BinOp(self, call_node):  # type: (ast.BinOp) -> Any
+        """
+        Replace a binary operator
+        """
+        self.generic_visit(call_node)
+        operator = call_node.op
+
+        aspect = self._aspect_operators.get(operator.__class__)
+        if aspect:
+            self.ast_modified = True
+            return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], {})
 
         return call_node
