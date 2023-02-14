@@ -20,6 +20,7 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...appsec import _asm_request_context
 from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
@@ -368,7 +369,10 @@ def _after_request_tags(pin, span, request, response):
             #      urlconf changes at any point during the request
             _set_resolver_tags(pin, span, request)
 
-            request_headers = _context.get_item("http.request.headers", span=span)
+            request_headers = None
+            if config._appsec_enabled:
+                request_headers = _asm_request_context.get_headers()
+
             if not request_headers:
                 # did not go through AppSecProcessor.on_span_start
                 request_headers = _get_request_headers(request)

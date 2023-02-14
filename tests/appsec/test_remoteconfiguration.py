@@ -156,7 +156,6 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 set_http_meta(
                     span,
                     Config(),
-                    request_headers={},
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"

@@ -239,7 +239,7 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, Optional[ProductCallback]]
+        self._products = dict()  # type: MutableMapping[str, ProductCallback]
         self._applied_configs = dict()  # type: Mapping[str, ConfigMetadata]
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
