@@ -115,7 +115,7 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 def _set_headers(span, headers, kind):
     # type: (Span, Any, str) -> None
     if not hasattr(headers, "__getitem__"):  # patch for pylons
-        headers = {a: b for a, b in headers}  # type: ignore
+        headers = {a: b for a, b in headers}
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
