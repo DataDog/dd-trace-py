@@ -263,6 +263,7 @@ def test_gevent_no_stuck_processes():  # type: () -> None
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
             "DD_GEVENT_PATCH_ALL": "true",
+            "DD_REMOTE_CONFIGURATION_ENABLED": "true",
         }
     )
 
