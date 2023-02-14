@@ -1,13 +1,16 @@
 """
 Generic dbapi tracing code.
 """
+
 import six
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import sql
 from ...internal.compat import PY2
 from ...internal.logger import get_logger
@@ -47,6 +50,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
+        self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -60,13 +64,14 @@ class TracedCursor(wrapt.ObjectProxy):
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
 
-    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
         :param name: The name of the resulting span.
         :param resource: The sql query. Sql queries are obfuscated on the agent side.
         :param extra_tags: A dict of tags to store into the span's meta
+        :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
         :param args: The args that will be passed as positional args to the wrapped method
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
@@ -86,9 +91,14 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
+            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
+
+            if dbm_propagator:
+                args, kwargs = dbm_propagator.inject(s, args, kwargs)
 
             try:
                 return method(*args, **kwargs)
@@ -109,6 +119,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
+            self._self_dbm_propagator,
             query,
             *args,
             **kwargs
@@ -121,23 +132,32 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
+        return self._trace_method(
+            self.__wrapped__.execute,
+            self._self_datadog_name,
+            query,
+            {},
+            self._self_dbm_propagator,
+            query,
+            *args,
+            **kwargs
+        )
 
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
-        span.set_metric("db.rowcount", row_count)
+        span.set_metric(db.ROWCOUNT, row_count)
         # Necessary for django integration backward compatibility. Django integration used to provide its own
         # implementation of the TracedCursor, which used to store the row count into a tag instead of
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
         if isinstance(row_count, six.integer_types) and row_count >= 0:
-            span.set_tag(sql.ROWS, row_count)
+            span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
@@ -160,14 +180,14 @@ class FetchTracedCursor(TracedCursor):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
-            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
-            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
@@ -184,7 +204,7 @@ class FetchTracedCursor(TracedCursor):
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
         return self._trace_method(
-            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, *args, **kwargs
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, None, *args, **kwargs
         )
 
 
@@ -257,6 +277,8 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

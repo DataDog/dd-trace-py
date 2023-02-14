@@ -3,15 +3,11 @@ import os
 from typing import ClassVar
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span
 
 import attr
 
 import ddtrace
+from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 
 from .. import periodic
@@ -86,17 +82,6 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: () -> None
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
-        self.tracer.on_start_span(self._set_language_on_span)
-
-    def _set_language_on_span(
-        self,
-        span,  # type: Span
-    ):
-        # type: (...) -> None
-        # add tags to root span to correlate trace with runtime metrics
-        # only applied to spans with types that are internal to applications
-        if span.parent_id is None and self.tracer._is_span_internal(span):
-            span.set_tag_str("language", "python")
 
     @classmethod
     def disable(cls):
@@ -108,7 +93,15 @@ class RuntimeWorker(periodic.PeriodicService):
             forksafe.unregister(cls._restart)
 
             cls._instance.stop()
-            cls._instance.join()
+            # DEV: Use timeout to avoid locking on shutdown. This seems to be
+            # required on some occasions by Python 2.7. Deadlocks seem to happen
+            # when some functionalities (e.g. platform.architecture) are used
+            # which end up calling
+            #    _execute_child (/usr/lib/python2.7/subprocess.py:1023)
+            # This is a continuous attempt to read:
+            #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
+            # which is the eventual cause of the deadlock.
+            cls._instance.join(1)
             cls._instance = None
             cls.enabled = False
 
@@ -131,6 +124,7 @@ class RuntimeWorker(periodic.PeriodicService):
             runtime_worker.update_runtime_tags()
 
             forksafe.register(cls._restart)
+            atexit.register(cls.disable)
 
             cls._instance = runtime_worker
             cls.enabled = True
@@ -152,7 +146,6 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: (...) -> None
         # De-register span hook
         super(RuntimeWorker, self)._stop_service()
-        self.tracer.deregister_on_start_span(self._set_language_on_span)
 
     def update_runtime_tags(self):
         # type: () -> None

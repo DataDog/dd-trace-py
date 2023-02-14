@@ -47,6 +47,7 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "ListTables"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.agent") == "pynamodb"
+        assert span.get_tag("component") == "pynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -71,6 +72,7 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "DeleteTable"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.agent") == "pynamodb"
+        assert span.get_tag("component") == "pynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -95,6 +97,7 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "Scan"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.agent") == "pynamodb"
+        assert span.get_tag("component") == "pynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -118,6 +121,7 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "Scan"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.agent") == "pynamodb"
+        assert span.get_tag("component") == "pynamodb"
         assert span.duration >= 0
         assert span.error == 1
         assert span.get_tag("error.type") != ""

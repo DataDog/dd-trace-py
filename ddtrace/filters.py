@@ -12,7 +12,7 @@ from ddtrace.internal.processor.trace import TraceProcessor
 from .ext import http
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 
@@ -86,5 +86,5 @@ class TraceCiVisibilityFilter(TraceFilter):
             return None
 
         # DEV: it might not be necessary to add library_version when using agentless mode
-        local_root.set_tag(ci.LIBRARY_VERSION, ddtrace.__version__)
+        local_root.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
         return trace

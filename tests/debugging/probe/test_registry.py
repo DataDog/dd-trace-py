@@ -1,11 +1,11 @@
-from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
+from tests.debugging.utils import create_snapshot_line_probe
 
 
 def test_registry_contains():
-    probe_in = LineProbe(probe_id=42, source_file="foo", line=1)
-    probe_out = LineProbe(probe_id=0, source_file="foo", line=2)
+    probe_in = create_snapshot_line_probe(probe_id=42, source_file="foo", line=1)
+    probe_out = create_snapshot_line_probe(probe_id=0, source_file="foo", line=2)
 
     registry = ProbeRegistry(DummyProbeStatusLogger("test", "test"))
     registry.register(probe_in)
@@ -16,7 +16,7 @@ def test_registry_contains():
 
 def test_registry_pending():
     # Start with registering 10 probes
-    probes = [LineProbe(probe_id=i, source_file=__file__, line=i) for i in range(10)]
+    probes = [create_snapshot_line_probe(probe_id=i, source_file=__file__, line=i) for i in range(10)]
 
     registry = ProbeRegistry(DummyProbeStatusLogger("test", "test"))
     registry.register(*probes)
@@ -45,7 +45,7 @@ def test_registry_location_error():
     status_logger = DummyProbeStatusLogger("test", "test")
     registry = ProbeRegistry(status_logger)
 
-    probe = LineProbe(probe_id=42, source_file=__file__, line=1)
+    probe = create_snapshot_line_probe(probe_id=42, source_file=__file__, line=1)
 
     # Ensure the probe has no location information
     probe.source_file = None
@@ -56,6 +56,8 @@ def test_registry_location_error():
     assert not registry.get_pending(__file__)
 
     # Check that we emitted the correct diagnostic error message
+    for e in status_logger.queue:
+        del e["timestamp"]
     assert status_logger.queue == [
         {
             "service": "test",

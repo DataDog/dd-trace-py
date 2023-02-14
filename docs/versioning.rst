@@ -108,15 +108,15 @@ Supported runtimes
    * - Linux
      - x86-64, i686, AArch64
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``
    * - MacOS
      - Intel, Apple Silicon
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``
    * - Windows
      - 64bit, 32bit
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``

@@ -2,6 +2,7 @@ import grpc
 
 from ddtrace import config
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -72,6 +73,9 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
+
+        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)

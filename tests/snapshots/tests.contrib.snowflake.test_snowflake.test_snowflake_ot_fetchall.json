@@ -6,8 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "1658e263f3084eaca410818e944d7d7e"
     },
     "metrics": {
@@ -15,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 88705
+      "process_id": 88705
     },
     "duration": 3425912,
     "start": 1660069796884953088
@@ -28,7 +31,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
+         "component": "snowflake",
          "db.application": "PythonConnector",
          "db.name": "mock-db-name",
          "db.schema": "mock-schema-name",
@@ -40,9 +45,8 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "db.rowcount": 1,
-         "out.port": 443,
-         "sql.rows": 1
+         "db.row_count": 1,
+         "network.destination.port": 443
        },
        "duration": 3062000,
        "start": 1660069796885202000

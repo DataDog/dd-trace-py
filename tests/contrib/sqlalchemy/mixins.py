@@ -109,7 +109,8 @@ class SQLAlchemyTestMixin(object):
         assert span.service == self.SERVICE
         assert "INSERT INTO players" in span.resource
         assert span.get_tag("sql.db") == self.SQL_DB
-        assert span.get_metric("sql.rows") == 1
+        assert span.get_tag("component") == "sqlalchemy"
+        assert span.get_metric("db.row_count") == 1
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0
@@ -133,6 +134,7 @@ class SQLAlchemyTestMixin(object):
             in span.resource
         )
         assert span.get_tag("sql.db") == self.SQL_DB
+        assert span.get_tag("component") == "sqlalchemy"
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0
@@ -154,6 +156,7 @@ class SQLAlchemyTestMixin(object):
         assert span.service == self.SERVICE
         assert span.resource == "SELECT * FROM players"
         assert span.get_tag("sql.db") == self.SQL_DB
+        assert span.get_tag("component") == "sqlalchemy"
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0
@@ -186,6 +189,7 @@ class SQLAlchemyTestMixin(object):
         assert dd_span.service == self.SERVICE
         assert dd_span.resource == "SELECT * FROM players"
         assert dd_span.get_tag("sql.db") == self.SQL_DB
+        assert dd_span.get_tag("component") == "sqlalchemy"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
         assert dd_span.duration > 0

@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -179,6 +180,9 @@ class _ClientInterceptor(
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
+
+        span.set_tag_str(COMPONENT, config.grpc.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)

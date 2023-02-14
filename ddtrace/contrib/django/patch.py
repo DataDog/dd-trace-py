@@ -17,22 +17,11 @@ from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
-
-from ...internal.utils import get_argument_value
-
-
-try:
-    from psycopg2._psycopg import cursor as psycopg_cursor_cls
-
-    from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
-except ImportError:
-    psycopg_cursor_cls = None
-    Psycopg2TracedCursor = None
-
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
@@ -40,6 +29,7 @@ from ddtrace.vendor import wrapt
 
 from . import utils
 from .. import trace_utils
+from ...internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
@@ -60,14 +50,32 @@ config._add(
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
-        include_user_name=True,
+        include_user_name=asbool(os.getenv("DD_DJANGO_INCLUDE_USER_NAME", default=True)),
+        use_handler_with_url_name_resource_format=asbool(
+            os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
+        ),
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
     ),
 )
 
 
+_NotSet = object()
+psycopg_cursor_cls = Psycopg2TracedCursor = _NotSet
+
+
 def patch_conn(django, conn):
+    global psycopg_cursor_cls, Psycopg2TracedCursor
+
+    if psycopg_cursor_cls is _NotSet:
+        try:
+            from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+            from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+        except ImportError:
+            psycopg_cursor_cls = None
+            Psycopg2TracedCursor = None
+
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
@@ -86,12 +94,15 @@ def patch_conn(django, conn):
         pin = Pin(service, tags=tags, tracer=pin.tracer)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
-        if (
-            Psycopg2TracedCursor is not None
-            and hasattr(cursor, "cursor")
-            and isinstance(cursor.cursor, psycopg_cursor_cls)
-        ):
-            traced_cursor_cls = Psycopg2TracedCursor
+        try:
+            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
+                # Import lazily to avoid importing psycopg2 if not already imported.
+                from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+
+                traced_cursor_cls = Psycopg2TracedCursor
+        except AttributeError:
+            pass
+
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
             config.django.global_config,  # global_config needed for analytics sample rate
@@ -130,6 +141,8 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
     # get the original function method
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
+        span.set_tag_str(COMPONENT, config.django.integration_name)
+
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
@@ -221,6 +234,8 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as s:
+            s.set_tag_str(COMPONENT, config.django.integration_name)
+
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
@@ -232,6 +247,8 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as span:
+            span.set_tag_str(COMPONENT, config.django.integration_name)
+
             resp = func(*args, **kwargs)
 
             # If the response code is erroneous then grab the traceback
@@ -334,6 +351,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
     ) as span:
+        span.set_tag_str(COMPONENT, config.django.integration_name)
+
         utils._before_request_tags(pin, span, request)
         span._metrics[SPAN_MEASURED_KEY] = 1
 
@@ -360,6 +379,8 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
+        span.set_tag_str(COMPONENT, config.django.integration_name)
+
         if template_name:
             span.set_tag_str("django.template.name", template_name)
         engine = getattr(instance, "engine", None)

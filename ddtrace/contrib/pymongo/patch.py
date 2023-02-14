@@ -5,6 +5,7 @@ import pymongo
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
@@ -69,6 +70,8 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
     ) as span:
+        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
             span.set_tag(SPAN_MEASURED_KEY)

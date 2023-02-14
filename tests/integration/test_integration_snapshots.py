@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import multiprocessing
+import os
 
 import mock
 import pytest
@@ -246,8 +247,11 @@ def test_wrong_span_name_type_not_sent():
         ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
     ],
 )
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
-def test_trace_with_wrong_meta_types_not_sent(meta):
+def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
+    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
@@ -266,8 +270,11 @@ def test_trace_with_wrong_meta_types_not_sent(meta):
         ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
     ],
 )
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
-def test_trace_with_wrong_metrics_types_not_sent(metrics):
+def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
+    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
@@ -286,3 +293,32 @@ def test_tracetagsprocessor_only_adds_new_tags():
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.shutdown()
+
+
+# Override the token so that both parameterizations of the test use the same snapshot
+# (The snapshots should be equivalent)
+@snapshot(token_override="tests.integration.test_integration_snapshots.test_env_vars")
+@pytest.mark.parametrize("use_ddtracerun", [True, False])
+def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess):
+    """Ensure environment variable config is respected by ddtrace-run usages as well as regular."""
+    if use_ddtracerun:
+        fn = ddtrace_run_python_code_in_subprocess
+    else:
+        fn = run_python_code_in_subprocess
+
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_ENV="prod",
+            DD_SERVICE="my-svc",
+            DD_VERSION="1234",
+        )
+    )
+
+    fn(
+        """
+from ddtrace import tracer
+tracer.trace("test-op").finish()
+""",
+        env=env,
+    )

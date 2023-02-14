@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import time
 
 import pytest
@@ -20,7 +21,7 @@ from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = ["meta.job.id", "meta.error.stack"]
+snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate"]
 
 rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
 
@@ -134,7 +135,10 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         distributed_tracing_enabled,
         worker_service_name,
     )
-    with snapshot_context(token, ignores=snapshot_ignores):
+    num_traces_expected = None
+    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
+        num_traces_expected = 2 if distributed_tracing_enabled is False else 1
+    with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"
         if distributed_tracing_enabled is not None:

@@ -5,6 +5,9 @@ from typing import Optional
 from typing import Type
 from typing import TypeVar
 
+from ddtrace.internal.compat import getfullargspec
+from ddtrace.internal.compat import is_not_void_function
+
 
 miss = object()
 
@@ -100,3 +103,31 @@ def cachedmethod(maxsize=256):
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
+
+
+def callonce(f):
+    # type: (Callable[[], Any]) -> Callable[[], Any]
+    """Decorator for executing a function only the first time."""
+    argspec = getfullargspec(f)
+    if is_not_void_function(f, argspec):
+        raise ValueError("The callonce decorator can only be applied to functions with no arguments")
+
+    def _():
+        # type: () -> Any
+        try:
+            retval, exc = f.__callonce_result__  # type: ignore[attr-defined]
+        except AttributeError:
+            try:
+                retval = f()
+                exc = None
+            except Exception as e:
+                retval = None
+                exc = e
+            f.__callonce_result__ = retval, exc  # type: ignore[attr-defined]
+
+        if exc is not None:
+            raise exc
+
+        return retval
+
+    return _

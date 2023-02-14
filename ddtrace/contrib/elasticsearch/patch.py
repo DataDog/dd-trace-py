@@ -2,6 +2,7 @@ from importlib import import_module
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -31,6 +32,7 @@ def _es_modules():
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "opensearchpy",
     )
     for module_name in module_names:
         try:
@@ -73,6 +75,8 @@ def _get_perform_request(elasticsearch):
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
+
             span.set_tag(SPAN_MEASURED_KEY)
 
             # Don't instrument if the trace is not sampled
@@ -84,14 +88,14 @@ def _get_perform_request(elasticsearch):
             encoded_params = urlencode(params)
             body = kwargs.get("body")
 
-            span.set_tag(metadata.METHOD, method)
-            span.set_tag(metadata.URL, url)
-            span.set_tag(metadata.PARAMS, encoded_params)
+            span.set_tag_str(metadata.METHOD, method)
+            span.set_tag_str(metadata.URL, url)
+            span.set_tag_str(metadata.PARAMS, encoded_params)
             if config.elasticsearch.trace_query_string:
-                span.set_tag(http.QUERY_STRING, encoded_params)
+                span.set_tag_str(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
-                span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+                span.set_tag_str(metadata.BODY, instance.serializer.dumps(body))
             status = None
 
             # set analytics sample rate

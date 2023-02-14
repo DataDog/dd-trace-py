@@ -158,7 +158,7 @@ class TracerTestCases(TracerTestCase):
                     name="tests.test_tracer.f",
                     error=1,
                     meta={
-                        "error.msg": ex.message,
+                        "error.message": ex.message,
                         "error.type": ex.__class__.__name__,
                     },
                 ),
@@ -472,6 +472,17 @@ class TracerTestCases(TracerTestCase):
             with self.start_span("child", service="two", child_of=root):
                 pass
         assert self.tracer._services == set(["one", "two"])
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
+    def test_adding_mapped_services(self):
+        assert self.tracer._services == set()
+        with self.start_span("root", service="one") as root:
+            assert self.tracer._services == set(["one"])
+
+            # service "two" gets remapped to "three"
+            with self.start_span("child", service="two", child_of=root):
+                pass
+        assert self.tracer._services == set(["one", "three"])
 
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()
@@ -900,6 +911,32 @@ class EnvTracerTestCase(TracerTestCase):
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
                     assert VERSION_KEY not in child2.get_tags()
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2", DD_SERVICE_MAPPING="mysql:django"))
+    def test_version_service_mapping(self):
+        """When using DD_SERVICE_MAPPING we properly add version tag to appropriate spans"""
+
+        # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
+        # mysql spans will get remapped to django via DD_SERVICE_MAPPING=mysql:django
+
+        with self.trace("django.request") as root:
+            # Root span should be tagged
+            assert root.service == "django"
+            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+
+            # Child spans should be tagged
+            with self.trace("") as child1:
+                assert child1.service == "django"
+                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+
+            # Service name gets remapped to django and we get version tag applied
+            with self.trace("mysql.query", service="mysql") as span:
+                assert span.service == "django"
+                assert VERSION_KEY in span.get_tags() and span.get_tag(VERSION_KEY) == "0.1.2"
+                # Child should also have a version
+                with self.trace("") as child2:
+                    assert child2.service == "django"
+                    assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -1791,10 +1828,10 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
-
-    t.configure(api_version="v0.5")
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+
+    t.configure(api_version="v0.3")
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.4")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)
@@ -1848,6 +1885,22 @@ def test_top_level(tracer):
             assert _is_top_level(child_span)
         with tracer.trace("child2", service="child-svc") as child_span2:
             assert _is_top_level(child_span2)
+
+
+def test_finish_span_with_ancestors(tracer):
+    # single span case
+    span1 = tracer.trace("span1")
+    span1.finish_with_ancestors()
+    assert span1.finished
+
+    # multi ancestor case
+    span1 = tracer.trace("span1")
+    span2 = tracer.trace("span2")
+    span3 = tracer.trace("span2")
+    span3.finish_with_ancestors()
+    assert span1.finished
+    assert span2.finished
+    assert span3.finished
 
 
 def test_ctx_api():

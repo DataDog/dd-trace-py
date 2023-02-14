@@ -1,6 +1,9 @@
 import typing
+from typing import Optional
 
 import packaging.version
+
+from ddtrace.version import get_version
 
 
 def parse_version(version):
@@ -27,7 +30,12 @@ def parse_version(version):
 
     # version() will not raise an exception, if the version if malformed instead
     # we will end up with a LegacyVersion
-    parsed = packaging.version.parse(version)
+
+    try:
+        parsed = packaging.version.parse(version)
+    except packaging.version.InvalidVersion:
+        # packaging>=22.0 raises an InvalidVersion instead of returning a LegacyVersion
+        return (0, 0, 0)
 
     # LegacyVersion.release will always be `None`
     if not parsed.release:
@@ -42,3 +50,31 @@ def parse_version(version):
         parsed.release[1] if len(parsed.release) >= 2 else 0,
         parsed.release[2] if len(parsed.release) >= 3 else 0,
     )
+
+
+def _pep440_to_semver(version=None):
+    # type: (Optional[str]) -> str
+    # The library uses a PEP 440-compliant (https://peps.python.org/pep-0440/) versioning
+    # scheme, but the RCM spec requires that we use a SemVer-compliant version.
+    #
+    # However, we may have versions like:
+    #
+    #   - 1.7.1.dev3+gf258c7d9
+    #   - 1.7.1rc2.dev3+gf258c7d9
+    #
+    # Which are not Semver-compliant.
+    #
+    # The easiest fix is to replace the first occurrence of "rc" or
+    # ".dev" with "-rc" or "-dev" to make them compliant.
+    #
+    # Other than X.Y.Z, we are allowed `-<dot separated pre-release>+<build identifier>`
+    # https://semver.org/#backusnaur-form-grammar-for-valid-semver-versions
+    #
+    # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
+
+    tracer_version = version or get_version()
+    if "rc" in tracer_version and "-rc" not in tracer_version:
+        tracer_version = tracer_version.replace("rc", "-rc", 1)
+    elif ".dev" in tracer_version:
+        tracer_version = tracer_version.replace(".dev", "-dev", 1)
+    return tracer_version

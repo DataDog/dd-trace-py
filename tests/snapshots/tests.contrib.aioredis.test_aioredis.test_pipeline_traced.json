@@ -7,11 +7,14 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "aioredis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
-      "runtime-id": "55384aedd6884a468bb6ff9db9567598"
+      "runtime-id": "3c07c67132904e49a34823e7ddadd05d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,11 +22,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
+      "network.destination.port": 6379,
       "out.redis_db": 0,
-      "redis.pipeline_length": 4,
-      "system.pid": 65658
+      "process_id": 65658,
+      "redis.pipeline_length": 4
     },
-    "duration": 2112000,
-    "start": 1638887092109469000
+    "duration": 1700000,
+    "start": 1666808673552223000
   }]]

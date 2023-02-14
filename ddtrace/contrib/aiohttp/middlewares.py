@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -45,6 +46,8 @@ async def trace_middleware(app, handler):
             span_type=SpanTypes.WEB,
         )
         request_span.set_tag(SPAN_MEASURED_KEY)
+
+        request_span.set_tag_str(COMPONENT, config.aiohttp.integration_name)
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
@@ -101,7 +104,7 @@ async def on_prepare(request, response):
     if trace_query_string is None:
         trace_query_string = config.http.trace_query_string
     if trace_query_string:
-        request_span.set_tag(http.QUERY_STRING, request.query_string)
+        request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
     trace_utils.set_http_meta(
         request_span,

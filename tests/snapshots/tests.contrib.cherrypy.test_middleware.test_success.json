@@ -7,21 +7,24 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "cherrypy",
       "http.method": "GET",
       "http.request.headers.host": "127.0.0.1:54583",
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:54583/",
-      "runtime-id": "8cbf3566774347d39dcfc241879cbf84"
+      "language": "python",
+      "runtime-id": "37ec48c2f73448bf8f97e1ff289da866"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 54385
+      "process_id": 54385
     },
-    "duration": 1361000,
-    "start": 1631828602538629000
+    "duration": 408000,
+    "start": 1666809664001532000
   }]]

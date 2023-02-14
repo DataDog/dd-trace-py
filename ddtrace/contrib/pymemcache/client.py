@@ -10,6 +10,7 @@ from pymemcache.exceptions import MemcacheUnknownError
 
 # 3p
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 # project
@@ -146,6 +147,9 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
+
+            span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pymemcache.get_analytics_sample_rate())
@@ -156,7 +160,7 @@ class WrappedClient(wrapt.ObjectProxy):
                 span.set_tags(p.tags)
                 vals = _get_query_string(args)
                 query = "{}{}{}".format(method_name, " " if vals else "", vals)
-                span.set_tag(memcachedx.QUERY, query)
+                span.set_tag_str(memcachedx.QUERY, query)
             except Exception:
                 log.debug("Error setting relevant pymemcache tags")
 

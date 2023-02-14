@@ -22,6 +22,7 @@ agentless
 analytics
 api
 app
+appsec
 aredis
 args
 asgi
@@ -31,6 +32,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 backport
@@ -84,7 +86,9 @@ graphene
 greenlet
 greenlets
 grpc
+gunicorn
 hostname
+hostnames
 http
 httplib
 https
@@ -105,6 +109,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+loopback
 macOS
 mako
 mariadb
@@ -123,6 +128,7 @@ mysqlclient
 mysqldb
 namespace
 obfuscator
+opensearch
 opentracer
 opentracing
 parameterized
@@ -136,6 +142,7 @@ profiler
 protobuf
 psycopg
 py
+PyFrameObject
 pylibmc
 pymemcache
 pymongo
@@ -164,13 +171,14 @@ serializable
 sql
 sqlalchemy
 sqlite
+stacktrace
 starlette
 stringable
 subdomains
 submodule
 submodules
+substring
 timestamp
-traceparent
 tweens
 uWSGI
 unbuffered
@@ -188,6 +196,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
@@ -199,3 +208,7 @@ libddwaf
 Serverless
 serverless
 cattrs
+IAST
+programmatically
+DES
+Blowfish

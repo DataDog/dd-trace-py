@@ -3,6 +3,7 @@ import os
 import jinja2
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
@@ -57,12 +58,14 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     template_name = stringify(instance.name or DEFAULT_TEMPLATE_NAME)
     with pin.tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+        span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
         try:
             return wrapped(*args, **kwargs)
         finally:
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_compile(wrapped, instance, args, kwargs):
@@ -79,8 +82,10 @@ def _wrap_compile(wrapped, instance, args, kwargs):
         try:
             return wrapped(*args, **kwargs)
         finally:
+            span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_load_template(wrapped, instance, args, kwargs):
@@ -96,6 +101,6 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
             return template
         finally:
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
             if template:
-                span.set_tag("jinja2.template_path", template.filename)
+                span.set_tag_str("jinja2.template_path", template.filename)

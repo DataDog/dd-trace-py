@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Ensure that worker threads that run on start-up are recreated at the right
+    time after fork on Python < 3.7.

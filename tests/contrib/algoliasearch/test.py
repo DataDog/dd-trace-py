@@ -83,6 +83,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.get_tag("query.args.unsupported_totally_new_argument") is None
         assert span.get_metric("processing_time_ms") == 23
         assert span.get_metric("number_of_hits") == 1
+        assert span.get_tag("component") == "algoliasearch"
 
         # Verify query_text, which may contain sensitive data, is not passed along
         # unless the config value is appropriately set

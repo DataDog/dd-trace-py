@@ -6,9 +6,12 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "k": "v",
+      "language": "python",
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
     "metrics": {
@@ -19,7 +22,7 @@
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "system.pid": 52166
+      "process_id": 52166
     },
     "duration": 1504000,
     "start": 1631827407230825000

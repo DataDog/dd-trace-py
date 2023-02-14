@@ -7,12 +7,15 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,11 +23,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 3,
-      "out.port": 3306,
-      "sql.rows": 3,
-      "system.pid": 9677
+      "db.row_count": 3,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
-    "duration": 569600,
-    "start": 1656521264363662100
+    "duration": 1032000,
+    "start": 1667513581389397000
   }]]

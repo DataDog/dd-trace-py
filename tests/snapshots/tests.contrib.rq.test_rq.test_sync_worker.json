@@ -7,22 +7,25 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "a99c119b-cff7-422f-8ce2-3f55e2408edb",
+      "job.id": "62efa927-45f2-4344-bbb2-cb85473ba0f3",
+      "language": "python",
       "queue.name": "q",
-      "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
-    "duration": 4008000,
-    "start": 1632150770689652000
+    "duration": 2856000,
+    "start": 1666807176381097000
   },
      {
        "name": "rq.worker.perform_job",
@@ -32,21 +35,24 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "job.id": "a99c119b-cff7-422f-8ce2-3f55e2408edb",
+         "component": "rq",
+         "job.id": "62efa927-45f2-4344-bbb2-cb85473ba0f3",
          "job.origin": "q",
          "job.status": "finished",
-         "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+         "language": "python",
+         "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
-       "duration": 17933000,
-       "start": 1632150770734760000
+       "duration": 10178000,
+       "start": 1666807176414077000
      },
         {
           "name": "rq.job.perform",
@@ -55,9 +61,12 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
-            "job.id": "a99c119b-cff7-422f-8ce2-3f55e2408edb"
+            "component": "rq",
+            "job.id": "62efa927-45f2-4344-bbb2-cb85473ba0f3"
           },
-          "duration": 2714000,
-          "start": 1632150770737310000
+          "duration": 1240000,
+          "start": 1666807176415506000
         }]]

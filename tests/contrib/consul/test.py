@@ -50,6 +50,7 @@ class TestConsulPatch(TracerTestCase):
         tags = {
             consulx.KEY: key,
             consulx.CMD: "PUT",
+            "component": "consul",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -72,6 +73,7 @@ class TestConsulPatch(TracerTestCase):
         tags = {
             consulx.KEY: key,
             consulx.CMD: "GET",
+            "component": "consul",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -94,6 +96,7 @@ class TestConsulPatch(TracerTestCase):
         tags = {
             consulx.KEY: key,
             consulx.CMD: "DELETE",
+            "component": "consul",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -116,6 +119,7 @@ class TestConsulPatch(TracerTestCase):
         assert span.error == 0
         tags = {
             consulx.KEY: key,
+            "component": "consul",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v

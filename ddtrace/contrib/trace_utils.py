@@ -3,7 +3,6 @@ This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
 import ipaddress
-import os
 import re
 from typing import Any
 from typing import Callable
@@ -23,10 +22,11 @@ from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
@@ -35,7 +35,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
@@ -147,7 +147,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -173,12 +173,10 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 _USED_IP_HEADER = ""
 
 
-def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
-    # type: (Span, Mapping[str, str], Optional[str], bool) -> str
-    global _USED_IP_HEADER
+def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
+    # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
 
-    if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
-        return ""
+    global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -186,8 +184,15 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
 
         return _get_header_value_case_insensitive(headers, key)
 
+    if not headers:
+        try:
+            _ = ipaddress.ip_address(six.text_type(peer_ip))
+        except ValueError:
+            return ""
+        return peer_ip
+
     ip_header_value = ""
-    user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
+    user_configured_ip_header = config.client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
         ip_header_value = headers.get(user_configured_ip_header)
@@ -202,13 +207,11 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
             return ""
 
     else:
-        # No configured IP header, go through the list defined in:
-        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        # No configured IP header, go through the IP_PATTERNS headers in order
         if _USED_IP_HEADER:
+            # Check first the caught header that previously contained an IP
             ip_header_value = get_header_value(_USED_IP_HEADER)
 
-        # For some reason request uses other header or the specified header is empty, do the
-        # search
         if not ip_header_value:
             for ip_header in IP_PATTERNS:
                 tmp_ip_header_value = get_header_value(ip_header)
@@ -217,10 +220,10 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
                     _USED_IP_HEADER = ip_header
                     break
 
-    # At this point, we have one IP header, check its value and retrieve the first public IP
-    private_ip = ""
+    private_ip_from_headers = ""
 
     if ip_header_value:
+        # At this point, we have one IP header, check its value and retrieve the first public IP
         ip_list = ip_header_value.split(",")
         for ip in ip_list:
             ip = ip.strip()
@@ -228,32 +231,24 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
                 continue
 
             try:
-                ip_obj = ipaddress.ip_address(six.text_type(ip))
-            except ValueError:
+                if ip_is_global(ip):
+                    return ip
+                elif not private_ip_from_headers:
+                    # IP is private, store it just in case we don't find a public one later
+                    private_ip_from_headers = ip
+            except ValueError:  # invalid IP
                 continue
 
-            if not ip_obj.is_private:  # is_global is Python3+ only
-                return ip
-            elif not private_ip and not ip_obj.is_loopback:
-                private_ip = ip
-            # else: it's private, but we already have one: continue in case we find a public one
+    # At this point we have none or maybe one private ip from the headers: check the peer ip in
+    # case it's public and, if not, return either the private_ip from the headers (if we have one)
+    # or the peer private ip
+    try:
+        if ip_is_global(peer_ip) or not private_ip_from_headers:
+            return peer_ip
+    except ValueError:
+        pass
 
-    # So we have none or maybe one private ip, check the peer ip in case it's public and if not
-    # return either the private_ip from the headers (if we have one) or the peer private ip
-    if peer_ip:
-        try:
-            peer_ip_obj = ipaddress.ip_address(six.text_type(peer_ip))
-            if not peer_ip_obj.is_loopback:
-                # If we have a private_ip and the peer_ip is not public, prefer the one we have
-                if private_ip:
-                    if peer_ip_obj.is_loopback or peer_ip_obj.is_private:
-                        return private_ip
-                # peer_ip is public or we dont have a private_ip to we return the private peer_ip
-                return peer_ip
-        except ValueError:
-            pass
-
-    return private_ip
+    return private_ip_from_headers
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -282,6 +277,34 @@ def _store_response_headers(headers, span, integration_config):
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
     _store_headers(headers, span, integration_config, RESPONSE)
+
+
+def _sanitized_url(url):
+    # type: (str) -> str
+    """
+    Sanitize url by removing parts with potential auth info
+    """
+    if "@" in url:
+        parsed = parse.urlparse(url)
+        netloc = parsed.netloc
+
+        if "@" not in netloc:
+            # Safe url, `@` not in netloc
+            return url
+
+        netloc = netloc[netloc.index("@") + 1 :]
+        return parse.urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                "",
+                parsed.query,
+                "",
+            )
+        )
+
+    return url
 
 
 def with_traced_module(func):
@@ -398,6 +421,7 @@ def set_http_meta(
     request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
+    route=None,  # type: Optional[str]
 ):
     # type: (...) -> None
     """
@@ -420,6 +444,8 @@ def set_http_meta(
         span.set_tag_str(http.METHOD, method)
 
     if url is not None:
+        url = _sanitized_url(url)
+
         if integration_config.http_tag_query_string:  # Tagging query string in http.url
             if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
                 span.set_tag_str(http.URL, url)
@@ -444,23 +470,30 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    ip = None
+    request_ip = peer_ip
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
-            span.set_tag(http.USER_AGENT, user_agent)
+            span.set_tag_str(http.USER_AGENT, user_agent)
+
+        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        if config._appsec_enabled or config.retrieve_client_ip:
+            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+            request_ip = _context.get_item("http.request.remote_ip", span=span)
+
+            if not request_ip:
+                # Not calculated: framework does not support IP blocking or testing env
+                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+
+            span.set_tag_str(http.CLIENT_IP, request_ip)
+            span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
+            """We should store both http.<request_or_response>.headers.<header_name> and
+            http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
-
-        ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-        if ip:
-            span.set_tag(http.CLIENT_IP, ip)
-            if span._meta:
-                span._meta["network.client.ip"] = ip
-                span._meta["actor.ip"] = ip
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
@@ -484,12 +517,15 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", ip),
+                    ("http.request.remote_ip", request_ip),
                 ]
                 if v is not None
             },
             span=span,
         )
+
+    if route is not None:
+        span.set_tag_str(http.ROUTE, route)
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
@@ -572,21 +608,22 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span.set_tag_str(user.ID, user_id)
+        str_user_id = str(user_id)
+        span.set_tag_str(user.ID, str_user_id)
         if propagate:
-            span.context.dd_user_id = user_id
+            span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
-            span.set_tag(user.NAME, name)
+            span.set_tag_str(user.NAME, name)
         if email:
-            span.set_tag(user.EMAIL, email)
+            span.set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_tag(user.SCOPE, scope)
+            span.set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_tag(user.ROLE, role)
+            span.set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_tag(user.SESSION_ID, session_id)
+            span.set_tag_str(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "

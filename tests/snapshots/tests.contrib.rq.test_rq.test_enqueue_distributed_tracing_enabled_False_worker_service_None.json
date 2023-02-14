@@ -7,22 +7,25 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
+      "component": "rq",
+      "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc",
       "job.origin": "q",
       "job.status": "finished",
-      "runtime-id": "9f7973a4da1d44a18c0117159fe67295"
+      "language": "python",
+      "runtime-id": "ac25dca205ac4ca6a291f3cca2df495c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67081
+      "process_id": 67081
     },
-    "duration": 19190000,
-    "start": 1632150774362649000
+    "duration": 13379000,
+    "start": 1666807177535588000
   },
      {
        "name": "rq.job.perform",
@@ -31,11 +34,14 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
-         "job.id": "cb601426-9ba6-4ff7-baff-4af051664698"
+         "component": "rq",
+         "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc"
        },
-       "duration": 3202000,
-       "start": 1632150774369990000
+       "duration": 2979000,
+       "start": 1666807177539659000
      }],
 [
   {
@@ -46,20 +52,23 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
+      "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc",
+      "language": "python",
       "queue.name": "q",
-      "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
-    "duration": 6343000,
-    "start": 1632150774020518000
+    "duration": 6443000,
+    "start": 1666807176897437000
   }]]

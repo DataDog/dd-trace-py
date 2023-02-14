@@ -151,6 +151,7 @@ class PylibmcCore(object):
         for s in spans:
             self._verify_cache_span(s, start, end)
             assert s.get_tag("memcached.query") == "%s foo" % s.resource
+            assert s.get_tag("component") == "pylibmc"
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -173,6 +174,7 @@ class PylibmcCore(object):
         for s in spans:
             self._verify_cache_span(s, start, end)
             assert s.get_tag("memcached.query") == "%s %s" % (s.resource, k)
+            assert s.get_tag("component") == "pylibmc"
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -185,7 +187,8 @@ class PylibmcCore(object):
         assert s.span_type == "cache"
         assert s.name == "memcached.cmd"
         assert s.get_tag("out.host") == cfg["host"]
-        assert s.get_metric("out.port") == cfg["port"]
+        assert s.get_tag("component") == "pylibmc"
+        assert s.get_metric("network.destination.port") == cfg["port"]
 
     def test_analytics_default(self):
         client, tracer = self.get_client()

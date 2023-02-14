@@ -7,8 +7,11 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "graphql",
+      "language": "python",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
     "metrics": {
@@ -17,7 +20,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 76591
+      "process_id": 76591
     },
     "duration": 2409000,
     "start": 1658848788443487000
@@ -30,7 +33,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
        "duration": 147000,
@@ -44,7 +49,9 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
        "duration": 674000,
@@ -58,7 +65,9 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"

@@ -10,8 +10,10 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "error.msg": "exception was raised in a graphene query",
+      "component": "graphql",
+      "error.message": "exception was raised in a graphene query",
       "error.type": "graphql.error.base.GraphQLError",
+      "language": "python",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {
@@ -20,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 80357
+      "process_id": 80357
     },
     "duration": 3562000,
     "start": 1659643443310553000
@@ -33,7 +35,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
        "duration": 225000,
@@ -47,7 +51,9 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1047000,
@@ -63,7 +69,8 @@
        "type": "graphql",
        "error": 1,
        "meta": {
-         "error.msg": "exception was raised in a graphene query",
+         "component": "graphql",
+         "error.message": "exception was raised in a graphene query",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
@@ -79,6 +86,10 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 48000,
           "start": 1659643443312350000
         }]]

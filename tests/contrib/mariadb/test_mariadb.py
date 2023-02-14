@@ -62,7 +62,7 @@ def test_simple_query(connection, tracer):
     assert span.name == "mariadb.query"
     assert span.span_type == "sql"
     assert span.error == 0
-    assert span.get_metric("out.port") == 3306
+    assert span.get_metric("network.destination.port") == 3306
 
     assert_dict_issuperset(
         span.get_tags(),
@@ -70,6 +70,7 @@ def test_simple_query(connection, tracer):
             "out.host": u"127.0.0.1",
             "db.name": u"test",
             "db.user": u"test",
+            "component": u"mariadb",
         },
     )
 
@@ -130,7 +131,7 @@ def test_analytics_default(connection, tracer):
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
-@snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_service_snapshot():
     """
     When a user specifies a service for the app
@@ -138,9 +139,7 @@ def test_user_specified_dd_service_snapshot():
     """
     import mariadb
 
-    from ddtrace import config  # noqa
     from ddtrace import patch
-    from ddtrace import tracer
 
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
@@ -150,11 +149,10 @@ def test_user_specified_dd_service_snapshot():
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    tracer.shutdown()
 
 
 @pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))
-@snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_mariadb_service_snapshot():
     """
     When a user specifies a service for the app
@@ -162,9 +160,7 @@ def test_user_specified_dd_mariadb_service_snapshot():
     """
     import mariadb
 
-    from ddtrace import config  # noqa
     from ddtrace import patch
-    from ddtrace import tracer
 
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
@@ -174,7 +170,6 @@ def test_user_specified_dd_mariadb_service_snapshot():
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    tracer.shutdown()
 
 
 @snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)

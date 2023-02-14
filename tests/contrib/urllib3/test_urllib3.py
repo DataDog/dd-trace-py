@@ -50,6 +50,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == URL_200
+        assert s.get_tag("component") == "urllib3"
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -65,6 +66,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
+        assert s.get_tag("component") == "urllib3"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -74,6 +76,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
+        assert s.get_tag("component") == "urllib3"
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -115,6 +118,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag(http.STATUS_CODE) == "200"
             assert s.get_tag(http.URL) == URL_200
             assert s.get_tag("http.request.headers.accept") == "*"
+            assert s.get_tag("component") == "urllib3"
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -147,6 +151,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag(http.STATUS_CODE) == "200"
+        assert s.get_tag("component") == "urllib3"
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -165,6 +170,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag(http.URL) == URL_200_QS
+        assert s.get_tag("component") == "urllib3"
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -179,6 +185,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "POST"
         assert s.get_tag(http.STATUS_CODE) == "500"
         assert s.get_tag(http.URL) == URL_500
+        assert s.get_tag("component") == "urllib3"
         assert s.error == 1
 
     def test_connection_retries(self):
@@ -303,6 +310,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert dd_span.get_tag(http.METHOD) == "GET"
         assert dd_span.get_tag(http.STATUS_CODE) == "200"
+        assert dd_span.get_tag("component") == "urllib3"
         assert dd_span.error == 0
         assert dd_span.span_type == "http"
 
@@ -372,6 +380,8 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
                 "x-datadog-tags": "_dd.p.dm=-0",
+                "traceparent": s.context._traceparent,
+                "tracestate": s.context._tracestate,
             }
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers=expected_headers, timeout=mock.ANY

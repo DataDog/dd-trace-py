@@ -1,7 +1,11 @@
+import os
+
 import aiobotocore.client
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -12,6 +16,7 @@ from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
@@ -29,6 +34,22 @@ elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+
+if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
+    debtcollector.deprecate(
+        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
+        message="The aiobotocore integration no longer includes all API parameters by default.",
+        removal_version="2.0.0",
+    )
+
+config._add(
+    "aiobotocore",
+    {
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+    },
+)
 
 
 def patch():
@@ -57,6 +78,8 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         operation_name = "{}.read".format(self._self_parent_span.name)
 
         with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
+            span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
@@ -91,16 +114,25 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
+        span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
+
             operation = get_argument_value(args, kwargs, 0, "operation_name")
+            params = get_argument_value(args, kwargs, 1, "params")
+
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
+
+            if params and not config.aiobotocore["tag_no_params"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
         except ArgumentError:
             operation = None
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.aiobotocore["tag_no_params"] and config.aiobotocore["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
@@ -130,11 +162,11 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         request_id = response_meta.get("RequestId")
         if request_id:
-            span.set_tag("aws.requestid", request_id)
+            span.set_tag_str("aws.requestid", request_id)
 
         request_id2 = response_headers.get("x-amz-id-2")
         if request_id2:
-            span.set_tag("aws.requestid2", request_id2)
+            span.set_tag_str("aws.requestid2", request_id2)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())

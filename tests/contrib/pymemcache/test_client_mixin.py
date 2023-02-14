@@ -39,12 +39,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         for span, resource, query in zip(spans, resources_expected, queries_expected):
             self.assert_is_measured(span)
             self.assertEqual(span.get_tag(net.TARGET_HOST), TEST_HOST)
-            self.assertEqual(span.get_metric(net.TARGET_PORT), TEST_PORT)
+            self.assertEqual(span.get_metric("network.destination.port"), TEST_PORT)
             self.assertEqual(span.name, memcachedx.CMD)
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.service, memcachedx.SERVICE)
             self.assertEqual(span.get_tag(memcachedx.QUERY), query)
             self.assertEqual(span.resource, resource)
+            self.assertEqual(span.get_tag("component"), "pymemcache")
 
         return spans
 

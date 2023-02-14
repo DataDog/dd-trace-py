@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_MEASURED_KEY
@@ -16,7 +17,7 @@ from ..trace_utils import wrap
 from ..trace_utils_async import with_traced_module
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from types import ModuleType
     from typing import Dict
     from typing import Union
@@ -74,6 +75,8 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
+        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+
         # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
         span.set_tags(_get_connection_tags(conn))
@@ -84,6 +87,8 @@ async def _traced_query(pin, method, query, args, kwargs):
     with pin.tracer.trace(
         "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
     ) as span:
+        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
         return await method(*args, **kwargs)

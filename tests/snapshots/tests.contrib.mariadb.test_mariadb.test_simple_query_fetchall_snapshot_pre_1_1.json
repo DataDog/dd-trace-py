@@ -7,12 +7,15 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "93f76aae38d74161926ccd64013f5d01"
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,13 +23,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 0,
-      "out.port": 3306,
-      "sql.rows": 0,
-      "system.pid": 9600
+      "db.row_count": 0,
+      "network.destination.port": 3306,
+      "process_id": 9600
     },
-    "duration": 1075000,
-    "start": 1656521180623369000
+    "duration": 4783000,
+    "start": 1667513574939043000
   }],
 [
   {
@@ -37,23 +39,25 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "93f76aae38d74161926ccd64013f5d01"
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 1,
-      "out.port": 3306,
-      "sql.rows": 1,
-      "system.pid": 9600
+      "db.row_count": 1,
+      "network.destination.port": 3306,
+      "process_id": 9600
     },
-    "duration": 188000,
-    "start": 1656521180625496000
+    "duration": 56000,
+    "start": 1667513574944045000
   }]]

@@ -9,12 +9,12 @@ from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 try:
     from collections.abc import Iterator
 except ImportError:
-    from collections import Iterator
+    from collections import Iterator  # type: ignore[attr-defined,no-redef]
 
 try:
     from typing import Protocol
 except ImportError:
-    from typing_extensions import Protocol  # type: ignore[misc]
+    from typing_extensions import Protocol  # type: ignore[assignment]
 
 from os.path import abspath
 from types import FunctionType

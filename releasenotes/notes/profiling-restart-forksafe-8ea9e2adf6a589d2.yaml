@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: restart automatically on all Python versions.
+  - |
+    profiling: fixes an issue with Gunicorn child processes not storing
+    profiling events.

@@ -15,6 +15,7 @@ from grpc.aio._typing import ResponseType
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -183,6 +184,9 @@ def _create_span(pin, handler_call_details, method_kind):
         service=trace_utils.int_service(pin, config.grpc_aio_server),
         resource=handler_call_details.method,
     )
+
+    span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
+
     span.set_tag(SPAN_MEASURED_KEY)
 
     set_grpc_method_meta(span, handler_call_details.method, method_kind)

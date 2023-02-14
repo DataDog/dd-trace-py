@@ -1,18 +1,33 @@
 from contextlib import contextmanager
+import logging
 import re
 from typing import Any
 from typing import Callable
 from typing import ContextManager
 from typing import Generator
 from typing import Optional
+from typing import Pattern
 from typing import Tuple
 from typing import Union
 
+import six
+
+from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
+from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.utils.cache import cached
 
 
+_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
+_W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
+
+
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
+
+
+log = logging.getLogger(__name__)
 
 
 @cached()
@@ -136,3 +151,61 @@ def connector(url, **kwargs):
         connection.close()
 
     return _connector_context
+
+
+def w3c_get_dd_list_member(context):
+    # Context -> str
+    tags = []
+    if context.sampling_priority is not None:
+        tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+    if context.dd_origin:
+        tags.append(
+            "{}:{}".format(
+                W3C_TRACESTATE_ORIGIN_KEY,
+                w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", context.dd_origin)),
+            )
+        )
+
+    sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
+    if sampling_decision:
+        tags.append(
+            "t.dm:{}".format((w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", sampling_decision))))
+        )
+    # since this can change, we need to grab the value off the current span
+    usr_id = context._meta.get(USER_ID_KEY)
+    if usr_id:
+        tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
+
+    current_tags_len = sum(len(i) for i in tags)
+    for k, v in context._meta.items():
+        if (
+            isinstance(k, six.string_types)
+            and k.startswith("_dd.p.")
+            # we've already added sampling decision and user id
+            and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
+        ):
+            # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
+            # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
+            k = k.replace("_dd.p.", "t.")
+            next_tag = "{}:{}".format(
+                w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY, "_", k)),
+                w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", v)),
+            )
+            # we need to keep the total length under 256 char
+            potential_current_tags_len = current_tags_len + len(next_tag)
+            if not potential_current_tags_len > 256:
+                tags.append(next_tag)
+                current_tags_len += len(next_tag)
+            else:
+                log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
+
+    return ";".join(tags)
+
+
+@cached()
+def w3c_encode_tag(args):
+    # type: (Tuple[Pattern, str, str]) -> str
+    pattern, replacement, tag_val = args
+    tag_val = pattern.sub(replacement, tag_val)
+    # replace = with ~ if it wasn't already replaced by the regex
+    return tag_val.replace("=", "~")

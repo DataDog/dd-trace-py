@@ -6,19 +6,22 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "132cff2cde77480cb018f34c204199b7"
+      "language": "python",
+      "runtime-id": "78889425fa434f88a0dbd3ce725a2f06"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 2746650
+      "process_id": 2746650
     },
-    "duration": 1044624,
-    "start": 1656706648047000419
+    "duration": 3261000,
+    "start": 1666795740513907000
   },
      {
        "name": "redis.command",
@@ -28,19 +31,21 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
+         "component": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo\nGET blah"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "out.port": 6379,
+         "network.destination.port": 6379,
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 402853,
-       "start": 1656706648047171197
+       "duration": 1346000,
+       "start": 1666795740514102000
      },
      {
        "name": "redis.command",
@@ -50,17 +55,19 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
+         "component": "redis",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET foo bar\nGET foo"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "out.port": 6379,
+         "network.destination.port": 6379,
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 394767,
-       "start": 1656706648047626718
+       "duration": 1635000,
+       "start": 1666795740515513000
      }]]

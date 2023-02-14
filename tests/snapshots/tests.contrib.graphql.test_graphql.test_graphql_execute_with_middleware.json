@@ -1,13 +1,16 @@
 [[
   {
     "name": "test-execute-instrumentation",
-    "service": null,
+    "service": "",
     "resource": "test-execute-instrumentation",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "942f610390fa492b9945e108e5aa0f69"
     },
     "metrics": {
@@ -15,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 77070
+      "process_id": 77070
     },
     "duration": 2354000,
     "start": 1658848939282326000
@@ -28,7 +31,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
        "metrics": {
@@ -45,7 +50,9 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"
@@ -64,6 +71,10 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "graphql",
+          "error": 0,
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 101000,
           "start": 1658848939283224000
         },
@@ -74,6 +85,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 5,
+             "type": "",
+             "error": 0,
              "duration": 30000,
              "start": 1658848939283265000
            },
@@ -85,7 +98,9 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
+         "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"
@@ -104,6 +119,10 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 89000,
           "start": 1658848939284065000
         },
@@ -114,6 +133,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 6,
+             "type": "",
+             "error": 0,
              "duration": 26000,
              "start": 1658848939284102000
            }]]

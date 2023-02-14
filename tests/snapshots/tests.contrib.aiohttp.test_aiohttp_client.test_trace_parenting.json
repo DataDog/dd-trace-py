@@ -1,49 +1,56 @@
 [[
   {
     "name": "parent",
-    "service": null,
+    "service": "",
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "93de13222bfa491d896a7fd6f40622e1"
+      "language": "python",
+      "runtime-id": "c110789b92224c258de3e631ca50af4f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27123
+      "process_id": 27123
     },
-    "duration": 6315000,
-    "start": 1646794413225857000
+    "duration": 13545000,
+    "start": 1666808695012983000
   },
      {
        "name": "aiohttp.request",
-       "service": null,
+       "service": "",
        "resource": "aiohttp.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
+       "error": 0,
        "meta": {
+         "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
          "http.url": "http://localhost:8001/status/200"
        },
-       "duration": 5716000,
-       "start": 1646794413226273000
+       "duration": 13124000,
+       "start": 1666808695013246000
      },
         {
           "name": "TCPConnector.connect",
-          "service": null,
+          "service": "",
           "resource": "TCPConnector.connect",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 2464000,
           "start": 1646794413226798000
         }]]

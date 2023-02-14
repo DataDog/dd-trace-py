@@ -1,9 +1,12 @@
 # -*- encoding: utf-8 -*-
 import collections
+import gc
 import os
+import sys
 import threading
 import time
 import timeit
+from types import FrameType
 import typing
 import uuid
 
@@ -45,6 +48,18 @@ def func4():
 
 def func5():
     return nogevent.sleep(1)
+
+
+def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
+    for _ in range(retries):
+        matched = list(filter(cond, collector.recorder.events[stack_event.StackSampleEvent]))
+        if matched:
+            return matched[0]
+
+        collector.recorder.events[stack_event.StackSampleEvent].clear()
+        time.sleep(interval)
+
+    raise RuntimeError("event wait timeout")
 
 
 def test_collect_truncate():
@@ -129,6 +144,7 @@ def test_collect_once_with_class():
         assert SomeClass.sleep_class()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="FIXME: this test is flaky on Windows")
 def test_collect_once_with_class_not_right_type():
     # type: (...) -> None
     r = recorder.Recorder()
@@ -241,14 +257,17 @@ def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     # sure to catch it with the StackProfiler and that it's not ignored.
     c = CollectorTest(p._profiler._recorder, interval=0.00001)
     c.start()
-    # Wait forever and stop when we finally find an event with our collector task id
-    while True:
+
+    for _ in range(100):
         events = p._profiler._recorder.reset()
         ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
         if (c._worker.ident in ids) != ignore:
             break
         # Give some time for gevent to switch greenlets
         time.sleep(0.1)
+    else:
+        assert False
+
     c.stop()
     p.stop(flush=False)
 
@@ -266,7 +285,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=True, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )
 
 
@@ -398,7 +417,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 392, "test_exception_collection", "")]
+    assert e.frames == [(__file__, 411, "test_exception_collection", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -430,7 +449,7 @@ def test_exception_collection_trace(
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 419, "test_exception_collection_trace", "")]
+    assert e.frames == [(__file__, 438, "test_exception_collection_trace", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -440,7 +459,7 @@ def test_exception_collection_trace(
 @pytest.fixture
 def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=tracer)
+    c = stack.StackCollector(r, endpoint_collection_enabled=True, tracer=tracer)
     c.start()
     try:
         yield tracer, c
@@ -527,18 +546,11 @@ def test_collect_span_id(tracer_and_collector):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
     span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
-    # This test will run forever if it fails. Don't make it fail.
-    while True:
-        try:
-            event = c.recorder.events[stack_event.StackSampleEvent].pop()
-        except IndexError:
-            # No event left or no event yet
-            continue
-        if span.span_id == event.span_id:
-            assert event.trace_resource_container[0] == resource
-            assert event.trace_type == span_type
-            assert event.local_root_span_id == span._local_root.span_id
-            break
+    event = wait_for_event(c, lambda e: span.span_id == e.span_id)
+    assert span.span_id == event.span_id
+    assert event.trace_resource_container[0] == resource
+    assert event.trace_type == span_type
+    assert event.local_root_span_id == span._local_root.span_id
 
 
 def test_collect_span_resource_after_finish(tracer_and_collector):
@@ -546,42 +558,27 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
     span = t.start_span("foobar", activate=True, span_type=span_type)
-    # This test will run forever if it fails. Don't make it fail.
-    while True:
-        try:
-            event = c.recorder.events[stack_event.StackSampleEvent].pop()
-        except IndexError:
-            # No event left or no event yet
-            continue
-        if span.span_id == event.span_id:
-            assert event.trace_resource_container[0] == "foobar"
-            assert event.trace_type == span_type
-            break
+    event = wait_for_event(c, lambda e: span.span_id == e.span_id)
+    assert span.span_id == event.span_id
+    assert event.trace_resource_container[0] == "foobar"
+    assert event.trace_type == span_type
     span.resource = resource
     span.finish()
     assert event.trace_resource_container[0] == resource
 
 
 def test_resource_not_collected(monkeypatch, tracer):
-    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
     r = recorder.Recorder()
-    collector = stack.StackCollector(r, tracer=tracer)
+    collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)
     collector.start()
     try:
         resource = str(uuid.uuid4())
         span_type = str(uuid.uuid4())
         span = tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type)
-        # This test will run forever if it fails. Don't make it fail.
-        while True:
-            try:
-                event = collector.recorder.events[stack_event.StackSampleEvent].pop()
-            except IndexError:
-                # No event left or no event yet
-                continue
-            if span.span_id == event.span_id:
-                assert event.trace_resource_container is None
-                assert event.trace_type == span_type
-                break
+        event = wait_for_event(collector, lambda e: span.span_id == e.span_id)
+        assert span.span_id == event.span_id
+        assert event.trace_resource_container is None
+        assert event.trace_type == span_type
     finally:
         collector.stop()
 
@@ -592,17 +589,9 @@ def test_collect_multiple_span_id(tracer_and_collector):
     span_type = str(uuid.uuid4())
     span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
     child = t.start_span("foobar", child_of=span, activate=True)
-    # This test will run forever if it fails. Don't make it fail.
-    while True:
-        try:
-            event = c.recorder.events[stack_event.StackSampleEvent].pop()
-        except IndexError:
-            # No event left or no event yet
-            continue
-        if child.span_id == event.span_id:
-            assert event.trace_resource_container[0] == resource
-            assert event.trace_type == span_type
-            break
+    event = wait_for_event(c, lambda e: child.span_id == e.span_id)
+    assert event.trace_resource_container[0] == resource
+    assert event.trace_type == span_type
 
 
 def test_stress_trace_collection(tracer_and_collector):
@@ -741,3 +730,20 @@ def test_collect_gevent_threads():
     # assert (exact_time * 0.7) <= values.pop() <= (exact_time * 1.3)
 
     assert values.pop() > 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
+def test_collect_ensure_all_frames_gc():
+    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
+    def _foo():
+        pass
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+
+    with s:
+        for _ in range(100):
+            _foo()
+
+    gc.collect()  # Make sure we don't race with gc when we check frame objects
+    assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0

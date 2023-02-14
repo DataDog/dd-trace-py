@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    tracer: support for Datadog Agent v5 has been dropped. Datadog Agent v5 is
+    no longer supported since ddtrace==1.0.0. See
+    https://ddtrace.readthedocs.io/en/v1.0.0/versioning.html#release-support
+    for the version support.

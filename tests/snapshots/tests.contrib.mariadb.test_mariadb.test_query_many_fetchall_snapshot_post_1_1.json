@@ -7,12 +7,15 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86",
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -21,13 +24,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 9677
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
-    "duration": 1468400,
-    "start": 1656521264429166700
+    "duration": 937000,
+    "start": 1667513581474433000
   }],
 [
   {
@@ -38,12 +40,15 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -51,13 +56,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 9677
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
-    "duration": 698300,
-    "start": 1656521264432090500
+    "duration": 912000,
+    "start": 1667513581475616000
   }],
 [
   {
@@ -68,23 +72,25 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 9677
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
-    "duration": 94000,
-    "start": 1656521264433020400
+    "duration": 55000,
+    "start": 1667513581476598000
   }]]

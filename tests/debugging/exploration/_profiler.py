@@ -1,21 +1,18 @@
-import os
 import typing as t
 
 from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
+from debugger import config
 from debugger import status
+from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._probe.model import FunctionProbe
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.debugging._probe.model import FunctionLocationMixin
 
 
 # Track all instrumented functions and their call count.
 _tracked_funcs = {}  # type: t.Dict[str, int]
-
-
-ENABLED = asbool(os.getenv("DD_DEBUGGER_EXPL_PROFILER_ENABLED", True))
 
 
 class FunctionCollector(ModuleCollector):
@@ -26,7 +23,7 @@ class FunctionCollector(ModuleCollector):
         for fname, f in discovery._fullname_index.items():
             _tracked_funcs[fname] = 0
             DeterministicProfiler.add_probe(
-                FunctionProbe(
+                create_snapshot_function_probe(
                     probe_id=str(hash(f)),
                     module=module.__name__,
                     func_qname=fname.replace(module.__name__, "").lstrip("."),
@@ -41,7 +38,7 @@ class DeterministicProfiler(ExplorationDebugger):
     @classmethod
     def report_func_calls(cls):
         # type: () -> None
-        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, FunctionProbe)):
+        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, FunctionLocationMixin)):
             _tracked_funcs[".".join([probe.module, probe.func_qname])] += 1
         print(("{:=^%ds}" % COLS).format(" Function coverage "))
         print("")
@@ -65,5 +62,5 @@ class DeterministicProfiler(ExplorationDebugger):
         cls.report_func_calls()
 
 
-if ENABLED:
+if config.profiler.enabled:
     DeterministicProfiler.enable()

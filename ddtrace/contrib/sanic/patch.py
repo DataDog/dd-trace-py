@@ -6,6 +6,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -198,6 +199,8 @@ def _create_sanic_request_span(request):
         resource=resource,
         span_type=SpanTypes.WEB,
     )
+    span.set_tag_str(COMPONENT, config.sanic.integration_name)
+
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
@@ -231,7 +234,7 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
         pattern = route.pattern
 
     span.resource = "{} {}".format(request.method, pattern)
-    span.set_tag("sanic.route.name", route.name)
+    span.set_tag_str("sanic.route.name", route.name)
 
 
 async def sanic_http_lifecycle_response(request, response):

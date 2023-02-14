@@ -8,20 +8,18 @@ from debugger import COLS
 from debugger import CWD
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
+from debugger import config
 from debugger import status
+from debugging.utils import create_snapshot_line_probe
 
+from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._probe.model import LineProbe
-from ddtrace.debugging._snapshot.model import Snapshot
+from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.formats import asbool
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
 _tracked_modules = {}  # type: t.Dict[str, t.Tuple[ModuleType, t.Set[int]]]
-
-ENABLED = asbool(os.getenv("DD_DEBUGGER_EXPL_COVERAGE_ENABLED", True))
-DELETE_LINE_PROBE = asbool(os.getenv("DD_DEBUGGER_EXPL_DELETE_LINE_PROBE", False))
 
 
 class LineCollector(ModuleCollector):
@@ -32,7 +30,7 @@ class LineCollector(ModuleCollector):
         _tracked_modules[o] = (discovery._module, {_ for _ in discovery.keys()})
         LineCoverage.add_probes(
             [
-                LineProbe(
+                create_snapshot_line_probe(
                     probe_id="@".join([str(hash(f)), str(line)]),
                     source_file=origin(sys.modules[f.__module__]),
                     line=line,
@@ -51,7 +49,7 @@ class LineCoverage(ExplorationDebugger):
     def report_coverage(cls):
         # type: () -> None
         seen_lines_map = defaultdict(set)
-        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LineProbe)):
+        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
             seen_lines_map[probe.source_file].add(probe.line)
 
         try:
@@ -92,9 +90,9 @@ class LineCoverage(ExplorationDebugger):
     @classmethod
     def on_snapshot(cls, snapshot):
         # type: (Snapshot) -> None
-        if DELETE_LINE_PROBE:
+        if config.coverage.delete_probes:
             cls.delete_probe(snapshot.probe)
 
 
-if ENABLED:
+if config.coverage.enabled:
     LineCoverage.enable()

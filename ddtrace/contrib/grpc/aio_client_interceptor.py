@@ -11,6 +11,8 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
+from ddtrace.internal.constants import COMPONENT
+
 from .. import trace_utils
 from ... import Pin
 from ... import Span
@@ -97,6 +99,9 @@ class _ClientInterceptor:
             service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
             resource=method_as_str,
         )
+
+        span.set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)

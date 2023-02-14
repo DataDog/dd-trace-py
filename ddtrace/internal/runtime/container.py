@@ -23,7 +23,11 @@ class CGroupInfo(object):
     controllers = attr.ib(default=None)
     pod_id = attr.ib(default=None)
 
-    UUID_SOURCE_PATTERN = r"[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}"
+    # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
+    # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
+    UUID_SOURCE_PATTERN = (
+        r"[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
+    )
     CONTAINER_SOURCE_PATTERN = r"[0-9a-f]{64}"
     TASK_PATTERN = r"[0-9a-f]{32}-\d+"
 

@@ -22,7 +22,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
 
 class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
-    def __init__(self, size=1 << 10, interval=0.1):
+    def __init__(self, size=1 << 10, interval=1):
         super(ActiveBatchJsonEncoder, self).__init__(
             BatchJsonEncoder({str: str}, size, self.on_full), interval=interval
         )
@@ -32,32 +32,29 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
 
 
 def test_uploader_batching():
-    with ActiveBatchJsonEncoder() as uploader:
+    with ActiveBatchJsonEncoder(interval=0.1) as uploader:
         for _ in range(5):
             uploader._encoder.put("hello")
             uploader._encoder.put("world")
-            sleep(0.11)
+            sleep(0.15)
         assert uploader.queue == ["[hello,world]"] * 5
 
 
 def test_uploader_full_buffer():
     size = 1 << 8
-    with ActiveBatchJsonEncoder(size=size) as uploader:
+    with ActiveBatchJsonEncoder(size=size, interval=1) as uploader:
         item = "hello" * 10
         n = size // len(item)
         assert n
-        for _ in range(n):
-            uploader._encoder.put(item)
 
         with pytest.raises(BufferFull):
-            uploader._encoder.put(item)
-
-            # OK, maybe this time then
-            uploader._encoder.put(item)
+            for _ in range(2 * n):
+                uploader._encoder.put(item)
 
         # The full buffer forces a flush
         sleep(0.01)
         assert len(uploader.queue) == 1
 
-        sleep(0.15)
+        # wakeup to mimik next interval
+        uploader.awake()
         assert len(uploader.queue) == 1

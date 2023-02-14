@@ -18,10 +18,12 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import net as netx
 from ...ext import sql as sqlx
 from ...pin import Pin
@@ -87,6 +89,8 @@ class EngineTracer(object):
             span_type=SpanTypes.SQL,
             resource=statement,
         )
+        span.set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
@@ -109,7 +113,7 @@ class EngineTracer(object):
 
         try:
             if cursor and cursor.rowcount >= 0:
-                span.set_tag(sqlx.ROWS, cursor.rowcount)
+                span.set_tag(db.ROWCOUNT, cursor.rowcount)
         finally:
             span.finish()
 
@@ -132,11 +136,11 @@ class EngineTracer(object):
 def _set_tags_from_url(span, url):
     """set connection tags from the url. return true if successful."""
     if url.host:
-        span.set_tag(netx.TARGET_HOST, url.host)
+        span.set_tag_str(netx.TARGET_HOST, url.host)
     if url.port:
         span.set_tag(netx.TARGET_PORT, url.port)
     if url.database:
-        span.set_tag(sqlx.DB, url.database)
+        span.set_tag_str(sqlx.DB, url.database)
 
     return bool(span.get_tag(netx.TARGET_HOST))
 

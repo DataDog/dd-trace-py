@@ -6,6 +6,7 @@
 #include <Python.h>
 
 #include "_memalloc_heap.h"
+#include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 #include "_utils.h"
@@ -13,6 +14,8 @@
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
+    /* The domain we are tracking */
+    PyMemAllocatorDomain domain;
     /* The maximum number of events for allocation tracking */
     uint16_t max_events;
     /* The maximum number of frames collected in stack traces */
@@ -34,6 +37,9 @@ typedef struct
     uint64_t alloc_count;
 } alloc_tracker_t;
 
+/* A string containing "object" */
+static PyObject* object_string = NULL;
+
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
 static alloc_tracker_t* global_alloc_tracker;
@@ -47,19 +53,30 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 
     global_alloc_tracker->alloc_count++;
 
+    /* Avoid loops */
+    if (memalloc_get_reentrant())
+        return;
+
     /* Determine if we can capture or if we need to sample */
     if (global_alloc_tracker->allocs.count < ctx->max_events) {
+        /* set a barrier so we don't loop as getting a traceback allocates memory */
+        memalloc_set_reentrant(true);
         /* Buffer is not full, fill it */
-        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
+        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
+        memalloc_set_reentrant(false);
         if (tb)
             traceback_array_append(&global_alloc_tracker->allocs, tb);
     } else {
-        /* Sampling mode using a reservoir sampling algorithm */
+        /* Sampling mode using a reservoir sampling algorithm: replace a random
+         * traceback with this one */
         uint64_t r = random_range(global_alloc_tracker->alloc_count);
 
         if (r < ctx->max_events) {
+            /* set a barrier so we don't loop as getting a traceback allocates memory */
+            memalloc_set_reentrant(true);
             /* Replace a random traceback with this one */
-            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
+            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
+            memalloc_set_reentrant(false);
             if (tb) {
                 traceback_free(global_alloc_tracker->allocs.tab[r]);
                 global_alloc_tracker->allocs.tab[r] = tb;
@@ -81,6 +98,12 @@ memalloc_free(void* ctx, void* ptr)
     alloc->free(alloc->ctx, ptr);
 }
 
+#ifdef _PY37_AND_LATER
+Py_tss_t memalloc_reentrant_key = Py_tss_NEEDS_INIT;
+#else
+int memalloc_reentrant_key = -1;
+#endif
+
 static void*
 memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 {
@@ -94,7 +117,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 
     if (ptr) {
         memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
     }
 
     return ptr;
@@ -121,7 +144,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     if (ptr2) {
         memalloc_add_event(memalloc_ctx, ptr2, new_size);
         memalloc_heap_untrack(ptr);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
     return ptr2;
@@ -190,6 +213,13 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
         return NULL;
 
+    if (object_string == NULL) {
+        object_string = PyUnicode_FromString("object");
+        if (object_string == NULL)
+            return NULL;
+        PyUnicode_InternInPlace(&object_string);
+    }
+
     memalloc_heap_tracker_init((uint32_t)heap_sample_size);
 
     PyMemAllocatorEx alloc;
@@ -200,6 +230,8 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.free = memalloc_free;
 
     alloc.ctx = &global_memalloc_ctx;
+
+    global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
     global_alloc_tracker = alloc_tracker_new();
 
@@ -305,11 +337,20 @@ iterevents_next(IterEventsState* iestate)
         traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
         iestate->seq_index++;
 
-        PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
-        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
+        PyObject* tb_size_domain = PyTuple_New(3);
+        PyTuple_SET_ITEM(tb_size_domain, 0, traceback_to_tuple(tb));
+        PyTuple_SET_ITEM(tb_size_domain, 1, PyLong_FromSize_t(tb->size));
 
-        return tb_and_size;
+        /* Domain name */
+        if (tb->domain == PYMEM_DOMAIN_OBJ) {
+            PyTuple_SET_ITEM(tb_size_domain, 2, object_string);
+            Py_INCREF(object_string);
+        } else {
+            PyTuple_SET_ITEM(tb_size_domain, 2, Py_None);
+            Py_INCREF(Py_None);
+        }
+
+        return tb_size_domain;
     }
 
     /* Returning NULL in this case is enough. The next() builtin will raise the
@@ -394,6 +435,20 @@ PyInit__memalloc(void)
     m = PyModule_Create(&module_def);
     if (m == NULL)
         return NULL;
+
+#ifdef _PY37_AND_LATER
+    if (PyThread_tss_create(&memalloc_reentrant_key) != 0) {
+#else
+    memalloc_reentrant_key = PyThread_create_key();
+    if (memalloc_reentrant_key == -1) {
+#endif
+#ifdef MS_WINDOWS
+        PyErr_SetFromWindowsErr(0);
+#else
+        PyErr_SetFromErrno(PyExc_OSError);
+#endif
+        return NULL;
+    }
 
     if (PyType_Ready(&MemallocIterEvents_Type) < 0)
         return NULL;

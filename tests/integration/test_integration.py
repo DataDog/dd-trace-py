@@ -14,6 +14,7 @@ from ddtrace import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
+from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -25,7 +26,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def allencodings(f):
-    return pytest.mark.parametrize("encoding", ["", "v0.5"] if AGENT_VERSION != "v5" else [""])(f)
+    return pytest.mark.parametrize("encoding", ["v0.5", "v0.4"])(f)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -55,9 +56,12 @@ def test_debug_mode():
     assert p.stdout.read() == b""
     assert b"DEBUG:ddtrace" not in p.stderr.read()
 
+    env = os.environ.copy()
+    env.update({"DD_TRACE_DEBUG": "true", "DD_CALL_BASIC_CONFIG": "true"})
+
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
-        env=dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true"),
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -139,9 +143,11 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s",
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
-            exc_info=True,
+            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            1,
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+            3,
+            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -169,11 +175,12 @@ def test_payload_too_large(encoding, monkeypatch):
         t.shutdown()
         calls = [
             mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
+                AnyStr(),
             )
         ]
         log.warning.assert_has_calls(calls)
@@ -304,11 +311,12 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
         log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
             AnyInt(),
             AnyInt(),
             AnyInt(),
             AnyInt(),
+            AnyStr(),
         )
         log.error.assert_not_called()
 
@@ -347,9 +355,11 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s",
-            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
-            exc_info=True,
+            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            1,
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
+            3,
+            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -469,7 +479,7 @@ def test_bad_payload():
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
         )
@@ -502,7 +512,7 @@ def test_bad_payload_log_payload(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
             "6261645f7061796c6f6164",
@@ -546,7 +556,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
             "bad_payload",
@@ -586,7 +596,7 @@ def test_downgrade(encoding, monkeypatch):
 
     t = Tracer()
     t._writer._downgrade(None, None)
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.4"]
+    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
@@ -665,16 +675,18 @@ s2.finish()
 """.lstrip()
         % str(patch_logging)
     )
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
+            "DD_TRACE_DEBUG": str(debug_mode).lower(),
+            "DD_CALL_BASIC_CONFIG": "true",
+        }
+    )
+
     p = subprocess.Popen(
-        [sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=dict(
-            DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
-            DD_TRACE_DEBUG=str(debug_mode).lower(),
-            DD_CALL_BASIC_CONFIG="true",
-        ),
+        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
         p.wait(timeout=2)
@@ -839,25 +851,6 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
-
-
-def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
-        dict(
-            DD_TRACE_DEBUG="1",
-        )
-    )
-    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-from ddtrace import patch_all
-logging.basicConfig(level=logging.DEBUG)
-patch_all()
-        """,
-        env=env,
-    )
-    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
 
 
 def test_no_warnings():

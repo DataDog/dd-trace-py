@@ -200,6 +200,12 @@ def _set_resolver_tags(pin, span, request):
                     resource = " ".join((request.method, route))
                     span.set_tag_str("http.route", route)
             else:
+                if config.django.use_handler_with_url_name_resource_format:
+                    # Append url name in order to distinguish different routes of the same ViewSet
+                    url_name = resolver_match.url_name
+                    if url_name:
+                        handler = ".".join([handler, url_name])
+
                 resource = " ".join((request.method, handler))
 
         span.set_tag_str("django.view", resolver_match.view_name)
@@ -274,6 +280,8 @@ def _extract_body(request):
             OSError,
             ValueError,
             JSONDecodeError,
+            xmltodict.expat.ExpatError,
+            xmltodict.ParsingInterrupted,
         ):
             log.warning("Failed to parse request body")
             # req_body is None
@@ -292,6 +300,10 @@ def _after_request_tags(pin, span, request, response):
             # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
             # Django's get_user_model():
             # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+            #
+            # FIXME: getattr calls to user fail in async contexts.
+            # Sample Error: django.core.exceptions.SynchronousOnlyOperation: You cannot call this from an async context
+            # - use a thread or sync_to_async.
             try:
                 if hasattr(user, "is_authenticated"):
                     span.set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
@@ -305,7 +317,7 @@ def _after_request_tags(pin, span, request, response):
                     if username:
                         span.set_tag_str("django.user.name", username)
             except Exception:
-                log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+                log.debug("Error retrieving authentication information for user", exc_info=True)
 
         if response:
             status = response.status_code

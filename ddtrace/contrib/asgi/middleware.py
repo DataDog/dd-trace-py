@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...internal.compat import reraise
@@ -13,7 +14,7 @@ from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Mapping
     from typing import Optional
@@ -120,6 +121,8 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
+        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}
         else:
@@ -177,9 +180,10 @@ class TraceMiddleware:
             else:
                 status_code = None
 
-            if "headers" in message:
-                response_headers = message["headers"]
-            else:
+            try:
+                response_headers = _extract_headers(message)
+            except Exception:
+                log.warning("failed to extract response headers", exc_info=True)
                 response_headers = None
 
             trace_utils.set_http_meta(

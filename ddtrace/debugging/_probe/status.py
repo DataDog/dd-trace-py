@@ -4,10 +4,10 @@ import time
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.debugging._capture import utils
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import BufferedEncoder
-from ddtrace.debugging._encoding import _unwind_stack
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
@@ -26,10 +26,11 @@ class ProbeStatusLogger(object):
         self._encoder = encoder
         self._retry_queue = deque()  # type: deque[Tuple[str, float]]
 
-    def _payload(self, probe, status, message, exc_info=None):
-        # type: (Probe, str, str, Optional[ExcInfoType]) -> str
+    def _payload(self, probe, status, message, timestamp, exc_info=None):
+        # type: (Probe, str, str, float, Optional[ExcInfoType]) -> str
         payload = {
             "service": self._service,
+            "timestamp": int(timestamp * 1e3),  # milliseconds
             "message": message,
             "ddsource": "dd_debugger",
             "debugger": {
@@ -48,7 +49,7 @@ class ProbeStatusLogger(object):
             payload["debugger"]["diagnostics"]["exception"] = {  # type: ignore[index]
                 "type": exc_type.__name__,
                 "message": str(exc),
-                "stacktrace": _unwind_stack(tb.tb_frame),
+                "stacktrace": utils.capture_stack(tb.tb_frame),
             }
 
         return json.dumps(payload)
@@ -76,7 +77,7 @@ class ProbeStatusLogger(object):
                     meter.increment("backlog.buffer_full")
                     return
 
-            payload = self._payload(probe, status, message, exc_info)
+            payload = self._payload(probe, status, message, now, exc_info)
 
             try:
                 self._encoder.put(payload)

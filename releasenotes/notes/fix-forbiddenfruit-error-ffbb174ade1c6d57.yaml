@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Remove ``forbiddenfruit`` as dependency and rollback ``wrapt`` changes where ``forbiddenfruit`` was called.
+    IAST: Patch builtins only when IAST is enabled.
+    

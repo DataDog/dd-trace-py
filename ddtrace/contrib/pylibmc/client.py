@@ -12,6 +12,7 @@ from ddtrace.contrib.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import memcached
 from ddtrace.ext import net
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy
 
@@ -108,7 +109,7 @@ class TracedClient(ObjectProxy):
         with self._span(method_name) as span:
 
             if span and args:
-                span.set_tag(memcached.QUERY, "%s %s" % (method_name, args[0]))
+                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
             return method(*args, **kwargs)
 
@@ -119,7 +120,7 @@ class TracedClient(ObjectProxy):
 
             pre = kwargs.get("key_prefix")
             if span and pre:
-                span.set_tag(memcached.QUERY, "%s %s" % (method_name, pre))
+                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
 
             return method(*args, **kwargs)
 
@@ -139,6 +140,9 @@ class TracedClient(ObjectProxy):
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
         )
+
+        span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
@@ -152,7 +156,7 @@ class TracedClient(ObjectProxy):
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
             _, host, port, _ = random.choice(self._addresses)
-            span.set_tag(net.TARGET_HOST, host)
+            span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
 
         # set analytics sample rate

@@ -453,14 +453,6 @@ class Span(object):
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
-    def _remove_exc_info(self):
-        # type: () -> None
-        """Remove all exception related information from the span."""
-        self.error = 0
-        self._remove_tag(ERROR_MSG)
-        self._remove_tag(ERROR_TYPE)
-        self._remove_tag(ERROR_STACK)
-
     def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""
@@ -492,6 +484,18 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
+
+    def finish_with_ancestors(self):
+        # type: () -> None
+        """Finish this span along with all (accessible) ancestors of this span.
+
+        This method is useful if a sudden program shutdown is required and finishing
+        the trace is desired.
+        """
+        span = self  # type: Optional[Span]
+        while span is not None:
+            span.finish()
+            span = span._parent
 
     def __enter__(self):
         return self
