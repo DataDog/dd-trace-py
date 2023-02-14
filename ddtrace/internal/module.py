@@ -206,14 +206,10 @@ class _ImportHookChainedLoader(Loader):
                 except Exception:
                     log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
 
-        try:
-            if pre_exec_hooks:
-                for hook in pre_exec_hooks:
-                    hook(self, module)
-            else:
-                self.loader.exec_module(module)
-        except Exception:
-            log.debug("Exception happened while executing pre_exec_module_hooks", exc_info=True)
+        if pre_exec_hooks:
+            for hook in pre_exec_hooks:
+                hook(self, module)
+        else:
             self.loader.exec_module(module)
 
         for callback in self.callbacks.values():
