@@ -187,7 +187,8 @@ class TelemetryWriter(PeriodicService):
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if self._enabled:
+        if self._enabled is None or self._enabled:
+            # Integrations can be patched before the telemetry writer is enabled.
             integration = {
                 "name": integration_name,
                 "version": "",
