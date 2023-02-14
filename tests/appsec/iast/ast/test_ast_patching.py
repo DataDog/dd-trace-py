@@ -18,7 +18,6 @@ from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
         ("print('hi')", "test.py", "test"),
         ("print('str')", "test.py", "test"),
         ("str", "test.py", "test"),
-        ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
 @pytest.mark.skipif(PY2, reason="Python 3 only")
@@ -37,6 +36,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
     [
         ("print(str('hi'))", "test.py", "test"),
         ("print(str('hi' + 'bye'))", "test.py", "test"),
+        ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
 @pytest.mark.skipif(PY2, reason="Python 3 only")
