@@ -4,8 +4,11 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variables. They are listed
-below:
+`ddtrace` can be configured using environment variables.
+Many :ref:`integrations` can also be configured using environment variables,
+see specific integration documentation for more details.
+
+The following environment variables for the tracer are supported:
 
 
 .. ddtrace-configuration-options::
@@ -199,6 +202,15 @@ below:
      default: 1.0
      description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
 
+   DD_TRACE_RATE_LIMIT:
+     type: int
+     default: 100
+     description: |
+        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes.
+
+     version_added:
+        v0.33.0:
+
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
@@ -211,10 +223,10 @@ below:
    DD_SPAN_SAMPLING_RULES:
      type: string
      description: |
-         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional. 
+         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional.
          The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
-         The "max_per_second" value must be >= 0 and will default to no limit. 
-         The "service" and "name" fields can be glob patterns: 
+         The "max_per_second" value must be >= 0 and will default to no limit.
+         The "service" and "name" fields can be glob patterns:
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
@@ -222,15 +234,15 @@ below:
 
      version_added:
         v1.4.0:
-    
+
    DD_SPAN_SAMPLING_RULES_FILE:
      type: string
      description: |
-         A path to a JSON file containing span sampling rules organized as JSON array of objects. 
-         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional. 
+         A path to a JSON file containing span sampling rules organized as JSON array of objects.
+         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional.
          The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
-         The "max_per_second" value must be >= 0 and will default to no limit. 
-         The "service" and "name" fields are glob patterns, where "glob" means: 
+         The "max_per_second" value must be >= 0 and will default to no limit.
+         The "service" and "name" fields are glob patterns, where "glob" means:
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
@@ -275,7 +287,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, propagation is disabled. 
+         When ``none`` is the only propagator listed, propagation is disabled.
 
          All provided styles are injected into the headers of outbound requests.
 
@@ -296,7 +308,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, extraction is disabled. 
+         When ``none`` is the only propagator listed, extraction is disabled.
 
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
@@ -316,7 +328,7 @@ below:
          The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
-         When ``none`` is the only propagator listed, injection is disabled. 
+         When ``none`` is the only propagator listed, injection is disabled.
 
          Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -460,6 +472,17 @@ below:
      type: String
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
+
+   DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
+     type: String
+     default: "0"
+     description: |
+        Controls whether module cloning logic is executed by ``ddtrace-run``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
+        that will be unaffected by future imports of and changes to those modules by application code. Valid values for this variable are ``1``, ``0``, and ``auto``. ``1`` tells
+        ``ddtrace`` to run its module cloning logic unconditionally, ``0`` tells it not to run that logic, and ``auto`` tells it to run module cloning logic only if ``gevent``
+        is accessible from the application's runtime.
+     version_added:
+        v1.9.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
