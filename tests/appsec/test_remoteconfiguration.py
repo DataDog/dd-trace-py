@@ -1,9 +1,11 @@
 import json
 import os
+import time
 
 import mock
 import pytest
 
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.appsec.utils import _appsec_rc_capabilities
@@ -12,7 +14,9 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
 from ddtrace.internal.remoteconfig import RemoteConfig
+from tests.appsec.test_processor import Config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -122,6 +126,96 @@ def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agen
         appsec_rc_reload_features(tracer)(None, rc_config)
 
         assert RemoteConfig._worker._client._products["ASM_DATA"]
+
+
+def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [{"expiration": 1755346879, "value": "user8"}],
+                    "id": "blocked_users",
+                    "type": "data_with_expiration",
+                },
+                {
+                    "data": [
+                        {"value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
+            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+
+
+def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()) - 10000, "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
+            assert span.get_tag(APPSEC_JSON) is None
+
+
+def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
+    with override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        rc_config = {
+            "rules_data": [
+                {
+                    "data": [
+                        {"expiration": int(time.time()), "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        }
+
+        assert not RemoteConfig._worker
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+
+        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
+            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):

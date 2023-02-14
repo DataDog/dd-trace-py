@@ -200,22 +200,6 @@ def test_multiple_configs():
         adapter = ProbeRCAdapter(cb)
 
         adapter(
-            config_metadata("snapshotProbe_probe1"),
-            {
-                "id": "probe1",
-                "active": True,
-                "tags": ["boo:far"],
-                "where": {"sourceFile": "tests/debugger/submod/stuff.py", "lines": ["36"]},
-            },
-        )
-
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
-            }
-        )
-
-        adapter(
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
@@ -233,6 +217,24 @@ def test_multiple_configs():
             }
         )
 
+        adapter(
+            config_metadata("logProbe_probe3"),
+            {
+                "id": "probe3",
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "template": "hello {#foo}",
+                "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+            }
+        )
+
         sleep(0.5)
 
         # testing two things:
@@ -243,7 +245,7 @@ def test_multiple_configs():
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2"})),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe2", "probe3"})),
             }
         )
 
