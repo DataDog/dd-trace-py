@@ -2,7 +2,7 @@
   {
     "name": "flask.request",
     "service": "flask",
-    "resource": "GET /",
+    "resource": "GET /stream",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,16 +11,16 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "flask",
-      "flask.endpoint": "index",
-      "flask.url_rule": "/",
+      "flask.endpoint": "hello",
+      "flask.url_rule": "/stream",
       "flask.version": "2.2.2",
       "http.method": "GET",
-      "http.route": "/",
+      "http.route": "/stream",
       "http.status_code": "200",
-      "http.url": "http://0.0.0.0:8000/",
+      "http.url": "http://0.0.0.0:8000/stream",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "931369cb9f974854b01809f4091148c9"
+      "runtime-id": "57abdfb4d30343738be48cebc56e7ea6"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,15 +28,15 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 21027
+      "process_id": 3008533
     },
-    "duration": 524000,
-    "start": 1669649645277040000
+    "duration": 1281346,
+    "start": 1675675616070025814
   },
      {
        "name": "flask.application",
        "service": "flask",
-       "resource": "GET /",
+       "resource": "GET /stream",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -44,11 +44,11 @@
        "error": 0,
        "meta": {
          "component": "flask",
-         "flask.endpoint": "index",
-         "flask.url_rule": "/"
+         "flask.endpoint": "hello",
+         "flask.url_rule": "/stream"
        },
-       "duration": 230000,
-       "start": 1669649645277203000
+       "duration": 433330,
+       "start": 1675675616070368137
      },
         {
           "name": "flask.preprocess_request",
@@ -62,8 +62,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 10000,
-          "start": 1669649645277275000
+          "duration": 15757,
+          "start": 1675675616070549120
         },
         {
           "name": "flask.dispatch_request",
@@ -77,13 +77,13 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 27000,
-          "start": 1669649645277302000
+          "duration": 68134,
+          "start": 1675675616070590385
         },
            {
-             "name": "tests.contrib.flask.app.index",
+             "name": "tests.contrib.flask.app.hello",
              "service": "flask",
-             "resource": "/",
+             "resource": "/stream",
              "trace_id": 0,
              "span_id": 9,
              "parent_id": 5,
@@ -92,8 +92,8 @@
              "meta": {
                "component": "flask"
              },
-             "duration": 5000,
-             "start": 1669649645277320000
+             "duration": 28653,
+             "start": 1675675616070623556
            },
         {
           "name": "flask.process_response",
@@ -107,8 +107,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 8000,
-          "start": 1669649645277354000
+          "duration": 10653,
+          "start": 1675675616070675701
         },
         {
           "name": "flask.do_teardown_request",
@@ -122,8 +122,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 7000,
-          "start": 1669649645277402000
+          "duration": 12649,
+          "start": 1675675616070750842
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -137,8 +137,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 5000,
-          "start": 1669649645277421000
+          "duration": 8117,
+          "start": 1675675616070783501
         },
      {
        "name": "flask.response",
@@ -152,6 +152,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 121000,
-       "start": 1669649645277437000
+       "duration": 479293,
+       "start": 1675675616070808251
      }]]

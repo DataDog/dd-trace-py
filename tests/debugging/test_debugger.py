@@ -8,14 +8,18 @@ import mock
 from mock.mock import call
 import pytest
 
+from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.internal.remoteconfig import RemoteConfigPoller
 from ddtrace.internal.remoteconfig import remoteconfig_poller
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
+from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
@@ -30,7 +34,6 @@ def good_probe():
         probe_id="probe-instance-method",
         source_file="tests/submod/stuff.py",
         line=36,
-        condition=None,
     )
 
 
@@ -242,12 +245,16 @@ def test_debugger_function_probe_on_instance_method():
         "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
     )
 
-    entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+
+    entry_capture = snapshot_data["captures"]["entry"]
     assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
     assert entry_capture["locals"] == {}
     assert entry_capture["throwable"] is None
 
-    return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
+    return_capture = snapshot_data["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
     assert set(return_capture["locals"].keys()) == {"@return"}
     assert return_capture["throwable"] is None
@@ -269,12 +276,16 @@ def test_debugger_function_probe_on_function_with_exception():
     (snapshot,) = snapshots
     assert snapshot["message"] == "throwexcstuff()"
 
-    entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
+
+    entry_capture = snapshot_data["captures"]["entry"]
     assert entry_capture["arguments"] == {}
     assert entry_capture["locals"] == {}
     assert entry_capture["throwable"] is None
 
-    return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
+    return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
     assert return_capture["locals"] == {}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
@@ -315,7 +326,12 @@ def test_debugger_conditional_line_probe_on_instance_method():
 
     (snapshot,) = snapshots
     assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
-    captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
+
+    snapshot_data = snapshot["debugger.snapshot"]
+    assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
+    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+
+    captures = snapshot_data["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
 
@@ -612,8 +628,8 @@ def test_debugger_function_probe_on_wrapped_function(stuff):
 
         stuff.Stuff().instancestuff(42)
 
-        (snapshot,) = d.test_queue
-        assert snapshot.probe.probe_id == "probe-on-wrapped-function"
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.probe.probe_id == "probe-on-wrapped-function"
 
 
 def test_debugger_wrapped_function_on_function_probe(stuff):
@@ -639,8 +655,8 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 
         stuff.Stuff().instancestuff(42)
 
-        (snapshot,) = d.test_queue
-        assert snapshot.probe.probe_id == "wrapped-function-on-function-probe"
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.probe.probe_id == "wrapped-function-on-function-probe"
 
     g = stuff.Stuff.instancestuff
     assert g.__code__ is code
@@ -665,8 +681,8 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
         stuff.Stuff().instancestuff(42)
 
-        (snapshot,) = d.test_queue
-        assert snapshot.probe.probe_id == "line-probe-wrapped-method"
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
 @mock.patch.object(RemoteConfigPoller, "_check_remote_config_enable_in_agent")
@@ -735,8 +751,8 @@ def test_debugger_function_probe_duration(duration):
 
         durationstuff(duration)
 
-        (snapshot,) = d.test_queue
-        assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
+        with d.assert_single_snapshot() as snapshot:
+            assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
 def test_debugger_condition_eval_then_rate_limit():
@@ -761,9 +777,67 @@ def test_debugger_condition_eval_then_rate_limit():
         sleep(0.5)
 
         # We expect to see just the snapshot generated by the 42 call.
+        assert d.event_state_counter[CaptureState.SKIP_COND] == 99
+        assert d.event_state_counter[CaptureState.DONE_AND_COMMIT] == 1
+
         (snapshots,) = d.uploader.payloads
         (snapshot,) = snapshots
         assert "42" == snapshot["debugger.snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], snapshot
+
+
+def test_debugger_condition_eval_error_get_reported_once():
+    from tests.submod.stuff import Stuff
+
+    with debugger(upload_flush_interval=0.1) as d:
+        d.add_probes(
+            create_snapshot_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                condition=DDExpression(dsl="foo == 42", callable=dd_compile({"eq": [{"ref": "foo"}, 42]})),
+            ),
+        )
+
+        # all condition eval would fail
+        for i in range(100):
+            Stuff().instancestuff(i)
+
+        sleep(0.5)
+
+        # We expect to see just the snapshot with error only.
+        assert d.event_state_counter[CaptureState.SKIP_COND_ERROR] == 99
+        assert d.event_state_counter[CaptureState.COND_ERROR_AND_COMMIT] == 1
+
+        (snapshots,) = d.uploader.payloads
+        (snapshot,) = snapshots
+        evaluationErrors = snapshot["debugger.snapshot"]["evaluationErrors"]
+        assert 1 == len(evaluationErrors)
+        assert "foo == 42" == evaluationErrors[0]["expr"]
+        assert "'foo'" == evaluationErrors[0]["message"]
+
+
+def test_debugger_function_probe_eval_on_enter():
+    from tests.submod.stuff import mutator
+
+    with debugger() as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="enter-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                condition=DDExpression(
+                    dsl="not(contains(arg,42))", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
+                ),
+            )
+        )
+
+        mutator(arg=[])
+
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot, d.test_queue
+            assert 0 == snapshot.entry_capture["arguments"]["arg"]["size"]
+            assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
 def test_debugger_run_module():
@@ -787,17 +861,20 @@ def test_debugger_function_probe_eval_on_exit():
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
-                probe_id="duration-probe",
+                probe_id="exit-probe",
                 module="tests.submod.stuff",
                 func_qname="mutator",
+                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
                 condition=DDExpression(dsl="contains(arg,42)", callable=dd_compile({"contains": [{"ref": "arg"}, 42]})),
             )
         )
 
         mutator(arg=[])
 
-        (snapshot,) = d.test_queue
-        assert snapshot, d.test_queue
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot, d.test_queue
+            assert not snapshot.entry_capture
+            assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
 def test_debugger_lambda_fuction_access_locals():
@@ -811,7 +888,7 @@ def test_debugger_lambda_fuction_access_locals():
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
-                probe_id="duration-probe",
+                probe_id="lambda-probe",
                 module="tests.submod.stuff",
                 func_qname="age_checker",
                 condition=DDExpression(
@@ -829,5 +906,47 @@ def test_debugger_lambda_fuction_access_locals():
         # should skip as david is not in people list
         age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
-        (snapshot,) = d.test_queue
-        assert snapshot, d.test_queue
+        assert d.event_state_counter[CaptureState.SKIP_COND] == 1
+        assert d.event_state_counter[CaptureState.DONE_AND_COMMIT] == 1
+
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot, d.test_queue
+
+
+def test_debugger_log_live_probe_generate_messages():
+    from tests.submod.stuff import Stuff
+
+    with debugger(upload_flush_interval=0.1) as d:
+        d.add_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template(
+                    "hello world ",
+                    {"dsl": "foo", "json": {"ref": "foo"}},
+                    " ",
+                    {"dsl": "bar", "json": {"ref": "bar"}},
+                    "!",
+                )
+            ),
+        )
+
+        Stuff().instancestuff(123)
+        Stuff().instancestuff(456)
+
+        sleep(0.5)
+
+        (msgs,) = d.uploader.payloads
+        (
+            msg1,
+            msg2,
+        ) = msgs
+        assert "hello world ERROR 123!" == msg1["message"], msg1
+        assert "hello world ERROR 456!" == msg2["message"], msg2
+
+        assert "foo" == msg1["debugger.snapshot"]["evaluationErrors"][0]["expr"], msg1
+        # not amazing error message for a missing variable
+        assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
+
+        assert not msg1["debugger.snapshot"]["captures"]
