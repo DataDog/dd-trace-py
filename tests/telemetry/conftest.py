@@ -31,7 +31,7 @@ class TelemetryTestSession(object):
     telemetry_writer = attr.ib(type=TelemetryWriter)
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._agent_url)
+        parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
@@ -80,7 +80,8 @@ class TelemetryTestSession(object):
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request)
-    telemetry_writer._headers["X-Datadog-Test-Session-Token"] = token
+    telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
+
     # Also add a header to the environment for subprocesses test cases that might use snapshotting.
     existing_headers = parse_tags_str(os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS", ""))
     existing_headers.update({"X-Datadog-Test-Session-Token": token})
@@ -103,7 +104,7 @@ def test_agent_session(telemetry_writer, request):
     finally:
         # Force a flush
         telemetry_writer.periodic()
-        del telemetry_writer._headers["X-Datadog-Test-Session-Token"]
+        del telemetry_writer._client._headers["X-Datadog-Test-Session-Token"]
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
 
 
