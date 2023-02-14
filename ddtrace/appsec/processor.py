@@ -109,17 +109,17 @@ _COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
-_COLLECTED_HEADER_PREFIX = "http.request.headers."
-
 
 def _set_headers(span, headers, kind):
     # type: (Span, Any, str) -> None
-    if not hasattr(headers, "__getitem__"):  # patch for pylons
-        headers = {a: b for a, b in headers}
     for k in headers:
-        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+        if isinstance(k, tuple):
+            key, value = k
+        else:
+            key, value = k, headers[k]
+        if key.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, k), headers[k])
+            span.set_tag(_normalize_tag_name(kind, key), value)
 
 
 def _get_rate_limiter():
