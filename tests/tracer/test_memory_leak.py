@@ -30,9 +30,9 @@ def trace(weakdict, tracer, *args, **kwargs):
     Note: ensure to delete the returned reference from this function to ensure
     no additional references are kept to the span.
     """
-    s = tracer.trace(*args, **kwargs)
-    weakdict[s.span_id] = s
-    return s
+    with tracer.trace(*args, **kwargs) as s:
+        weakdict[s.span_id] = s
+        return s
 
 
 def test_leak(tracer):

@@ -72,9 +72,8 @@ def assert_sampling_decision_tags(
 
 def create_span(tracer=None, name="test.span", service=""):
     tracer = tracer or DummyTracer()
-    span = tracer.trace(name=name, service=service)
-    span.finish()
-    return span
+    with tracer.trace(name=name, service=service) as span:
+        return span
 
 
 class RateSamplerTest(unittest.TestCase):

@@ -3,7 +3,6 @@ import pprint
 import sys
 import traceback
 from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -74,7 +73,6 @@ class Span(object):
         "_local_root",
         "_parent",
         "_ignored_exceptions",
-        "_on_finish_callbacks",
         "__weakref__",
     ]
 
@@ -89,7 +87,6 @@ class Span(object):
         parent_id=None,  # type: Optional[int]
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
-        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
     ):
         # type: (...) -> None
         """
@@ -111,7 +108,6 @@ class Span(object):
 
         :param int start: the start time of request as a unix epoch in seconds
         :param object context: the Context of the span.
-        :param on_finish: list of functions called when the span finishes.
         """
         # pre-conditions
         if not (span_id is None or isinstance(span_id, six.integer_types)):
@@ -140,7 +136,6 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
         self.sampled = True  # type: bool
@@ -240,9 +235,6 @@ class Span(object):
         ft = time_ns() if finish_time is None else int(finish_time * 1e9)
         # be defensive so we don't die if start isn't set
         self.duration_ns = ft - (self.start_ns or ft)
-
-        for cb in self._on_finish_callbacks:
-            cb(self)
 
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None

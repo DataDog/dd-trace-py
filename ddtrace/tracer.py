@@ -1,3 +1,5 @@
+from collections import defaultdict
+from contextlib import contextmanager
 import functools
 import json
 import logging
@@ -6,6 +8,7 @@ from os import environ
 from os import getpid
 import sys
 from threading import RLock
+from typing import Generator
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -57,7 +60,6 @@ from .span import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
     from typing import Dict
     from typing import List
     from typing import Optional
@@ -65,6 +67,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Union
     from typing import Tuple
 
+from typing import Any
 from typing import Callable
 from typing import TypeVar
 
@@ -182,6 +185,13 @@ def _default_span_processors_factory(
     return span_processors, appsec_processor
 
 
+TracerEventHandler = Callable[[Any], None]
+
+
+class TracerEvent(object):
+    ON_SPAN_FINISH = "on_span_finish"
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -272,6 +282,8 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._event_handlers = defaultdict(list)  # type: Dict[str, List[TracerEventHandler]]
+
     def _atexit(self):
         # type: () -> None
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -281,6 +293,15 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
+
+    def subscribe(self, event, handler):
+        # type: (str, TracerEventHandler) -> None
+        self._event_handlers[event].append(handler)
+
+    def _notify(self, event, data):
+        # type: (str, Any) -> None
+        for handler in self._event_handlers[event]:
+            handler(data)
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
@@ -670,7 +691,6 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
-                on_finish=[self._on_span_finish],
             )
 
             # Extra attributes when from a local parent
@@ -689,7 +709,6 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
-                on_finish=[self._on_span_finish],
             )
             span._local_root = span
             if config.report_hostname:
@@ -793,8 +812,9 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
+    @contextmanager
     def trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
+        # type: (str, Optional[str], Optional[str], Optional[str]) -> Generator[Span, None, None]
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
@@ -835,14 +855,21 @@ class Tracer(object):
             assert parent2.parent_id is None
             parent2.finish()
         """
-        return self.start_span(
+        with self.start_span(
             name,
             child_of=self.context_provider.active(),
             service=service,
             resource=resource,
             span_type=span_type,
             activate=True,
-        )
+        ) as span:
+            # after span start
+            yield span
+            # before span finish
+
+        # after span finish
+        self._on_span_finish(span)
+        self._notify(TracerEvent.ON_SPAN_FINISH, span)
 
     def current_root_span(self):
         # type: () -> Optional[Span]
