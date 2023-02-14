@@ -71,6 +71,7 @@ class TelemetryWriter(PeriodicService):
             "DD-Telemetry-API-Version": "v2",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
+            "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
 
