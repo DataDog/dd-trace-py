@@ -245,10 +245,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.debug("[action] WAF got value %s %s", SPAN_DATA_NAMES[key], value)
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
-        log.debug("[DDAS-001-00] Executing AppSec In-App WAF")
+        log.debug("[DDAS-001-00] Executing ASM In-App WAF")
         waf_results = self._ddwaf.run(data, self._waf_timeout)
         if waf_results and waf_results.data:
-            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", waf_results.data)
+            log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", waf_results.data)
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         if blocked:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
@@ -273,9 +273,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
-            log.warning("Error parsing data AppSec In-App WAF metrics report")
+            log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
         except Exception:
-            log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
+            log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
         if (waf_results and waf_results.data) or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
