@@ -185,6 +185,38 @@ def test_lock_fork():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess
+def test_lock_fork_gevent():
+    """Check that a forksafe.Lock is reset after a gevent patched fork().
+
+    This test fails with a regular threading.Lock.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+
+    from ddtrace.internal.forksafe import Lock
+
+    lock = Lock()
+    lock.acquire()
+
+    pid = os.fork()
+
+    if pid == 0:
+        # child
+        assert lock.acquire()
+        lock.release()
+        os._exit(12)
+
+    lock.release()
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
 def test_rlock_basic():
     # type: (...) -> None
     """Check that a forksafe.RLock implements the correct threading.RLock interface"""
