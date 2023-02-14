@@ -227,10 +227,13 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _set_metrics(self, ddwaf_result):
         telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration", float(ddwaf_result.runtime), {}
+            TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration", float(ddwaf_result.runtime), {"waf_version": version()}
         )
         telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration_ext", float(ddwaf_result.total_runtime), {}
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "waf.duration_ext",
+            float(ddwaf_result.total_runtime),
+            {"waf_version": version()},
         )
 
     def on_span_start(self, span):
@@ -375,18 +378,22 @@ class AppSecSpanProcessor(SpanProcessor):
             if info.errors:
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info.errors))
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
-            # telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "event_rules.version", info.version, {})
             span.set_tag_str(APPSEC_WAF_VERSION, version())
-            # telemetry_writer.add_gauge_metric(TELEMETRY_APPSEC, "waf.version", version(), {})
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
 
             telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_APPSEC, "event_rules.loaded", float(info.loaded), {}
+                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                "event_rules.loaded",
+                float(info.loaded),
+                tags={"event_rules_version": info.version, "event_rules_errors": info.errors, "waf_version": version()},
             )
             telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_APPSEC, "event_rules.error_count", float(info.failed), {}
+                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                "event_rules.error_count",
+                float(info.failed),
+                tags={"event_rules_version": info.version, "event_rules_errors": info.errors, "waf_version": version()},
             )
 
         except JSONDecodeError:
