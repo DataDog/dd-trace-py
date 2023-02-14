@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING
 
 import six
@@ -124,3 +125,22 @@ class PRODUCTS(object):
     ASM_DATA = "ASM_DATA"
     ASM_DD = "ASM_DD"
     ASM_FEATURES = "ASM_FEATURES"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class DEFAULT(object):
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    RULES = os.path.join(ROOT_DIR, "rules.json")
+    TRACE_RATE_LIMIT = 100
+    WAF_TIMEOUT = 5  # ms
+    APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
+        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
+        r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
+    )
+    APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
+        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
+        r"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
+        r'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
+        r"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
+        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
+    )

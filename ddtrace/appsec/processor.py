@@ -10,6 +10,7 @@ from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -45,22 +46,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
     from ddtrace.span import Span
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
-DEFAULT_TRACE_RATE_LIMIT = 100
-DEFAULT_WAF_TIMEOUT = 5  # ms
-DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
-    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
-    r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
-)
-DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
-    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
-    r"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
-    r'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
-    r"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
-    r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
-)
-
 
 log = get_logger(__name__)
 
@@ -86,20 +71,20 @@ def _transform_headers(data):
 
 def get_rules():
     # type: () -> str
-    return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+    return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
 
 
 def get_appsec_obfuscation_parameter_key_regexp():
     # type: () -> bytes
     return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
     )
 
 
 def get_appsec_obfuscation_parameter_value_regexp():
     # type: () -> bytes
     return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
     )
 
 
@@ -128,9 +113,9 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers, kind):
-    # type: (Span, Dict[str, Union[str, List[str]]], str) -> None
+    # type: (Span, Any, str) -> None
     if not hasattr(headers, "__getitem__"):  # patch for pylons
-        headers = {a: b for a, b in headers}
+        headers = {a: b for a, b in headers}  # type: ignore
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
@@ -139,12 +124,12 @@ def _set_headers(span, headers, kind):
 
 def _get_rate_limiter():
     # type: () -> RateLimiter
-    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
 def _get_waf_timeout():
     # type: () -> int
-    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
+    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT.WAF_TIMEOUT))
 
 
 @attr.s(eq=False)
@@ -217,6 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
+        _asm_request_context.set_callback(lambda: self._waf_action(span._local_root or span))
 
         if headers is not None:
             _context.set_items(
@@ -234,7 +220,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                self._waf_action(span)
+                _asm_request_context.call_callback()
 
     def _waf_action(self, span):
         # type: (Span) -> None
