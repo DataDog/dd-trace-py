@@ -139,7 +139,8 @@ class TracedServer(ObjectProxy):
                     set_address_tags(span, result.address)
 
                 if result and self._is_query(operation):
-                    set_query_rowcount(result=result, span=span)
+                    cursor = result.docs[0].get("cursor")
+                    set_query_rowcount(cursor=cursor, span=span)
                 return result
 
     # Pymongo >= 3.9, <3.12
@@ -155,7 +156,8 @@ class TracedServer(ObjectProxy):
                     set_address_tags(span, result.address)
 
                 if result and self._is_query(operation):
-                    set_query_rowcount(result=result, span=span)
+                    cursor = result.docs[0].get("cursor")
+                    set_query_rowcount(cursor=cursor, span=span)
                 return result
 
     # Pymongo < 3.9
@@ -312,8 +314,6 @@ def _set_query_metadata(span, cmd):
 
 def set_query_rowcount(span, result=None, cursor=None):
     search_key = "Batch"
-    if not cursor:
-        cursor = result.docs[0].get("cursor")
     # results returned in batches, get len of each batch
     rowcount = sum([len(documents) for batch_key, documents in cursor.items() if search_key in batch_key])
     span.set_metric(db.ROWCOUNT, rowcount)
