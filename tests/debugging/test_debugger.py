@@ -970,7 +970,7 @@ class SpanProbeTestCase(TracerTestCase):
         with debugger() as d:
             d.add_probes(
                 create_span_function_probe(
-                    probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator", resource="resourceX"
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags= {"tag":"value"}
                 )
             )
 
@@ -979,8 +979,11 @@ class SpanProbeTestCase(TracerTestCase):
             self.assert_span_count(1)
             (span,) = self.get_spans()
 
-            assert span.name == "dynamic.span"
-            assert span.resource == "resourceX"
+            assert span.name == "dd.dynamic.span"
+            assert span.resource == "mutator"
+            tags = span.get_tags()
+            assert tags["debugger.probeid"] == "span-probe"
+            assert tags["tag"] == "value"
 
     def test_deubgger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
@@ -988,10 +991,9 @@ class SpanProbeTestCase(TracerTestCase):
         with debugger() as d:
             d.add_probes(
                 create_span_function_probe(
-                    probe_id="exit-probe",
+                    probe_id="span-probe",
                     module="tests.submod.stuff",
                     func_qname="mutator",
-                    resource="resourceX",
                     condition=DDExpression(
                         dsl="not(contains(arg,42))", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
                     ),
@@ -1007,8 +1009,9 @@ class SpanProbeTestCase(TracerTestCase):
             self.assert_span_count(1)
             (span,) = self.get_spans()
 
-            assert span.name == "dynamic.span"
-            assert span.resource == "resourceX"
+            assert span.name == "dd.dynamic.span"
+            assert span.resource == "mutator"
+            assert span.get_tags()["debugger.probeid"] == "span-probe"
 
     def test_deubgger_snap_probe_linked_to_parent_span(self):
         from tests.submod.stuff import mutator
@@ -1016,7 +1019,7 @@ class SpanProbeTestCase(TracerTestCase):
         with debugger() as d:
             d.add_probes(
                 create_span_function_probe(
-                    probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator", resource="resourceX"
+                    probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator"
                 )
             )
 
@@ -1031,7 +1034,8 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert root.name == "parent_span"
 
-            assert span.name == "dynamic.span"
-            assert span.resource == "resourceX"
-
+            assert span.name == "dd.dynamic.span"
+            assert span.resource == "mutator"
+            assert span.get_tags()["debugger.probeid"] == "exit-probe"
+ 
             assert span.parent_id == root.span_id

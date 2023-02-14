@@ -214,7 +214,6 @@ class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditi
 
 @attr.s
 class SpanProbeMixin(object):
-    resource = attr.ib(type=str)
     pass
 
 
