@@ -3,6 +3,7 @@
 import ast
 import codecs
 import os
+from types import ModuleType
 from typing import Optional
 from typing import Tuple
 
@@ -56,6 +57,10 @@ def visit_ast(
     return modified_ast
 
 
+def astpatch_module(module):  # type: (ModuleType) -> Tuple[str, str]
+    return astpatch_source(module.__name__, module.origin)
+
+
 def astpatch_source(
     module_name,  # type: str
     module_path,  # type: Optional[str]
@@ -67,8 +72,9 @@ def astpatch_source(
     detected_module_path = module_path
     if not detected_module_path:
         # Get the module path from the module name (foo.bar -> foo/bar.py)
-        module_watchdog = ModuleWatchdog()
+        module_watchdog = ModuleWatchdog._instance
 
+        assert module_watchdog
         detected_module_spec = module_watchdog.find_spec(module_name)
         if detected_module_spec and hasattr(detected_module_spec, "origin"):
             detected_module_path = detected_module_spec.origin

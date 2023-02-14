@@ -199,14 +199,21 @@ class _ImportHookChainedLoader(Loader):
 
         for _ in sys.meta_path:
             if isinstance(_, ModuleWatchdog):
-                for cond, hook in _._pre_exec_module_hooks:
-                    if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
-                        pre_exec_hooks.append(hook)
+                try:
+                    for cond, hook in _._pre_exec_module_hooks:
+                        if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
+                            pre_exec_hooks.append(hook)
+                except Exception:
+                    log.warning("Exception happened while processing pre_exec_module_hooks", exc_info=True)
 
-        if pre_exec_hooks:
-            for hook in pre_exec_hooks:
-                hook(self, module)
-        else:
+        try:
+            if pre_exec_hooks:
+                for hook in pre_exec_hooks:
+                    hook(self, module)
+            else:
+                self.loader.exec_module(module)
+        except Exception:
+            log.warning("Exception happened while executing pre_exec_module_hooks", exc_info=True)
             self.loader.exec_module(module)
 
         for callback in self.callbacks.values():
