@@ -103,7 +103,7 @@ class TelemetryWriter(PeriodicService):
 
         # Counter representing the number of events sent by the writer. Here we are relying on the atomicity
         # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
-        # payloads is only used in tests and is not a required to process Telemetry events.
+        # payloads is only used in tests and is not required to process Telemetry events.
         self._sequence = itertools.count(1)
         self._client = _TelemetryClient(self.ENDPOINT_V1)
 
