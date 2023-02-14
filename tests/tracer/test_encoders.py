@@ -547,23 +547,28 @@ def test_custom_msgpack_encode_v05():
     ]
 
 
-def string_table_test(t, offset=0):
-    assert len(t) == 1 + offset
+def string_table_test(t, origin_key=False):
+    assert len(t) == 1 + origin_key
+
+    assert 0 == t.index("")
+    if origin_key:
+        assert 1 == t.index(ORIGIN_KEY)
+
     id1 = t.index("foobar")
-    assert len(t) == 2 + offset
+    assert len(t) == 2 + origin_key
     assert id1 == t.index("foobar")
-    assert len(t) == 2 + offset
+    assert len(t) == 2 + origin_key
     id2 = t.index("foobaz")
-    assert len(t) == 3 + offset
+    assert len(t) == 3 + origin_key
     assert id2 == t.index("foobaz")
-    assert len(t) == 3 + offset
+    assert len(t) == 3 + origin_key
     assert id1 != id2
 
 
 def test_msgpack_string_table():
     t = MsgpackStringTable(1 << 10)
 
-    string_table_test(t, offset=1)
+    string_table_test(t, origin_key=1)
 
     size = t.size
     encoded = t.flush()

@@ -2,6 +2,7 @@ import os
 
 import molten
 
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -90,8 +91,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         span_type=SpanTypes.WEB,
     ) as span:
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.molten.integration_name)
+        span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
