@@ -204,7 +204,7 @@ class _ImportHookChainedLoader(Loader):
                         if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
                             pre_exec_hooks.append(hook)
                 except Exception:
-                    log.warning("Exception happened while processing pre_exec_module_hooks", exc_info=True)
+                    log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
 
         try:
             if pre_exec_hooks:
@@ -213,7 +213,7 @@ class _ImportHookChainedLoader(Loader):
             else:
                 self.loader.exec_module(module)
         except Exception:
-            log.warning("Exception happened while executing pre_exec_module_hooks", exc_info=True)
+            log.debug("Exception happened while executing pre_exec_module_hooks", exc_info=True)
             self.loader.exec_module(module)
 
         for callback in self.callbacks.values():
