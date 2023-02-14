@@ -22,6 +22,7 @@ TELEMETRY_NAMESPACE_TAG_APPSEC = "appsec"
 
 TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
 
+# Used to set the name of an integration on a span
 COMPONENT = "component"
 
 APPSEC_BLOCKED_RESPONSE_HTML = """

@@ -28,12 +28,14 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     def __init__(self, namespace, name, tags, common, interval=None):
         # type: (str, str, MetricTagType, bool, Optional[float]) -> None
         """
-        name: metric name
+        namespace: the scope of the metric: tracer, appsec, etc.
+        name: string
+        tags: extra information attached to a metric
         common: set to True if a metric is common to all tracers, false if it is python specific
         interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
         """
         self.name = name
-        self.common = common
+        self.is_common_to_all_tracers = common
         self.interval = self._roll_up_interval = interval
         self.namespace = namespace
         self._points = []  # type: List[Tuple[int, float]]
@@ -75,7 +77,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "host": self.HOST_NAME,
             "name": self.name,
             "type": self.metric_type,
-            "common": self.common,
+            "common": self.is_common_to_all_tracers,
             "interval": int(self.interval) if self.interval else None,
             "points": self._points,
             "tags": self._tags,
