@@ -312,7 +312,7 @@ def _set_query_metadata(span, cmd):
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 
 
-def set_query_rowcount(span, result=None, cursor=None):
+def set_query_rowcount(span, cursor):
     search_key = "Batch"
     # results returned in batches, get len of each batch
     rowcount = sum([len(documents) for batch_key, documents in cursor.items() if search_key in batch_key])
