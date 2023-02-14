@@ -18,7 +18,6 @@ from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
         ("print('hi')", "test.py", "test"),
         ("print('str')", "test.py", "test"),
         ("str", "test.py", "test"),
-        ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
 @pytest.mark.skipif(PY2, reason="Python 3 only")
@@ -37,6 +36,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
     [
         ("print(str('hi'))", "test.py", "test"),
         ("print(str('hi' + 'bye'))", "test.py", "test"),
+        ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
 @pytest.mark.skipif(PY2, reason="Python 3 only")
@@ -66,6 +66,21 @@ def test_astpatch_source_changed(module_path, module_name):
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
     assert "ddtrace_aspects.str_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_path, module_name",
+    [
+        ("tests/appsec/iast/fixtures/aspects/add_operator/basic.py", "basic"),
+    ],
+)
+@pytest.mark.skipif(PY2, reason="Python 3 only")
+def test_astpatch_source_changed_add_operator(module_path, module_name):
+    module_path, new_source = astpatch_source(module_name, module_path)
+    assert ("", "") != (module_path, new_source)
+    new_code = astunparse.unparse(new_source)
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
+    assert "ddtrace_aspects.add_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
