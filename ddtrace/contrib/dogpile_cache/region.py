@@ -6,6 +6,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import db
 from ...internal.utils import get_argument_value
 from ...pin import Pin
 
