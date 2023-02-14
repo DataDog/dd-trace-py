@@ -12,6 +12,9 @@ from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.metrics import Metrics
 
 
+SPAN_NAME = "dd.dynamic.span"
+PROBE_ID_TAG_NAME = "debugger.probeid"
+
 @attr.s
 class DynamicSpan(CapturedEvent):
     """wrapper for making a metric sample"""
@@ -31,8 +34,9 @@ class DynamicSpan(CapturedEvent):
         if not self._eval_condition(_args):
             return
 
-        self.span = ddtrace.tracer.trace("dynamic.span", resource=probe.resource)
-        self.span.set_tag("dd_probe_id", probe.probe_id)
+        self.span = ddtrace.tracer.trace(SPAN_NAME, resource=probe.func_qname)
+        self.span.set_tags(probe.tags)
+        self.span.set_tag(PROBE_ID_TAG_NAME, probe.probe_id)
 
         self.state = CaptureState.DONE
 
