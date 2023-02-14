@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import abc
 import time
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -13,7 +14,7 @@ from ..hostname import get_hostname
 
 
 MetricType = Literal["count", "gauge", "rate"]
-MetricTagType = Dict[str, str]
+MetricTagType = Dict[str, Any]
 
 
 class Metric(six.with_metaclass(abc.ABCMeta)):
