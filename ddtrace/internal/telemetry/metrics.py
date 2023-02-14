@@ -10,8 +10,6 @@ from typing import Tuple
 import six
 from typing_extensions import Literal
 
-from ..hostname import get_hostname
-
 
 MetricType = Literal["count", "gauge", "rate"]
 MetricTagType = Dict[str, Any]
@@ -19,10 +17,9 @@ MetricTagType = Dict[str, Any]
 
 class Metric(six.with_metaclass(abc.ABCMeta)):
     """
-    stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org
+    Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer
     """
 
-    HOST_NAME = get_hostname()
     metric_type = ""
 
     def __init__(self, namespace, name, tags, common, interval=None):
@@ -73,15 +70,15 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     def to_dict(self):
         # type: () -> Dict
         """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
-        return {
-            "host": self.HOST_NAME,
-            "name": self.name,
+        data = {
+            "metric": self.name,
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
             "interval": int(self.interval) if self.interval else None,
             "points": self._points,
-            "tags": self._tags,
+            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
         }
+        return data
 
 
 class CountMetric(Metric):

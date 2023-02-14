@@ -68,9 +68,9 @@ class TelemetryWriter(PeriodicService):
         forksafe.register(self._fork_writer)
         self._headers = {
             "Content-type": "application/json",
-            "DD-Telemetry-API-Version": "v1",
+            "DD-Telemetry-API-Version": "v2",
             "DD-Client-Library-Language": "python",
-            "DD-Telemetry-Debug-Enabled": str(self._debug).lower(),
+            "DD-Client-Library-Version": _pep440_to_semver(),
         }  # type: Dict[str, str]
         additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
 
@@ -87,6 +87,7 @@ class TelemetryWriter(PeriodicService):
     def _send_request(self, request):
         # type: (Dict) -> httplib.HTTPResponse
         """Sends a telemetry request to the trace agent"""
+        log.debug("Telemetry %s request", request["request_type"])
         with StopWatch() as sw:
             try:
                 conn = get_connection(self._agent_url)
@@ -117,7 +118,7 @@ class TelemetryWriter(PeriodicService):
     def _flush_namespace_metrics(self):
         # type () -> List[Metric]
         """Returns a list of all generated metrics and clears the namespace's list"""
-        log.debug("[METRICS] _flush_namespace_metrics")
+        log.debug("collect Telemetry Metrics")
         with self._lock:
             namespace_metrics = self._namespace.get()
             self._namespace._flush()
@@ -224,6 +225,7 @@ class TelemetryWriter(PeriodicService):
                     "lib_version": _pep440_to_semver(),
                     "series": [m.to_dict() for m in metrics.values()],
                 }
+                log.debug("generate-metrics request payload: %s", payload)
                 self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def add_event(self, payload, payload_type):
@@ -312,6 +314,9 @@ class TelemetryWriter(PeriodicService):
         """Creates request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Request-Type"] = payload_type
+        if config.env:
+            headers["DD-Agent-Env"] = config.env
+        headers["DD-Agent-Hostname"] = get_host_info()["hostname"]
         return headers
 
     def _create_telemetry_request(self, payload, payload_type, sequence_id):

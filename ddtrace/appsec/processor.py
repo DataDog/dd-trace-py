@@ -227,13 +227,13 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _set_metrics(self, ddwaf_result):
         telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration", float(ddwaf_result.runtime), {"waf_version": version()}
+            TELEMETRY_NAMESPACE_TAG_APPSEC, "waf.duration", float(ddwaf_result.runtime), tags={"waf_version": version()}
         )
         telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.duration_ext",
             float(ddwaf_result.total_runtime),
-            {"waf_version": version()},
+            tags={"waf_version": version()},
         )
 
     def on_span_start(self, span):
@@ -387,13 +387,21 @@ class AppSecSpanProcessor(SpanProcessor):
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
                 "event_rules.loaded",
                 float(info.loaded),
-                tags={"event_rules_version": info.version, "event_rules_errors": info.errors, "waf_version": version()},
+                tags={
+                    "event_rules_version": info.version,
+                    "event_rules_errors": str(info.errors),
+                    "waf_version": version(),
+                },
             )
             telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
                 "event_rules.error_count",
                 float(info.failed),
-                tags={"event_rules_version": info.version, "event_rules_errors": info.errors, "waf_version": version()},
+                tags={
+                    "event_rules_version": info.version,
+                    "event_rules_errors": str(info.errors),
+                    "waf_version": version(),
+                },
             )
 
         except JSONDecodeError:

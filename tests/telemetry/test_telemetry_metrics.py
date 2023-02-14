@@ -1,6 +1,5 @@
 import sys
 
-from mock.mock import ANY
 import pytest
 
 from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -38,11 +37,10 @@ def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric2",
+            "metric": "test-metric2",
             "points": [[1642544540, 1.0]],
-            "tags": {"a": "b"},
+            "tags": ["a:b"],
             "type": "count",
         },
     ]
@@ -71,11 +69,10 @@ def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 2.0], [1642544540, 3.0]],
-            "tags": {"a": "b"},
+            "tags": ["a:b"],
             "type": "count",
         },
     ]
@@ -100,29 +97,26 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 4.0]],
-            "tags": {"a": "b"},
+            "tags": ["a:b"],
             "type": "count",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 5.0]],
-            "tags": {"a": "b", "c": "d"},
+            "tags": ["a:b", "c:d"],
             "type": "count",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 6.0]],
-            "tags": {},
+            "tags": [],
             "type": "count",
         },
     ]
@@ -142,7 +136,7 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent
         telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
 
         assert e.value.args[0] == (
-            'Error: metric with name "dd.app_telemetry.tracers.test-metric" and type "count" '
+            'Error: metric with name "test-metric" and type "count" '
             'exists. You can\'t create a new metric with this name an type "gauge"'
         )
 
@@ -160,29 +154,26 @@ def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_ti
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 1.0], [1642544540, 1.0]],
-            "tags": {"a": "b"},
+            "tags": ["a:b"],
             "type": "count",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 1.0]],
-            "tags": {},
+            "tags": [],
             "type": "count",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.tracers.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 1.0]],
-            "tags": {"NAME": "CANDY", "hi": "HELLO"},
+            "tags": ["hi:HELLO", "NAME:CANDY"],
             "type": "count",
         },
     ]
@@ -199,20 +190,18 @@ def test_send_appsec_rate_metric(test_agent_session_telemetry_metrics, mock_time
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.appsec.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 0.016666666666666666]],
-            "tags": {"NAME": "CANDY", "hi": "HELLO"},
+            "tags": ["hi:HELLO", "NAME:CANDY"],
             "type": "rate",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.appsec.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 0.03333333333333333]],
-            "tags": {},
+            "tags": [],
             "type": "rate",
         },
     ]
@@ -232,29 +221,26 @@ def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_tim
     expected_series = [
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.appsec.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 5.0]],
-            "tags": {"NAME": "CANDY", "hi": "HELLO"},
+            "tags": ["hi:HELLO", "NAME:CANDY"],
             "type": "gauge",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.appsec.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 5.0]],
-            "tags": {"a": "b"},
+            "tags": ["a:b"],
             "type": "gauge",
         },
         {
             "common": True,
-            "host": ANY,
             "interval": 60,
-            "name": "dd.app_telemetry.appsec.test-metric",
+            "metric": "test-metric",
             "points": [[1642544540, 6.0]],
-            "tags": {},
+            "tags": [],
             "type": "gauge",
         },
     ]

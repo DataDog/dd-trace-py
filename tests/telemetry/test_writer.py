@@ -230,7 +230,6 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "api_version": "v1",
         "debug": False,
         "seq_id": seq_id,
-        "debug": False,
         "application": get_application(config.service, config.version, config.env),
         "host": get_host_info(),
         "payload": payload,

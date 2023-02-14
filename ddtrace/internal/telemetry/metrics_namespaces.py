@@ -43,9 +43,9 @@ class MetricNamespace:
     def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}, interval=10.0):
         # type: (MetricType, str,str, float, MetricTagType, float) -> None
         """
-        Queues metric
+        Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
+        The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name
         """
-        name = "dd.app_telemetry." + namespace + "." + name
         metric_check = self.metric_class[metric_type](  # type: ignore[abstract]
             namespace, name, tags=tags, common=True, interval=interval
         )
