@@ -354,14 +354,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     with _asm_request_context.asm_request_context_manager(
         request.META.get("REMOTE_ADDR"), request_headers, headers_case_sensitive=django.VERSION < (2, 2)
     ):
-        log.warning("JJJ request, before tracer, remote: %s headers: %s", request.META.get("REMOTE_ADDR"), request_headers)
         with pin.tracer.trace(
             "django.request",
             resource=utils.REQUEST_DEFAULT_RESOURCE,
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
-            log.warning("JJJ inside tracer")
             span.set_tag_str(COMPONENT, config.django.integration_name)
 
             utils._before_request_tags(pin, span, request)
@@ -379,7 +377,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 return response
             finally:
                 utils._after_request_tags(pin, span, request, response)
-                log.warning("JJJ after request tags")
 
 
 @trace_utils.with_traced_module

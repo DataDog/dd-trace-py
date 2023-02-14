@@ -245,8 +245,8 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
-    def register_product(self, product_name, func):
-        # type: (str, ProductCallback) -> None
+    def register_product(self, product_name, func=None):
+        # type: (str, Optional[ProductCallback]) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -330,6 +330,7 @@ class RemoteConfigClient(object):
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
+            # log.debug("response payload: %r", data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
@@ -347,12 +348,7 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                if callback:
-                    try:
-                        callback(None, None)
-                    except Exception:
-                        log.debug("error with callback %s while deserializing target", callback)
-                        continue
+                callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -378,22 +374,17 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products.get(config.product_name)
-            if callback:
-                try:
-                    callback(config, callback_action)
-                except Exception as e:
-                    log.debug(  # noqa: G200
-                        "error while removing product %s config %r. Error: %s",
-                        config.product_name,
-                        config,
-                        e,
-                    )
-                    continue
+            callback = self._products[config.product_name]
+
+            try:
+                callback(config, callback_action)
+            except Exception:
+                log.debug("error while removing product %s config %r", config.product_name, config)
+                continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            callback = self._products.get(config.product_name)
+            callback = self._products[config.product_name]
 
             applied_config = self._applied_configs.get(target)
             if applied_config == config:
@@ -402,10 +393,10 @@ class RemoteConfigClient(object):
             config_content = _extract_target_file(payload, target, config)
             if config_content is None:
                 continue
+
             try:
                 log.debug("Load new configuration: %s. content %s", target, config_content)
-                if callback:
-                    callback(config, config_content)
+                callback(config, config_content)
             except Exception:
                 log.debug("error while loading product %s config %r", config.product_name, config)
                 continue
