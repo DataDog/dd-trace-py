@@ -155,6 +155,9 @@ def test_flask_get_user(flask_client):
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
@@ -177,6 +180,9 @@ def test_flask_ipblock_match_403(flask_client):
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
         "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
