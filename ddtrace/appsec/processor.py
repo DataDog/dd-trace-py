@@ -284,7 +284,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if waf_results and waf_results.data:
                 span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
             if blocked:
-                span.set_tag(APPSEC.BLOCKED, True)
+                span.set_tag(APPSEC.BLOCKED, "true")
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
