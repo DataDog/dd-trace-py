@@ -155,10 +155,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
                 span.resource = _resource_from_cache_prefix("GET_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
                 result = super(TracedCache, self).get_many(*args, **kwargs)
-
                 # get many returns a list, with either the key value or None if it doesn't exist
                 span.set_metric(db.ROWCOUNT, sum(1 for val in result if val))
-
                 return result
 
         def set_many(self, *args, **kwargs):

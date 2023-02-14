@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 import random
-from typing import Iterable
 
 import pylibmc
 
@@ -14,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy

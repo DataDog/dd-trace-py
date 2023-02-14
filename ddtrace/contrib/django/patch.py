@@ -11,7 +11,6 @@ from inspect import isclass
 from inspect import isfunction
 import os
 import sys
-from typing import Iterable
 
 from ddtrace import Pin
 from ddtrace import config
@@ -22,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -145,9 +145,6 @@ def traced_cache(django, pin, func, instance, args, kwargs):
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
         span.set_tag_str(COMPONENT, config.django.integration_name)
 
-        # last string within the resource name is the command, ie: get
-        command_name = func.__name__
-
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
 
@@ -161,12 +158,13 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             span.set_tag_str("django.cache.key", keys)
 
         result = func(*args, **kwargs)
+        command_name = func.__name__
         if command_name == "get_many":
             span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
         elif command_name == "get":
             # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
             # missing key
-            if result and not (hasattr(instance, "_missing_key") and result == instance._missing_key):
+            if result and result != getattr(instance, "_missing_key", None):
                 span.set_metric(db.ROWCOUNT, 1)
             else:
                 span.set_metric(db.ROWCOUNT, 0)
