@@ -53,6 +53,8 @@ class APPSEC(object):
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    BLOCKED = "appsec.blocked"
+    EVENT = "appsec.event"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -88,6 +90,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_BODY = "http.request.body"
     REQUEST_QUERY = "http.request.query"
     REQUEST_HEADERS_NO_COOKIES = "http.request.headers"
+    REQUEST_HEADERS_NO_COOKIES_CASE = "http.request.headers_case_sensitive"
     REQUEST_URI_RAW = "http.request.uri"
     REQUEST_METHOD = "http.request.method"
     REQUEST_PATH_PARAMS = "http.request.path_params"
