@@ -4,7 +4,13 @@ import flask
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import abort
 import xmltodict
+
+from ddtrace.internal.constants import COMPONENT
+
+from ...appsec import utils
+from ...internal import _context
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -115,7 +121,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
         return start_response(status_code, headers)
 
-    def _request_span_modifier(self, span, environ):
+    def _request_span_modifier(self, span, environ, parsed_headers=None):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
@@ -483,8 +489,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -496,8 +501,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -560,14 +564,18 @@ def request_tracer(name):
         # This call may be unnecessary since we try to add the tags earlier
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
+        request = flask.request
 
         with pin.tracer.trace(
-            ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
+            ".".join(("flask", name)),
+            service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            # set component tag equal to name of integration
-            request_span.set_tag_str("component", config.flask.integration_name)
+            request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                ctype = request.headers.get("Accept") or "text/json"
+                abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
             return wrapped(*args, **kwargs)
 
     return _traced_request
@@ -594,8 +602,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.jsonify") as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -606,8 +613,7 @@ def _set_request_tags(span):
         # https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
         request = flask.request
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:

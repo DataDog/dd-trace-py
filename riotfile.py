@@ -231,6 +231,8 @@ venv = Venv(
                 # the dependencies required to build the package.
                 # https://github.com/jelmer/dulwich/issues/963.
                 "dulwich": "<0.20.36",
+                "furo": latest,
+                "sphinx-copybutton": latest,
             },
             command="scripts/build-docs",
         ),
@@ -241,6 +243,7 @@ venv = Venv(
             pkgs={
                 "pycryptodome": latest,
                 "cryptography": latest,
+                "astunparse": latest,
             },
         ),
         Venv(
@@ -276,20 +279,23 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
+            pkgs={
+                "msgpack": latest,
+                "attrs": ["==20.1.0", latest],
+                "structlog": latest,
+                # httpretty v1.0 drops python 2.7 support
+                "httpretty": "==0.9.7",
+            },
+            # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
+            # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
+            # See linked riot issue: https://github.com/DataDog/riot/issues/192
+            command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
             venvs=[
+                Venv(pys=select_pys()),
                 Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "msgpack": latest,
-                        "attrs": ["==20.1.0", latest],
-                        "structlog": latest,
-                        # httpretty v1.0 drops python 2.7 support
-                        "httpretty": "==0.9.7",
-                    },
-                    # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
-                    # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
-                    # See linked riot issue: https://github.com/DataDog/riot/issues/192
-                    command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
+                    env={"PYTHONOPTIMIZE": "1"},
+                    # Test with the latest version of Python only
+                    pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
                 ),
             ],
         ),
@@ -1790,8 +1796,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphene": ["~=2.1.9", "~=3.0.0", latest],
                     },
@@ -1811,8 +1816,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
                     },
@@ -1864,6 +1868,9 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "httpx": [
+                    "~=0.9.0",
+                    "~=0.10.0",
+                    "~=0.11.0",
                     "~=0.14.0",
                     "~=0.15.0",
                     "~=0.16.0",
@@ -2597,7 +2604,7 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
             ],

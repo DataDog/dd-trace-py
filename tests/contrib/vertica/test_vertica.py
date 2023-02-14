@@ -198,7 +198,7 @@ class TestVertica(TracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
-        assert spans[0].get_metric("out.port") == 5433
+        assert spans[0].get_metric("network.destination.port") == 5433
         assert spans[0].get_tag("db.name") == "docker"
         assert spans[0].get_tag("db.user") == "dbadmin"
         assert spans[0].get_tag("component") == "vertica"
@@ -227,7 +227,7 @@ class TestVertica(TracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
-        assert spans[0].get_metric("out.port") == 5433
+        assert spans[0].get_metric("network.destination.port") == 5433
         assert spans[0].get_tag("component") == "vertica"
 
         assert spans[1].resource == "SELECT * FROM test_table;"
@@ -302,8 +302,8 @@ class TestVertica(TracerTestCase):
         assert spans[1].get_tag("component") == "vertica"
         assert spans[2].name == "vertica.fetchone"
         assert spans[2].get_tag("out.host") == "127.0.0.1"
-        assert spans[2].get_metric("out.port") == 5433
         assert spans[2].get_metric("db.row_count") == 1
+        assert spans[2].get_metric("network.destination.port") == 5433
         assert spans[2].get_tag("component") == "vertica"
         assert spans[3].name == "vertica.fetchone"
         assert spans[3].get_metric("db.row_count") == 2
@@ -377,7 +377,7 @@ class TestVertica(TracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
         assert dd_span.get_tag("out.host") == "127.0.0.1"
-        assert dd_span.get_metric("out.port") == 5433
+        assert dd_span.get_metric("network.destination.port") == 5433
         assert dd_span.get_tag("component") == "vertica"
 
     def test_analytics_default(self):

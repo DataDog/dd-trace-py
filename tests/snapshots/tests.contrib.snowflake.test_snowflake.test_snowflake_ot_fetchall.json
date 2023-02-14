@@ -46,7 +46,7 @@
          "_dd.measured": 1,
          "_dd.top_level": 1,
          "db.row_count": 1,
-         "out.port": 443
+         "network.destination.port": 443
        },
        "duration": 3062000,
        "start": 1660069796885202000
