@@ -28,10 +28,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
+      "db.row_count": 2,
       "network.destination.port": 443,
-      "process_id": 88705,
-      "sql.rows": 2
+      "process_id": 88705
     },
     "duration": 3837000,
     "start": 1660069792128531000
