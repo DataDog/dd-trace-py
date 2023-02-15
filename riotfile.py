@@ -279,20 +279,23 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
+            pkgs={
+                "msgpack": latest,
+                "attrs": ["==20.1.0", latest],
+                "structlog": latest,
+                # httpretty v1.0 drops python 2.7 support
+                "httpretty": "==0.9.7",
+            },
+            # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
+            # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
+            # See linked riot issue: https://github.com/DataDog/riot/issues/192
+            command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
             venvs=[
+                Venv(pys=select_pys()),
                 Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "msgpack": latest,
-                        "attrs": ["==20.1.0", latest],
-                        "structlog": latest,
-                        # httpretty v1.0 drops python 2.7 support
-                        "httpretty": "==0.9.7",
-                    },
-                    # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
-                    # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
-                    # See linked riot issue: https://github.com/DataDog/riot/issues/192
-                    command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
+                    env={"PYTHONOPTIMIZE": "1"},
+                    # Test with the latest version of Python only
+                    pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
                 ),
             ],
         ),
@@ -1865,6 +1868,9 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "httpx": [
+                    "~=0.9.0",
+                    "~=0.10.0",
+                    "~=0.11.0",
                     "~=0.14.0",
                     "~=0.15.0",
                     "~=0.16.0",
@@ -2598,7 +2604,7 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
             ],

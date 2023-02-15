@@ -247,7 +247,7 @@ def _extract_result_metas(result):
 
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
-        metas[cassx.ROW_COUNT] = len(result_rows)
+        metas[db.ROWCOUNT] = len(result_rows)
 
     return metas
 

@@ -25,10 +25,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "process_id": 9677,
-      "sql.rows": 2
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
     "duration": 937000,
     "start": 1667513581474433000
@@ -59,10 +58,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "process_id": 9677,
-      "sql.rows": 2
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
     "duration": 912000,
     "start": 1667513581475616000
@@ -92,10 +90,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 3306,
-      "process_id": 9677,
-      "sql.rows": 2
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9677
     },
     "duration": 55000,
     "start": 1667513581476598000

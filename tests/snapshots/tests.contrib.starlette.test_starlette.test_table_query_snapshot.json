@@ -45,7 +45,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "sql.rows": 1
+         "db.row_count": 1
        },
        "duration": 512000,
        "start": 1666810088263652000
