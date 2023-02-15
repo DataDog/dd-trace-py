@@ -185,6 +185,15 @@ def test_collect_gevent_thread_task():
 
     from ddtrace.profiling import recorder
     from ddtrace.profiling.collector import stack
+    from ddtrace.profiling.collector import stack_event
+
+    def _fib(n):
+        if n == 1:
+            return 1
+        elif n == 0:
+            return 0
+        else:
+            return _fib(n - 1) + _fib(n - 2)
 
     r = recorder.Recorder()
     s = stack.StackCollector(r)
@@ -658,6 +667,7 @@ def test_collect_gevent_threads():
     import pytest
 
     from ddtrace.internal import compat
+    from ddtrace.profiling import recorder
 
     # type: (...) -> None
     r = recorder.Recorder()
