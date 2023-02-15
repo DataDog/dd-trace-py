@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import cast
 
 import attr
 
@@ -14,6 +13,7 @@ from ddtrace.internal.metrics import Metrics
 
 SPAN_NAME = "dd.dynamic.span"
 PROBE_ID_TAG_NAME = "debugger.probeid"
+
 
 @attr.s
 class DynamicSpan(CapturedEvent):
