@@ -28,8 +28,6 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
-# This import will trigger the change from regular loader to IAST loader if required
-from ddtrace.appsec.iast import loader  # noqa: F401
 from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
 
 

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
 
-from ._ast.ast_patching import _should_iast_patch
 from ._ast.ast_patching import astpatch_module
 from ._util import _is_iast_enabled
 
@@ -26,7 +24,3 @@ def _exec_iast_patched_module(module_watchdog, module):
         exec(compiled_code, module.__dict__)
     else:
         module_watchdog.loader.exec_module(module)
-
-
-if IS_IAST_ENABLED:
-    ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
