@@ -253,7 +253,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
-            
 
     @staticmethod
     def _get_response_text(response):
