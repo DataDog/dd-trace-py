@@ -48,7 +48,7 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("out.port") == 3306
+        assert span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             span.get_tags(),
             {
@@ -76,7 +76,7 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
@@ -227,7 +227,7 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("out.port") == 3306
+        assert span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             span.get_tags(),
             {
@@ -269,7 +269,7 @@ class MySQLCore(object):
         assert dd_span.name == "mysql.query"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
-        assert dd_span.get_metric("out.port") == 3306
+        assert dd_span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             dd_span.get_tags(),
             {
@@ -311,7 +311,7 @@ class MySQLCore(object):
             assert dd_span.name == "mysql.query"
             assert dd_span.span_type == "sql"
             assert dd_span.error == 0
-            assert dd_span.get_metric("out.port") == 3306
+            assert dd_span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 dd_span.get_tags(),
                 {
@@ -452,7 +452,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
