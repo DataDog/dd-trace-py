@@ -26,8 +26,8 @@ from tests.debugging.utils import create_snapshot_line_probe
 from tests.debugging.utils import create_span_function_probe
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
-from tests.utils import call_program
 from tests.utils import TracerTestCase
+from tests.utils import call_program
 
 
 def good_probe():
@@ -970,7 +970,7 @@ class SpanProbeTestCase(TracerTestCase):
         with debugger() as d:
             d.add_probes(
                 create_span_function_probe(
-                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags= {"tag":"value"}
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags={"tag": "value"}
                 )
             )
 
@@ -1018,12 +1018,10 @@ class SpanProbeTestCase(TracerTestCase):
 
         with debugger() as d:
             d.add_probes(
-                create_span_function_probe(
-                    probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator"
-                )
+                create_span_function_probe(probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator")
             )
 
-            with self.tracer.trace("parent_span") as parent:
+            with self.tracer.trace("parent_span"):
                 mutator(arg=[])
 
             self.assert_span_count(2)
@@ -1037,5 +1035,5 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.name == "dd.dynamic.span"
             assert span.resource == "mutator"
             assert span.get_tags()["debugger.probeid"] == "exit-probe"
- 
+
             assert span.parent_id == root.span_id

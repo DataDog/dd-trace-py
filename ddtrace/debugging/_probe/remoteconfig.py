@@ -108,12 +108,16 @@ def _filter_by_env_and_version(f):
 
 
 def _create_probe_based_on_location(args, attribs, line_class, function_class):
-    # type: (Dict[str, Any], Dict[str, Any], Type, Type) -> Any
+    # type: (Dict[str, Any], Dict[str, Any], Optional[Type], Optional[Type]) -> Any
     if attribs["where"].get("sourceFile", None):
+        if not line_class:
+            raise TypeError("Line probe type is not supported")
         ProbeType = line_class
         args["source_file"] = attribs["where"]["sourceFile"]
         args["line"] = int(attribs["where"]["lines"][0])
     else:
+        if not function_class:
+            raise TypeError("Function probe type is not supported")
         ProbeType = function_class
         args["module"] = attribs["where"].get("type") or attribs["where"]["typeName"]
         args["func_qname"] = attribs["where"].get("method") or attribs["where"]["methodName"]
