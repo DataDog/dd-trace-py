@@ -3,12 +3,14 @@
 import pytest
 from six import PY2
 
+from ddtrace.appsec.iast.input_info import Input_info
+
 
 @pytest.mark.parametrize(
     "obj, kwargs",
     [
         (3.5, {}),
-        (u"Hi", {}),
+        ("Hi", {}),
         ("🙀", {}),
         (b"Hi", {}),
         (b"Hi", {"encoding": "utf-8", "errors": "strict"}),
@@ -30,7 +32,7 @@ def test_str_aspect(obj, kwargs):
     "obj, kwargs",
     [
         (3.5, {}),
-        (u"Hi", {}),
+        ("Hi", {}),
         ("🙀", {}),
         (b"Hi", {}),
         (bytearray(b"Hi"), {}),
@@ -53,7 +55,7 @@ def test_str_aspect_tainting(obj, kwargs):
     should_be_tainted = False
     if isinstance(obj, (str, bytes, bytearray)):
         should_be_tainted = True
-        taint_pyobject(obj)
+        taint_pyobject(obj, Input_info("test_str_aspect_tainting", obj, 0))
 
     result = ddtrace_aspects.str_aspect(obj, **kwargs)
     assert is_pyobject_tainted(result) == should_be_tainted

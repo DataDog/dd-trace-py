@@ -2,6 +2,7 @@
 
 from builtins import str as builtin_str
 
+from ddtrace.appsec.iast._taint_tracking import add_taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast.input_info import Input_info
@@ -20,7 +21,6 @@ def add_aspect(op1, op2):
         return op1 + op2
 
     result = getattr(op1.__class__, "__add__")(op1, op2)
-    if is_pyobject_tainted(op1) or is_pyobject_tainted(op2):
-        taint_pyobject(result)
+    add_taint_pyobject(result, op1, op2)
 
     return result
