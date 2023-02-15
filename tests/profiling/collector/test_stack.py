@@ -179,8 +179,12 @@ def test_collect_gevent_thread_task():
     monkey.patch_all()
 
     import threading
+    import time
 
     import pytest
+
+    from ddtrace.profiling import recorder
+    from ddtrace.profiling.collector import stack
 
     r = recorder.Recorder()
     s = stack.StackCollector(r)
