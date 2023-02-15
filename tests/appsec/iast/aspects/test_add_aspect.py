@@ -3,13 +3,15 @@
 import pytest
 from six import PY2
 
+from ddtrace.appsec.iast.input_info import Input_info
+
 
 @pytest.mark.parametrize(
     "obj1, obj2",
     [
         (3.5, 3.3),
         (complex(2, 1), complex(3, 4)),
-        (u"Hello ", u"world"),
+        ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),
         (["a"], ["b"]),
@@ -46,7 +48,7 @@ def test_add_aspect_type_error(obj1, obj2):
     [
         (3.5, 3.3),
         (complex(2, 1), complex(3, 4)),
-        (u"Hello ", u"world"),
+        ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),
         (["a"], ["b"]),
@@ -63,7 +65,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2):
     should_be_tainted = False
     if isinstance(obj1, (str, bytes, bytearray)):
         should_be_tainted = True
-        taint_pyobject(obj1)
+        taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert is_pyobject_tainted(result) == should_be_tainted
@@ -76,7 +78,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2):
     [
         (3.5, 3.3),
         (complex(2, 1), complex(3, 4)),
-        (u"Hello ", u"world"),
+        ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),
         (["a"], ["b"]),
@@ -95,7 +97,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2):
     should_be_tainted = False
     if isinstance(obj2, (str, bytes, bytearray)):
         should_be_tainted = True
-        taint_pyobject(obj2)
+        taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", obj2, 0))
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert is_pyobject_tainted(result) == should_be_tainted
