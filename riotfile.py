@@ -244,6 +244,7 @@ venv = Venv(
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "flask": latest,
             },
         ),
         Venv(
