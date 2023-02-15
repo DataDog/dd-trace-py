@@ -147,7 +147,6 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
-
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
         span.set_tag_str("django.cache.backend", cache_backend)
 
@@ -160,7 +159,9 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
         command_name = func.__name__
         if command_name == "get_many":
-            span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
+            span.set_metric(
+                db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+            )
         elif command_name == "get":
             # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
             # missing key

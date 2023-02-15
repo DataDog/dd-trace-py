@@ -172,7 +172,9 @@ class WrappedClient(wrapt.ObjectProxy):
                 if method_name == "get_many" or method_name == "gets_many":
                     # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
                     # get many returns a map with values, else an empty map if no matches
-                    span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
+                    span.set_metric(
+                        db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+                    )
                 elif method_name == "get":
                     # get returns key or None
                     span.set_metric(db.ROWCOUNT, 1 if result else 0)

@@ -121,7 +121,7 @@ class TracedClient(ObjectProxy):
                 result = method(*args, **kwargs)
 
                 # returns a tuple object that may be (None, None)
-                span.set_metric(db.ROWCOUNT, 1 if result and isinstance(result, Iterable) and result[0] else 0)
+                span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
                 return result
             else:
                 return method(*args, **kwargs)
@@ -139,7 +139,9 @@ class TracedClient(ObjectProxy):
                 result = method(*args, **kwargs)
 
                 # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
-                span.set_metric(db.ROWCOUNT, len(result) if result and isinstance(result, Iterable) else 0)
+                span.set_metric(
+                    db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+                )
                 return result
             else:
                 return method(*args, **kwargs)
