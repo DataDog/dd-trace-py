@@ -655,8 +655,9 @@ def test_collect_gevent_threads():
     import collections
     import threading
 
-    import compat
     import pytest
+
+    from ddtrace.internal import compat
 
     # type: (...) -> None
     r = recorder.Recorder()
