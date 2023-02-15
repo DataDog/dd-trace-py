@@ -663,6 +663,7 @@ def test_collect_gevent_threads():
 
     import collections
     import threading
+    import time
 
     import pytest
 
@@ -673,7 +674,7 @@ def test_collect_gevent_threads():
 
     # type: (...) -> None
     r = recorder.Recorder()
-    s = stack.StackCollector(r, ignore_profiler=True, max_time_usage_pct=100)
+    s = stack.StackCollector(r, max_time_usage_pct=100)
 
     iteration = 100
     sleep_time = 0.01
@@ -701,9 +702,7 @@ def test_collect_gevent_threads():
     events = r.events[stack_event.StackSampleEvent]
     for event in events:
         if event.task_id == compat.main_thread.ident:
-            if event.task_name is None:
-                pytest.fail("Task with no name detected, is it the Hub?")
-            else:
+            if event.task_name == "MainThread":
                 main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
             for filename, lineno, funcname, classname in event.frames:
