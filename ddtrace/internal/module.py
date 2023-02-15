@@ -193,22 +193,22 @@ class _ImportHookChainedLoader(Loader):
         return self.loader.create_module(spec)
 
     def _exec_module(self, module):
-        # Collect all the transformers registered by other ModuleWatchdog
-        # instances so that we can run them all in order.
-        pre_exec_hooks = []
+        # Collect and run only the first hook that matches the module.
+        pre_exec_hook = None
 
         for _ in sys.meta_path:
-            if isinstance(_, ModuleWatchdog):
+            if isinstance(_, ModuleWatchdog) and not pre_exec_hook:
                 try:
                     for cond, hook in _._pre_exec_module_hooks:
                         if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
-                            pre_exec_hooks.append(hook)
+                            # Several pre-exec hooks could match, we keep the first one
+                            pre_exec_hook = hook
+                            break
                 except Exception:
                     log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
 
-        if pre_exec_hooks:
-            for hook in pre_exec_hooks:
-                hook(self, module)
+        if pre_exec_hook:
+            pre_exec_hook(self, module)
         else:
             self.loader.exec_module(module)
 
