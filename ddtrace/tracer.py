@@ -42,6 +42,8 @@ from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
+from .internal.serverless import has_aws_lambda_agent_extension
+from .internal.serverless import in_aws_lambda
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
@@ -1031,11 +1033,11 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        elif _in_aws_lambda() and _has_aws_lambda_agent_extension():
+        elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
         else:
-            return _in_aws_lambda()
+            return in_aws_lambda()
 
     @staticmethod
     def _use_sync_mode():
@@ -1049,25 +1051,8 @@ class Tracer(object):
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
         """
-        return _in_aws_lambda() and _has_aws_lambda_agent_extension()
+        return in_aws_lambda() and has_aws_lambda_agent_extension()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
-
-
-def _has_aws_lambda_agent_extension():
-    # type: () -> bool
-    """Returns whether the environment has the AWS Lambda Datadog Agent
-    extension available.
-    """
-    return os.path.exists("/opt/extensions/datadog-agent")
-
-
-def _in_aws_lambda():
-    # type: () -> bool
-    """Returns whether the environment is an AWS Lambda.
-    This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
-    variable is defined.
-    """
-    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))
