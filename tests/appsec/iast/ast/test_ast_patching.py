@@ -96,7 +96,6 @@ def test_astpatch_source_changed_with_future_imports(module_name):
     assert new_code.startswith(
         """
 from __future__ import absolute_import
-from __future__ import annotations
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
