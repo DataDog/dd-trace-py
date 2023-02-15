@@ -143,7 +143,7 @@ class TracedClient(ObjectProxy):
         )
 
         span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
-        span.set_tag_str(db.SYSTEM, memcached.SERVICE)
+        span.set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
