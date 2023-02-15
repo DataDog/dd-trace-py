@@ -665,8 +665,6 @@ def test_collect_gevent_threads():
     import threading
     import time
 
-    import pytest
-
     from ddtrace.internal import compat
     from ddtrace.profiling import recorder
     from ddtrace.profiling.collector import stack
