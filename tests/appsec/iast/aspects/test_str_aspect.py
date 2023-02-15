@@ -33,6 +33,7 @@ def test_str_aspect(obj, kwargs):
         (u"Hi", {}),
         ("🙀", {}),
         (b"Hi", {}),
+        (bytearray(b"Hi"), {}),
         (b"Hi", {"encoding": "utf-8", "errors": "strict"}),
         (b"Hi", {"encoding": "utf-8", "errors": "ignore"}),
         ({"a": "b", "c": "d"}, {}),
@@ -48,7 +49,7 @@ def test_str_aspect_tainting(obj, kwargs):
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     should_be_tainted = False
-    if isinstance(obj, (str, bytes)):
+    if isinstance(obj, (str, bytes, bytearray)):
         should_be_tainted = True
         taint_pyobject(obj)
 
