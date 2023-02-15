@@ -17,6 +17,9 @@ from typing import cast
 from six import PY3
 
 import ddtrace
+from ddtrace.debugging._capture.collector import CapturedEventCollector
+from ddtrace.debugging._capture.metric_sample import MetricSample
+from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
@@ -28,16 +31,16 @@ from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
+from ddtrace.debugging._probe.model import LogFunctionProbe
+from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
-from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._snapshot.collector import SnapshotCollector
-from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -153,7 +156,7 @@ class Debugger(Service):
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
-    __collector__ = SnapshotCollector
+    __collector__ = CapturedEventCollector
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
 
@@ -187,8 +190,8 @@ class Debugger(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls, join=True):
+        # type: (bool) -> None
         """Disable dynamic instrumentation.
 
         This class method is idempotent. Called automatically at exit, if
@@ -204,7 +207,7 @@ class Debugger(Service):
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
-        cls._instance.stop()
+        cls._instance.stop(join=join)
         cls._instance = None
 
         cls.__watchdog__.uninstall()
@@ -268,42 +271,37 @@ class Debugger(Service):
             actual_frame = sys._getframe(1)
 
             if isinstance(probe, MetricLineProbe):
-                # TODO: Handle value expressions
-                assert probe.kind is not None and probe.name is not None
-
-                value = float(probe.value(actual_frame.f_locals)) if probe.value is not None else 1
-
-                # TODO[perf]: We know the tags in advance so we can avoid the
-                # list comprehension.
-                if probe.kind == MetricProbeKind.COUNTER:
-                    self._probe_meter.increment(probe.name, value, probe.tags)
-                elif probe.kind == MetricProbeKind.GAUGE:
-                    self._probe_meter.gauge(probe.name, value, probe.tags)
-                elif probe.kind == MetricProbeKind.HISTOGRAM:
-                    self._probe_meter.histogram(probe.name, value, probe.tags)
-                elif probe.kind == MetricProbeKind.DISTRIBUTION:
-                    self._probe_meter.distribution(probe.name, value, probe.tags)
-
+                sample = MetricSample(
+                    probe=probe,
+                    frame=actual_frame,
+                    thread=threading.current_thread(),
+                    context=self._tracer.current_trace_context(),
+                    meter=self._probe_meter,
+                )
+                sample.line(actual_frame.f_locals)
+                self._collector.push(sample)
                 return
 
-            # TODO: Global limit evaluated before probe conditions
-            if self._global_rate_limiter.limit() is RateLimitExceeded:
-                return
+            if isinstance(probe, LogLineProbe):
+                if probe.take_snapshot:
+                    # TODO: Global limit evaluated before probe conditions
+                    if self._global_rate_limiter.limit() is RateLimitExceeded:
+                        return
 
-            self._collector.push(
-                probe,
-                # skip the current frame
-                actual_frame,
-                threading.current_thread(),
-                sys.exc_info(),
-                self._tracer.current_trace_context(),
-            )
+                snapshot = Snapshot(
+                    probe=probe,
+                    frame=actual_frame,
+                    thread=threading.current_thread(),
+                    context=self._tracer.current_trace_context(),
+                )
+                snapshot.line(exc_info=sys.exc_info())
+                self._collector.push(snapshot)
 
         except Exception:
             log.error("Failed to execute debugger probe hook", exc_info=True)
 
     def _dd_debugger_wrapper(self, wrappers):
-        # type: (Dict[str, Probe]) -> Wrapper
+        # type: (Dict[str, FunctionProbe]) -> Wrapper
         """Debugger wrapper.
 
         This gets called with a reference to the wrapped function and the probe,
@@ -314,31 +312,39 @@ class Debugger(Service):
 
         def _(wrapped, args, kwargs):
             # type: (FunctionType, Tuple[Any], Dict[str,Any]) -> Any
-            if not any(probe.active for probe in wrappers.values()):
+            active_probes = [probe for probe in wrappers.values() if probe.active]
+
+            if not active_probes:
                 return wrapped(*args, **kwargs)
 
             argnames = wrapped.__code__.co_varnames
-            actual_frame = sys._getframe(2)
+            actual_frame = sys._getframe(1)
             allargs = list(chain(zip(argnames, args), kwargs.items()))
-
             thread = threading.current_thread()
-
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
-            for probe in wrappers.values():
-                if not probe.active or self._global_rate_limiter.limit() is RateLimitExceeded:
-                    continue
-                # TODO: Generate snapshot with placeholder values
-                open_contexts.append(
-                    self._collector.collect(
+            for probe in active_probes:
+                if isinstance(probe, MetricFunctionProbe):
+                    metricSample = MetricSample(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
+                        context=trace_context,
+                        meter=self._probe_meter,
+                    )
+                    open_contexts.append(self._collector.attach(metricSample))
+                    pass
+                elif isinstance(probe, LogFunctionProbe):
+                    snapshot = Snapshot(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
                         args=allargs,
                         context=trace_context,
                     )
-                )
+                    open_contexts.append(self._collector.attach(snapshot))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)
@@ -394,7 +400,7 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, message)
                 continue
             for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
-                probes_for_function[function].append(probe)
+                probes_for_function[function].append(cast(LineProbe, probe))
 
         for function, probes in probes_for_function.items():
             failed = self._function_store.inject_hooks(
@@ -626,12 +632,13 @@ class Debugger(Service):
         else:
             raise ValueError("Unknown probe poller event %r" % event)
 
-    def _stop_service(self):
-        # type: () -> None
+    def _stop_service(self, join=True):
+        # type: (bool) -> None
         self._function_store.restore_all()
         for service in self._services:
             service.stop()
-            service.join()
+            if join:
+                service.join()
 
     def _start_service(self):
         # type: () -> None
@@ -641,7 +648,7 @@ class Debugger(Service):
     @classmethod
     def _restart(cls):
         log.info("Restarting the debugger in child process")
-        cls.disable()
+        cls.disable(join=False)
         cls.enable()
 
     @classmethod
