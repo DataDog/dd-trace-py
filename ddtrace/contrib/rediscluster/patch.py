@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.redis.patch import traced_execute_command
 from ddtrace.contrib.redis.patch import traced_pipeline
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import stringify_cache_args
@@ -78,6 +79,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
+        s.set_tag_str(db.SYSTEM, redisx.APP)
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
