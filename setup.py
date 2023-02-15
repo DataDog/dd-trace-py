@@ -298,7 +298,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/iast/_taint_tracking.cpp",
                 ],
-                extra_compile_args=debug_compile_args + ["-g", "-std=c++17"],
+                extra_compile_args=debug_compile_args + ["-std=c++17"],
             )
         )
 else:
