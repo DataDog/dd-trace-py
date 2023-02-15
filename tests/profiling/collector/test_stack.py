@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-import collections
 import gc
 import os
 import sys
