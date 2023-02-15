@@ -124,6 +124,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
         child_of=parent,
     )
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
+    span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
     query = stringify_cache_args(args)
     span.resource = query
@@ -190,6 +191,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str(COMPONENT, config.aioredis.integration_name)
+        span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tags(
             {
                 net.TARGET_HOST: instance._pool_or_conn.address[0],
