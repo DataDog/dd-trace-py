@@ -2,4 +2,4 @@
 
 
 def fixture_function_with_add_operator():
-    return "te" + "st"
+    return "hello" + " world"

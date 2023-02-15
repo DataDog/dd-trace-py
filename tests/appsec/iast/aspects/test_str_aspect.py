@@ -44,8 +44,8 @@ def test_str_aspect(obj, kwargs):
 @pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_str_aspect_tainting(obj, kwargs):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     should_be_tainted = False
     if isinstance(obj, (str, bytes)):

@@ -10,6 +10,7 @@ from ddtrace.internal.constants import COMPONENT
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import sql
 from ...internal.compat import PY2
 from ...internal.logger import get_logger
@@ -149,14 +150,14 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
-        span.set_metric("db.rowcount", row_count)
+        span.set_metric(db.ROWCOUNT, row_count)
         # Necessary for django integration backward compatibility. Django integration used to provide its own
         # implementation of the TracedCursor, which used to store the row count into a tag instead of
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
         if isinstance(row_count, six.integer_types) and row_count >= 0:
-            span.set_tag(sql.ROWS, row_count)
+            span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
