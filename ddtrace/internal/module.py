@@ -197,7 +197,7 @@ class _ImportHookChainedLoader(Loader):
         pre_exec_hook = None
 
         for _ in sys.meta_path:
-            if isinstance(_, ModuleWatchdog) and not pre_exec_hook:
+            if isinstance(_, ModuleWatchdog):
                 try:
                     for cond, hook in _._pre_exec_module_hooks:
                         if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
@@ -206,6 +206,9 @@ class _ImportHookChainedLoader(Loader):
                             break
                 except Exception:
                     log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
+
+            if pre_exec_hook is not None:
+                break
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
