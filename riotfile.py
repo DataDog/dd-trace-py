@@ -245,6 +245,7 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
                 "flask": latest,
+                "requests": latest,
             },
         ),
         Venv(
