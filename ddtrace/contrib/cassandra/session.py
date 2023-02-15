@@ -18,6 +18,7 @@ from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
+from ...ext import db
 from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
@@ -244,7 +245,7 @@ def _extract_result_metas(result):
 
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
-        metas[cassx.ROW_COUNT] = len(result_rows)
+        metas[db.ROWCOUNT] = len(result_rows)
 
     return metas
 
