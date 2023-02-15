@@ -2,4 +2,4 @@
 fixes:
   - |
     dbapi: The dbapi integration no longer assumes that a cursor object will
-      have a rowcount but not all database drivers implement rowcount.
+    have a rowcount but not all database drivers implement rowcount.
