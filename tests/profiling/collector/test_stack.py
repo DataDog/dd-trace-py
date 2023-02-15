@@ -217,7 +217,7 @@ def test_collect_gevent_thread_task():
             t.join()
 
     for event in r.events[stack_event.StackSampleEvent]:
-        if event.thread_name == "MainThread" and event.task_id in {thread.ident for thread in threads}:
+        if event.thread_name is None and event.task_id in {thread.ident for thread in threads}:
             assert event.task_name.startswith("TestThread ")
             # This test is not uber-reliable as it has timing issue, therefore
             # if we find one of our TestThread with the correct info, we're
@@ -668,6 +668,8 @@ def test_collect_gevent_threads():
 
     from ddtrace.internal import compat
     from ddtrace.profiling import recorder
+    from ddtrace.profiling.collector import stack
+    from ddtrace.profiling.collector import stack_event
 
     # type: (...) -> None
     r = recorder.Recorder()
