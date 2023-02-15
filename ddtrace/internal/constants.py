@@ -17,11 +17,6 @@ W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 
-TELEMETRY_NAMESPACE_TAG_TRACER = "tracers"
-TELEMETRY_NAMESPACE_TAG_APPSEC = "appsec"
-
-TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
-
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 

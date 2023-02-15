@@ -2,21 +2,26 @@ import sys
 
 import pytest
 
-from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
-from ddtrace.internal.constants import TELEMETRY_NAMESPACE_TAG_TRACER
-from ddtrace.internal.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.metrics_namespaces import TelemetryTypeError
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 
 
 def _assert_metric(
-    test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_TRACER, seq_id=1
+    test_agent_session_telemetry_metrics,
+    expected_series,
+    namespace=TELEMETRY_NAMESPACE_TAG_TRACER,
+    type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
+    seq_id=1,
 ):
     test_agent_session_telemetry_metrics.telemetry_writer.periodic()
     events = test_agent_session_telemetry_metrics.get_events()
     # TODO: test_agent_session.clear() creates many telemetry events 'app-closing' type
-    assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_GENERATE_METRICS]) == 1
+    assert len([event for event in events if event["request_type"] == type_paypload]) == 1
 
     payload = {
         "namespace": namespace,
@@ -24,20 +29,19 @@ def _assert_metric(
         "lib_version": _pep440_to_semver(),
         "series": expected_series,
     }
-    assert events[0]["request_type"] == TELEMETRY_TYPE_GENERATE_METRICS
+    assert events[0]["request_type"] == type_paypload
 
-    assert events[0] == _get_request_body(payload, TELEMETRY_TYPE_GENERATE_METRICS, seq_id)
+    assert events[0] == _get_request_body(payload, type_paypload, seq_id)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
-def test_send_metric_flush_and_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
+def test_send_metric_flush_and_generate_metrics_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, {"a": "b"})
     expected_series = [
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric2",
             "points": [[1642544540, 1.0]],
             "tags": ["a:b"],
@@ -69,9 +73,8 @@ def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
     expected_series = [
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
-            "points": [[1642544540, 2.0], [1642544540, 3.0]],
+            "points": [[1642544540, 5.0]],
             "tags": ["a:b"],
             "type": "count",
         },
@@ -97,7 +100,6 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
     expected_series = [
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
             "points": [[1642544540, 4.0]],
             "tags": ["a:b"],
@@ -105,7 +107,6 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
         },
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
             "points": [[1642544540, 5.0]],
             "tags": ["a:b", "c:d"],
@@ -113,7 +114,6 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
         },
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
             "points": [[1642544540, 6.0]],
             "tags": [],
@@ -154,15 +154,13 @@ def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_ti
     expected_series = [
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
-            "points": [[1642544540, 1.0], [1642544540, 1.0]],
+            "points": [[1642544540, 2.0]],
             "tags": ["a:b"],
             "type": "count",
         },
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
             "points": [[1642544540, 1.0]],
             "tags": [],
@@ -170,7 +168,6 @@ def test_send_tracers_count_metric(test_agent_session_telemetry_metrics, mock_ti
         },
         {
             "common": True,
-            "interval": 60,
             "metric": "test-metric",
             "points": [[1642544540, 1.0]],
             "tags": ["hi:HELLO", "NAME:CANDY"],
@@ -245,3 +242,67 @@ def test_send_appsec_gauge_metric(test_agent_session_telemetry_metrics, mock_tim
         },
     ]
     _assert_metric(test_agent_session_telemetry_metrics, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
+def test_send_appsec_distributions_metric(test_agent_session_telemetry_metrics, mock_time):
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, {})
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {})
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
+
+    expected_series = [
+        {
+            "metric": "test-metric",
+            "points": [4.0, 5.0, 6.0],
+            "tags": [],
+        }
+    ]
+    _assert_metric(
+        test_agent_session_telemetry_metrics,
+        expected_series,
+        namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
+        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
+def test_send_metric_flush_and_distributions_series_is_restarted(test_agent_session_telemetry_metrics, mock_time):
+    """Check the queue of metrics is empty after run periodic method of PeriodicService"""
+    telemetry_writer = test_agent_session_telemetry_metrics.telemetry_writer
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, {})
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {})
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
+    expected_series = [
+        {
+            "metric": "test-metric",
+            "points": [4.0, 5.0, 6.0],
+            "tags": [],
+        }
+    ]
+
+    _assert_metric(
+        test_agent_session_telemetry_metrics,
+        expected_series,
+        namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
+        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+    )
+    test_agent_session_telemetry_metrics.clear()
+
+    expected_series = [
+        {
+            "metric": "test-metric",
+            "points": [1.0],
+            "tags": [],
+        }
+    ]
+
+    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
+
+    _assert_metric(
+        test_agent_session_telemetry_metrics,
+        expected_series,
+        namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
+        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        seq_id=2,
+    )

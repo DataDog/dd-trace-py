@@ -5,13 +5,18 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Text
 from typing import Tuple
 
 import six
-from typing_extensions import Literal
+
+from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_COUNT
+from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
+from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_GAUGE
+from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_RATE
 
 
-MetricType = Literal["count", "gauge", "rate"]
+MetricType = Text
 MetricTagType = Dict[str, Any]
 
 
@@ -21,6 +26,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     """
 
     metric_type = ""
+    _points = []  # type: List[Tuple[float, float]]
 
     def __init__(self, namespace, name, tags, common, interval=None):
         # type: (str, str, MetricTagType, bool, Optional[float]) -> None
@@ -33,11 +39,11 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         """
         self.name = name
         self.is_common_to_all_tracers = common
-        self.interval = self._roll_up_interval = interval
+        self.interval = interval
         self.namespace = namespace
-        self._points = []  # type: List[Tuple[int, float]]
         self._tags = tags  # type: MetricTagType
         self._count = 0.0
+        self._points = []  # type: List[float]
 
     @property
     def id(self):
@@ -74,10 +80,11 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "metric": self.name,
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
-            "interval": int(self.interval) if self.interval else None,
             "points": self._points,
             "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
         }
+        if self.interval is not None:
+            data["interval"] = int(self.interval)
         return data
 
 
@@ -87,13 +94,21 @@ class CountMetric(Metric):
     metric tracking the number of website hits, for instance.
     """
 
-    metric_type = "count"
+    metric_type = TELEMETRY_METRIC_TYPE_COUNT
+    _points = []
+
+    def __init__(self, namespace, name, tags, common, interval=None):
+        super(CountMetric, self).__init__(namespace, name, tags, common, interval)
+        self.interval = None
 
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
-        timestamp = int(time.time())
-        self._points.append((timestamp, float(value)))
+        timestamp = time.time()
+        if len(self._points) == 0:
+            self._points = [[timestamp, float(value)]]  # type: ignore
+        else:
+            self._points[0][1] += float(value)  # type: ignore
 
 
 class GaugeMetric(Metric):
@@ -104,12 +119,12 @@ class GaugeMetric(Metric):
     Choosing the correct metric type ensures accurate data.
     """
 
-    metric_type = "gauge"
+    metric_type = TELEMETRY_METRIC_TYPE_GAUGE
 
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
-        timestamp = int(time.time())
+        timestamp = time.time()
         self._points = [(timestamp, float(value))]
 
 
@@ -119,14 +134,45 @@ class RateMetric(Metric):
     interested in the number of hits per second.
     """
 
-    metric_type = "rate"
+    metric_type = TELEMETRY_METRIC_TYPE_RATE
 
     def add_point(self, value=1.0):
         # type: (float) -> None
         """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
-        timestamp = int(time.time())
+        timestamp = time.time()
         self._count += value
         rate = (self._count / float(self.interval)) if self.interval else 0.0
         self._points = [(timestamp, rate)]
+
+
+class DistributionMetric(Metric):
+    """
+    The rate type takes the count and divides it by the length of the time interval. This is useful if you’re
+    interested in the number of hits per second.
+    """
+
+    metric_type = TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
+    _points = []
+
+    def __init__(self, namespace, name, tags, common, interval=None):
+        super(DistributionMetric, self).__init__(namespace, name, tags, common, interval)
+        self.interval = None
+
+    def add_point(self, value=1.0):
+        # type: (float) -> None
+        """Example:
+        https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
+        """
+        self._points.append(float(value))  # type: ignore
+
+    def to_dict(self):
+        # type: () -> Dict
+        """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
+        data = {
+            "metric": self.name,
+            "points": self._points,
+            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
+        }
+        return data

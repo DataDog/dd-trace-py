@@ -12,7 +12,6 @@ from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
-from ..constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -22,6 +21,12 @@ from ..utils.formats import asbool
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import TELEMETRY_METRIC_TYPE_COUNT
+from .constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
+from .constants import TELEMETRY_METRIC_TYPE_GAUGE
+from .constants import TELEMETRY_METRIC_TYPE_RATE
+from .constants import TELEMETRY_TYPE_DISTRIBUTION
+from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
@@ -192,21 +197,28 @@ class TelemetryWriter(PeriodicService):
         """
         Queues count metric
         """
-        self._add_metric("gauge", namespace, name, value, tags)
+        self._add_metric(TELEMETRY_METRIC_TYPE_GAUGE, namespace, name, value, tags)
 
     def add_rate_metric(self, namespace, name, value=1.0, tags={}):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
-        self._add_metric("rate", namespace, name, value, tags)
+        self._add_metric(TELEMETRY_METRIC_TYPE_RATE, namespace, name, value, tags)
 
     def add_count_metric(self, namespace, name, value=1.0, tags={}):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
-        self._add_metric("count", namespace, name, value, tags)
+        self._add_metric(TELEMETRY_METRIC_TYPE_COUNT, namespace, name, value, tags)
+
+    def add_distribution_metric(self, namespace, name, value=1.0, tags={}):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues count metric
+        """
+        self._add_metric(TELEMETRY_METRIC_TYPE_DISTRIBUTIONS, namespace, name, value, tags)
 
     def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}):
         # type: (MetricType, str,str, float, MetricTagType) -> None
@@ -218,16 +230,20 @@ class TelemetryWriter(PeriodicService):
 
     def _app_generate_metrics_event(self, namespace_metrics):
         # type: (NamespaceMetricType) -> None
-        for namespace, metrics in namespace_metrics.items():
-            if metrics:
-                payload = {
-                    "namespace": namespace,
-                    "lib_language": "python",
-                    "lib_version": _pep440_to_semver(),
-                    "series": [m.to_dict() for m in metrics.values()],
-                }
-                log.debug("generate-metrics request payload: %s", payload)
-                self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
+        for payload_type, namespaces in namespace_metrics.items():
+            for namespace, metrics in namespaces.items():
+                if metrics:
+                    payload = {
+                        "namespace": namespace,
+                        "lib_language": "python",
+                        "lib_version": _pep440_to_semver(),
+                        "series": [m.to_dict() for m in metrics.values()],
+                    }
+                    log.debug("%s request payload: %s", payload_type, payload)
+                    if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
+                        self.add_event(payload, TELEMETRY_TYPE_DISTRIBUTION)
+                    elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
+                        self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def add_event(self, payload, payload_type):
         # type: (Dict[str, Any], str) -> None
