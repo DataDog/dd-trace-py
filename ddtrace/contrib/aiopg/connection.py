@@ -8,6 +8,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
@@ -49,7 +50,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = yield from method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric(db.ROWCOUNT, self.rowcount)
 
     @asyncio.coroutine
     def executemany(self, query, *args, **kwargs):

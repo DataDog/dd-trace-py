@@ -252,6 +252,10 @@ class RemoteConfigClient(object):
         else:
             self._products.pop(product_name, None)
 
+    def unregister_product(self, product_name):
+        # type: (str) -> None
+        self._products.pop(product_name, None)
+
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:

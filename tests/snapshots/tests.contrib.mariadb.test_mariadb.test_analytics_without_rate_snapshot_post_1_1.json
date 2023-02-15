@@ -24,10 +24,9 @@
       "_dd.tracer_kr": 1.0,
       "_dd1.sr.eausr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 1,
+      "db.row_count": 1,
       "network.destination.port": 3306,
-      "process_id": 9677,
-      "sql.rows": 1
+      "process_id": 9677
     },
     "duration": 1046000,
     "start": 1667513581609506000
