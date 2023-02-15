@@ -253,6 +253,14 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
+            
+
+    @staticmethod
+    def _get_response_text(response):
+        try:
+            return getattr(response.text)
+        except AttributeError:
+            return getattr(response.content)
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
@@ -268,4 +276,4 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert self._get_response_text(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
