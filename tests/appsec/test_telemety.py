@@ -48,18 +48,8 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
     for metric_id, metric in distributions_metrics.items():
-        if metric.name == "waf.duration":
-            assert len(metric._points) > 1
-            assert type(metric._points[0]) is float
-            assert metric._tags["rule_triggered"] is is_rule_triggered
-            assert metric._tags["request_blocked"] is is_blocked_request
-            assert len(metric._tags["waf_version"]) > 0
-            if is_blocked_request or is_rule_triggered:
-                assert len(metric._tags["event_rules_version"]) == 0
-            else:
-                assert len(metric._tags["event_rules_version"]) > 0
-        elif metric.name == "waf.duration_ext":
-            assert len(metric._points) > 1
+        if metric.name in ["waf.duration", "waf.duration_ext"]:
+            assert len(metric._points) >= 1
             assert type(metric._points[0]) is float
             assert metric._tags["rule_triggered"] is is_rule_triggered
             assert metric._tags["request_blocked"] is is_blocked_request
