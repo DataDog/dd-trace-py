@@ -7,12 +7,9 @@ import pytest
 from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
-from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
-from ddtrace.appsec.processor import DEFAULT_RULES
-from ddtrace.appsec.processor import DEFAULT_WAF_TIMEOUT
 from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import USER_KEEP
@@ -349,12 +346,12 @@ def test_appsec_span_rate_limit(tracer):
 
 
 def test_ddwaf_not_raises_exception():
-    with open(DEFAULT_RULES) as rules:
+    with open(DEFAULT.RULES) as rules:
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
-            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
+            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
         )
 
 
@@ -472,7 +469,7 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.run(data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0
@@ -531,13 +528,13 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
                 span,
                 config,
                 method="PATCH",
-                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                url="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 status_code="200",
-                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                raw_uri="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 request_headers={
-                    "host": u"localhost",
+                    "host": "localhost",
                     "user-agent": "aa",
-                    "content-length": u"73",
+                    "content-length": "73",
                 },
                 response_headers={
                     "content-length": "501",
@@ -548,7 +545,7 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
                     "content-type": "application/json",
                     "x-ratelimit-reset": "16",
                 },
-                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+                request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
     assert "Error parsing data ASM In-App WAF metrics report" in caplog.text
@@ -568,13 +565,13 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
                 span,
                 config,
                 method="PATCH",
-                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                url="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 status_code="200",
-                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                raw_uri="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 request_headers={
-                    "host": u"localhost",
+                    "host": "localhost",
                     "user-agent": "aa",
-                    "content-length": u"73",
+                    "content-length": "73",
                 },
                 response_headers={
                     "content-length": "501",
@@ -585,7 +582,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
                     "content-type": "application/json",
                     "x-ratelimit-reset": "16",
                 },
-                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+                request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
     assert span.get_tag(APPSEC_JSON) is None
@@ -606,13 +603,13 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
                 span,
                 config,
                 method="PATCH",
-                url=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                url="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 status_code="200",
-                raw_uri=u"http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
+                raw_uri="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
                 request_headers={
-                    "host": u"localhost",
+                    "host": "localhost",
                     "user-agent": "aa",
-                    "content-length": u"73",
+                    "content-length": "73",
                 },
                 response_headers={
                     "content-length": "501",
@@ -623,7 +620,7 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
                     "content-type": "application/json",
                     "x-ratelimit-reset": "16",
                 },
-                request_body={"_authentication_token": u"2b0297348221f294de3a047e2ecf1235abb866b6"},
+                request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
     assert span.get_tag(APPSEC_JSON) is None
