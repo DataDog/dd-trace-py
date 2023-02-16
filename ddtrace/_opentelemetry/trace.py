@@ -11,8 +11,8 @@ from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
 
 import ddtrace
+from ddtrace._opentelemetry.span import Span
 from ddtrace.internal.logger import get_logger
-from ddtrace.opentelemetry.span import Span
 
 
 if TYPE_CHECKING:

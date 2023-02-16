@@ -223,10 +223,10 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
-    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", True)):
+    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False)):
         from opentelemetry.trace import set_tracer_provider
 
-        from ddtrace.opentelemetry.trace import TracerProvider
+        from ddtrace._opentelemetry.trace import TracerProvider
 
         set_tracer_provider(TracerProvider())
         # Replaces the default otel api runtime context with DDRuntimeContext

@@ -68,7 +68,7 @@ def test_otel_multithreading(oteltracer):
 
 
 def _subprocess_task(parent_span_context, errors):
-    from ddtrace.opentelemetry import TracerProvider
+    from ddtrace._opentelemetry import TracerProvider
 
     # Tracer provider must be set in the subprocess otherwise the default tracer will be used
     opentelemetry.trace.set_tracer_provider(TracerProvider())

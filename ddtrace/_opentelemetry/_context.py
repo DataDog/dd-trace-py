@@ -9,10 +9,10 @@ from opentelemetry.trace import SpanContext as OtelSpanContext
 import opentelemetry.version
 
 from ddtrace import tracer as ddtracer
+from ddtrace._opentelemetry.span import Span
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.opentelemetry.span import Span
 from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
 from ddtrace.span import Span as DDSpan
 

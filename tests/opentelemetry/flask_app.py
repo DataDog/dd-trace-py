@@ -4,7 +4,7 @@ import flask
 import opentelemetry
 
 import ddtrace
-from ddtrace.opentelemetry import TracerProvider
+from ddtrace._opentelemetry import TracerProvider
 from tests.webclient import PingFilter
 
 
