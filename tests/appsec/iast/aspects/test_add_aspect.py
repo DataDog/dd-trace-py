@@ -92,6 +92,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2):
     from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._util import get_tainted_ranges
 
     clear_taint_mapping()
     should_be_tainted = False
@@ -102,4 +103,12 @@ def test_add_aspect_tainting_right_hand(obj1, obj2):
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert is_pyobject_tainted(result) == should_be_tainted
 
-    assert ddtrace_aspects.add_aspect(obj1, obj2) == obj1 + obj2
+    assert result == obj1 + obj2
+
+    tainted_ranges = get_tainted_ranges(result)
+    print("tainted ranges computed", len(tainted_ranges))
+    assert type(tainted_ranges) is list
+    assert all(type(c) is tuple for c in tainted_ranges)
+    assert (tainted_ranges != []) == should_be_tainted
+    if should_be_tainted:
+        assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
