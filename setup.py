@@ -296,9 +296,11 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             Extension(
                 "ddtrace.appsec.iast._taint_tracking",
                 # Sort source files for reproducibility
-                sources=glob.glob(
-                    os.path.join("ddtrace/appsec/iast/_taint_tracking", "**", "*.cpp"),
-                    recursive=True,
+                sources=sorted(
+                    glob.glob(
+                        os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                        recursive=True,
+                    )
                 ),
                 extra_compile_args=debug_compile_args + ["-std=c++17"],
             )
