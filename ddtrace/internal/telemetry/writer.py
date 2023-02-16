@@ -141,7 +141,7 @@ class TelemetryBase(PeriodicService):
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
-                "api_version": "v2",
+                "api_version": "v1",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),
