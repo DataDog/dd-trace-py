@@ -225,30 +225,48 @@ class AppSecSpanProcessor(SpanProcessor):
         except TypeError:
             log.debug("Error updating ASM rules", exc_info=True)
 
-    def _set_metrics(self, ddwaf_result):
-        telemetry_metrics_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC,
-            "waf.calls",
-            float(1.0),
-            tags={
-                "waf_version": version(),
-                "lib_language": "python",
-            },
-        )
+    def _set_metrics(self, ddwaf_result, ddwaf_info):
+        tags = {
+            "waf_version": version(),
+            "lib_language": "python",
+            "rule_triggered": False,
+            "request_blocked": False,
+        }
+        if ddwaf_result.data:
+            tags["request_blocked"] = True if "block" in ddwaf_result.actions else False
+            tags["rule_triggered"] = True
+
+        if ddwaf_info:
+            tags["event_rules_version"] = ddwaf_info.version
+            telemetry_metrics_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                "event_rules.loaded",
+                float(ddwaf_info.loaded),
+                tags=tags,
+            )
 
         # runtime is the result in microseconds. Update to milliseconds
         telemetry_metrics_writer.add_distribution_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.duration",
             float(ddwaf_result.runtime / 1e3),
-            tags={"waf_version": version(), "lib_language": "python"},
+            tags=tags,
         )
         telemetry_metrics_writer.add_distribution_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.duration_ext",
             float(ddwaf_result.total_runtime / 1e3),
-            tags={"waf_version": version(), "lib_language": "python"},
+            tags=tags,
         )
+
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "waf.requests",
+            float(1.0),
+            tags=tags,
+        )
+
+        # TODO: add log metric to report info.failed and info.errors
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -289,8 +307,8 @@ class AppSecSpanProcessor(SpanProcessor):
                             APPSEC_WAF_DURATION_EXT: str(ddwaf_result.total_runtime),
                         }
                     )
-                    self._set_metrics(ddwaf_result)
                     _context.set_item("http.request.blocked", True, span=span)
+                    self._set_metrics(ddwaf_result, self._ddwaf.info)
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -381,12 +399,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", ddwaf_result.data)
                 span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
                 span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
-                self._set_metrics(ddwaf_result)
 
                 if ddwaf_result.data and rate_limiter_allowed:
                     ddwaf_trigger = True
                     span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
-
+            self._set_metrics(ddwaf_result, self._ddwaf.info)
         try:
             info = self._ddwaf.info
             if info.errors:
@@ -396,14 +413,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-
-            telemetry_metrics_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_APPSEC,
-                "event_rules.loaded",
-                float(info.loaded),
-                tags={"event_rules_version": info.version, "waf_version": version()},
-            )
-            # TODO: add log metric to report info.failed and info.errors
 
         except JSONDecodeError:
             log.warning("Error parsing data ASM In-App WAF metrics report")
