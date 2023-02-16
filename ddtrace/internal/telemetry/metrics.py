@@ -95,7 +95,6 @@ class CountMetric(Metric):
     """
 
     metric_type = TELEMETRY_METRIC_TYPE_COUNT
-    _points = []
 
     def __init__(self, namespace, name, tags, common, interval=None):
         super(CountMetric, self).__init__(namespace, name, tags, common, interval)
@@ -154,7 +153,6 @@ class DistributionMetric(Metric):
     """
 
     metric_type = TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-    _points = []
 
     def __init__(self, namespace, name, tags, common, interval=None):
         super(DistributionMetric, self).__init__(namespace, name, tags, common, interval)
