@@ -137,7 +137,6 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
-
                 if result and self._is_query(operation):
                     cursor = result.docs[0].get("cursor")
                     set_query_rowcount(cursor=cursor, span=span)
@@ -154,7 +153,6 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
-
                 if result and self._is_query(operation):
                     cursor = result.docs[0].get("cursor")
                     set_query_rowcount(cursor=cursor, span=span)
@@ -171,7 +169,6 @@ class TracedServer(ObjectProxy):
                 result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
-
                 if result and self._is_query(operation):
                     if VERSION < (3, 2, 0):
                         docs = _unpack_response(response=result.data)
