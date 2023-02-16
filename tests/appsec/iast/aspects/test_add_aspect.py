@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
+import sys
+
 import pytest
-from six import PY2
 
 
 @pytest.mark.parametrize(
@@ -17,7 +18,7 @@ from six import PY2
         (("a", "b"), ("c", "d")),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3+ only")
 def test_add_aspect_successful(obj1, obj2):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 
@@ -28,7 +29,7 @@ def test_add_aspect_successful(obj1, obj2):
     "obj1, obj2",
     [(b"Hi", ""), ("Hi", b""), ({"a", "b"}, {"c", "d"}), (dict(), dict())],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3+ only")
 def test_add_aspect_type_error(obj1, obj2):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 
@@ -54,7 +55,7 @@ def test_add_aspect_type_error(obj1, obj2):
         (("a", "b"), ("c", "d")),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -84,7 +85,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2):
         (("a", "b"), ("c", "d"), False),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
