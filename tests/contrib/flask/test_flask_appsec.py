@@ -8,7 +8,8 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
-from ddtrace.internal.compat import urlencode, PY3
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _ALLOWED_IP
 from tests.contrib.flask import BaseFlaskTestCase
