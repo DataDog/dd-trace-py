@@ -18,7 +18,7 @@ Notably, unloading the atexit module will remove all registered hooks which we u
 The other listed modules internally maintain some state that does not coexist well if reloaded.
 """
 MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging"}
-if sys.version_info <= (3, 7):
+if sys.version_info < (3, 7):
     MODULES_TO_NOT_CLEANUP |= {"typing"}  # required by older versions of Python
 if sys.version_info <= (2, 7):
     MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
