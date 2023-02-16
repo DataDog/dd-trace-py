@@ -12,7 +12,14 @@ MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
 import os  # noqa
 
 
+"""
+The following modules cause problems when being unloaded/reloaded in module cloning.
+Notably, unloading the atexit module will remove all registered hooks which we use for cleaning up on tracer shutdown.
+The other listed modules internally maintain some state that does not coexist well if reloaded.
+"""
 MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging"}
+if sys.version_info < (3, 7):
+    MODULES_TO_NOT_CLEANUP |= {"typing"}  # required by older versions of Python
 if sys.version_info <= (2, 7):
     MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
     import imp
@@ -72,6 +79,9 @@ def cleanup_loaded_modules(aggressive=False):
                 break
         else:
             del sys.modules[module_name]
+    # Some versions of CPython import the time module during interpreter startup, which needs to be unloaded.
+    if "time" in sys.modules:
+        del sys.modules["time"]
 
 
 will_run_module_cloning = should_cleanup_loaded_modules()
