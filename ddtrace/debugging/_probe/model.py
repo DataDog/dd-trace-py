@@ -225,3 +225,8 @@ class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditi
 
 LineProbe = Union[LogLineProbe, MetricLineProbe]
 FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe]
+
+
+class ProbeType(object):
+    LOG_PROBE = "LOG_PROBE"
+    METRIC_PROBE = "METRIC_PROBE"
