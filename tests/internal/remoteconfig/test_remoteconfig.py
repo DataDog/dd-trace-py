@@ -241,7 +241,7 @@ def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_he
 def _count_running_processes(canary_str):
     found = 0
     for proc in psutil.process_iter():
-        if "python" in proc.name():
+        if "python" in proc.name() or "gunicorn" in proc.name():
             try:
                 if canary_str in " ".join(proc.cmdline()):
                     found += 1
@@ -262,8 +262,6 @@ def test_gevent_no_stuck_processes():  # type: () -> None
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
             "DD_GEVENT_PATCH_ALL": "true",
-            "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "1",
         }
     )
 
@@ -280,7 +278,7 @@ def test_gevent_no_stuck_processes():  # type: () -> None
         client = Client("http://0.0.0.0:%s" % port)
         # Wait for the server to start up
         try:
-            client.wait(max_tries=5, path="/start", delay=0.2)
+            client.wait(max_tries=5, path="/start", delay=0.5)
             client.wait(max_tries=5, delay=0.1)
         except tenacity.RetryError:
             # if proc.returncode is not None: process failed
