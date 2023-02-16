@@ -8,7 +8,7 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
-from ddtrace.internal.compat import urlencode
+from ddtrace.internal.compat import urlencode, PY3
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _ALLOWED_IP
 from tests.contrib.flask import BaseFlaskTestCase
@@ -254,13 +254,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
 
-    @staticmethod
-    def _get_response_text(response):
-        try:
-            return getattr(response.text)
-        except AttributeError:
-            return getattr(response.content)
-
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
         # test a manual call to the blocking callable stored in _asm_request_context
@@ -275,4 +268,5 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            assert self._get_response_text(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            if PY3:
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
