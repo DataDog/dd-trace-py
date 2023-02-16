@@ -20,7 +20,7 @@ import pytest
         (["a", "b", "c", "d"], {}),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3+ only")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_str_aspect(obj, kwargs):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 

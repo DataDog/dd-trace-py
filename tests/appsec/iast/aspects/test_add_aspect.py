@@ -18,7 +18,7 @@ import pytest
         (("a", "b"), ("c", "d")),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3+ only")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_successful(obj1, obj2):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 
@@ -29,7 +29,7 @@ def test_add_aspect_successful(obj1, obj2):
     "obj1, obj2",
     [(b"Hi", ""), ("Hi", b""), ({"a", "b"}, {"c", "d"}), (dict(), dict())],
 )
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3+ only")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_type_error(obj1, obj2):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
 
