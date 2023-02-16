@@ -8,7 +8,6 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _ALLOWED_IP
@@ -269,5 +268,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            if PY3:
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
