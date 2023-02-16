@@ -1,3 +1,4 @@
+from distutils.command.clean import clean as CleanCommand
 import hashlib
 import os
 import platform
@@ -5,12 +6,14 @@ import shutil
 import sys
 import tarfile
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.test import test as TestCommand
+from pkg_resources import get_build_platform
+from setuptools import Extension
+from setuptools import find_packages
+from setuptools import setup
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
-from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
+from setuptools.command.test import test as TestCommand
+
 
 try:
     # ORDER MATTERS
@@ -45,7 +48,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.6.1"
+LIBDDWAF_VERSION = "1.8.0"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -106,8 +109,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:

@@ -326,8 +326,17 @@ ddwaf_log_cb = ctypes.POINTER(
 ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_ruleset_info_p)(
     ("ddwaf_init", ddwaf),
     (
-        (1, "rule"),
+        (1, "ruleset_map"),
         (1, "config", None),
+        (1, "info", None),
+    ),
+)
+
+ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_ruleset_info_p)(
+    ("ddwaf_update", ddwaf),
+    (
+        (1, "handle"),
+        (1, "ruleset_map"),
         (1, "info", None),
     ),
 )
@@ -337,21 +346,6 @@ ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
     ((1, "handle"),),
 )
 
-ddwaf_update_rule_data = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
-    ("ddwaf_update_rule_data", ddwaf),
-    (
-        (1, "handle"),
-        (1, "data"),
-    ),
-)
-
-ddwaf_toggle_rules = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
-    ("ddwaf_toggle_rules", ddwaf),
-    (
-        (1, "handle"),
-        (1, "rule_map"),
-    ),
-)
 
 ddwaf_ruleset_info_free = ctypes.CFUNCTYPE(None, ddwaf_ruleset_info_p)(
     ("ddwaf_ruleset_info_free", ddwaf),
@@ -372,26 +366,10 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 def py_ddwaf_required_addresses(handle):
     # type: (ctypes.c_void_p) -> list[unicode]
     size = ctypes.c_uint32()
+    print(handle)
     obj = ddwaf_required_addresses(handle, ctypes.byref(size))
+    print(size.value)
     return [obj[i].decode("UTF-8") for i in range(size.value)]
-
-
-ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
-    ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
-)(
-    ("ddwaf_required_rule_data_ids", ddwaf),
-    (
-        (1, "handle"),
-        (1, "size"),
-    ),
-)
-
-
-def py_ddwaf_required_rule_data_ids(handle):
-    # type: (ctypes.c_void_p) -> list[ddwaf_object]
-    size = ctypes.c_uint32()
-    obj = ddwaf_required_rule_data_ids(handle, ctypes.byref(size))
-    return [obj[i] for i in range(size.value)]
 
 
 ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
@@ -490,6 +468,7 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
 # ddwaf_object_get_unsigned
 # ddwaf_object_get_signed
 # ddwaf_object_get_index
+# ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
 
 ddwaf_object_free = ctypes.CFUNCTYPE(None, ddwaf_object_p)(
     ("ddwaf_object_free", ddwaf),
