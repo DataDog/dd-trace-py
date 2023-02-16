@@ -57,7 +57,6 @@ class _TelemetryClient:
         self._encoder = JSONEncoderV2()
         self._headers = {
             "Content-type": "application/json",
-            "DD-Telemetry-API-Version": "v2",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
@@ -89,11 +88,12 @@ class _TelemetryClient:
 
     def get_headers(self, request):
         # type: (Dict) -> Dict
-        """Get all telemetry api v1 request headers"""
+        """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = str(request["debug"]).lower()
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
-        headers["DD-Agent-Hostname"] = get_host_info()["hostname"]
+        headers["DD-Telemetry-API-Version"] = request["api_version"]
+        headers["DD-Agent-Hostname"] = request["host"]["hostname"]
         if config.env:
             headers["DD-Agent-Env"] = config.env
         return headers
@@ -141,7 +141,7 @@ class TelemetryBase(PeriodicService):
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
-                "api_version": "v1",
+                "api_version": "v2",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),

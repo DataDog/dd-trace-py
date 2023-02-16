@@ -11,6 +11,7 @@ from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
+from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 
 from .conftest import TelemetryTestSession
@@ -28,9 +29,12 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
+    assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
+    assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "false"
+    assert requests[0]["headers"]["DD-Agent-Hostname"] == get_host_info()["hostname"]
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
@@ -226,7 +230,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
     return {
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
-        "api_version": "v1",
+        "api_version": "v2",
         "debug": False,
         "seq_id": seq_id,
         "application": get_application(config.service, config.version, config.env),
