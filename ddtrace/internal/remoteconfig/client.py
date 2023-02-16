@@ -25,7 +25,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
-from ddtrace.internal.utils.version import _pep440_to_semver
+
+from ..utils.version import _pep440_to_semver
 
 
 if TYPE_CHECKING:  # pragma: no cover
