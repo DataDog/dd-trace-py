@@ -227,7 +227,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
         "api_version": "v1",
-        "debug": "false",
+        "debug": False,
         "seq_id": seq_id,
         "application": get_application(config.service, config.version, config.env),
         "host": get_host_info(),

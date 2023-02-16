@@ -66,6 +66,12 @@ The following environment variables for the tracer are supported:
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
+   DD_TELEMETRY_METRICS_ENABLED
+     type: Boolean
+     default: True
+     description: |
+         Enables sending :ref:`telemetry <Instrumentation Telemetry>` metric events to the agent.
+
    DD_TRACE_DEBUG:
      type: Boolean
      default: False

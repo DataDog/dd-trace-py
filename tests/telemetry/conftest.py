@@ -11,6 +11,8 @@ import pytest
 
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.telemetry.writer import TelemetryBase
+from ddtrace.internal.telemetry.writer import TelemetryMetricsWriter
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
 from tests.utils import request_token
@@ -25,10 +27,18 @@ def telemetry_writer():
     yield telemetry_writer
 
 
+@pytest.fixture
+def telemetry_metrics_writer():
+    telemetry_metrics_writer = TelemetryMetricsWriter()
+
+    telemetry_metrics_writer._enabled = True
+    return telemetry_metrics_writer
+
+
 @attr.s
 class TelemetryTestSession(object):
     token = attr.ib(type=str)
-    telemetry_writer = attr.ib(type=TelemetryWriter)
+    telemetry_writer = attr.ib(type=TelemetryBase)
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
@@ -56,6 +66,7 @@ class TelemetryTestSession(object):
         Results are in reverse order by ``seq_id``
         """
         status, body = self._request("GET", "/test/session/requests?test_session_token=%s" % self.token)
+
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = json.loads(body.decode("utf-8"))
@@ -94,27 +105,44 @@ def test_agent_session(telemetry_writer, request):
     conn = requests.create_connection()
     try:
         conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-        r = conn.getresponse()
-        print(r.read())
+        conn.getresponse()
     finally:
         conn.close()
 
     try:
         yield requests
     finally:
-        # Force a flush
         telemetry_writer.periodic()
         del telemetry_writer._client._headers["X-Datadog-Test-Session-Token"]
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
 
 
 @pytest.fixture
-def test_agent_session_telemetry_metrics(test_agent_session):
-    test_agent_session.telemetry_writer._flush_namespace_metrics()
-    test_agent_session.telemetry_writer._flush_events_queue()
-    test_agent_session.telemetry_writer._flush_integrations_queue()
-    yield test_agent_session
-    test_agent_session.clear()
+def test_agent_metrics_session(telemetry_metrics_writer, request):
+    # type: (TelemetryMetricsWriter, Any) -> Generator[TelemetryTestSession, None, None]
+    token = request_token(request)
+    telemetry_metrics_writer._client._headers["X-Datadog-Test-Session-Token"] = token
+    # Also add a header to the environment for subprocesses test cases that might use snapshotting.
+    existing_headers = parse_tags_str(os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS", ""))
+    existing_headers.update({"X-Datadog-Test-Session-Token": token})
+    os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"] = ",".join(
+        ["%s:%s" % (k, v) for k, v in existing_headers.items()]
+    )
+
+    requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_metrics_writer)
+
+    conn = requests.create_connection()
+    try:
+        conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+        conn.getresponse()
+    finally:
+        conn.close()
+
+    try:
+        yield requests
+    finally:
+        del telemetry_metrics_writer._client._headers["X-Datadog-Test-Session-Token"]
+        del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
 
 
 @pytest.fixture

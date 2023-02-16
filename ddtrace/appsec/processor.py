@@ -37,7 +37,7 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry import telemetry_metrics_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 
 
@@ -226,7 +226,7 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("Error updating ASM rules", exc_info=True)
 
     def _set_metrics(self, ddwaf_result):
-        telemetry_writer.add_count_metric(
+        telemetry_metrics_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.calls",
             float(1.0),
@@ -237,13 +237,13 @@ class AppSecSpanProcessor(SpanProcessor):
         )
 
         # runtime is the result in microseconds. Update to milliseconds
-        telemetry_writer.add_distribution_metric(
+        telemetry_metrics_writer.add_distribution_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.duration",
             float(ddwaf_result.runtime / 1e3),
             tags={"waf_version": version(), "lib_language": "python"},
         )
-        telemetry_writer.add_distribution_metric(
+        telemetry_metrics_writer.add_distribution_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.duration_ext",
             float(ddwaf_result.total_runtime / 1e3),
@@ -397,7 +397,7 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
 
-            telemetry_writer.add_gauge_metric(
+            telemetry_metrics_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
                 "event_rules.loaded",
                 float(info.loaded),

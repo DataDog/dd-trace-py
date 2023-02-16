@@ -24,6 +24,7 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
+from ..internal.telemetry import telemetry_metrics_writer
 from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -532,6 +533,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+                    # instrumentation telemetry metrics should be enabled/started after the global tracer and configs
+                    # are initialized
+                    if asbool(os.getenv("DD_TELEMETRY_METRICS_ENABLED", True)):
+                        telemetry_metrics_writer.enable()
+
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()
