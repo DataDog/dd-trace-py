@@ -1,7 +1,9 @@
 import contextlib
 from typing import Any
 from typing import Generator
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.vendor import contextvars
 
@@ -22,12 +24,14 @@ _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
     "datadog_early_headers_casesensitive_contextvar", default=False
 )
 _DD_EARLY_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
+_DD_EARLY_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
 
 
 def reset():  # type: () -> None
     _DD_EARLY_IP_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
+    _DD_EARLY_WAF_RESULTS.set([[], [], []])
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None
@@ -72,6 +76,18 @@ def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
+
+
+def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, bool) -> None
+    list_results_data, list_result_info, list_is_blocked = get_waf_results()
+    list_results_data.append(result_data)
+    list_result_info.append(result_info)
+    list_is_blocked.append(is_blocked)
+    _DD_EARLY_WAF_RESULTS.set((list_results_data, list_result_info, list_is_blocked))
+
+
+def get_waf_results():  # type: () -> Tuple[List[Any], List[Any], List[bool]]
+    return _DD_EARLY_WAF_RESULTS.get()
 
 
 @contextlib.contextmanager

@@ -71,7 +71,7 @@ class MetricNamespace:
             namespace, name, tags=tags, common=True, interval=interval
         )
         metrics_type_payload = self.metrics_type_payloads[metric_type]
-        # get an Metric that already exists in _metrics data or create a new one (metric_check)
+        # get a Metric that already exists in _metrics data or create a new one (metric_check)
         metric = self._metrics_data[metrics_type_payload][namespace].get(metric_check.id, metric_check)
         if not self.validate_type_metric(metric_check, metric):
             raise TelemetryTypeError(

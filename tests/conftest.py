@@ -16,6 +16,10 @@ import pytest
 from six import PY2
 
 import ddtrace
+from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -274,3 +278,13 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
 
         return True
+
+
+@pytest.fixture
+def mock_telemetry_metrics_writer():
+    telemetry_metrics_writer._flush_namespace_metrics()
+    metrics_result = telemetry_metrics_writer._namespace._metrics_data
+    assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    yield telemetry_metrics_writer
+    telemetry_metrics_writer._flush_namespace_metrics()

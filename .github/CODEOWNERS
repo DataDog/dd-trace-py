@@ -27,6 +27,7 @@ tests/debugging/                    @DataDog/debugger-python
 ddtrace/appsec/                     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
+tests/contrib/flask/test_flask_appsec_telemetry.py    @DataDog/asm-python
 tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py    @DataDog/asm-python
