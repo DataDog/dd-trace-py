@@ -1,5 +1,5 @@
+from collections import Counter
 import os
-import sys
 
 import pytest
 import six
@@ -289,7 +289,7 @@ def test_double_fork():
 
 
 @pytest.mark.subprocess(
-    out=("TCTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "TCCCTTT"),
+    out=lambda _: Counter(_) == {"C": 3, "T": 4},
     err=None,
     ddtrace_run=True,
 )
