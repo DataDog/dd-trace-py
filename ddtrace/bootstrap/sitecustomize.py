@@ -5,100 +5,7 @@ Add all monkey-patching that needs to run by default here
 import sys
 
 
-MODULES_LOADED_AT_STARTUP = frozenset(sys.modules.keys())
-MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED = ("gevent",)
-
-
-import os  # noqa
-
-
-"""
-The following modules cause problems when being unloaded/reloaded in module cloning.
-Notably, unloading the atexit module will remove all registered hooks which we use for cleaning up on tracer shutdown.
-The other listed modules internally maintain some state that does not coexist well if reloaded.
-"""
-MODULES_TO_NOT_CLEANUP = {"atexit", "asyncio", "attr", "concurrent", "ddtrace", "logging"}
-if sys.version_info < (3, 7):
-    MODULES_TO_NOT_CLEANUP |= {"typing"}  # required by older versions of Python
-if sys.version_info <= (2, 7):
-    MODULES_TO_NOT_CLEANUP |= {"encodings", "codecs"}
-    import imp
-
-    _unloaded_modules = []
-
-    def is_installed(module_name):
-        try:
-            imp.find_module(module_name)
-        except ImportError:
-            return False
-        return True
-
-
-else:
-    import importlib
-
-    def is_installed(module_name):
-        return importlib.util.find_spec(module_name)
-
-
-def should_cleanup_loaded_modules():
-    dd_unload_sitecustomize_modules = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="0").lower()
-    if dd_unload_sitecustomize_modules not in ("1", "auto"):
-        return False
-    elif dd_unload_sitecustomize_modules == "auto" and not any(
-        is_installed(module_name) for module_name in MODULES_THAT_TRIGGER_CLEANUP_WHEN_INSTALLED
-    ):
-        return False
-    return True
-
-
-def cleanup_loaded_modules(aggressive=False):
-    """
-    "Aggressive" here means "cleanup absolutely every module that has been loaded since startup".
-    Non-aggressive cleanup entails leaving untouched certain modules
-    This distinction is necessary because this function is used both to prepare for gevent monkeypatching
-    (requiring aggressive cleanup) and to implement "module cloning" (requiring non-aggressive cleanup)
-    """
-    # Figuring out modules_loaded_since_startup is necessary because sys.modules has more in it than just what's in
-    # import statements in this file, and unloading some of them can break the interpreter.
-    modules_loaded_since_startup = set(_ for _ in sys.modules if _ not in MODULES_LOADED_AT_STARTUP)
-    # Unload all the modules that we have imported, except for ddtrace and a few
-    # others that don't like being cloned.
-    # Doing so will allow ddtrace to continue using its local references to modules unpatched by
-    # gevent, while avoiding conflicts with user-application code potentially running
-    # `gevent.monkey.patch_all()` and thus gevent-patched versions of the same modules.
-    for module_name in modules_loaded_since_startup:
-        if aggressive:
-            del sys.modules[module_name]
-            continue
-
-        for module_to_not_cleanup in MODULES_TO_NOT_CLEANUP:
-            if module_name == module_to_not_cleanup:
-                break
-            elif module_name.startswith("%s." % module_to_not_cleanup):
-                break
-        else:
-            del sys.modules[module_name]
-    # Some versions of CPython import the time module during interpreter startup, which needs to be unloaded.
-    if "time" in sys.modules:
-        del sys.modules["time"]
-
-
-will_run_module_cloning = should_cleanup_loaded_modules()
-if not will_run_module_cloning:
-    # Perform gevent patching as early as possible in the application before
-    # importing more of the library internals.
-    if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
-        # successfully running `gevent.monkey.patch_all()` this late into
-        # sitecustomize requires aggressive module unloading beforehand.
-        # gevent's documentation strongly warns against calling monkey.patch_all() anywhere other
-        # than the first line of the program. since that's what we're doing here,
-        # we cleanup aggressively beforehand to replicate the conditions at program start
-        # as closely as possible.
-        cleanup_loaded_modules(aggressive=True)
-        import gevent.monkey
-
-        gevent.monkey.patch_all()
+LOADED_MODULES = frozenset(sys.modules.keys())
 
 import logging  # noqa
 import os  # noqa
@@ -107,6 +14,7 @@ from typing import Dict  # noqa
 
 from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
@@ -114,13 +22,6 @@ from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
-
-
-if config.logs_injection:
-    # immediately patch logging if trace id injected
-    from ddtrace import patch
-
-    patch(logging=True)
 
 
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
@@ -162,6 +63,64 @@ def update_patched_modules():
         EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
 
 
+if PY2:
+    _unloaded_modules = []
+
+
+if sys.version_info <= (2, 7):
+    import imp
+
+    _unloaded_modules = []
+
+    def is_installed(module_name):
+        try:
+            imp.find_module(module_name)
+        except ImportError:
+            return False
+        return True
+
+
+else:
+    import importlib
+
+    def is_installed(module_name):
+        return importlib.util.find_spec(module_name)
+
+
+def cleanup_loaded_modules():
+    PACKAGES_REQUIRING_CLEANUP = ("gevent",)
+    do_clean_up = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
+    if do_clean_up == "auto":
+        do_clean_up = any(is_installed(m) for m in PACKAGES_REQUIRING_CLEANUP)
+
+    if not asbool(do_clean_up):
+        return
+
+    # Unload all the modules that we have imported, expect for the ddtrace one.
+    KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing"])
+    for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
+        if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
+            continue
+
+        if PY2:
+            KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
+            if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES_PY2):
+                continue
+            # Store a reference to deleted modules to avoid them being garbage
+            # collected
+            _unloaded_modules.append(sys.modules[m])
+
+        del sys.modules[m]
+
+    # TODO: The better strategy is to identify the core modues in LOADED_MODULES
+    # that should not be unloaded, and then unload as much as possible.
+    UNLOAD_MODULES = frozenset(["time"])
+    for u in UNLOAD_MODULES:
+        for m in list(sys.modules):
+            if m == u or m.startswith(u + "."):
+                del sys.modules[m]
+
+
 try:
     from ddtrace import tracer
 
@@ -180,13 +139,6 @@ try:
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
-    if asbool(os.getenv("DD_IAST_ENABLED", False)):
-        from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-        from ddtrace.appsec.iast._loader import _exec_iast_patched_module
-        from ddtrace.internal.module import ModuleWatchdog
-
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
-
     opts = {}  # type: Dict[str, Any]
 
     dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
@@ -202,19 +154,18 @@ try:
     if not opts:
         tracer.configure(**opts)
 
-    # We need to clean up after we have imported everything we need from
-    # ddtrace, but before we register the patch-on-import hooks for the
-    # integrations. This is because registering a hook for a module
-    # that is already imported causes the module to be patched immediately.
-    # So if we unload the module after registering hooks, we effectively
-    # remove the patching, thus breaking the tracer integration.
-    if will_run_module_cloning:
-        cleanup_loaded_modules()
     if trace_enabled:
         update_patched_modules()
         from ddtrace import patch_all
 
+        # We need to clean up after we have imported everything we need from
+        # ddtrace, but before we register the patch-on-import hooks for the
+        # integrations.
+        cleanup_loaded_modules()
+
         patch_all(**EXTRA_PATCHED_MODULES)
+    else:
+        cleanup_loaded_modules()
 
     # Only the import of the original sitecustomize.py is allowed after this
     # point.

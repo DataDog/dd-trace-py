@@ -164,9 +164,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         server_process.wait()
 
 
-SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE = _gunicorn_settings_factory(
-    worker_class="gevent", enable_module_cloning=True
-)
+SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE = _gunicorn_settings_factory(worker_class="gevent", enable_module_cloning=True)
 SETTINGS_GEVENT_DDTRACERUN = _gunicorn_settings_factory(
     worker_class="gevent",
 )
@@ -184,7 +182,7 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
 )
 
 
-@pytest.mark.skipif(sys.version_info > (3, 10), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [

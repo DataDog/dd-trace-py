@@ -289,7 +289,9 @@ def test_double_fork():
 
 
 @pytest.mark.subprocess(
-    out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"), err=None
+    out=("TCTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "TCCCTTT"),
+    err=None,
+    ddtrace_run=True,
 )
 def test_gevent_gunicorn_behaviour():
     # emulate how sitecustomize.py cleans up imported modules
@@ -298,35 +300,15 @@ def test_gevent_gunicorn_behaviour():
 
     import sys
 
-    LOADED_MODULES = frozenset(sys.modules.keys())
+    assert "gevent" not in sys.modules
+
+    assert "ddtrace.internal" in sys.modules
+    assert "ddtrace.internal.periodic" in sys.modules
 
     import atexit
-    import os
 
     from ddtrace.internal import forksafe
-    from ddtrace.internal.compat import PY2  # noqa
     from ddtrace.internal.periodic import PeriodicService
-
-    if PY2:
-        _unloaded_modules = []
-
-    def cleanup_loaded_modules():
-        # Unload all the modules that we have imported, expect for the ddtrace one.
-        for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
-            if m.startswith("atexit"):
-                continue
-            if m.startswith("typing"):  # reguired by Python < 3.7
-                continue
-            if m.startswith("ddtrace"):
-                continue
-
-            if PY2:
-                if "encodings" in m:
-                    continue
-                # Store a reference to deleted modules to avoid them being garbage
-                # collected
-                _unloaded_modules.append(sys.modules[m])
-            del sys.modules[m]
 
     class TestService(PeriodicService):
         def __init__(self):
@@ -334,6 +316,7 @@ def test_gevent_gunicorn_behaviour():
 
         def periodic(self):
             sys.stdout.write("T")
+            self.stop()
 
     service = TestService()
     service.start()
@@ -341,14 +324,12 @@ def test_gevent_gunicorn_behaviour():
 
     def restart_service():
         global service
-
         service.stop()
         service = TestService()
         service.start()
 
     forksafe.register(restart_service)
-
-    cleanup_loaded_modules()
+    atexit.register(lambda: service.join(1))
 
     # ---- Application code ----
 
