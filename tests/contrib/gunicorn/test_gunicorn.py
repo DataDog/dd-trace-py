@@ -54,9 +54,6 @@ def parse_payload(data):
 
 
 def assert_remoteconfig_started_successfully(response):
-    # ddtrace and gunicorn don't play nicely under python 3.5 or 3.11
-    if sys.version_info[1] in (5, 11):
-        return
     assert response.status_code == 200
     payload = parse_payload(response.content)
     assert payload["remoteconfig"]["worker_alive"] is True
@@ -149,7 +146,9 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
     try:
         client = Client("http://%s" % gunicorn_server_settings.bind)
         try:
+            print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
+            print("Server started")
         except tenacity.RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         # wait for services to wake up and decide whether to self-destruct due to PeriodicThread._is_proper_class
@@ -196,7 +195,7 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
         server_process, client = context
         r = client.get("/")
     assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r, gunicorn_server_settings.env["DD_GEVENT_PATCH_ALL"] == "True")
+    assert_remoteconfig_started_successfully(r)
 
 
 @pytest.mark.parametrize(

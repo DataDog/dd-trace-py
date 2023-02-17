@@ -40,15 +40,14 @@ def aggressive_shutdown():
 def simple_app(environ, start_response):
     if environ["RAW_URI"] == "/shutdown":
         aggressive_shutdown()
-        data = bytes("goodbye", encoding="utf-8")
+        data = b"goodbye"
     else:
         payload = {
             "remoteconfig": {
                 "worker_alive": hasattr(RemoteConfig._worker, "_worker") and RemoteConfig._worker._worker.is_alive(),
             },
         }
-        json_payload = json.dumps(payload)
-        data = bytes(json_payload, encoding="utf-8")
+        data = json.dumps(payload).encode("utf-8")
 
     start_response("200 OK", [("Content-Type", "text/plain"), ("Content-Length", str(len(data)))])
     return iter([data])
