@@ -90,6 +90,7 @@ def override_global_config(values):
         "retrieve_client_ip",
         "report_hostname",
         "health_metrics_enabled",
+        "telemetry_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",

@@ -26,7 +26,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
 
     def test_flask_path_params_attack(self):
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        with override_global_config(dict(_appsec_enabled=True, telemetry_metrics_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+        ):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/", headers={"Via": _BLOCKED_IP})
             assert resp.status_code == 403
@@ -40,7 +42,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         )
 
     def test_flask_request_body_urlencoded_attack(self):
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_appsec_enabled=True, telemetry_metrics_enabled=True)):
             self._aux_appsec_prepare_tracer()
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
