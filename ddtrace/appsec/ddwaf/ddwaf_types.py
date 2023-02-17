@@ -368,9 +368,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 def py_ddwaf_required_addresses(handle):
     # type: (ctypes.c_void_p) -> list[unicode]
     size = ctypes.c_uint32()
-    print(handle)
     obj = ddwaf_required_addresses(handle, ctypes.byref(size))
-    print(size.value)
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 

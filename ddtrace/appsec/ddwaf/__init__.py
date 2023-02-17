@@ -115,7 +115,7 @@ if _DDWAF_LOADED:
                 LOGGER.error("DDWAF.update_rules: invalid rules")
                 return True
             else:
-                LOGGER.debug("DDWAF.update_rules success.\ninfo %s %s", self.info, rules)
+                LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
                 self._handle = result
                 return False
 
@@ -158,7 +158,6 @@ if _DDWAF_LOADED:
     def version():
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
