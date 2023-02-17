@@ -24,6 +24,13 @@ from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
+if config.logs_injection:
+    # immediately patch logging if trace id injected
+    from ddtrace import patch
+
+    patch(logging=True)
+
+
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
 # change the formatter since it applies the formatter to the root handler only
 # upon initializing it the first time.
@@ -96,8 +103,8 @@ def cleanup_loaded_modules():
     if not asbool(do_clean_up):
         return
 
-    # Unload all the modules that we have imported, expect for the ddtrace one.
-    KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing"])
+    # Unload all the modules that we have imported, except for the ddtrace one.
+    KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing", "logging"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
