@@ -6,14 +6,7 @@ from os import environ
 from os import getpid
 import sys
 from threading import RLock
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import TypeVar
-from typing import Union
+from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
@@ -49,6 +42,8 @@ from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
+from .internal.serverless import has_aws_lambda_agent_extension
+from .internal.serverless import in_aws_lambda
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
@@ -61,6 +56,19 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+    from typing import Set
+    from typing import Union
+    from typing import Tuple
+
+from typing import Callable
+from typing import TypeVar
 
 
 log = get_logger(__name__)
@@ -92,6 +100,28 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _start_appsec_processor():
+    # type: () -> Optional[Any]
+    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
+    try:
+        from .appsec.processor import AppSecSpanProcessor
+
+        return AppSecSpanProcessor()
+    except Exception as e:
+        # DDAS-001-01
+        log.error(
+            "[DDAS-001-01] "
+            "AppSec could not start because of an unexpected error. No security activities will "
+            "be collected. "
+            "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
+            "\n%s",
+            repr(e),
+        )
+        if config._raise:
+            raise
+    return None
+
+
 def _default_span_processors_factory(
     trace_filters,  # type: List[TraceFilter]
     trace_writer,  # type: TraceWriter
@@ -104,7 +134,8 @@ def _default_span_processors_factory(
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
-    # type: (...) -> List[SpanProcessor]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[Any]]
+    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
@@ -115,21 +146,11 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
-        try:
-            from .appsec.processor import AppSecSpanProcessor
-
-            appsec_span_processor = AppSecSpanProcessor()
-            span_processors.append(appsec_span_processor)
-        except Exception as e:
-            # DDAS-001-01
-            log.error(
-                "[DDAS-001-01] "
-                "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                repr(e),
-            )
-            if config._raise:
-                raise
+        appsec_processor = _start_appsec_processor()
+        if appsec_processor:
+            span_processors.append(appsec_processor)
+    else:
+        appsec_processor = None
 
     if iast_enabled:
         from .appsec.iast.processor import AppSecIastSpanProcessor
@@ -160,7 +181,7 @@ def _default_span_processors_factory(
             writer=trace_writer,
         )
     )
-    return span_processors
+    return span_processors, appsec_processor
 
 
 class Tracer(object):
@@ -228,11 +249,11 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = config._appsec_enabled
+        # Direct link to the appsec processor
+        self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
-
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-
-        self._span_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
@@ -469,7 +490,7 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._span_processors = _default_span_processors_factory(
+            self._span_processors, self._appsec_processor = _default_span_processors_factory(
                 self._filters,
                 self._writer,
                 self._partial_flush_enabled,
@@ -515,7 +536,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._span_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
@@ -1012,11 +1033,11 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        elif _in_aws_lambda() and _has_aws_lambda_agent_extension():
+        elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
         else:
-            return _in_aws_lambda()
+            return in_aws_lambda()
 
     @staticmethod
     def _use_sync_mode():
@@ -1030,25 +1051,8 @@ class Tracer(object):
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
         """
-        return _in_aws_lambda() and _has_aws_lambda_agent_extension()
+        return in_aws_lambda() and has_aws_lambda_agent_extension()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
-
-
-def _has_aws_lambda_agent_extension():
-    # type: () -> bool
-    """Returns whether the environment has the AWS Lambda Datadog Agent
-    extension available.
-    """
-    return os.path.exists("/opt/extensions/datadog-agent")
-
-
-def _in_aws_lambda():
-    # type: () -> bool
-    """Returns whether the environment is an AWS Lambda.
-    This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
-    variable is defined.
-    """
-    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))

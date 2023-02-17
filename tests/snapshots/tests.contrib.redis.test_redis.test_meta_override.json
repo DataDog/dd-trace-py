@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "cheese": "camembert",
       "component": "redis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
@@ -23,7 +24,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
+      "network.destination.port": 6379,
       "out.redis_db": 0,
       "process_id": 773,
       "redis.args_length": 2

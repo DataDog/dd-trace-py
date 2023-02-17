@@ -2,6 +2,8 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec import _asm_request_context
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -20,6 +22,8 @@ from six.moves.urllib.parse import quote
 import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
@@ -115,45 +119,46 @@ class _DDWSGIMiddlewareBase(object):
         # type: (Iterable, Callable) -> _TracedIterable
         trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
 
-        req_span = self.tracer.trace(
-            self._request_span_name,
-            service=trace_utils.int_service(self._pin, self._config),
-            span_type=SpanTypes.WEB,
-        )
-
-        # set component tag equal to name of integration
-        req_span.set_tag_str("component", self._config.integration_name)
-
-        self._request_span_modifier(req_span, environ)
-
-        try:
-            app_span = self.tracer.trace(self._application_span_name)
-
-            # set component tag equal to name of integration
-            app_span.set_tag_str("component", self._config.integration_name)
-
-            intercept_start_response = functools.partial(
-                self._traced_start_response, start_response, req_span, app_span
+        headers = get_request_headers(environ)
+        with _asm_request_context.asm_request_context_manager(
+            environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
+        ):
+            req_span = self.tracer.trace(
+                self._request_span_name,
+                service=trace_utils.int_service(self._pin, self._config),
+                span_type=SpanTypes.WEB,
             )
-            result = self.app(environ, intercept_start_response)
-            self._application_span_modifier(app_span, environ, result)
-            app_span.finish()
-        except BaseException:
-            req_span.set_exc_info(*sys.exc_info())
-            app_span.set_exc_info(*sys.exc_info())
-            app_span.finish()
-            req_span.finish()
-            raise
-        # start flask.response span. This span will be finished after iter(result) is closed.
-        # start_span(child_of=...) is used to ensure correct parenting.
-        resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
 
-        # set component tag equal to name of integration
-        resp_span.set_tag_str("component", self._config.integration_name)
+            req_span.set_tag_str(COMPONENT, self._config.integration_name)
 
-        self._response_span_modifier(resp_span, result)
+            self._request_span_modifier(req_span, environ)
 
-        return _TracedIterable(iter(result), resp_span, req_span)
+            try:
+                app_span = self.tracer.trace(self._application_span_name)
+
+                app_span.set_tag_str(COMPONENT, self._config.integration_name)
+
+                intercept_start_response = functools.partial(
+                    self._traced_start_response, start_response, req_span, app_span
+                )
+                result = self.app(environ, intercept_start_response)
+                self._application_span_modifier(app_span, environ, result)
+                app_span.finish()
+            except BaseException:
+                req_span.set_exc_info(*sys.exc_info())
+                app_span.set_exc_info(*sys.exc_info())
+                app_span.finish()
+                req_span.finish()
+                raise
+            # start flask.response span. This span will be finished after iter(result) is closed.
+            # start_span(child_of=...) is used to ensure correct parenting.
+            resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+
+            resp_span.set_tag_str(COMPONENT, self._config.integration_name)
+
+            self._response_span_modifier(resp_span, result)
+
+            return _TracedIterable(iter(result), resp_span, req_span)
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
@@ -162,8 +167,8 @@ class _DDWSGIMiddlewareBase(object):
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code)
         return start_response(status, environ, exc_info)
 
-    def _request_span_modifier(self, req_span, environ):
-        # type: (Span, Dict) -> None
+    def _request_span_modifier(self, req_span, environ, parsed_headers=None):
+        # type: (Span, Dict, Optional[Dict]) -> None
         """Implement to modify span attributes on the request_span"""
         pass
 
@@ -239,7 +244,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
-        request_span.set_tag_str("http.status_msg", status_msg)
+        request_span.set_tag_str(http.STATUS_MSG, status_msg)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
 
         with self.tracer.start_span(
@@ -249,16 +254,15 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             span_type=SpanTypes.WEB,
             activate=True,
         ) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", self._config.integration_name)
+            span.set_tag_str(COMPONENT, self._config.integration_name)
 
             return start_response(status, environ, exc_info)
 
-    def _request_span_modifier(self, req_span, environ):
+    def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         method = environ.get("REQUEST_METHOD")
         query_string = environ.get("QUERY_STRING")
-        request_headers = get_request_headers(environ)
+        request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
         trace_utils.set_http_meta(
             req_span, self._config, method=method, url=url, query=query_string, request_headers=request_headers
         )

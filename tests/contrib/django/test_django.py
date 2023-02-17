@@ -1605,6 +1605,7 @@ def test_django_use_handler_resource_format_env(client, test_spans):
                 "-c",
                 (
                     "from ddtrace import config, patch_all; patch_all(); "
+                    "import django; "
                     "assert config.django.use_handler_resource_format; print('Test success')"
                 ),
             ]
@@ -1623,6 +1624,7 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
                 "-c",
                 (
                     "from ddtrace import config, patch_all; patch_all(); "
+                    "import django; "
                     "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
             ]
@@ -1647,7 +1649,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
     env = os.environ.copy()
     env[env_var] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;assert ddtrace.config.django.{}".format(instrument_x),
+        "import ddtrace;import django;assert ddtrace.config.django.{}".format(instrument_x),
         env=env,
     )
 
@@ -1671,7 +1673,7 @@ def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python
     env = os.environ.copy()
     env[env_var] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;assert not ddtrace.config.django.{}".format(instrument_x),
+        "import ddtrace;import django;assert not ddtrace.config.django.{}".format(instrument_x),
         env=env,
     )
 
@@ -1702,6 +1704,7 @@ def test_django_use_legacy_resource_format_env(client, test_spans):
                 "-c",
                 (
                     "from ddtrace import config, patch_all; patch_all(); "
+                    "import django; "
                     "assert config.django.use_legacy_resource_format; print('Test success')"
                 ),
             ],

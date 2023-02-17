@@ -3,10 +3,13 @@ Some utils used by the dogtrace redis integration
 """
 from contextlib import contextmanager
 
+from ddtrace.internal.constants import COMPONENT
+
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import net
 from ...ext import redis as redisx
 from ...internal.utils.formats import stringify_cache_args
@@ -37,7 +40,8 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
     with pin.tracer.trace(
         redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
     ) as span:
-        span.set_tag_str("component", config_integration.integration_name)
+        span.set_tag_str(COMPONENT, config_integration.integration_name)
+        span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         query = stringify_cache_args(args)
         span.resource = query
@@ -62,7 +66,8 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
     ) as span:
-        span.set_tag_str("component", config_integration.integration_name)
+        span.set_tag_str(COMPONENT, config_integration.integration_name)
+        span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(redisx.RAWCMD, resource)
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))

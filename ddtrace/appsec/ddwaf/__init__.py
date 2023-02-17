@@ -74,7 +74,7 @@ if _DDWAF_LOADED:
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
             self._info = ddwaf_ruleset_info()
-            self._rules = ddwaf_object(rules)
+            self._rules = ddwaf_object.create_without_limits(rules)
             self._handle = ddwaf_init(self._rules, ctypes.byref(config), ctypes.byref(self._info))
             if not self._handle:
                 raise ValueError("DDWAF.__init__: invalid rules")
@@ -96,13 +96,15 @@ if _DDWAF_LOADED:
 
         def update_rules(self, new_rules):
             # type: (DDWafRulesType) -> int
-            rules = ddwaf_object(new_rules)
+            rules = ddwaf_object.create_without_limits(new_rules)
             result = ddwaf_update_rule_data(self._handle, rules)
+            if result < 0:
+                LOGGER.debug("Error updating ddwaf rules")
             return result
 
         def run(
             self,  # type: DDWaf
-            data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
+            data,  # type: DDWafRulesType
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
             # type: (...) -> DDWaf_result

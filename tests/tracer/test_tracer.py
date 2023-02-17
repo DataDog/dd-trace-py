@@ -35,13 +35,13 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.serverless import has_aws_lambda_agent_extension
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
-from ddtrace.tracer import _has_aws_lambda_agent_extension
-from ddtrace.tracer import _in_aws_lambda
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
@@ -940,8 +940,8 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
-        assert _in_aws_lambda()
-        assert not _has_aws_lambda_agent_extension()
+        assert in_aws_lambda()
+        assert not has_aws_lambda_agent_extension()
         tracer = Tracer()
         assert isinstance(tracer._writer, LogWriter)
         tracer.configure(enabled=True)
@@ -952,10 +952,10 @@ class EnvTracerTestCase(TracerTestCase):
         def mock_os_path_exists(path):
             return path == "/opt/extensions/datadog-agent"
 
-        assert _in_aws_lambda()
+        assert in_aws_lambda()
 
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
-            assert _has_aws_lambda_agent_extension()
+            assert has_aws_lambda_agent_extension()
 
             tracer = Tracer()
             assert isinstance(tracer._writer, AgentWriter)
@@ -1885,6 +1885,22 @@ def test_top_level(tracer):
             assert _is_top_level(child_span)
         with tracer.trace("child2", service="child-svc") as child_span2:
             assert _is_top_level(child_span2)
+
+
+def test_finish_span_with_ancestors(tracer):
+    # single span case
+    span1 = tracer.trace("span1")
+    span1.finish_with_ancestors()
+    assert span1.finished
+
+    # multi ancestor case
+    span1 = tracer.trace("span1")
+    span2 = tracer.trace("span2")
+    span3 = tracer.trace("span2")
+    span3.finish_with_ancestors()
+    assert span1.finished
+    assert span2.finished
+    assert span3.finished
 
 
 def test_ctx_api():

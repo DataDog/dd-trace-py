@@ -5,25 +5,14 @@ on:
 
 jobs:
   build-and-publish-test-image:
-    # Check build_deploy.yml for the publishing of the prod image.
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: docker/setup-buildx-action@v2
-    - name: Login to Docker
-      run: docker login -u publisher -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
-    - name: Docker Build
-      uses: docker/build-push-action@v4
-      with:
-        push: true
-        tags: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}
-        platforms: 'linux/amd64,linux/arm64/v8'
-        build-args: "DDTRACE_PYTHON_VERSION=git+https://github.com/Datadog/dd-trace-py@${{ github.sha }}"
-        context: ./lib-injection
+    uses: ./.github/workflows/build-and-publish-image.yml
+    with:
+      tags: 'ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}'
+      platforms: 'linux/amd64,linux/arm64/v8'
+      build-args: 'DDTRACE_PYTHON_VERSION=git+https://github.com/Datadog/dd-trace-py@${{ github.sha }}'
+      context: ./lib-injection
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     needs:
@@ -49,9 +38,9 @@ jobs:
     steps:
       - name: lib-injection test runner
         id: lib-injection-test-runner
-        uses: DataDog/system-tests/lib-injection/runner@main
+        uses: DataDog/system-tests/lib-injection/runner@b3ca75b6ce109a349f7390a9f111e6b3ef3c97ef
         with:
           docker-registry: ghcr.io
           docker-registry-username: ${{ github.repository_owner }}
           docker-registry-password: ${{ secrets.GITHUB_TOKEN }}
-          test-script: ./lib-injection/run-lib-injection.sh
+          test-script: ./lib-injection/run-manual-lib-injection.sh
