@@ -1,4 +1,3 @@
-from distutils.command.clean import clean as CleanCommand
 import hashlib
 import os
 import platform
@@ -7,14 +6,12 @@ import sys
 import tarfile
 import glob
 
-from pkg_resources import get_build_platform
-from setuptools import Extension
-from setuptools import find_packages
-from setuptools import setup
+from setuptools import setup, find_packages, Extension
+from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
-from setuptools.command.test import test as TestCommand
-
+from pkg_resources import get_build_platform
+from distutils.command.clean import clean as CleanCommand
 
 try:
     # ORDER MATTERS
@@ -110,9 +107,8 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import shlex
-
         import tox
+        import shlex
 
         args = self.tox_args
         if args:
