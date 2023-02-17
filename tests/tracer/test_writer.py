@@ -189,7 +189,9 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd, report_health_metrics=False)
+        writer = AgentWriter(
+            agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd, report_health_metrics=False
+        )
         writer._metrics_reset = writer_metrics_reset
         for i in range(10):
             writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
