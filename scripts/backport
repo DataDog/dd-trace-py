@@ -83,7 +83,7 @@ git fetch &>/dev/null || true
 for base_branch in "$@";
 do
   echo "Backporting ${PR_NUMBER} (sha: ${merge_commit_sha}) to ${base_branch}"
-  branch_name="test-backport-${PR_NUMBER}-to-${base_branch}"
+  branch_name="backport-${PR_NUMBER}-to-${base_branch}"
   git switch --detach "origin/${base_branch}"
   git switch -c "${branch_name}"
 
