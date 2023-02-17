@@ -211,3 +211,16 @@ jobs:
           # due to a duplicate wheel being present which will ensure that the rest
           # of the wheels will be uploaded if some are uploaded manually.
           skip_existing: true
+
+  build-and-publish-init-image:
+    needs: [upload_pypi]
+    # We have to wait for the PyPI job since the image that we publish depends on installing
+    # the package from PyPI.
+    uses: ./.github/workflows/build-and-publish-image.yml
+    with:
+      tags: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.ref_name }}
+      platforms: 'linux/amd64,linux/arm64/v8'
+      build-args: "DDTRACE_PYTHON_VERSION=${{ github.ref_name }}"
+      context: ./lib-injection
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
