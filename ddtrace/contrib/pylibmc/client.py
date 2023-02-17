@@ -10,6 +10,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
@@ -142,6 +143,7 @@ class TracedClient(ObjectProxy):
         )
 
         span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
+        span.set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
