@@ -25,7 +25,7 @@
       "process_id": 67067
     },
     "duration": 2394000,
-    "start": 16668071.8.15034000
+    "start": 1666807176715034000
   },
      {
        "name": "rq.worker.perform_job",
