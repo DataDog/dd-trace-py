@@ -72,7 +72,7 @@ launch them through:
 
 #### Running Tests in docker
 
-Docker allows you to run tests in an environment that matches CI. This is especially useful
+The dd-trace-py testrunner docker image allows you to run tests in an environment that matches CI. This is especially useful
 if you are unable to install certain test dependencies on your dev machine's bare metal.
 
 Once your docker-compose environment is running, you can use the shell script to
