@@ -45,9 +45,8 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "db.rowcount": 1,
-         "out.port": 443,
-         "sql.rows": 1
+         "db.row_count": 1,
+         "network.destination.port": 443
        },
        "duration": 3419000,
        "start": 1660069794946932000

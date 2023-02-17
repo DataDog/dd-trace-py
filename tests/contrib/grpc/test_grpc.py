@@ -91,7 +91,7 @@ class GrpcTestCase(TracerTestCase):
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("grpc.status.code") == "StatusCode.OK"
         assert span.get_tag("grpc.host") == "localhost"
-        assert span.get_tag("grpc.port") == "50531"
+        assert span.get_tag("network.destination.port") == "50531"
         assert span.get_tag("component") == "grpc"
 
     def _check_server_span(self, span, service, method_name, method_kind):
@@ -673,7 +673,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="flaky on older python versions")
-@snapshot(ignores=["meta.grpc.port"])
+@snapshot(ignores=["meta.network.destination.port"])
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""

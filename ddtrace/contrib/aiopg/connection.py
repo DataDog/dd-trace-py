@@ -51,7 +51,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = yield from method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric(db.ROWCOUNT, self.rowcount)
 
     @asyncio.coroutine
     def executemany(self, query, *args, **kwargs):

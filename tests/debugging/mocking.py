@@ -1,14 +1,15 @@
 import atexit
+from collections import Counter
 from contextlib import contextmanager
 import json
 from typing import Any
 
+from ddtrace.debugging._capture.collector import CapturedEventCollector
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
@@ -52,11 +53,16 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         self.queue = []
 
 
-class TestSnapshotCollector(SnapshotCollector):
+class TestSnapshotCollector(CapturedEventCollector):
     def __init__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
         super(TestSnapshotCollector, self).__init__(*args, **kwargs)
         self.test_queue = []
+        self.event_state_counter = Counter()
+
+    def push(self, event):
+        self.event_state_counter[event.state] += 1
+        super(TestSnapshotCollector, self).push(event)
 
     def _enqueue(self, snapshot):
         self.test_queue.append(snapshot)
@@ -81,12 +87,24 @@ class TestDebugger(Debugger):
         return self._collector.test_queue
 
     @property
+    def event_state_counter(self):
+        return self._collector.event_state_counter
+
+    @property
     def uploader(self):
         return self._uploader
 
     @property
     def probe_status_logger(self):
         return self._probe_registry.logger
+
+    def assert_no_snapshots(self):
+        assert len(self.test_queue) == 0
+
+    @contextmanager
+    def assert_single_snapshot(self):
+        assert len(self.test_queue) == 1
+        yield self.test_queue[0]
 
 
 @contextmanager
