@@ -140,7 +140,6 @@ def traced_13_execute_command(func, instance, args, kwargs):
         }
     )
     span.set_metric(redisx.ARGS_LEN, len(args))
-
     # set analytics sample rate if enabled
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
@@ -151,12 +150,9 @@ def traced_13_execute_command(func, instance, args, kwargs):
             #   - There was an error executing the future (`future.exception()`)
             #   - The future is in an invalid state
             redis_command = span.resource.split(" ")[0]
-
             future.result()
-
             if redis_command in row_returning_commands:
                 determine_row_count(redis_command=redis_command, span=span, result=future.result())
-
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except BaseException:
             span.set_exc_info(*sys.exc_info())
