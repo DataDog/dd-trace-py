@@ -1,5 +1,8 @@
 #!/bin/bash
-export ROOT_DIR=/home/ubuntu/dev/python_libdatadog
+
+SCRIPTPATH=$(readlink -f "$0")
+
+export ROOT_DIR=$(dirname $SCRIPTPATH)/libddupload
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$ROOT_DIR:$ROOT_DIR/libdatadog-x86_64-unknown-linux-gnu.v2.0/lib/
 
 export DD_PROFILING_HEAP_ENABLED=false
