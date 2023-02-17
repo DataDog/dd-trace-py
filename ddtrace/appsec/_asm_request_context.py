@@ -26,6 +26,7 @@ _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
     "datadog_early_headers_casesensitive_contextvar", default=False
 )
 _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
+_DD_EARLY_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 
 
 def reset():  # type: () -> None
@@ -87,6 +88,16 @@ def block_request():  # type: () -> Any
 
 def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
     # type: (Optional[str], Any, bool, Optional[Callable]) -> None
+def set_callback(callback):  # type: (Any) -> None
+    _DD_EARLY_WAF_CALLBACK.set(callback)
+
+
+def call_callback():  # type: () -> Any
+    return _DD_EARLY_WAF_CALLBACK.get()()
+
+
+def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False):
+    # type: (Optional[str], Any, bool) -> None
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)

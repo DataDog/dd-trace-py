@@ -299,6 +299,7 @@ def test_templates_disabled():
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.event_rules.loaded",
     ]
 )
 def test_request_ipblock_nomatch_200():
@@ -323,6 +324,9 @@ def test_request_ipblock_nomatch_200():
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.event_rules.loaded",
     ]
 )
 def test_request_ipblock_match_403():
@@ -355,6 +359,9 @@ def test_request_ipblock_match_403():
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+        "metrics._dd.appsec.event_rules.loaded",
     ]
 )
 def test_request_ipblock_match_403_json():
