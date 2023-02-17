@@ -82,6 +82,7 @@ PATCH_MODULES = {
     "dogpile_cache": True,
     "yaaredis": True,
     "asyncpg": True,
+    "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
 }
 
@@ -116,6 +117,7 @@ _MODULES_FOR_CONTRIB = {
     "mysqldb": ("MySQLdb",),
     "futures": ("concurrent.futures",),
     "vertica": ("vertica_python",),
+    "aws_lambda": ("datadog_lambda",),
 }
 
 IAST_PATCH = {
