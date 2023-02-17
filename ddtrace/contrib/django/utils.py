@@ -5,7 +5,6 @@ from typing import List
 from typing import Text
 from typing import Union
 
-import django
 from django.http import RawPostDataException
 from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
@@ -21,6 +20,8 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...appsec import _asm_request_context
+from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
@@ -289,6 +290,19 @@ def _extract_body(request):
         return req_body
 
 
+def _get_request_headers(request):
+    if DJANGO22:
+        request_headers = request.headers
+    else:
+        request_headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                request_headers[name] = value
+
+    return request_headers
+
+
 def _after_request_tags(pin, span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
@@ -351,25 +365,22 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            if DJANGO22:
-                request_headers = request.headers
-            else:
-                request_headers = {}
-                for header, value in request.META.items():
-                    name = from_wsgi_header(header)
-                    if name:
-                        request_headers[name] = value
-
             # DEV: Resolve the view and resource name at the end of the request in case
             #      urlconf changes at any point during the request
             _set_resolver_tags(pin, span, request)
+
+            request_headers = None
+            if config._appsec_enabled:
+                request_headers = _asm_request_context.get_headers()
+
+            if not request_headers:
+                # did not go through AppSecProcessor.on_span_start
+                request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
-
-            headers_case_sensitive = django.VERSION < (2, 2)
 
             trace_utils.set_http_meta(
                 span,
@@ -385,8 +396,8 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
-                peer_ip=request.META.get("REMOTE_ADDR"),
-                headers_are_case_sensitive=headers_case_sensitive,
+                peer_ip=_context.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

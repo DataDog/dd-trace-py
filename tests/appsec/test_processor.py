@@ -7,12 +7,9 @@ import pytest
 from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
-from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
-from ddtrace.appsec.processor import DEFAULT_RULES
-from ddtrace.appsec.processor import DEFAULT_WAF_TIMEOUT
 from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import USER_KEEP
@@ -360,12 +357,12 @@ def test_appsec_span_rate_limit(tracer):
 
 
 def test_ddwaf_not_raises_exception():
-    with open(DEFAULT_RULES) as rules:
+    with open(DEFAULT.RULES) as rules:
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
-            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
+            ensure_binary(DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
         )
 
 
@@ -483,7 +480,7 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.run(data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0

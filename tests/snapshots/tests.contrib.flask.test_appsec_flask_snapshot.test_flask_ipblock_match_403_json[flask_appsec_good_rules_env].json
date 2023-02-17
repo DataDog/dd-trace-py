@@ -46,6 +46,8 @@
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 4,
+      "_dd.appsec.waf.duration": 94.578,
+      "_dd.appsec.waf.duration_ext": 519.7525024414062,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
