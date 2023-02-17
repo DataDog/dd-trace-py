@@ -67,13 +67,12 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
-        rule_list = []  # type: list[Any]
-        _add_rules_to_list(features, "rules_data", "rules data", rule_list)
-        _add_rules_to_list(features, "custom_rules", "custom rules", rule_list)
-        _add_rules_to_list(features, "rules", "Datadog rules", rule_list)
-        if rule_list:
-            ruleset = {"rules": rule_list}
-            tracer._appsec_processor._update_rules(ruleset)
+        ruleset = {"rules": [], "rules_data": []}  # type: dict[str, list[Any]]
+        _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
+        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
+        _add_rules_to_list(features, "rules", "Datadog rules", ruleset["rules"])
+        if any(ruleset.values()):
+            tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
 
 
 def _appsec_1click_activation(tracer, features):
