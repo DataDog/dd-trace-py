@@ -12,14 +12,19 @@ from inspect import isfunction
 import os
 import sys
 
+from django.http import HttpResponseForbidden
+
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal import _context
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -344,25 +349,34 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    request_headers = utils._get_request_headers(request)
 
-    with pin.tracer.trace(
-        "django.request",
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
-        span_type=SpanTypes.WEB,
-    ) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    with _asm_request_context.asm_request_context_manager(
+        request.META.get("REMOTE_ADDR"), request_headers, headers_case_sensitive=django.VERSION < (2, 2)
+    ):
+        with pin.tracer.trace(
+            "django.request",
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.WEB,
+        ) as span:
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+            utils._before_request_tags(pin, span, request)
+            span._metrics[SPAN_MEASURED_KEY] = 1
 
-        response = None
-        try:
-            response = func(*args, **kwargs)
-            return response
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
+            response = None
+
+            try:
+                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                    response = HttpResponseForbidden(
+                        appsec_utils._get_blocked_template(request_headers.get("Accept")),
+                    )
+                else:
+                    response = func(*args, **kwargs)
+                return response
+            finally:
+                utils._after_request_tags(pin, span, request, response)
 
 
 @trace_utils.with_traced_module
