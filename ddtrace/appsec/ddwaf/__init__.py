@@ -103,7 +103,7 @@ if _DDWAF_LOADED:
             # type: (DDWaf) -> DDWaf_info
             errors_result = self._info.errors.struct if self._info.failed > 0 else {}
             version = self._info.version
-            version = "None" if version is None else version.decode("UTF-8")
+            version = "" if version is None else version.decode("UTF-8")
             return DDWaf_info(self._info.loaded, self._info.failed, errors_result, version)
 
         def update_rules(self, new_rules):
@@ -158,7 +158,6 @@ if _DDWAF_LOADED:
     def version():
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
