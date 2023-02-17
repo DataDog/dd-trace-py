@@ -217,7 +217,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules):
-        # type: (List[Dict[str, Any]]) -> None
+        # type: (Dict[str, Any]) -> None
         try:
             self._ddwaf.update_rules(new_rules)
         except TypeError:

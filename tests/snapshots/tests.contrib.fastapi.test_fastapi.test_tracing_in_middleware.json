@@ -27,7 +27,7 @@
       "process_id": 4144
     },
     "duration": 1034000,
-    "start": 1669131973327481000
+    "start": 1.8.131973327481000
   },
      {
        "name": "traced_middlware",
@@ -39,7 +39,7 @@
        "type": "",
        "error": 0,
        "duration": 459000,
-       "start": 1669131973327931000
+       "start": 1.8.131973327931000
      },
         {
           "name": "fastapi.serialize_response",
@@ -51,5 +51,5 @@
           "type": "",
           "error": 0,
           "duration": 24000,
-          "start": 1669131973328198000
+          "start": 1.8.131973328198000
         }]]

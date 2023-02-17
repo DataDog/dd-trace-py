@@ -51,8 +51,8 @@
          "_sampling_priority_v1": 1,
          "process_id": 67067
        },
-       "duration": 14651000,
-       "start": 1666807176614777000
+       "duration": 1.8.1000,
+       "start": 16668071.8.14777000
      },
         {
           "name": "rq.job.perform",
@@ -68,5 +68,5 @@
             "job.id": "91f2efd1-ac88-4491-a4bf-3115fbee7321"
           },
           "duration": 2188000,
-          "start": 1666807176619895000
+          "start": 16668071.8.19895000
         }]]

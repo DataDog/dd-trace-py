@@ -72,7 +72,8 @@ def _appsec_rules_data(tracer, features):
         _add_rules_to_list(features, "custom_rules", "custom rules", rule_list)
         _add_rules_to_list(features, "rules", "Datadog rules", rule_list)
         if rule_list:
-            tracer._appsec_processor._update_rules(rule_list)
+            ruleset = {"rules": rule_list}
+            tracer._appsec_processor._update_rules(ruleset)
 
 
 def _appsec_1click_activation(tracer, features):

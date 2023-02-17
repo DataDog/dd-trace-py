@@ -119,7 +119,9 @@ class ddwaf_object(ctypes.Structure):
         max_string_length=DDWAF_MAX_STRING_LENGTH,
     ):
         # type: (DDWafRulesType, int, int, int) -> None
-        if isinstance(struct, (int, long)):
+        if isinstance(struct, bool):
+            ddwaf_object_bool(self, struct)
+        elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
