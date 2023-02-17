@@ -16,6 +16,7 @@ from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
@@ -74,33 +75,17 @@ if PY2:
     _unloaded_modules = []
 
 
-if sys.version_info <= (2, 7):
-    import imp
-
-    _unloaded_modules = []
-
-    def is_installed(module_name):
-        try:
-            imp.find_module(module_name)
-        except ImportError:
-            return False
-        return True
-
-
-else:
-    import importlib
-
-    def is_installed(module_name):
-        return importlib.util.find_spec(module_name)
+def is_module_installed(module_name):
+    return find_loader(module_name) is not None
 
 
 def cleanup_loaded_modules():
-    PACKAGES_REQUIRING_CLEANUP = ("gevent",)
-    do_clean_up = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
-    if do_clean_up == "auto":
-        do_clean_up = any(is_installed(m) for m in PACKAGES_REQUIRING_CLEANUP)
+    MODULES_REQUIRING_CLEANUP = ("gevent",)
+    do_cleanup = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
+    if do_cleanup == "auto":
+        do_cleanup = any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
 
-    if not asbool(do_clean_up):
+    if not asbool(do_cleanup):
         return
 
     # Unload all the modules that we have imported, except for the ddtrace one.
