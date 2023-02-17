@@ -27,6 +27,7 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.profiling.collector import ddup
 
 from . import _asyncio
 from ._asyncio import DdtraceProfilerEventLoopPolicy
@@ -112,6 +113,8 @@ class _ProfilerInstance(service.Service):
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
@@ -177,19 +180,24 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        return [
-            http.PprofHTTPExporter(
-                service=self.service,
-                env=self.env,
-                tags=self.tags,
-                version=self.version,
-                api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            ),
-        ]
+        if self.use_libdatadog:
+          ddup.init(self.service, self.env, self.version)
+
+        if self.use_pyprof:
+            return [
+                http.PprofHTTPExporter(
+                    service=self.service,
+                    env=self.env,
+                    tags=self.tags,
+                    version=self.version,
+                    api_key=self.api_key,
+                    endpoint=endpoint,
+                    endpoint_path=endpoint_path,
+                    enable_code_provenance=self.enable_code_provenance,
+                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                )
+            ]
+        return []
 
     def __attrs_post_init__(self):
         # type: (...) -> None
@@ -211,7 +219,10 @@ class _ProfilerInstance(service.Service):
 
         self._collectors = [
             stack.StackCollector(
-                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
+                r, tracer=self.tracer,
+                endpoint_collection_enabled=self.endpoint_collection_enabled,
+                use_libdatadog=self.use_libdatadog,
+                use_pyprof=self.use_pyprof
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
@@ -223,12 +234,18 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters:
+        if exporters or self.use_libdatadog:
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
                 scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+            self._scheduler = scheduler_class(
+                recorder=r,
+                exporters=exporters,
+                before_flush=self._collectors_snapshot,
+                use_libdatadog=self.use_libdatadog,
+                use_pyprof=self.use_pyprof
+            )
 
         self.set_asyncio_event_loop_policy()
 

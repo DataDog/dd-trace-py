@@ -18,6 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import ddup
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -295,8 +296,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
-
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, use_libdatadog, use_pyprof):
     if ignore_profiler:
         # Do not use `threading.enumerate` to not mess with locking (gevent!)
         thread_id_ignore_list = {thread_id
@@ -335,8 +335,19 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if task_id in thread_id_ignore_list:
                 continue
 
-            frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
-            if nframes:
+            # Push sample information into libdatadog, if enabled
+            if use_libdatadog:
+                ddup.start_sample()
+                ddup.push_walltime(wall_time, 1)
+                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                ddup.push_taskinfo(task_id, task_name)
+
+            frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes, use_libdatadog, use_pyprof)
+
+            if use_libdatadog:
+                ddup.flush_sample()
+
+            if use_pyprof and nframes:
                 stack_events.append(
                     stack_event.StackSampleEvent(
                         thread_id=thread_id,
@@ -350,8 +361,19 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     )
                 )
 
-        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
-        if nframes:
+        if use_libdatadog:
+            ddup.start_sample()
+            ddup.push_walltime(wall_time, 1)
+            ddup.push_cputime(cpu_time, 1)
+            ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+            ddup.push_taskinfo(thread_task_id, thread_task_name)
+
+        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes, use_libdatadog, use_pyprof)
+
+        if use_libdatadog:
+            ddup.flush_sample()
+
+        if use_pyprof and nframes:
             event = stack_event.StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
@@ -369,22 +391,31 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         if exception is not None:
             exc_type, exc_traceback = exception
-            frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
-            exc_event = stack_event.StackExceptionSampleEvent(
-                thread_id=thread_id,
-                thread_name=thread_name,
-                thread_native_id=thread_native_id,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
-                nframes=nframes,
-                frames=frames,
-                sampling_period=int(interval * 1e9),
-                exc_type=exc_type,
-            )
+            if use_libdatadog:
+                ddup.start_sample()
+                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                ddup.push_taskinfo(thread_task_id, thread_task_name)
+                ddup.push_exceptioninfo(exc_type, 1)
 
-            exc_event.set_trace_info(span, collect_endpoint)
+            frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes, use_libdatadog, use_pyprof)
 
-            exc_events.append(exc_event)
+            if use_libdatadog:
+                ddup.flush_sample()
+
+            if use_pyprof and nframes:
+                exc_event = stack_event.StackExceptionSampleEvent(
+                    thread_id=thread_id,
+                    thread_name=thread_name,
+                    thread_native_id=thread_native_id,
+                    task_id=thread_task_id,
+                    task_name=thread_task_name,
+                    nframes=nframes,
+                    frames=frames,
+                    sampling_period=int(interval * 1e9),
+                    exc_type=exc_type,
+                )
+                exc_event.set_trace_info(span, collect_endpoint)
+                exc_events.append(exc_event)
 
     return stack_events, exc_events
 
@@ -448,6 +479,8 @@ class StackCollector(collector.PeriodicCollector):
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
     endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
@@ -488,7 +521,15 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = now
 
         all_events = stack_collect(
-            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links, self.endpoint_collection_enabled
+            self.ignore_profiler,
+            self._thread_time,
+            self.nframes,
+            self.interval,
+            wall_time,
+            self._thread_span_links,
+            self.endpoint_collection_enabled,
+            self.use_libdatadog,
+            self.use_pyprof
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now

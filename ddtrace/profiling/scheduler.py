@@ -8,6 +8,7 @@ from ddtrace.internal import periodic
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
+from ddtrace.profiling.collector import ddup
 
 
 LOG = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ class Scheduler(periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
     _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
@@ -39,25 +42,31 @@ class Scheduler(periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        if self.use_libdatadog:
+            ddup.upload()
+
+        if not self.use_pyprof:
+            # If we're not using the Python profiler, then stop now
+            return
+
         if self.before_flush is not None:
             try:
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
-        if self.exporters:
-            events = self.recorder.reset()
-            start = self._last_export
-            self._last_export = compat.time_ns()
-            for exp in self.exporters:
-                try:
-                    exp.export(events, start, self._last_export)
-                except exporter.ExportError as e:
-                    LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
-                except Exception:
-                    LOG.exception(
-                        "Unexpected error while exporting events. "
-                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
-                    )
+        events = self.recorder.reset()
+        start = self._last_export
+        self._last_export = compat.time_ns()
+        for exp in self.exporters:
+            try:
+                exp.export(events, start, self._last_export)
+            except exporter.ExportError as e:
+                LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+            except Exception:
+                LOG.exception(
+                    "Unexpected error while exporting events. "
+                    "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                )
 
     def periodic(self):
         start_time = compat.monotonic()
