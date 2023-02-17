@@ -256,10 +256,11 @@ class TelemetryMetricsWriter(TelemetryBase):
         """
         Queues metric
         """
-        with self._lock:
-            self._namespace._add_metric(
-                metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
-            )
+        if config.telemetry_metrics_enabled:
+            with self._lock:
+                self._namespace._add_metric(
+                    metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
+                )
 
     def periodic(self):
         namespace_metrics = self._flush_namespace_metrics()
