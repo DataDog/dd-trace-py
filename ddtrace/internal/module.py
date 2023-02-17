@@ -14,6 +14,8 @@ from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import Tuple
+from typing import Type
 from typing import Union
 from typing import cast
 
@@ -25,6 +27,8 @@ from ddtrace.internal.utils import get_argument_value
 log = get_logger(__name__)
 
 ModuleHookType = Callable[[ModuleType], None]
+PreExecHookType = Callable[[Any, ModuleType], None]
+PreExecHookCond = Union[str, Callable[[str], bool]]
 
 
 _run_code = None
@@ -189,7 +193,28 @@ class _ImportHookChainedLoader(Loader):
         return self.loader.create_module(spec)
 
     def _exec_module(self, module):
-        self.loader.exec_module(module)
+        # Collect and run only the first hook that matches the module.
+        pre_exec_hook = None
+
+        for _ in sys.meta_path:
+            if isinstance(_, ModuleWatchdog):
+                try:
+                    for cond, hook in _._pre_exec_module_hooks:
+                        if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
+                            # Several pre-exec hooks could match, we keep the first one
+                            pre_exec_hook = hook
+                            break
+                except Exception:
+                    log.debug("Exception happened while processing pre_exec_module_hooks", exc_info=True)
+
+            if pre_exec_hook is not None:
+                break
+
+        if pre_exec_hook:
+            pre_exec_hook(self, module)
+        else:
+            self.loader.exec_module(module)
+
         for callback in self.callbacks.values():
             callback(module)
 
@@ -214,6 +239,7 @@ class ModuleWatchdog(dict):
         self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
+        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
     def __getitem__(self, item):
         # type: (str) -> ModuleType
@@ -341,7 +367,7 @@ class ModuleWatchdog(dict):
         return self._modules.__iter__()
 
     def find_module(self, fullname, path=None):
-        # type: (str, Optional[str]) -> Union[ModuleWatchdog, _ImportHookChainedLoader, None]
+        # type: (str, Optional[str]) -> Union[Loader, None]
         if fullname in self._finding:
             return None
 
@@ -493,6 +519,22 @@ class ModuleWatchdog(dict):
                     del instance._hook_map[module]
         except ValueError:
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
+
+    @classmethod
+    def register_pre_exec_module_hook(cls, cond, hook):
+        # type: (Type[ModuleWatchdog], PreExecHookCond, PreExecHookType) -> None
+        """Register a hook to execute before/instead of exec_module.
+
+        The pre exec_module hook is executed before the module is executed
+        to allow for changed modules to be executed as needed. To ensure
+        that the hook is applied only to the modules that are required,
+        the condition is evaluated against the module name.
+        """
+        cls._check_installed()
+
+        log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
+        instance = cast(ModuleWatchdog, cls._instance)
+        instance._pre_exec_module_hooks.append((cond, hook))
 
     @classmethod
     def _check_installed(cls):
