@@ -170,6 +170,21 @@ class FunctionDefFinder(ast.NodeVisitor):
             return t
 
 
+def is_stream_ok(stream, expected):
+    if expected is None:
+        return True
+
+    if isinstance(expected, str):
+        ex = expected.encode("utf-8")
+    elif isinstance(expected, bytes):
+        ex = expected
+    else:
+        # Assume it's a callable condition
+        return expected(stream.decode("utf-8"))
+
+    return stream == ex
+
+
 def run_function_from_file(item, params=None):
     file, _, func = item.location
     marker = item.get_closest_marker("subprocess")
@@ -192,14 +207,8 @@ def run_function_from_file(item, params=None):
         env.update(params)
 
     expected_status = marker.kwargs.get("status", 0)
-
     expected_out = marker.kwargs.get("out", "")
-    if expected_out is not None:
-        expected_out = expected_out.encode("utf-8")
-
     expected_err = marker.kwargs.get("err", "")
-    if expected_err is not None:
-        expected_err = expected_err.encode("utf-8")
 
     with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
@@ -226,13 +235,11 @@ def run_function_from_file(item, params=None):
                     "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                     % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
                 )
-            elif expected_out is not None and out != expected_out:
-                raise AssertionError(
-                    "STDOUT ERROR\n"
-                    "STDOUT: Expected [%s] got [%s]\n"
-                    "STDERR: Expected [%s] got [%s]" % (expected_out, out, expected_err, err)
-                )
-            elif expected_err is not None and err != expected_err:
+
+            if not is_stream_ok(out, expected_out):
+                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+
+            if not is_stream_ok(err, expected_err):
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
         return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))
