@@ -86,8 +86,6 @@ def block_request():  # type: () -> Any
     log.debug("Block request called but block callable not set by framework")
 
 
-def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
-    # type: (Optional[str], Any, bool, Optional[Callable]) -> None
 def set_callback(callback):  # type: (Any) -> None
     _DD_EARLY_WAF_CALLBACK.set(callback)
 
@@ -96,8 +94,8 @@ def call_callback():  # type: () -> Any
     return _DD_EARLY_WAF_CALLBACK.get()()
 
 
-def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False):
-    # type: (Optional[str], Any, bool) -> None
+def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
+    # type: (Optional[str], Any, bool, Callable) -> None
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
