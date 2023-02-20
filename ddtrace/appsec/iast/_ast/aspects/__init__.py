@@ -2,9 +2,9 @@
 
 from builtins import str as builtin_str
 
-from ddtrace.appsec.iast._taint_tracking import add_taint_pyobject
-from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+from ddtrace.appsec.iast._taint_tracking import add_taint_pyobject  # type: ignore[attr-defined]
+from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
 from ddtrace.appsec.iast.input_info import Input_info
 
 

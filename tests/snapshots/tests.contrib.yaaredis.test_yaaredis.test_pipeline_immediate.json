@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "yaaredis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
@@ -43,6 +44,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "yaaredis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",

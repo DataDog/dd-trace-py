@@ -4,6 +4,7 @@ import platform
 import shutil
 import sys
 import tarfile
+import glob
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
@@ -295,10 +296,13 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             Extension(
                 "ddtrace.appsec.iast._taint_tracking",
                 # Sort source files for reproducibility
-                sources=[
-                    "ddtrace/appsec/iast/_taint_tracking.cpp",
-                ],
-                extra_compile_args=debug_compile_args + ["-g", "-std=c++17"],
+                sources=sorted(
+                    glob.glob(
+                        os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                        recursive=True,
+                    )
+                ),
+                extra_compile_args=debug_compile_args + ["-std=c++17"],
             )
         )
 else:
