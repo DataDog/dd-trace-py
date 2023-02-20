@@ -282,7 +282,6 @@ def pytest_runtest_protocol(item):
 
 @pytest.fixture
 def mock_telemetry_metrics_writer():
-    telemetry_metrics_writer._flush_namespace_metrics()
     metrics_result = telemetry_metrics_writer._namespace._metrics_data
     assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0

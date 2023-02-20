@@ -47,14 +47,16 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
     with override_global_config(dict(_appsec_enabled=False, telemetry_metrics_enabled=True)):
+        tracer.configure(api_version="v0.4", appsec_enabled=False)
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
                 Config(),
             )
-        metrics_data = mock_telemetry_metrics_writer._namespace._metrics_data
-        assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
-        assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    metrics_data = mock_telemetry_metrics_writer._namespace._metrics_data
+    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
 
 
 def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
@@ -65,8 +67,8 @@ def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
                 span,
                 Config(),
             )
-        _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
-        _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
+    _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
+    _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
 
 
 def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
