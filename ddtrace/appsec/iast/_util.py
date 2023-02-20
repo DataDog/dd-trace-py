@@ -20,10 +20,3 @@ def _is_iast_enabled():
         return False
 
     return True
-
-
-def get_tainted_ranges(obj):
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges as gtr
-
-    result = gtr(obj)
-    return result
