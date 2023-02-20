@@ -67,7 +67,7 @@ def set_waf_callback(callback):  # type: (Any) -> None
     _DD__WAF_CALLBACK.set(callback)
 
 
-def call_waf_callback():  # type: () -> Any
+def call_waf_callback():  # type: () -> None
     if config._appsec_enabled:
         waf_callback = _DD__WAF_CALLBACK.get()
         if waf_callback:
