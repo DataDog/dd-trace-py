@@ -290,7 +290,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
-    if sys.version_info[0] >= 3:
+    if sys.version_info >= (3, 6, 0):
         ext_modules.append(
             Extension(
                 "ddtrace.appsec.iast._taint_tracking",
