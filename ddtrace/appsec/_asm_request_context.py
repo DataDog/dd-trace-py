@@ -95,7 +95,7 @@ def call_callback():  # type: () -> Any
 
 
 def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
-    # type: (Optional[str], Any, bool, Callable) -> None
+    # type: (Optional[str], Any, bool, Optional[Callable]) -> None
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
