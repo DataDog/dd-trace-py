@@ -202,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-        _asm_request_context.set_callback(lambda: self._waf_action(span._local_root or span))
+        _asm_request_context.set_waf_callback(lambda: self._waf_action(span._local_root or span))
 
         if headers is not None:
             _context.set_items(
@@ -220,7 +220,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                _asm_request_context.call_callback()
+                _asm_request_context.call_waf_callback()
 
     def _waf_action(self, span):
         # type: (Span) -> None
