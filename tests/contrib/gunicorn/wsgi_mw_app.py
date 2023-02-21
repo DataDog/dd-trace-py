@@ -23,8 +23,7 @@ tracer.configure(
     }
 )
 
-if sys.version_info < (3, 11):
-    from ddtrace.debugging import DynamicInstrumentation
+from ddtrace.debugging import DynamicInstrumentation
 
 
 def aggressive_shutdown():
