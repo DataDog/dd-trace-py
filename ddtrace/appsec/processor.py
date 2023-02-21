@@ -2,7 +2,6 @@ import errno
 import json
 import os
 import os.path
-from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 
@@ -204,8 +203,8 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
-        def waf_callable(custom_data_names=None, custom_data_values=None):
-            return self._waf_action(span._local_root or span, custom_data_names, custom_data_values)
+        def waf_callable(custom_data=None):
+            return self._waf_action(span._local_root or span, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
 
@@ -226,14 +225,10 @@ class AppSecSpanProcessor(SpanProcessor):
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 # _asm_request_context.call_callback()
-                _asm_request_context.call_waf_callback(
-                    [
-                        ("REQUEST_HTTP_IP", "http.client_ip"),
-                    ]
-                )
+                _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span, custom_data_names=None, custom_data_values=None):
-        # type: (Span, Optional[List[Tuple[str, str]]], Optional[Dict[str, Any]]) -> None
+    def _waf_action(self, span, custom_data=None):
+        # type: (Span, dict[str, Any] | None) -> None
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -253,14 +248,14 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         data = {}
-        iter_data_names = custom_data_names if custom_data_names else WAF_DATA_NAMES
+        iter_data = {key: WAF_DATA_NAMES[key] for key in custom_data} if custom_data is not None else WAF_DATA_NAMES
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
-        for key, waf_name in iter_data_names:  # type: ignore[attr-defined]
+        for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if self._is_needed(waf_name):
-                if custom_data_values:
-                    value = custom_data_values.get(key)
+                if custom_data is not None and custom_data.get(key) is not None:
+                    value = custom_data.get(key)
                 else:
                     value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
 
@@ -361,6 +356,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         # this call is only necessary for tests or frameworks that are not using blocking
-        # if span.get_tag(APPSEC.EVENT_RULE_VERSION) is None:
-        log.debug("metrics waf call")
-        self._waf_action(span)
+        if span.get_tag(APPSEC.EVENT_RULE_VERSION) is None:
+            log.debug("metrics waf call")
+            self._waf_action(span)
