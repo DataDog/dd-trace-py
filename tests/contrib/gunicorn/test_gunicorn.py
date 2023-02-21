@@ -31,15 +31,11 @@ GunicornServerSettings = NamedTuple(
         ("bind", str),
         ("use_ddtracerun", bool),
         ("import_sitecustomize_in_postworkerinit", bool),
-        ("start_service_in_hook_named", str),
     ],
 )
 
 
 IMPORT_SITECUSTOMIZE = "import ddtrace.bootstrap.sitecustomize"
-with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "post_fork.py"), "r") as f:
-    code = f.readlines()
-START_SERVICE = "    " + "    ".join(code)
 
 
 def assert_no_profiler_error(server_process):
@@ -63,7 +59,6 @@ def _gunicorn_settings_factory(
     use_ddtracerun=True,  # type: bool
     import_sitecustomize_in_postworkerinit=False,  # type: bool
     import_sitecustomize_in_app=None,  # type: Optional[bool]
-    start_service_in_hook_named="",  # type: str
     enable_module_cloning=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
@@ -85,23 +80,14 @@ def _gunicorn_settings_factory(
         bind=bind,
         use_ddtracerun=use_ddtracerun,
         import_sitecustomize_in_postworkerinit=import_sitecustomize_in_postworkerinit,
-        start_service_in_hook_named=start_service_in_hook_named,
     )
 
 
 def build_config_file(gunicorn_server_settings):
-    post_fork = START_SERVICE if gunicorn_server_settings.start_service_in_hook_named == "post_fork" else ""
-    post_worker_init = "    {sitecustomize}\n{service_start}".format(
+    post_worker_init = "    {sitecustomize}".format(
         sitecustomize=IMPORT_SITECUSTOMIZE if gunicorn_server_settings.import_sitecustomize_in_postworkerinit else "",
-        service_start=START_SERVICE
-        if gunicorn_server_settings.start_service_in_hook_named == "post_worker_init"
-        else "",
     )
     cfg = """
-def post_fork(server, worker):
-    pass
-{post_fork}
-
 def post_worker_init(worker):
     pass
 {post_worker_init}
@@ -110,7 +96,6 @@ workers = {num_workers}
 worker_class = "{worker_class}"
 bind = "{bind}"
 """.format(
-        post_fork=post_fork,
         post_worker_init=post_worker_init,
         bind=gunicorn_server_settings.bind,
         num_workers=gunicorn_server_settings.num_workers,
@@ -162,17 +147,15 @@ SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE = _gunicorn_settings_factory(worker_clas
 SETTINGS_GEVENT_DDTRACERUN = _gunicorn_settings_factory(
     worker_class="gevent",
 )
-SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_APPIMPORT = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_app=True,
-    start_service_in_hook_named="post_worker_init",
 )
-SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
+SETTINGS_GEVENT_POSTWORKERIMPORT = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_sitecustomize_in_postworkerinit=True,
-    start_service_in_hook_named="post_worker_init",
 )
 
 
@@ -180,8 +163,8 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
 @pytest.mark.parametrize(
     "gunicorn_server_settings",
     [
-        SETTINGS_GEVENT_APPIMPORT_POSTWORKERSERVICE,
-        SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE,
+        SETTINGS_GEVENT_APPIMPORT,
+        SETTINGS_GEVENT_POSTWORKERIMPORT,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
     ],
 )
