@@ -165,7 +165,7 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 154
+            assert event.frames[2][1] == 152
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
