@@ -184,7 +184,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules):
-        # type: (List[Dict[str, Any]]) -> None
+        # type: (Dict[str, Any]) -> None
         try:
             self._ddwaf.update_rules(new_rules)
         except TypeError:
@@ -230,7 +230,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    log.debug("[action] WAF got value %s %s", SPAN_DATA_NAMES[key], value)
+                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES[key])
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
         log.debug("[DDAS-001-00] Executing ASM In-App WAF")
