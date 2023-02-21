@@ -131,6 +131,13 @@ try:
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
+    if asbool(os.getenv("DD_IAST_ENABLED", False)):
+        from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
+        from ddtrace.appsec.iast._loader import _exec_iast_patched_module
+        from ddtrace.internal.module import ModuleWatchdog
+
+        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+
     opts = {}  # type: Dict[str, Any]
 
     dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
