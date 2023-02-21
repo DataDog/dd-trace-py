@@ -578,7 +578,9 @@ def request_tracer(name):
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, request.headers, span))
+            _asm_request_context.set_block_request_callable(
+                functools.partial(_block_request_callable, request.headers, span)
+            )
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
