@@ -224,4 +224,5 @@ def weak_hash_view(request):
 
 
 def block_callable_view(request):
-    return _asm_request_context.block_request()
+    _asm_request_context.block_request()
+    return HttpResponse("OK", status=200)

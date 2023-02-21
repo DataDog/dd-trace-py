@@ -552,7 +552,7 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(headers):
     ctype = headers.get("Accept") or "text/jsom"
-    return abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
+    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
 def request_tracer(name):
@@ -582,7 +582,7 @@ def request_tracer(name):
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
             if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
-                _block_request_callable(request.headers)
+                _asm_request_context.block_request()
             return wrapped(*args, **kwargs)
 
     return _traced_request

@@ -6,13 +6,13 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
@@ -335,10 +335,12 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _block_request_callable(headers):
-    return HttpResponseForbidden(
-        appsec_utils._get_blocked_template(headers.get("Accept")),
-    )
+class DDRequestBlockedException(PermissionDenied):
+    pass
+
+
+def _block_request_callable():
+    raise PermissionDenied()
 
 
 @trace_utils.with_traced_module
@@ -362,7 +364,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         request.META.get("REMOTE_ADDR"),
         request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
-        block_request_callable=functools.partial(_block_request_callable, request_headers),
+        block_request_callable=_block_request_callable,
     ):
         with pin.tracer.trace(
             "django.request",
@@ -379,9 +381,14 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             try:
                 if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
-                    response = _block_request_callable(request_headers)
+                    response = HttpResponseForbidden(
+                        appsec_utils._get_blocked_template(request_headers.get("Accept")),
+                    )
                 else:
                     response = func(*args, **kwargs)
+                    if isinstance(response, HttpResponseForbidden):
+                        # Add our custom block template
+                        response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
                 return response
             finally:
                 utils._after_request_tags(pin, span, request, response)
