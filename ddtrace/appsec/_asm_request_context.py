@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
 
+
 if TYPE_CHECKING:
     from typing import Any
     from typing import Callable
