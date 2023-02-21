@@ -82,6 +82,12 @@ class TestDebugger(Debugger):
         # type: (Probe) -> None
         self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
 
+    @classmethod
+    def disable(cls):
+        if cls._instance is not None:
+            cls._instance._function_store.restore_all()
+        super(TestDebugger, cls).disable(join=True)
+
     @property
     def test_queue(self):
         return self._collector.test_queue

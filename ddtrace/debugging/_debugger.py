@@ -189,8 +189,10 @@ class Debugger(Service):
 
         log.debug("%s enabled", cls.__name__)
 
+    # DEV: Joining in short-lived processes can cause latency spikes (e.g.
+    # gevent workers). We avoid joining by default in all cases.
     @classmethod
-    def disable(cls, join=True):
+    def disable(cls, join=False):
         # type: (bool) -> None
         """Disable dynamic instrumentation.
 
@@ -634,7 +636,9 @@ class Debugger(Service):
 
     def _stop_service(self, join=True):
         # type: (bool) -> None
-        self._function_store.restore_all()
+        # DEV: Skip restoring functions as this adds overhead on process
+        # shutdown for no benefit.
+        # self._function_store.restore_all()
         for service in self._services:
             service.stop()
             if join:
