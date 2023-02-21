@@ -449,7 +449,7 @@ jobs:
 
   uwsgi-testsuite-2_0_21:
     name: uwsgi 2.0.21
-    runs-on: "ubuntu-18.04"
+    runs-on: "ubuntu-latest"
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
