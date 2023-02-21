@@ -51,6 +51,13 @@ if not debug_mode and call_basic_config:
 
 log = get_logger(__name__)
 
+if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+    log.warning(
+        "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. "
+        "There is no special configuration necessary to make ddtrace work with gevent."
+    )
+
+
 EXTRA_PATCHED_MODULES = {
     "bottle": True,
     "django": True,
