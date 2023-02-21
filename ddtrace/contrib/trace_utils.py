@@ -19,7 +19,6 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -608,6 +607,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     """
 
     if config._appsec_enabled:
+        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
         block_request_if_user_blocked(tracer, user_id)
 
     span = tracer.current_root_span()
