@@ -130,7 +130,7 @@ def test_iter_events_multi_thread():
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert last_call[0] == __file__
-            if thread_id == compat.main_thread.ident:
+            if thread_id == threading.main_thread().ident:
                 count_object += 1
                 assert stack[1][0] == __file__
                 assert stack[1][1] == _ALLOC_LINE_NUMBER
