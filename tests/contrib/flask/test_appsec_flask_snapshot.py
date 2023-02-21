@@ -108,6 +108,8 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type"
         "meta.http.useragent",
         "meta.error.stack",
         "metrics._dd.appsec.event_rules.loaded",
@@ -133,6 +135,8 @@ def test_flask_ipblock_match_403(flask_client):
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type"
         "meta.http.useragent",
         "meta.error.stack",
         "metrics._dd.appsec.event_rules.loaded",
