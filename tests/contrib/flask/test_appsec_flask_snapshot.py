@@ -157,7 +157,6 @@ def test_flask_ipblock_match_403_json(flask_client):
         assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
 
 
-# JJJ generate for other versions!
 @pytest.mark.snapshot(
     ignores=[
         "meta._dd.appsec.waf.duration",
