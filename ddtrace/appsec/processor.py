@@ -216,25 +216,27 @@ class AppSecSpanProcessor(SpanProcessor):
                             float(ddwaf_info.loaded),
                             tags=tags,
                         )
-            for ddwaf_result in list_results:
+            if list_results:
                 # runtime is the result in microseconds. Update to milliseconds
+                ddwaf_result_runtime = sum(float(ddwaf_result.runtime) for ddwaf_result in list_results)
+                ddwaf_result_total_runtime = sum(float(ddwaf_result.runtime) for ddwaf_result in list_results)
                 telemetry_metrics_writer.add_distribution_metric(
                     TELEMETRY_NAMESPACE_TAG_APPSEC,
                     "waf.duration",
-                    float(ddwaf_result.runtime / 1e3),
+                    float(ddwaf_result_runtime / 1e3),
                     tags=tags,
                 )
                 telemetry_metrics_writer.add_distribution_metric(
                     TELEMETRY_NAMESPACE_TAG_APPSEC,
                     "waf.duration_ext",
-                    float(ddwaf_result.total_runtime / 1e3),
+                    float(ddwaf_result_total_runtime / 1e3),
                     tags=tags,
                 )
 
             telemetry_metrics_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
                 "waf.requests",
-                float(1.0),
+                1.0,
                 tags=tags,
             )
             # TODO: add log metric to report info.failed and info.errors
