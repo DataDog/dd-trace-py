@@ -1,10 +1,18 @@
 import contextlib
-from typing import Any
-from typing import Generator
-from typing import Optional
+from typing import TYPE_CHECKING
 
+from ddtrace import config
+from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import contextvars
 
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Generator
+    from typing import Optional
+
+
+log = get_logger(__name__)
 
 """
 Stopgap module for providing ASM context for the blocking features wrapping some
@@ -21,7 +29,7 @@ _DD_EARLY_HEADERS_CONTEXTVAR = contextvars.ContextVar("datadog_early_headers_con
 _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
     "datadog_early_headers_casesensitive_contextvar", default=False
 )
-_DD_EARLY_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
+_DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 
 
 def reset():  # type: () -> None
@@ -59,12 +67,19 @@ def get_headers_case_sensitive():  # type: () -> bool
     return _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
 
 
-def set_callback(callback):  # type: (Any) -> None
-    _DD_EARLY_WAF_CALLBACK.set(callback)
+def set_waf_callback(callback):  # type: (Any) -> None
+    _DD_WAF_CALLBACK.set(callback)
 
 
-def call_callback():  # type: () -> Any
-    return _DD_EARLY_WAF_CALLBACK.get()()
+def call_waf_callback(custom_data=None):
+    # type: (dict[str, Any] | None) -> None
+    if not config._appsec_enabled:
+        return
+    callback = _DD_WAF_CALLBACK.get()
+    if callback:
+        return callback(custom_data)
+    else:
+        log.warning("WAF callback called but not set")
 
 
 def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False):
