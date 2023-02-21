@@ -11,7 +11,7 @@ from typing import Optional  # noqa
 import pytest
 import tenacity
 
-from ddtrace.internal.compat import stringify
+from ddtrace.internal import compat
 from tests.webclient import Client
 
 
@@ -53,12 +53,6 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def assert_remoteconfig_started_successfully(response):
-    assert response.status_code == 200
-    payload = parse_payload(response.content)
-    assert payload["remoteconfig"]["worker_alive"] is True
-
-
 def _gunicorn_settings_factory(
     env=None,  # type: Dict[str, str]
     directory=os.getcwd(),  # type: str
@@ -69,7 +63,7 @@ def _gunicorn_settings_factory(
     use_ddtracerun=True,  # type: bool
     import_sitecustomize_in_postworkerinit=False,  # type: bool
     import_sitecustomize_in_app=None,  # type: Optional[bool]
-    start_service_in_hook_named="post_fork",  # type: str
+    start_service_in_hook_named="",  # type: str
     enable_module_cloning=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
@@ -79,7 +73,8 @@ def _gunicorn_settings_factory(
     if import_sitecustomize_in_app is not None:
         env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
-    env["DD_REMOTECONFIG_POLL_SECONDS"] = str(SERVICE_INTERVAL)
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
+    env["DD_REMOTECONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     return GunicornServerSettings(
         env=env,
@@ -95,7 +90,7 @@ def _gunicorn_settings_factory(
 
 
 def build_config_file(gunicorn_server_settings):
-    post_fork = START_SERVICE if gunicorn_server_settings.start_service_in_hook_named != "post_worker_init" else ""
+    post_fork = START_SERVICE if gunicorn_server_settings.start_service_in_hook_named == "post_fork" else ""
     post_worker_init = "    {sitecustomize}\n{service_start}".format(
         sitecustomize=IMPORT_SITECUSTOMIZE if gunicorn_server_settings.import_sitecustomize_in_postworkerinit else "",
         service_start=START_SERVICE
@@ -128,7 +123,7 @@ bind = "{bind}"
 def gunicorn_server(gunicorn_server_settings, tmp_path):
     cfg_file = tmp_path / "gunicorn.conf.py"
     cfg = build_config_file(gunicorn_server_settings)
-    cfg_file.write_text(stringify(cfg))
+    cfg_file.write_text(compat.stringify(cfg))
     cmd = []
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
@@ -140,7 +135,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         env=gunicorn_server_settings.env,
         cwd=gunicorn_server_settings.directory,
         stdout=sys.stdout,
-        stderr=subprocess.PIPE,
+        stderr=sys.stderr,
         close_fds=True,
         preexec_fn=os.setsid,
     )
@@ -152,7 +147,6 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
             print("Server started")
         except tenacity.RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
-        # wait for services to wake up and decide whether to self-destruct due to PeriodicThread._is_proper_class
         time.sleep(SERVICE_INTERVAL)
         yield server_process, client
         try:
@@ -193,23 +187,8 @@ SETTINGS_GEVENT_POSTWORKERIMPORT_POSTWORKERSERVICE = _gunicorn_settings_factory(
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        r = client.get("/")
-    assert_no_profiler_error(server_process)
-    assert_remoteconfig_started_successfully(r)
-
-
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
-        SETTINGS_GEVENT_DDTRACERUN,
-    ],
-)
-def test_profiler_error_occurs_under_gevent_worker(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        server_process, client = context
-        r = client.get("/")
-    # this particular error does not manifest in 3.8 and older
-    if sys.version_info >= (3, 9):
-        assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL in server_process.stderr.read()
-    assert_remoteconfig_started_successfully(r)
+        _, client = context
+        response = client.get("/")
+    assert response.status_code == 200
+    payload = parse_payload(response.content)
+    assert payload["profiler"]["is_active"] is True

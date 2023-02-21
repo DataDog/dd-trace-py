@@ -8,8 +8,6 @@ import sys
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
-from ddtrace.debugging import DynamicInstrumentation
-from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa
 from tests.webclient import PingFilter
@@ -24,11 +22,12 @@ tracer.configure(
     }
 )
 
+SCHEDULER_SENTINEL = -1
+assert bootstrap.profiler._scheduler._last_export not in (None, SCHEDULER_SENTINEL)
+bootstrap.profiler._scheduler._last_export = SCHEDULER_SENTINEL
+
 
 def aggressive_shutdown():
-    RemoteConfig.disable()
-    if sys.version_info < (3, 11):
-        DynamicInstrumentation.disable()
     tracer.shutdown(timeout=1)
     if hasattr(bootstrap, "profiler"):
         bootstrap.profiler._scheduler.stop()
@@ -41,9 +40,7 @@ def simple_app(environ, start_response):
         data = b"goodbye"
     else:
         payload = {
-            "remoteconfig": {
-                "worker_alive": hasattr(RemoteConfig._worker, "_worker") and RemoteConfig._worker._worker.is_alive(),
-            },
+            "profiler": {"is_active": bootstrap.profiler._scheduler._last_export != SCHEDULER_SENTINEL},
         }
         data = json.dumps(payload).encode("utf-8")
 
