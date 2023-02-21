@@ -369,12 +369,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
-            _asm_request_context.set_block_request_callable(
-                functools.partial(
-                    _block_request_callable,
-                    span
-                )
-            )
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             span.set_tag_str(COMPONENT, config.django.integration_name)
 
             utils._before_request_tags(pin, span, request)
