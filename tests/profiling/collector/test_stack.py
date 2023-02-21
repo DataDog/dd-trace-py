@@ -706,9 +706,8 @@ wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
 
 events = r.events[stack_event.StackSampleEvent]
 for event in events:
-    if event.task_id == compat.main_thread.ident:
-        if event.task_name == "MainThread":
-            main_thread_found = True
+    if event.task_name == "MainThread":
+        main_thread_found = True
     elif event.task_id in {t.ident for t in threads}:
         for filename, lineno, funcname, classname in event.frames:
             if funcname in (
