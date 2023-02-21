@@ -102,7 +102,7 @@ def block_request():  # type: () -> None
 
     log.debug("Block request called but block callable not set by framework")
 
-    
+
 def call_waf_callback(custom_data=None):
     # type: (dict[str, Any] | None) -> None
     if not config._appsec_enabled:
