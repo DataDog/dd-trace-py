@@ -356,6 +356,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         # this call is only necessary for tests or frameworks that are not using blocking
-        if span.get_tag(APPSEC.EVENT_RULE_VERSION) is None:
+        if span.get_tag(APPSEC.JSON) is None:
             log.debug("metrics waf call")
             self._waf_action(span)
