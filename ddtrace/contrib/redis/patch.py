@@ -37,6 +37,12 @@ def patch():
         _w("redis", "Redis.pipeline", traced_pipeline)
         _w("redis.client", "Pipeline.execute", traced_execute_pipeline(config.redis))
         _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command(config.redis))
+        if redis.VERSION >= (4, 1):
+            # Redis v4.1 introduced support for redis clusters and rediscluster package was deprecated.
+            # https://github.com/redis/redis-py/commit/9db1eec71b443b8e7e74ff503bae651dc6edf411
+            _w("redis.cluster", "RedisCluster.execute_command", traced_execute_command(config.redis))
+            _w("redis.cluster", "RedisCluster.pipeline", traced_pipeline)
+            Pin(service=None).onto(redis.cluster.RedisCluster)
         # Avoid mypy invalid syntax errors when parsing Python 2 files
         if PY3 and redis.VERSION >= (4, 2, 0):
             from .asyncio_patch import traced_async_execute_command

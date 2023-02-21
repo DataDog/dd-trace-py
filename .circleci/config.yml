@@ -1021,7 +1021,7 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          docker_services: 'redis'
+          docker_services: 'redis rediscluster'
           pattern: 'redis$'
           snapshot: true
 

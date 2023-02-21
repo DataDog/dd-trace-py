@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import rediscluster
-
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.rediscluster.patch import patch
@@ -11,20 +9,22 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-class TestRedisPatch(TracerTestCase):
+class TestGrokzenRedisClusterPatch(TracerTestCase):
 
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
     def _get_test_client(self):
         startup_nodes = [{"host": self.TEST_HOST, "port": int(port)} for port in self.TEST_PORTS.split(",")]
+        import rediscluster
+
         if REDISCLUSTER_VERSION >= (2, 0, 0):
             return rediscluster.RedisCluster(startup_nodes=startup_nodes)
         else:
             return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super(TestGrokzenRedisClusterPatch, self).setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
@@ -33,7 +33,7 @@ class TestRedisPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super(TestGrokzenRedisClusterPatch, self).tearDown()
 
     def test_basics(self):
         us = self.r.get("cheese")

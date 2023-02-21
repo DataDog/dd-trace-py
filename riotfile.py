@@ -2078,6 +2078,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={
+                # deprecated package
                 "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest],
             },
         ),
@@ -2101,7 +2102,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    command="pytest {cmdargs} tests/contrib/redis",
+                    command="pytest {cmdargs} tests/contrib/redis -k 'not TestGrokzenRedisClusterPatch'",
                     pkgs={
                         "pytest-asyncio": latest,
                         "redis": [
