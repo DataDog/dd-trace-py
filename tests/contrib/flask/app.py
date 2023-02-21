@@ -5,6 +5,7 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 
@@ -57,3 +58,10 @@ def hello():
 def body():
     data = request.get_json()
     return data, 200
+
+
+@app.route("/checkuser/<user_id>")
+def checkuser(user_id):
+    from ddtrace import tracer
+    block_request_if_user_blocked(tracer, user_id)
+    return "Ok", 200

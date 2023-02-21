@@ -4,6 +4,7 @@ import logging
 from flask import request
 import pytest
 
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -15,6 +16,9 @@ from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
+_BLOCKED_USER = "123456"
+_ALLOWED_USER = "111111"
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
@@ -271,3 +275,27 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+
+    def test_flask_userblock_json(self):
+        @self.app.route("/checkuser/<user_id>")
+        def test_route(user_id):
+            from ddtrace import tracer
+            block_request_if_user_blocked(tracer, user_id)
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+
+            resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
+
+            resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
+            assert resp.status_code == 200

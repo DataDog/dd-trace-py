@@ -12,6 +12,8 @@ from tests.appsec.test_processor import _ALLOWED_IP
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.utils import snapshot
 from tests.webclient import Client
+from tests.contrib.django.test_django_appsec import _ALLOWED_USER
+from tests.contrib.django.test_django_appsec import _BLOCKED_USER
 
 
 SERVER_PORT = 8000
