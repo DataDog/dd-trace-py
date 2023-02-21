@@ -75,13 +75,13 @@ def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
         _DD_BLOCK_REQUEST_CALLABLE.set(_callable)
 
 
-def block_request():  # type: () -> Any
+def block_request():  # type: () -> None
     """
     Calls or returns the stored block request callable, if set.
     """
     _callable = _DD_BLOCK_REQUEST_CALLABLE.get()
     if _callable:
-        return _callable()
+        _callable()
 
     log.debug("Block request called but block callable not set by framework")
 

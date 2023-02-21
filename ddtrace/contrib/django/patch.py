@@ -13,6 +13,7 @@ from inspect import isfunction
 import os
 import sys
 
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
@@ -335,10 +336,9 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _block_request_callable(headers):
-    return HttpResponseForbidden(
-        appsec_utils._get_blocked_template(headers.get("Accept")),
-    )
+def _block_request_callable(span):
+    _context.set_item("http.request.blocked", True, span=span)
+    raise PermissionDenied()
 
 
 @trace_utils.with_traced_module
@@ -362,7 +362,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         request.META.get("REMOTE_ADDR"),
         request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
-        block_request_callable=functools.partial(_block_request_callable, request_headers),
     ):
         with pin.tracer.trace(
             "django.request",
@@ -370,6 +369,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
+            _asm_request_context.set_block_request_callable(
+                functools.partial(
+                    _block_request_callable,
+                    span
+                )
+            )
             span.set_tag_str(COMPONENT, config.django.integration_name)
 
             utils._before_request_tags(pin, span, request)
@@ -379,9 +384,14 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             try:
                 if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
-                    response = _block_request_callable(request_headers)
+                    response = HttpResponseForbidden(
+                        appsec_utils._get_blocked_template(request_headers.get("Accept")),
+                    )
                 else:
                     response = func(*args, **kwargs)
+                    if isinstance(response, HttpResponseForbidden):
+                        # Add our custom block template
+                        response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
                 return response
             finally:
                 utils._after_request_tags(pin, span, request, response)
