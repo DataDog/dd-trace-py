@@ -172,59 +172,65 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess
-def test_collect_gevent_thread_task():
-    from gevent import monkey  # noqa
+def test_collect_gevent_thread_task(ddtrace_run_python_code_in_subprocess):
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+from gevent import monkey  # noqa
 
-    monkey.patch_all()
+monkey.patch_all()
 
-    import threading
-    import time
+import sys
+import threading
+import time
 
-    import pytest
+import pytest
 
-    from ddtrace.profiling import recorder
-    from ddtrace.profiling.collector import stack
-    from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 
-    def _fib(n):
-        if n == 1:
-            return 1
-        elif n == 0:
-            return 0
-        else:
-            return _fib(n - 1) + _fib(n - 2)
-
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
-
-    # Start some (green)threads
-
-    def _dofib():
-        for _ in range(10):
-            # spend some time in CPU so the profiler can catch something
-            _fib(28)
-            # Just make sure gevent switches threads/greenlets
-            time.sleep(0)
-
-    threads = []
-    with s:
-        for i in range(10):
-            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-
-    for event in r.events[stack_event.StackSampleEvent]:
-        if event.thread_name is None and event.task_id in {thread.ident for thread in threads}:
-            assert event.task_name.startswith("TestThread ")
-            # This test is not uber-reliable as it has timing issue, therefore
-            # if we find one of our TestThread with the correct info, we're
-            # happy enough to stop here.
-            break
+def _fib(n):
+    if n == 1:
+        return 1
+    elif n == 0:
+        return 0
     else:
-        pytest.fail("No gevent thread found")
+        return _fib(n - 1) + _fib(n - 2)
+
+r = recorder.Recorder()
+s = stack.StackCollector(r)
+
+# Start some (green)threads
+
+def _dofib():
+    for _ in range(10):
+        # spend some time in CPU so the profiler can catch something
+        _fib(28)
+        # Just make sure gevent switches threads/greenlets
+        time.sleep(0)
+
+threads = []
+with s:
+    for i in range(10):
+        t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
+
+for event in r.events[stack_event.StackSampleEvent]:
+    if event.thread_name is None and event.task_id in {thread.ident for thread in threads}:
+        assert event.task_name.startswith("TestThread ")
+        # This test is not uber-reliable as it has timing issue, therefore
+        # if we find one of our TestThread with the correct info, we're
+        # happy enough to stop here.
+        break
+else:
+    sys.exit(127)
+        """
+    )
+    assert stderr == b"", stderr
+    assert status == 0, stderr
 
 
 def test_max_time_usage():
@@ -655,85 +661,90 @@ def test_thread_time_cache():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess
-def test_collect_gevent_threads():
-    import gevent.monkey
+def test_collect_gevent_threads(ddtrace_run_python_code_in_subprocess):
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import gevent.monkey
 
-    gevent.monkey.patch_all()
+gevent.monkey.patch_all()
 
-    import collections
-    import threading
-    import time
+import collections
+import threading
+import time
 
-    from ddtrace.internal import compat
-    from ddtrace.profiling import recorder
-    from ddtrace.profiling.collector import stack
-    from ddtrace.profiling.collector import stack_event
+from ddtrace.internal import compat
+from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 
-    # type: (...) -> None
-    r = recorder.Recorder()
-    s = stack.StackCollector(r, max_time_usage_pct=100)
+# type: (...) -> None
+r = recorder.Recorder()
+s = stack.StackCollector(r, max_time_usage_pct=100)
 
-    iteration = 100
-    sleep_time = 0.01
-    nb_threads = 15
+iteration = 100
+sleep_time = 0.01
+nb_threads = 15
 
-    # Start some greenthreads: they do nothing we just keep switching between them.
-    def _nothing():
-        for _ in range(iteration):
-            # Do nothing and just switch to another greenlet
-            time.sleep(sleep_time)
+# Start some greenthreads: they do nothing we just keep switching between them.
+def _nothing():
+    for _ in range(iteration):
+        # Do nothing and just switch to another greenlet
+        time.sleep(sleep_time)
 
-    threads = []
-    with s:
-        for i in range(nb_threads):
-            t = threading.Thread(target=_nothing, name="TestThread %d" % i)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+threads = []
+with s:
+    for i in range(nb_threads):
+        t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
 
-    main_thread_found = False
-    sleep_task_found = False
-    wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
+main_thread_found = False
+sleep_task_found = False
+wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
 
-    events = r.events[stack_event.StackSampleEvent]
-    for event in events:
-        if event.task_id == compat.main_thread.ident:
-            if event.task_name == "MainThread":
-                main_thread_found = True
-        elif event.task_id in {t.ident for t in threads}:
-            for filename, lineno, funcname, classname in event.frames:
-                if funcname in (
-                    "_nothing",
-                    "sleep",
-                ):
-                    # Make sure we capture the sleep call and not a gevent hub frame
-                    sleep_task_found = True
-                    break
+events = r.events[stack_event.StackSampleEvent]
+for event in events:
+    if event.task_id == compat.main_thread.ident:
+        if event.task_name == "MainThread":
+            main_thread_found = True
+    elif event.task_id in {t.ident for t in threads}:
+        for filename, lineno, funcname, classname in event.frames:
+            if funcname in (
+                "_nothing",
+                "sleep",
+            ):
+                # Make sure we capture the sleep call and not a gevent hub frame
+                sleep_task_found = True
+                break
 
-            wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
+        wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
 
-    assert main_thread_found
-    assert sleep_task_found
+assert main_thread_found
+assert sleep_task_found
 
-    # sanity check: we don't have duplicate in thread/task ids.
-    assert len(wall_time_ns_per_thread) == nb_threads
+# sanity check: we don't have duplicate in thread/task ids.
+assert len(wall_time_ns_per_thread) == nb_threads
 
-    # In theory there should be only one value in this set, but due to timing,
-    # it's possible one task has less event, so we're not checking the len() of
-    # values here.
-    values = set(wall_time_ns_per_thread.values())
+# In theory there should be only one value in this set, but due to timing,
+# it's possible one task has less event, so we're not checking the len() of
+# values here.
+values = set(wall_time_ns_per_thread.values())
 
-    # NOTE(jd): I'm disabling this check because it works 90% of the test only.
-    # There are some cases where this test is run inside the complete test suite
-    # and fails, while it works 100% of the time in its own. Check that the sum
-    # of wall time generated for each task is right. Accept a 30% margin though,
-    # don't be crazy, we're just doing 5 seconds with a lot of tasks. exact_time
-    # = iteration * sleep_time * 1e9 assert (exact_time * 0.7) <= values.pop()
-    # <= (exact_time * 1.3)
+# NOTE(jd): I'm disabling this check because it works 90% of the test only.
+# There are some cases where this test is run inside the complete test suite
+# and fails, while it works 100% of the time in its own. Check that the sum
+# of wall time generated for each task is right. Accept a 30% margin though,
+# don't be crazy, we're just doing 5 seconds with a lot of tasks. exact_time
+# = iteration * sleep_time * 1e9 assert (exact_time * 0.7) <= values.pop()
+# <= (exact_time * 1.3)
 
-    assert values.pop() > 0
+assert values.pop() > 0
+"""
+    )
+    assert status == 0, stderr
+    assert stderr == b"", stderr
 
 
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")

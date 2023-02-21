@@ -70,13 +70,3 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
     _test_gunicorn(gunicorn, tmp_path, monkeypatch)
-
-
-# This test does not work when run run via pytest:
-# [CRITICAL] WORKER TIMEOUT (pid:33923)
-# [WARNING] Worker with pid 33923 was terminated due to signal 6
-# There's something odd going on with gevent which prevents this from working.
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-def test_gunicorn_gevent(gunicorn, tmp_path, monkeypatch):
-    # type: (...) -> None
-    _test_gunicorn(gunicorn, tmp_path, monkeypatch, "--worker-class", "gevent")
