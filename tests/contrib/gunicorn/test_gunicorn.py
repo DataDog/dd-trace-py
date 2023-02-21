@@ -139,6 +139,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         cmd,
         env=gunicorn_server_settings.env,
         cwd=gunicorn_server_settings.directory,
+        stdout=sys.stdout,
         stderr=subprocess.PIPE,
         close_fds=True,
         preexec_fn=os.setsid,
@@ -194,7 +195,7 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
         server_process, client = context
         r = client.get("/")
-    # assert_no_profiler_error(server_process)
+    assert_no_profiler_error(server_process)
     assert_remoteconfig_started_successfully(r)
 
 
