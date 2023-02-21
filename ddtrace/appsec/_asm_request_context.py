@@ -14,13 +14,6 @@ if TYPE_CHECKING:
 from ddtrace.vendor import contextvars
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Callable
-    from typing import Generator
-    from typing import Optional
-
-
 log = get_logger(__name__)
 
 """
