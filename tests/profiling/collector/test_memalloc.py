@@ -5,8 +5,6 @@ import threading
 
 import pytest
 
-from ddtrace.internal import compat
-
 
 try:
     from ddtrace.profiling.collector import _memalloc
