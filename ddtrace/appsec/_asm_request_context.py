@@ -3,6 +3,14 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Callable
+    from typing import Generator
+    from typing import Optional
+
 from ddtrace.vendor import contextvars
 
 
@@ -94,7 +102,7 @@ def block_request():  # type: () -> None
 
     log.debug("Block request called but block callable not set by framework")
 
-
+    
 def call_waf_callback(custom_data=None):
     # type: (dict[str, Any] | None) -> None
     if not config._appsec_enabled:
