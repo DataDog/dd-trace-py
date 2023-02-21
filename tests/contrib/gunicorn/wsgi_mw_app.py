@@ -8,6 +8,7 @@ import sys
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from ddtrace.debugging import DynamicInstrumentation
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa
@@ -22,8 +23,6 @@ tracer.configure(
         "FILTERS": [PingFilter()],
     }
 )
-
-from ddtrace.debugging import DynamicInstrumentation
 
 
 def aggressive_shutdown():
