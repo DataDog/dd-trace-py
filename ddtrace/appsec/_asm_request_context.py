@@ -3,15 +3,11 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 
-
 if TYPE_CHECKING:
     from typing import Any
     from typing import Callable
     from typing import Generator
     from typing import Optional
-
-from ddtrace.internal.logger import get_logger
-from ddtrace.vendor import contextvars
 
 
 log = get_logger(__name__)
