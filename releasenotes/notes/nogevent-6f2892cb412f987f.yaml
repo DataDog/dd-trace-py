@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    internal: `DD_GEVENT_PATCH_ALL` is deprecated and will be removed in the next major verison. Gevent compatibility is now automatic
+    internal: `DD_GEVENT_PATCH_ALL` is deprecated and will be removed in the next major version. Gevent compatibility is now automatic
     and does not require extra configuration.
 fixes:
   - |
