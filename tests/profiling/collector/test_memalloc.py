@@ -135,7 +135,7 @@ def test_iter_events_multi_thread():
                 assert stack[1][0] == __file__
                 assert stack[1][1] == _ALLOC_LINE_NUMBER
                 assert stack[1][2] == "_allocate_1k"
-            if thread_id == t.ident:
+            elif thread_id == t.ident:
                 count_thread += 1
                 assert stack[2][0] == threading.__file__
                 assert stack[2][1] > 0
