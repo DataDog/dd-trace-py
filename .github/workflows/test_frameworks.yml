@@ -176,14 +176,9 @@ jobs:
         with:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-python-${{ env.pythonLocation }}-fastapi
-      #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
-      - name: Install Flit
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: pip install flit
-      #Installs all dependencies needed for FastAPI
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: flit install --symlink
+        run: pip install -e .[all,dev,doc,test]
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
