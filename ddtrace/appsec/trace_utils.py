@@ -1,9 +1,9 @@
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from ddtrace.internal import _context
 from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
+from ddtrace.internal import _context
 
 
 if TYPE_CHECKING:
@@ -12,7 +12,8 @@ if TYPE_CHECKING:
 
 from ddtrace import config
 from ddtrace import constants
-from ddtrace.appsec._constants import APPSEC, WAF_DATA_NAMES, WAF_CONTEXT_NAMES
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.ext import user
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
@@ -143,15 +144,14 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
     if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
         return True
 
-    _asm_request_context.call_waf_callback(custom_data={
-        "REQUEST_USER_ID": str(userid)
-    })
-    return _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
+    return bool(_context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
 
 
 def block_request():  # type: () -> None
     """
-    Block the current request and return a 403 Unauthorized response.
+    Block the current request and return a 403 Unauthorized response. If the response
+    has already been started to be sent this could not work.
     """
     if not config._appsec_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
@@ -174,4 +174,3 @@ def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> Non
 
     if should_block_user(tracer, userid):
         _asm_request_context.block_request()
-

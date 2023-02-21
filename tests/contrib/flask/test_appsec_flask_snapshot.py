@@ -16,9 +16,9 @@ from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
-from tests.webclient import Client
-from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
 from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
+from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
+from tests.webclient import Client
 
 
 DEFAULT_HEADERS = {

@@ -1,15 +1,15 @@
 from ddtrace import constants
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec.trace_utils import track_custom_event, should_block_user
+from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.ext import user
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.utils import TracerTestCase, override_global_config, override_env
+from tests.utils import TracerTestCase
+
 
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
+
 
 class EventsSDKTestCase(TracerTestCase):
     def test_track_user_login_event_success_without_metadata(self):

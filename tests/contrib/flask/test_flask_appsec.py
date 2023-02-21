@@ -20,6 +20,7 @@ from tests.utils import override_global_config
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 
+
 class FlaskAppSecTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, caplog):
@@ -280,6 +281,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         @self.app.route("/checkuser/<user_id>")
         def test_route(user_id):
             from ddtrace import tracer
+
             block_request_if_user_blocked(tracer, user_id)
             return "Ok", 200
 

@@ -441,16 +441,13 @@ _ALLOWED_USER = "111111"
 
 def test_request_userblock_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER
-        )
+        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER)
         assert result.status_code == 200
+
 
 def test_request_userblock_403(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/checkuser/%s/" % _BLOCKED_USER
-        )
+        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _BLOCKED_USER)
         assert result.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON

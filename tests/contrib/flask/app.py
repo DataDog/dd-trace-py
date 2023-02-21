@@ -63,5 +63,6 @@ def body():
 @app.route("/checkuser/<user_id>")
 def checkuser(user_id):
     from ddtrace import tracer
+
     block_request_if_user_blocked(tracer, user_id)
     return "Ok", 200
