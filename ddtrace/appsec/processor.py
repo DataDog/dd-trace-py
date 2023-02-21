@@ -248,7 +248,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         data = {}
-        iter_data = {key: WAF_DATA_NAMES[key] for key in custom_data} if custom_data is not None else WAF_DATA_NAMES
+        iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
