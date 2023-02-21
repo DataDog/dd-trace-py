@@ -4,7 +4,6 @@ gunicorn
 """
 import json
 import os
-import sys
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
