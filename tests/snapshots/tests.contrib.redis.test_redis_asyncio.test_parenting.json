@@ -66,7 +66,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "db.row_count": 0,
+         "db.row_count": 1,
          "network.destination.port": 6379,
          "out.redis_db": 0,
          "redis.args_length": 2
