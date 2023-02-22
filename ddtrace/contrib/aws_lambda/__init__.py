@@ -28,9 +28,12 @@ Configuration
 
 .. py:data:: DD_APM_FLUSH_DEADLINE_MILLISECONDS
 
-   When to flush unfinished spans in an impending timeout.
+   Time in milliseconds used to define the flush deadline for traces.
+   Example: if the remaining time in an AWS Lambda is 1000 milliseconds,
+   and the environment variable is set to 200 we would be flushing at 800 
+   milliseconds.
 
-   Default: AWS Lambda function timeout limit.
+   Default: 100
 
 
 For additional configuration refer to
