@@ -43,6 +43,7 @@ def _appsec_rc_capabilities():
     if _appsec_rc_features_is_enabled():
         value |= 1 << 1
         value |= 1 << 2
+        value |= 1 << 7
 
     if sys.version_info.major < 3:
         bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
