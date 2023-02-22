@@ -136,7 +136,7 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
     """
 
     if not config._appsec_enabled:
-        log.warning("should_block_user call requires ASM to be enabled")
+        log.warning("One click blocking of user ids is disabled. To use this feature please enable Application Security Monitoring")
         return False
 
     # Early check to avoid calling the WAF if the request is already blocked
