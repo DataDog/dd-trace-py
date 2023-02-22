@@ -369,39 +369,33 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             if config._appsec_enabled:
-                try:
-                    waf_callback = _asm_request_context.get_waf_callback()
-                except ValueError:
-                    log.debug("no context for first Django WAF call", exc_info=True)
-                    waf_callback = None
-                if waf_callback:
-                    # set context information for waf with uri, params and query
-                    query = request.META.get("QUERY_STRING", "")
-                    uri = utils.get_request_uri(request)
-                    if query:
-                        uri += "?" + query
-                    resolver = get_resolver(getattr(request, "urlconf", None))
-                    if resolver:
-                        try:
-                            path = resolver.resolve(request.path_info).kwargs
-                            log.debug("resolver.pattern %s", path)
-                        except Exception:
-                            path = None
-                    parsed_query = request.GET
-                    body = utils._extract_body(request)
-                    trace_utils.set_http_meta(
-                        span,
-                        config.django,
-                        method=request.method,
-                        query=query,
-                        raw_uri=uri,
-                        request_path_params=path,
-                        parsed_query=parsed_query,
-                        request_body=body,
-                        request_cookies=request.COOKIES,
-                    )
-                    log.debug("first Django WAF call")
-                    waf_callback()
+                # set context information for waf with uri, params and query
+                query = request.META.get("QUERY_STRING", "")
+                uri = utils.get_request_uri(request)
+                if query:
+                    uri += "?" + query
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                if resolver:
+                    try:
+                        path = resolver.resolve(request.path_info).kwargs
+                        log.debug("resolver.pattern %s", path)
+                    except Exception:
+                        path = None
+                parsed_query = request.GET
+                body = utils._extract_body(request)
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    query=query,
+                    raw_uri=uri,
+                    request_path_params=path,
+                    parsed_query=parsed_query,
+                    request_body=body,
+                    request_cookies=request.COOKIES,
+                )
+                log.debug("first Django WAF call")
+                _asm_request_context.call_waf_callback()
                 if _context.get_item("http.request.blocked", span=span):
                     return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
             try:
@@ -411,14 +405,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 utils._after_request_tags(pin, span, request, response)
                 # calling the waf again if the request was not blocked at first with additional information (response)
                 if config._appsec_enabled:
-                    try:
-                        waf_callback = _asm_request_context.get_waf_callback()
-                    except ValueError:
-                        log.debug("no context for second Django WAF call")
-                        waf_callback = None
-                    if waf_callback:
-                        log.debug("second Django WAF call")
-                        waf_callback()
+                    log.debug("second Django WAF call")
+                    _asm_request_context.call_waf_callback()
                     if _context.get_item("http.request.blocked", span=span):
                         return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
             return response
