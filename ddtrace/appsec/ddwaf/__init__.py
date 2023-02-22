@@ -91,7 +91,6 @@ if _DDWAF_LOADED:
                     self._info.loaded,
                     self.info.errors,
                 )
-                self._handle = None
 
         @property
         def required_data(self):
