@@ -6,17 +6,15 @@ import threading
 import time
 import timeit
 from types import FrameType
-import typing
+import typing  # noqa
 import uuid
 
 import pytest
 import six
 from six.moves import _thread
 
-import ddtrace
+import ddtrace  # noqa
 from ddtrace.profiling import _threading
-from ddtrace.profiling import collector
-from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
@@ -255,11 +253,57 @@ def test_no_ignore_profiler_single():
     assert thread_id in {e.thread_id for e in events}
 
 
-class CollectorTest(collector.PeriodicCollector):
-    def collect(self):
-        # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
-        _fib(22)
-        return []
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_ignore_profiler_gevent_task():
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+    import os
+    import time
+
+    from ddtrace.profiling import collector  # noqa
+    from ddtrace.profiling import event as event_mod  # noqa
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import stack_event
+
+    def _fib(n):
+        if n == 1:
+            return 1
+        elif n == 0:
+            return 0
+        else:
+            return _fib(n - 1) + _fib(n - 2)
+
+    class CollectorTest(collector.PeriodicCollector):
+        def collect(self):
+            # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
+            _fib(22)
+            return []
+
+    for ignore in (True, False):
+        os.environ["DD_PROFILING_API_TIMEOUT"] = "0.1"
+        os.environ["DD_PROFILING_IGNORE_PROFILER"] = str(ignore)
+        p = profiler.Profiler()
+        p.start()
+        # This test is particularly useful with gevent enabled: create a test collector that run often and for long
+        # we're sure to catch it with the StackProfiler and that it's not ignored.
+        c = CollectorTest(p._profiler._recorder, interval=0.00001)
+        c.start()
+
+        for _ in range(100):
+            events = p._profiler._recorder.reset()
+            ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
+            if (c._worker.ident in ids) != str(ignore):
+                break
+            # Give some time for gevent to switch greenlets
+            time.sleep(0.1)
+        else:
+            assert False, "ignore == " + ignore
+
+        c.stop()
+        p.stop(flush=False)
 
 
 def test_collect():
