@@ -246,7 +246,7 @@ else:
 
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
-    extra_compile_args = ["-std=c++17"]
+    extra_compile_args = ["/std:c++17"]
     debug_compile_args = []
 else:
     linux = CURRENT_OS == "Linux"
