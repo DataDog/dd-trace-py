@@ -140,6 +140,9 @@ if _DDWAF_LOADED:
             start = time.time()
 
             if self._ctx == 0:
+                self._ctx = ddwaf_context_init(self._handle)
+
+            if self._ctx == 0:
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
 
             result = ddwaf_result()
