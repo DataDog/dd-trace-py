@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import rediscluster
+
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.rediscluster.patch import patch
@@ -16,8 +18,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
 
     def _get_test_client(self):
         startup_nodes = [{"host": self.TEST_HOST, "port": int(port)} for port in self.TEST_PORTS.split(",")]
-        import rediscluster
-
         if REDISCLUSTER_VERSION >= (2, 0, 0):
             return rediscluster.RedisCluster(startup_nodes=startup_nodes)
         else:
