@@ -311,12 +311,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     for thread_id, thread_native_id, thread_name, thread_pyframes, exception, span, cpu_time in running_threads:
         thread_task_id, thread_task_name, thread_task_frame = _task.get_task(thread_id)
 
-        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks.
-        # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
-        # We ignore them here:
-        if thread_task_id in thread_id_ignore_list:
-            continue
-
         tasks = _task.list_tasks(thread_id)
 
         # Inject wall time for all running tasks
