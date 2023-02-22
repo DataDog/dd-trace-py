@@ -302,7 +302,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                         recursive=True,
                     )
                 ),
-                extra_compile_args=debug_compile_args + ["-std=c++17"],
+                extra_compile_args=extra_compile_args + debug_compile_args + ["-std=c++17"],
             )
         )
 else:
