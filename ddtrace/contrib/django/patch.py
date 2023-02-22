@@ -432,14 +432,14 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 # DEV: Always set these tags, this is where `span.resource` is set
                 utils._after_request_tags(pin, span, request, response)
                 # if not blocked yet, try blocking rules on response
-                # if config._appsec_enabled and not _context.get_item("http.request.blocked", span=span):
-                #     log.debug("Django WAF call for Suspicious Request Blocking on response")
-                #     _asm_request_context.call_waf_callback()
-                #     # [Suspicious Request Blocking on response]
-                #     if _context.get_item("http.request.blocked", span=span):
-                #         response = blocked_response()
-                #         utils._after_request_tags(pin, span, request, response)
-                #         return response
+                if config._appsec_enabled and not _context.get_item("http.request.blocked", span=span):
+                    log.debug("Django WAF call for Suspicious Request Blocking on response")
+                    _asm_request_context.call_waf_callback()
+                    # [Suspicious Request Blocking on response]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        utils._after_request_tags(pin, span, request, response)
+                        return response
 
 
 @trace_utils.with_traced_module

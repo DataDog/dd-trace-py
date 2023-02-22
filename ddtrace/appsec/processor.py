@@ -314,6 +314,14 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
 
+            for id_tag, kind in [
+                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
+                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
+            ]:
+                headers_req = _context.get_item(id_tag, span=span)
+                if headers_req:
+                    _set_headers(span, headers_req, kind=kind)
+
             remote_ip = _context.get_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, span=span)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
@@ -353,6 +361,7 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("metrics waf call")
             self._waf_action(span)
         self._ddwaf._at_request_end()
+        # Force to set headers at the end
         for id_tag, kind in [
             (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
             (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
