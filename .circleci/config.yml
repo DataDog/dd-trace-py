@@ -1160,10 +1160,12 @@ requires_tests: &requires_tests
     - flask
     - gevent
     - graphql
+    - graphene
     - grpc
     - gunicorn
     - httplib
     - httpx
+    - internal
     - integration_agent
     - integration_testagent
     - vendor
