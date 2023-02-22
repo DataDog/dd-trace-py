@@ -418,9 +418,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     log.debug("Django WAF call for Suspicious Request Blocking on request")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
-                    if _context.get_item("http.request.blocked", span=span):
-                        response = blocked_response()
-                        return response
+                    # if _context.get_item("http.request.blocked", span=span):
+                    #     response = blocked_response()
+                    #     return response
                 response = func(*args, **kwargs)
                 if config._appsec_enabled:
                     # [Blocking by client code]
