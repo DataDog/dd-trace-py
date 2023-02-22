@@ -298,6 +298,13 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
+        for id_tag, kind in [
+            (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
+            (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
+        ]:
+            headers_req = _context.get_item(id_tag, span=span)
+            if headers_req:
+                _set_headers(span, headers_req, kind=kind)
         if (waf_results and waf_results.data) or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
@@ -305,14 +312,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
-
-            for id_tag, kind in [
-                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
-                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
-            ]:
-                headers_req = _context.get_item(id_tag, span=span)
-                if headers_req:
-                    _set_headers(span, headers_req, kind=kind)
 
             if waf_results and waf_results.data:
                 span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))

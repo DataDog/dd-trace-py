@@ -416,7 +416,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         request_cookies=request.COOKIES,
                     )
                     log.debug("Django WAF call for Suspicious Request Blocking on request")
-                    # _asm_request_context.call_waf_callback()
+                    _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=span):
                         response = blocked_response()
