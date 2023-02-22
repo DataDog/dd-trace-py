@@ -378,13 +378,16 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             response = None
 
+            def blocked_response():
+                return HttpResponseForbidden(
+                    appsec_utils._get_blocked_template(request_headers.get("Accept")), content_type="text/plain"
+                )
+
             try:
                 if config._appsec_enabled:
                     # [IP Blocking]
                     if _context.get_item("http.request.blocked", span=span):
-                        response = HttpResponseForbidden(
-                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
-                        )
+                        response = blocked_response()
                         return response
 
                     # set context information for [Suspicious Request Blocking]
@@ -416,25 +419,19 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=span):
-                        response = HttpResponseForbidden(
-                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
-                        )
+                        response = blocked_response()
                         return response
                 response = func(*args, **kwargs)
                 if config._appsec_enabled:
                     # [Blocking by client code]
                     if _context.get_item("http.request.blocked", span=span):
-                        response = HttpResponseForbidden(
-                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
-                        )
+                        response = blocked_response()
                         return response
                     log.debug("Django WAF call for Suspicious Request Blocking on response")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on response]
                     if _context.get_item("http.request.blocked", span=span):
-                        response = HttpResponseForbidden(
-                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
-                        )
+                        response = blocked_response()
                         return response
                 return response
             finally:
