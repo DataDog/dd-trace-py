@@ -3,15 +3,17 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor import contextvars
 
 
 if TYPE_CHECKING:
     from typing import Any
+    from typing import Callable
     from typing import Generator
     from typing import List
     from typing import Optional
     from typing import Tuple
+
+from ddtrace.vendor import contextvars
 
 
 log = get_logger(__name__)
@@ -31,6 +33,7 @@ _DD_EARLY_HEADERS_CONTEXTVAR = contextvars.ContextVar("datadog_early_headers_con
 _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
     "datadog_early_headers_casesensitive_contextvar", default=False
 )
+_DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
 _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
 
@@ -39,6 +42,7 @@ def reset():  # type: () -> None
     _DD_EARLY_IP_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
+    _DD_BLOCK_REQUEST_CALLABLE.set(None)
     _DD_WAF_RESULTS.set([[], [], []])
 
 
@@ -71,6 +75,27 @@ def get_headers_case_sensitive():  # type: () -> bool
     return _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
 
 
+def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
+    """
+    Sets a callable that could be use to do a best-effort to block the request. If
+    the callable need any params, like headers, they should be curried with
+    functools.partial.
+    """
+    if _callable:
+        _DD_BLOCK_REQUEST_CALLABLE.set(_callable)
+
+
+def block_request():  # type: () -> None
+    """
+    Calls or returns the stored block request callable, if set.
+    """
+    _callable = _DD_BLOCK_REQUEST_CALLABLE.get()
+    if _callable:
+        _callable()
+
+    log.debug("Block request called but block callable not set by framework")
+
+
 def set_waf_callback(callback):  # type: (Any) -> None
     _DD_WAF_CALLBACK.set(callback)
 
@@ -86,11 +111,12 @@ def call_waf_callback(custom_data=None):
         log.warning("WAF callback called but not set")
 
 
-def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False):
-    # type: (Optional[str], Any, bool) -> None
+def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
+    # type: (Optional[str], Any, bool, Optional[Callable]) -> None
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
+    set_block_request_callable(block_request_callable)
 
 
 def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, bool) -> None
@@ -106,9 +132,11 @@ def get_waf_results():  # type: () -> Tuple[List[Any], List[Any], List[bool]]
 
 
 @contextlib.contextmanager
-def asm_request_context_manager(remote_ip=None, headers=None, headers_case_sensitive=False):
-    # type: (Optional[str], Any, bool) -> Generator[None, None, None]
-    asm_request_context_set(remote_ip, headers, headers_case_sensitive)
+def asm_request_context_manager(
+    remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None
+):
+    # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[None, None, None]
+    asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
     try:
         yield
     finally:
