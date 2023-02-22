@@ -195,7 +195,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if span.span_type != SpanTypes.WEB:
             return
-        self._ddwaf._at_request_end()
+        self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()

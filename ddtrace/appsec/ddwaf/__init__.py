@@ -140,9 +140,11 @@ if _DDWAF_LOADED:
             start = time.time()
 
             if self._ctx == 0:
+                LOGGER.warning("DDWaf failsafe to create the context")
                 self._ctx = ddwaf_context_init(self._handle)
 
             if self._ctx == 0:
+                LOGGER.error("DDWaf failure: no context created")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
 
             result = ddwaf_result()
