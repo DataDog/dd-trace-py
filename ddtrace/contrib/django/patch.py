@@ -404,19 +404,19 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                             path = None
                     parsed_query = request.GET
                     body = utils._extract_body(request)
-                    # trace_utils.set_http_meta(
-                    #     span,
-                    #     config.django,
-                    #     method=request.method,
-                    #     query=query,
-                    #     raw_uri=uri,
-                    #     request_path_params=path,
-                    #     parsed_query=parsed_query,
-                    #     request_body=body,
-                    #     request_cookies=request.COOKIES,
-                    # )
+                    trace_utils.set_http_meta(
+                        span,
+                        config.django,
+                        method=request.method,
+                        query=query,
+                        raw_uri=uri,
+                        request_path_params=path,
+                        parsed_query=parsed_query,
+                        request_body=body,
+                        request_cookies=request.COOKIES,
+                    )
                     log.debug("Django WAF call for Suspicious Request Blocking on request")
-                    _asm_request_context.call_waf_callback()
+                    # _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=span):
                         response = blocked_response()
