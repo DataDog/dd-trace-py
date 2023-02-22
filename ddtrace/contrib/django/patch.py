@@ -382,7 +382,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if config._appsec_enabled:
                     # [IP Blocking]
                     if _context.get_item("http.request.blocked", span=span):
-                        return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
+                        response = HttpResponseForbidden(
+                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                        )
+                        return response
 
                     # set context information for [Suspicious Request Blocking]
                     query = request.META.get("QUERY_STRING", "")
@@ -413,21 +416,30 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=span):
-                        return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
+                        response = HttpResponseForbidden(
+                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                        )
+                        return response
                 response = func(*args, **kwargs)
                 if config._appsec_enabled:
                     # [Blocking by client code]
                     if _context.get_item("http.request.blocked", span=span):
-                        return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
+                        response = HttpResponseForbidden(
+                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                        )
+                        return response
                     log.debug("Django WAF call for Suspicious Request Blocking on response")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on response]
                     if _context.get_item("http.request.blocked", span=span):
-                        return HttpResponseForbidden(appsec_utils._get_blocked_template(request_headers.get("Accept")))
+                        response = HttpResponseForbidden(
+                            appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                        )
+                        return response
+                return response
             finally:
                 # DEV: Always set these tags, this is where `span.resource` is set
                 utils._after_request_tags(pin, span, request, response)
-            return response
 
 
 @trace_utils.with_traced_module
