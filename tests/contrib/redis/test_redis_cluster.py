@@ -146,9 +146,7 @@ class TestRedisClusterPatch(TracerTestCase):
         span = self.get_spans()[0]
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster")
-    )
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster"))
     def test_service_precedence(self):
         self.r.get("cheese")
         span = self.get_spans()[0]
