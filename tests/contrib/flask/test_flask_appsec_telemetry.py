@@ -25,7 +25,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
-    def test_flask_path_params_attack(self):
+    def test_telemetry_metrics_block(self):
         with override_global_config(dict(_appsec_enabled=True, telemetry_metrics_enabled=True)), override_env(
             dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
         ):
@@ -41,7 +41,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
         )
 
-    def test_flask_request_body_urlencoded_attack(self):
+    def test_telemetry_metrics_attack(self):
         with override_global_config(dict(_appsec_enabled=True, telemetry_metrics_enabled=True)):
             self._aux_appsec_prepare_tracer()
             payload = urlencode({"attack": "1' or '1' = '1'"})
