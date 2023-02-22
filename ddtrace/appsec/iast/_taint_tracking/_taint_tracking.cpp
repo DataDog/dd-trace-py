@@ -14,6 +14,7 @@ PyObject *bytes_join = NULL;
 PyObject *bytearray_join = NULL;
 PyObject *empty_bytes = NULL;
 PyObject *empty_bytearray = NULL;
+PyObject *empty_unicode = NULL;
 
 std::unordered_map<PyObject *, tainted_range_list> TaintMapping{};
 
@@ -21,6 +22,7 @@ static PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args) {
   PyArg_ParseTuple(args, "OO", &bytes_join, &bytearray_join);
   empty_bytes = PyBytes_FromString("");
   empty_bytearray = PyByteArray_FromObject(empty_bytes);
+  empty_unicode = PyUnicode_New(0, 127);
   Py_RETURN_NONE;
 }
 
@@ -28,6 +30,21 @@ static PyObject *clear_taint_mapping(PyObject *Py_UNUSED(module),
                                      PyObject *Py_UNUSED(args)) {
   TaintMapping.clear();
   Py_RETURN_NONE;
+}
+
+static PyObject *new_pyobject_id(PyObject *tainted_object) {
+  if (PyUnicode_Check(tainted_object)) {
+    return PyUnicode_Join(empty_unicode,
+                          Py_BuildValue("(OO)", tainted_object, empty_unicode));
+  } else if (PyBytes_Check(tainted_object)) {
+    return PyObject_CallFunctionObjArgs(
+        bytes_join, empty_bytes,
+        Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
+  } else {
+    return PyObject_CallFunctionObjArgs(
+        bytearray_join, empty_bytearray,
+        Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
+  }
 }
 
 static PyObject *taint_pyobject(PyObject *Py_UNUSED(module), PyObject *args) {
@@ -42,20 +59,7 @@ static PyObject *taint_pyobject(PyObject *Py_UNUSED(module), PyObject *args) {
   }
 
   Py_INCREF(input_info);
-  if (PyUnicode_Check(tainted_object)) {
-    tainted_object = PyUnicode_Join(
-        PyUnicode_New(0, 127),
-        Py_BuildValue("(OO)", tainted_object, PyUnicode_New(0, 127)));
-  } else if (PyBytes_Check(tainted_object)) {
-    tainted_object = PyObject_CallFunctionObjArgs(
-        bytes_join, empty_bytes,
-        Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
-  } else {
-    tainted_object = PyObject_CallFunctionObjArgs(
-        bytearray_join, empty_bytearray,
-        Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
-  }
-  Py_INCREF(tainted_object);
+  tainted_object = new_pyobject_id(tainted_object);
   TaintMapping[tainted_object] = {{input_info, 0, tainted_length}};
   return tainted_object;
 }
@@ -71,20 +75,7 @@ static PyObject *add_taint_pyobject(PyObject *Py_UNUSED(module),
     Py_INCREF(tainted_object);
     return tainted_object;
   }
-
-  if (PyUnicode_Check(tainted_object)) {
-    tainted_object = PyUnicode_Join(
-        PyUnicode_New(0, 127),
-        Py_BuildValue("(OO)", tainted_object, PyUnicode_New(0, 127)));
-  } else if (PyBytes_Check(tainted_object)) {
-    tainted_object = PyObject_CallFunctionObjArgs(
-        bytes_join, empty_bytes,
-        Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
-  } else {
-    tainted_object = PyObject_CallFunctionObjArgs(
-        bytearray_join, empty_bytearray,
-        Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
-  }
+  tainted_object = new_pyobject_id(tainted_object);
   if IS_TAINTED (op1)
     TaintMapping[tainted_object] = TaintMapping[op1];
   else
@@ -97,7 +88,6 @@ static PyObject *add_taint_pyobject(PyObject *Py_UNUSED(module),
           tainted_range(input_info, start + offset, size));
     }
   }
-  Py_INCREF(tainted_object);
   return tainted_object;
 }
 
