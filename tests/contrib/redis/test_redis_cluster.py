@@ -10,7 +10,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-@pytest.skip(redis.VERSION < (4, 1), "redis.cluster is not implemented in redis<4.1")
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
 class TestRedisClusterPatch(TracerTestCase):
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
