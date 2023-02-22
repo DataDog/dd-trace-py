@@ -154,7 +154,7 @@ def block_request():  # type: () -> None
     has already been started to be sent this could not work.
     """
     if not config._appsec_enabled:
-        log.warning("should_block_user call requires ASM to be enabled")
+        log.warning("block_request() is disabled. To use this feature please enable Application Security Monitoring")
         return
 
     _asm_request_context.block_request()

@@ -31,8 +31,8 @@ _DD_EARLY_HEADERS_CONTEXTVAR = contextvars.ContextVar("datadog_early_headers_con
 _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
     "datadog_early_headers_casesensitive_contextvar", default=False
 )
-_DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
+_DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 
 
 def reset():  # type: () -> None
@@ -71,10 +71,6 @@ def get_headers_case_sensitive():  # type: () -> bool
     return _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
 
 
-def set_waf_callback(callback):  # type: (Any) -> None
-    _DD_WAF_CALLBACK.set(callback)
-
-
 def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
     """
     Sets a callable that could be use to do a best-effort to block the request. If
@@ -94,6 +90,10 @@ def block_request():  # type: () -> None
         _callable()
 
     log.debug("Block request called but block callable not set by framework")
+
+
+def set_waf_callback(callback):  # type: (Any) -> None
+    _DD_WAF_CALLBACK.set(callback)
 
 
 def call_waf_callback(custom_data=None):
