@@ -32,21 +32,25 @@ def _crash_flush(_, __):
 
 def _handle_signal(sig, f):
     """
-    Wraps the given signal with a previously defined, if exists.
+    Wraps the given signal with a previously defined signal, if
+    it's callable and is different than the function `f` to handle.
+    Else, it doesn't wrap and just sets the function to handle as `f`.
     This to avoid our signals overriding existing ones.
 
-    Returns the handler of the wrapped signal.
+    Returns a signal of type `sig` with function `_f`
     """
-    old_signal = None
-    if callable(signal.getsignal(sig)):
-        old_signal = signal.getsignal(sig)
+    old_signal = signal.getsignal(sig)
+    if not callable(old_signal) or old_signal == f:
+        old_signal = None
 
     def wrap_signals(*args, **kwargs):
         if old_signal is not None:
             old_signal(*args, **kwargs)
         f(*args, **kwargs)
 
-    return signal.signal(sig, wrap_signals)
+    _f = wrap_signals if old_signal else f
+
+    return signal.signal(sig, _f)
 
 
 def _check_timeout(context):
@@ -58,26 +62,12 @@ def _check_timeout(context):
     """
     _handle_signal(signal.SIGALRM, _crash_flush)
     remaining_time_in_millis = context.get_remaining_time_in_millis()
-    apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 0))
+    apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
+    apm_flush_deadline = 0 if apm_flush_deadline < 0 else apm_flush_deadline
 
-    if apm_flush_deadline > 0 and apm_flush_deadline <= remaining_time_in_millis:
-        if apm_flush_deadline < 200:
-            log.warning(
-                "DD_APM_FLUSH_DEADLINE_MILLISECONDS will be overridden to 200ms.",
-                "The value before was %d, more time for span flushing was needed.",
-                apm_flush_deadline,
-            )
-
-            # A minimum deadline of 200ms is set to allow us to have at
-            # least 100ms to flush our span queue.
-            apm_flush_deadline = 200
-
-        remaining_time_in_millis = apm_flush_deadline
-
-    # Subtracting 100ms to ensure we have time to flush.
     # TODO: Update logic to calculate an approximate of how long it will
     # take us to flush the spans on the queue.
-    remaining_time_in_seconds = max((remaining_time_in_millis - 100) / 1000, 0)
+    remaining_time_in_seconds = max(((remaining_time_in_millis - apm_flush_deadline) / 1000), 0)
     signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
 
 
