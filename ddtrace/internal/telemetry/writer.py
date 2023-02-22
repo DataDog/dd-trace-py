@@ -171,7 +171,7 @@ class TelemetryWriter(PeriodicService):
                 "runtime_id": get_runtime_id(),
                 "api_version": "v1",
                 "seq_id": next(self._sequence),
-                "debug": str(self._debug).lower(),
+                "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),
                 "host": get_host_info(),
                 "payload": payload,

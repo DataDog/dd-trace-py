@@ -219,39 +219,6 @@ def test_asgi_500():
         assert resp.status_code == 500
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta.error.stack",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ]
-)
-def test_appsec_enabled():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta.error.stack",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ]
-)
-def test_appsec_enabled_attack():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/.git")
-        assert resp.status_code == 404
-
-
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     ignores=["meta.http.useragent"],

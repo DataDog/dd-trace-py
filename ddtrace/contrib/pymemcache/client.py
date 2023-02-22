@@ -149,8 +149,8 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
-
             span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+            span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate
