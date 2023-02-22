@@ -16,8 +16,6 @@ from tests.webclient import Client
 
 
 SERVICE_INTERVAL = 1
-# this is the most direct manifestation i can find of a bug caused by misconfigured gunicorn+ddtrace
-MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL = b"RuntimeError: the memalloc module is already started"
 
 
 GunicornServerSettings = NamedTuple(
@@ -36,10 +34,6 @@ GunicornServerSettings = NamedTuple(
 
 
 IMPORT_SITECUSTOMIZE = "import ddtrace.bootstrap.sitecustomize"
-
-
-def assert_no_profiler_error(server_process):
-    assert MOST_DIRECT_KNOWN_GUNICORN_RELATED_PROFILER_ERROR_SIGNAL not in server_process.stderr.read()
 
 
 def parse_payload(data):
