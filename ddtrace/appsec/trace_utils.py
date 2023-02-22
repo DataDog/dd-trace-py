@@ -177,5 +177,6 @@ def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> Non
 
     if should_block_user(tracer, userid):
         span = tracer.current_root_span()
-        span.set_tag_str(user.ID, str(userid))
+        if span:
+            span.set_tag_str(user.ID, str(userid))
         _asm_request_context.block_request()
