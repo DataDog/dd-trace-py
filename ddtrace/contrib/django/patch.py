@@ -25,8 +25,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
-from ddtrace.internal.compat import Iterable
 from ddtrace.internal import _context
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
