@@ -41,4 +41,5 @@ urlpatterns = [
     url(r"^body/$", views.body_view, name="body_view"),
     url(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
     url(r"^response-header/$", magic_header_key, name="response-header"),
+    url(r"^block/$", views.block_callable_view, name="block"),
 ]
