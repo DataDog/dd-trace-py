@@ -285,9 +285,9 @@ except ImportError:
 
 
 try:
-    from collections.abc import Iterable
+    from collections.abc import Iterable  # noqa
 except ImportError:
-    from collections import Iterable  # noqa: F401
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
 
 
 def maybe_stringify(obj):
