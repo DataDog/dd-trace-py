@@ -246,7 +246,7 @@ else:
 
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
-    extra_compile_args = ["/std:c++17"]
+    extra_compile_args = []
     debug_compile_args = []
 else:
     linux = CURRENT_OS == "Linux"
@@ -302,7 +302,8 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                         recursive=True,
                     )
                 ),
-                extra_compile_args=extra_compile_args + debug_compile_args + ["-std=c++17"],
+                extra_compile_args=debug_compile_args
+                + ["/std:c++17" if platform.system() == "Windows" else "-std=c++17"],
             )
         )
 else:
