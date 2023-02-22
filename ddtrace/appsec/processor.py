@@ -361,9 +361,9 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("metrics waf call")
             self._waf_action(span)
         self._ddwaf._at_request_end()
-        # Force to set headers at the end
+        # Force to set respond headers at the end
         for id_tag, kind in [
-            (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
+            # (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
             (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
         ]:
             headers_req = _context.get_item(id_tag, span=span)
