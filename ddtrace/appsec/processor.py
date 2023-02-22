@@ -184,7 +184,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules):
-        # type: (List[Dict[str, Any]]) -> None
+        # type: (Dict[str, Any]) -> None
         try:
             self._ddwaf.update_rules(new_rules)
         except TypeError:
@@ -202,7 +202,11 @@ class AppSecSpanProcessor(SpanProcessor):
 
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
-        _asm_request_context.set_callback(lambda: self._waf_action(span._local_root or span))
+
+        def waf_callable(custom_data=None):
+            return self._waf_action(span._local_root or span, custom_data)
+
+        _asm_request_context.set_waf_callback(waf_callable)
 
         if headers is not None:
             _context.set_items(
@@ -220,28 +224,56 @@ class AppSecSpanProcessor(SpanProcessor):
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                _asm_request_context.call_callback()
+                # _asm_request_context.call_callback()
+                _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span):
-        # type: (Span) -> None
+    def _waf_action(self, span, custom_data=None):
+        # type: (Span, dict[str, Any] | None) -> None
+        """
+        Call the `WAF` with the given parameters. If `custom_data_names` is specified as
+        a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
+        constant class will be checked. Else, it will check all the possible values
+        from `WAF_DATA_NAMES`.
+
+        If `custom_data_values` is specified, it must be a dictionary where the key is the
+        `WAF_DATA_NAMES` key and the value the custom value. If not used, the values will
+        be retrieved from the `_context`. This can be used when you don't want to store
+        the value in the `_context` before checking the `WAF`.
+        """
+
+        if span.span_type != SpanTypes.WEB:
+            return
+
+        if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+            return
+
         data = {}
-        for key, waf_name in WAF_DATA_NAMES:
+        iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
+
+        # type ignore because mypy seems to not detect that both results of the if
+        # above can iter if not None
+        for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if self._is_needed(waf_name):
-                value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
+                if custom_data is not None and custom_data.get(key) is not None:
+                    value = custom_data.get(key)
+                else:
+                    value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
+
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    log.debug("[action] WAF got value %s %s", SPAN_DATA_NAMES[key], value)
+                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES[key])
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
+
         log.debug("[DDAS-001-00] Executing ASM In-App WAF")
         waf_results = self._ddwaf.run(data, self._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", waf_results.data)
+
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         if blocked:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
-        if span.span_type != SpanTypes.WEB:
-            return
+
         try:
             info = self._ddwaf.info
             if info.errors:
@@ -324,6 +356,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         # this call is only necessary for tests or frameworks that are not using blocking
-        # if span.get_tag(APPSEC.EVENT_RULE_VERSION) is None:
-        log.debug("metrics waf call")
-        self._waf_action(span)
+        if span.get_tag(APPSEC.JSON) is None:
+            log.debug("metrics waf call")
+            self._waf_action(span)
