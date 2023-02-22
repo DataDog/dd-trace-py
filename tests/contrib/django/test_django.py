@@ -768,7 +768,7 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
-    assert "db.row_count" not in span.get_metrics()
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
 
 
 def test_cache_get_unicode(test_spans):
