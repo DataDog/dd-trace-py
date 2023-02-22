@@ -244,15 +244,17 @@ def test_ip_update_rules_and_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
-            [
-                {
-                    "data": [
-                        {"value": _BLOCKED_IP},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
+            {
+                "rules_data": [
+                    {
+                        "data": [
+                            {"value": _BLOCKED_IP},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
         )
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -269,15 +271,17 @@ def test_ip_update_rules_expired_no_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
-            [
-                {
-                    "data": [
-                        {"expiration": 1662804872, "value": _BLOCKED_IP},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
+            {
+                "rules_data": [
+                    {
+                        "data": [
+                            {"expiration": 1662804872, "value": _BLOCKED_IP},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
         )
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
