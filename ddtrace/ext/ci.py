@@ -3,6 +3,7 @@ Tags for common CI attributes
 """
 from collections import OrderedDict
 import json
+import logging
 import os
 import platform
 import re
@@ -102,8 +103,10 @@ def tags(env=None, cwd=None):
         git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
     except git.GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        debug_mode = log.isEnabledFor(logging.DEBUG)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
