@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    aws_lambda: Update how `DD_APM_FLUSH_DEADLINE_MILLISECONDS` was used. Previously, we would set the deadline as the
+    environment variable value, if set. Now, we take the deadline as the remaining time in an AWS Lambda, and the
+    value in the environment variable is used to substract from the deadline. The default is still 100ms.
