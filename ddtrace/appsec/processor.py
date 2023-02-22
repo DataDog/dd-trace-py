@@ -195,6 +195,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if span.span_type != SpanTypes.WEB:
             return
+        self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
@@ -359,3 +360,4 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.get_tag(APPSEC.JSON) is None:
             log.debug("metrics waf call")
             self._waf_action(span)
+        self._ddwaf._at_request_end()
