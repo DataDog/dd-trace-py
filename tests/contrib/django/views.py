@@ -17,6 +17,7 @@ from django.views.generic import TemplateView
 from django.views.generic import View
 
 from ddtrace import tracer
+from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
 
 
@@ -219,4 +220,9 @@ def weak_hash_view(request):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
+    return HttpResponse("OK", status=200)
+
+
+def block_callable_view(request):
+    _asm_request_context.block_request()
     return HttpResponse("OK", status=200)
