@@ -167,6 +167,7 @@ if _DDWAF_LOADED:
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
 
+
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
