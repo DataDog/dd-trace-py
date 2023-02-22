@@ -390,37 +390,37 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         response = blocked_response()
                         return response
 
-                    # # set context information for [Suspicious Request Blocking]
-                    # query = request.META.get("QUERY_STRING", "")
-                    # uri = utils.get_request_uri(request)
-                    # if query:
-                    #     uri += "?" + query
-                    # resolver = get_resolver(getattr(request, "urlconf", None))
-                    # if resolver:
-                    #     try:
-                    #         path = resolver.resolve(request.path_info).kwargs
-                    #         log.debug("resolver.pattern %s", path)
-                    #     except Exception:
-                    #         path = None
-                    # parsed_query = request.GET
-                    # body = utils._extract_body(request)
-                    # trace_utils.set_http_meta(
-                    #     span,
-                    #     config.django,
-                    #     method=request.method,
-                    #     query=query,
-                    #     raw_uri=uri,
-                    #     request_path_params=path,
-                    #     parsed_query=parsed_query,
-                    #     request_body=body,
-                    #     request_cookies=request.COOKIES,
-                    # )
-                    # log.debug("Django WAF call for Suspicious Request Blocking on request")
-                    # _asm_request_context.call_waf_callback()
-                    # # [Suspicious Request Blocking on request]
-                    # if _context.get_item("http.request.blocked", span=span):
-                    #     response = blocked_response()
-                    #     return response
+                    # set context information for [Suspicious Request Blocking]
+                    query = request.META.get("QUERY_STRING", "")
+                    uri = utils.get_request_uri(request)
+                    if query:
+                        uri += "?" + query
+                    resolver = get_resolver(getattr(request, "urlconf", None))
+                    if resolver:
+                        try:
+                            path = resolver.resolve(request.path_info).kwargs
+                            log.debug("resolver.pattern %s", path)
+                        except Exception:
+                            path = None
+                    parsed_query = request.GET
+                    body = utils._extract_body(request)
+                    trace_utils.set_http_meta(
+                        span,
+                        config.django,
+                        method=request.method,
+                        query=query,
+                        raw_uri=uri,
+                        request_path_params=path,
+                        parsed_query=parsed_query,
+                        request_body=body,
+                        request_cookies=request.COOKIES,
+                    )
+                    log.debug("Django WAF call for Suspicious Request Blocking on request")
+                    _asm_request_context.call_waf_callback()
+                    # [Suspicious Request Blocking on request]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        return response
                 response = func(*args, **kwargs)
                 if config._appsec_enabled:
                     # [Blocking by client code]
