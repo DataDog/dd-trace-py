@@ -9,5 +9,5 @@ prelude: >
 
 features:
   - |
-    ASM: add support for one click blocking of user ids with the Django framework using 
+    ASM: Add support for one click blocking of user ids with the Django framework using 
     Remote Configuration Management.
