@@ -11,7 +11,7 @@ from ddtrace.appsec.iast.input_info import Input_info
 def str_aspect(*args, **kwargs):
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
-        taint_pyobject(result, Input_info("str_aspect", result, 0))
+        result = taint_pyobject(result, Input_info("str_aspect", result, 0))
 
     return result
 
@@ -20,7 +20,4 @@ def add_aspect(op1, op2):
     if not isinstance(op1, (str, bytes, bytearray)):
         return op1 + op2
 
-    result = getattr(op1.__class__, "__add__")(op1, op2)
-    add_taint_pyobject(result, op1, op2)
-
-    return result
+    return add_taint_pyobject(getattr(op1.__class__, "__add__")(op1, op2), op1, op2)
