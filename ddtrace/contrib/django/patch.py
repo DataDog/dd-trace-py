@@ -6,20 +6,27 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseForbidden
+
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal import _context
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -329,6 +336,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+def _block_request_callable(span):
+    _context.set_item("http.request.blocked", True, span=span)
+    raise PermissionDenied()
+
+
 @trace_utils.with_traced_module
 def traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
@@ -344,25 +356,40 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    request_headers = utils._get_request_headers(request)
 
-    with pin.tracer.trace(
-        "django.request",
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
-        span_type=SpanTypes.WEB,
-    ) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    with _asm_request_context.asm_request_context_manager(
+        request.META.get("REMOTE_ADDR"),
+        request_headers,
+        headers_case_sensitive=django.VERSION < (2, 2),
+    ):
+        with pin.tracer.trace(
+            "django.request",
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.WEB,
+        ) as span:
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+            utils._before_request_tags(pin, span, request)
+            span._metrics[SPAN_MEASURED_KEY] = 1
 
-        response = None
-        try:
-            response = func(*args, **kwargs)
-            return response
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
+            response = None
+
+            try:
+                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                    response = HttpResponseForbidden(
+                        appsec_utils._get_blocked_template(request_headers.get("Accept")),
+                    )
+                else:
+                    response = func(*args, **kwargs)
+                    if isinstance(response, HttpResponseForbidden):
+                        # Add our custom block template
+                        response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                return response
+            finally:
+                utils._after_request_tags(pin, span, request, response)
 
 
 @trace_utils.with_traced_module

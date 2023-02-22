@@ -104,14 +104,21 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 
 
 @pytest.mark.parametrize(
-    "rc_enabled, capability",
+    "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "Bg=="),
-        ("false", ""),
+        ("true", "true", "HA=="),
+        ("false", "true", "HA=="),
+        ("true", "false", "HA=="),
+        ("false", "false", ""),
+        ("true", "", "Hg=="),
+        ("false", "", ""),
     ],
 )
-def test_rc_capabilities(rc_enabled, capability):
-    with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
+def test_rc_capabilities(rc_enabled, appsec_enabled, capability):
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}
+    if appsec_enabled:
+        env[APPSEC_ENV] = appsec_enabled
+    with override_env(env):
         assert _appsec_rc_capabilities() == capability
 
 
