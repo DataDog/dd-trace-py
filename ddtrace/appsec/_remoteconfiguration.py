@@ -6,7 +6,7 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackBeforeMerge
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -77,7 +77,7 @@ def _appsec_rules_data(tracer, features):
             tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
 
 
-class RCAppSecCallBack(RemoteConfigCallBackBeforeMerge):
+class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
     def __init__(self, tracer):
         # type: (Tracer) -> None
         self.tracer = tracer

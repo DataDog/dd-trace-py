@@ -5,7 +5,7 @@ from mock.mock import MagicMock
 import pytest
 
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackBeforeMerge
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import RemoteConfigError
 from ddtrace.internal.remoteconfig.client import TargetFile
@@ -33,7 +33,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
 
 
 def test_load_new_configurations_dispatch_applied_configs():
-    class RCAppSecCallBack(RemoteConfigCallBackBeforeMerge):
+    class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         def __call__(self, metadata, features):
             mock_callback(metadata, features)
 

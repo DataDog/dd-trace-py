@@ -154,7 +154,7 @@ class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
-class RemoteConfigCallBackBeforeMerge(RemoteConfigCallBack):
+class RemoteConfigCallBackAfterMerge(RemoteConfigCallBack):
     configs = {}  # type: Dict[str, Any]
 
     def append(self, config):
@@ -384,7 +384,7 @@ class RemoteConfigClient(object):
 
             try:
                 log.debug("Load new configuration: %s. content ", target)
-                if isinstance(callback, RemoteConfigCallBackBeforeMerge):
+                if isinstance(callback, RemoteConfigCallBackAfterMerge):
                     callback.append(config_content)
                     if callback not in list_callbacks:
                         list_callbacks.append(callback)
