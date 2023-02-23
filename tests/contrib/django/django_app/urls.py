@@ -89,4 +89,5 @@ urlpatterns = [
     handler(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
     handler(r"^block/$", views.block_callable_view, name="block"),
     handler(r"^response-header/$", magic_header_key, name="response-header"),
+    path(r"checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
 ]

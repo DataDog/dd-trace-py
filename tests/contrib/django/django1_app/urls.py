@@ -42,4 +42,5 @@ urlpatterns = [
     url(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
     url(r"^response-header/$", magic_header_key, name="response-header"),
     url(r"^block/$", views.block_callable_view, name="block"),
+    url(r"^checkuser/(?P<user_id>\w+)/$", views.checkuser_view, name="checkuser"),
 ]
