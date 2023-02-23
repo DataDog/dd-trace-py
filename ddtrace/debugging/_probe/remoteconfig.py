@@ -24,6 +24,7 @@ from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.utils.cache import LFUCache
 
 
@@ -200,7 +201,7 @@ def probe_modified(reference, probe):
     return probe.active != reference.active
 
 
-class ProbeRCAdapter(object):
+class ProbeRCAdapter(RemoteConfigCallBack):
     """Probe configuration adapter for the RCM client.
 
     This adapter turns configuration events from the RCM client into probe
