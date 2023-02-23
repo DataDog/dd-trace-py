@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+from ctypes import cdll
 from json import loads
 import logging
 import os
@@ -33,6 +34,7 @@ from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
+from .encoding import JSONEncoder
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
@@ -521,6 +523,27 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if spans is None:
             return
+
+        # test agentless
+        if True:
+            encoded = JSONEncoder().encode_traces([spans])
+
+            log.warning("sending trace via rust code")
+            dynamic_library_path = "./libddtracer.so"
+
+            if sys.platform == "darwin":
+                dynamic_library_path = "./libddtracer.dylib"
+
+            rust_lib = cdll.LoadLibrary(dynamic_library_path)
+            encoded = encoded.replace('"service": null', '"service": "david-ffi-py-test"')
+            encoded = encoded.replace('"parent_id": null', '"parent_id": 0')
+            encoded = encoded.replace("[[{", "[{")
+            encoded = encoded.replace("}]]", "}]")
+
+            print("encoded: " + encoded)
+
+            rust_lib.send_trace(encoded.encode("utf-8"), 0)
+        # end test agentless
 
         if self._sync_mode is False:
             # Start the AgentWriter on first write.
