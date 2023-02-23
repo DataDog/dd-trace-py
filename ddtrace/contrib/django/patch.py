@@ -404,7 +404,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                             log.debug("resolver.pattern %s", path)
                         except Exception:
                             path = None
-                    parsed_query = request.GET
+                    parsed_query = request.POST if getattr(request, "method") != "GET" else request.GET
                     body = utils._extract_body(request)
                     trace_utils.set_http_meta(
                         span,
