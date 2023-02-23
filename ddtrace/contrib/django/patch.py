@@ -395,7 +395,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # set context information for [Suspicious Request Blocking]
                     query = request.META.get("QUERY_STRING", "")
                     uri = utils.get_request_uri(request)
-                    if uri and query:
+                    if uri is not None and query:
                         uri += "?" + query
                     resolver = get_resolver(getattr(request, "urlconf", None))
                     if resolver:
@@ -404,7 +404,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                             log.debug("resolver.pattern %s", path)
                         except Exception:
                             path = None
-                    parsed_query = request.POST if getattr(request, "method") != "GET" else request.GET
+                    parsed_query = request.GET
                     body = utils._extract_body(request)
                     trace_utils.set_http_meta(
                         span,
