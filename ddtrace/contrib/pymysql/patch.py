@@ -46,6 +46,7 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn):
     tags = {t: getattr(conn, a, "") for t, a in CONN_ATTR_BY_TAG.items()}
+    tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
     # grab the metadata from the conn
