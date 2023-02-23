@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.appsec.iast.input_info import Input_info
+from ddtrace.appsec.iast._input_info import Input_info
 
 
 @pytest.mark.parametrize(
