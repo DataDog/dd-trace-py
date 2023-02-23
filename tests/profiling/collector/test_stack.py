@@ -47,7 +47,8 @@ def func5():
 
 def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
     for _ in range(retries):
-        matched = list(filter(cond, collector.recorder.events[stack_event.StackSampleEvent]))
+        events = list(collector.recorder.events[stack_event.StackSampleEvent])
+        matched = list(filter(cond, events))
         if matched:
             return matched[0]
 
