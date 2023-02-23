@@ -43,7 +43,7 @@ def setup():
     unpatch()
 
 
-@pytest.mark.parametrize("customApmFlushDeadline", [("100", "200")])
+@pytest.mark.parametrize("customApmFlushDeadline", [("100"), ("200")])
 @pytest.mark.snapshot()
 def test_timeout_traces(context, customApmFlushDeadline):
     os.environ.update(
