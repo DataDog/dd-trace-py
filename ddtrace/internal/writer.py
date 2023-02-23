@@ -257,6 +257,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        agentless=False,  # type: Optional[bool]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -332,6 +333,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
+        self._agentless = agentless
         self._conn = None  # type: Optional[ConnectionType]
         # The connection has to be locked since there exists a race between
         # the periodic thread of AgentWriter and other threads that might
@@ -397,6 +399,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             dogstatsd=self.dogstatsd,
             report_metrics=self._report_metrics,
             sync_mode=self._sync_mode,
+            agentless=self._agentless,
             api_version=self._api_version,
         )
 
@@ -525,7 +528,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             return
 
         # test agentless
-        if True:
+        if self._agentless:
             encoded = JSONEncoder().encode_traces([spans])
 
             log.warning("sending trace via rust code")
@@ -543,6 +546,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             print("encoded: " + encoded)
 
             rust_lib.send_trace(encoded.encode("utf-8"), 0)
+            return
         # end test agentless
 
         if self._sync_mode is False:

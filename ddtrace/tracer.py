@@ -230,6 +230,7 @@ class Tracer(object):
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
+        self._agentless = asbool(os.getenv("DD_AGENTLESS", default=False))
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -242,6 +243,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                agentless=self._agentless,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
@@ -462,6 +464,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                agentless=self._agentless,
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
             )
