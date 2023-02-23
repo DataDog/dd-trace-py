@@ -25,23 +25,24 @@ DBM_TRACE_INJECTED_TAG = "_dd.dbm_trace_injected"
 log = get_logger(__name__)
 
 
-def _default_sql_injector(dbm_comment, sql_statement):
+def default_sql_injector(dbm_comment, sql_statement):
     # type: (str, str) -> str
     try:
+        if isinstance(sql_statement, bytes):
+            return dbm_comment.encode("utf-8") + sql_statement
         return dbm_comment + sql_statement
-    except TypeError:
+    except Exception:
         log.warning(
             "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
             "To disable this feature please set the following environment variable: "
             "DD_DBM_PROPAGATION_MODE=disabled",
             type(sql_statement),
-            exc_info=True,
         )
     return sql_statement
 
 
 class _DBM_Propagator(object):
-    def __init__(self, sql_pos, sql_kw, sql_injector=_default_sql_injector):
+    def __init__(self, sql_pos, sql_kw, sql_injector=default_sql_injector):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
         self.sql_injector = sql_injector
