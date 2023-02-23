@@ -97,6 +97,10 @@ def cleanup_loaded_modules():
         return
 
     # Unload all the modules that we have imported, except for the ddtrace one.
+    # NB: this means that every `import threading` anywhere in `ddtrace/` code
+    # uses a copy of that module that is distinct from the copy that user code
+    # gets when it does `import threading`. The same applies to every module
+    # not in `KEEP_MODULES`.
     KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing", "logging", "attr"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
