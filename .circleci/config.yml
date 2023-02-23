@@ -746,6 +746,7 @@ jobs:
 
   graphql:
     <<: *machine_executor
+    parallelism: 8
     steps:
       - run_test:
           pattern: "graphql"
