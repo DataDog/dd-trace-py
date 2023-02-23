@@ -22,8 +22,8 @@ config._add(
     dict(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
-        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(
             0, "query", psycopg_sql_injector_factory(composable_class=Composable, sql_class=SQL)
         ),
