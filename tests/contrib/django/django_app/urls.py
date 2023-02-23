@@ -47,6 +47,13 @@ def shutdown(request):
     return HttpResponse(status=200)
 
 
+def magic_header_key(request):
+    # Endpoint used to block request on response headers
+    res = HttpResponse(status=200)
+    res["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+    return res
+
+
 urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^simple/$", views.BasicView.as_view()),
@@ -81,5 +88,6 @@ urlpatterns = [
     handler(r"^body/$", views.body_view, name="body_view"),
     handler(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
     handler(r"^block/$", views.block_callable_view, name="block"),
+    handler(r"^response-header/$", magic_header_key, name="response-header"),
     path(r"checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
 ]
