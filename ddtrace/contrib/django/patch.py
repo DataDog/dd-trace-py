@@ -6,12 +6,14 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
@@ -334,6 +336,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+def _block_request_callable(span):
+    _context.set_item("http.request.blocked", True, span=span)
+    raise PermissionDenied()
+
+
 @trace_utils.with_traced_module
 def traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
@@ -352,7 +359,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     request_headers = utils._get_request_headers(request)
 
     with _asm_request_context.asm_request_context_manager(
-        request.META.get("REMOTE_ADDR"), request_headers, headers_case_sensitive=django.VERSION < (2, 2)
+        request.META.get("REMOTE_ADDR"),
+        request_headers,
+        headers_case_sensitive=django.VERSION < (2, 2),
     ):
         with pin.tracer.trace(
             "django.request",
@@ -360,6 +369,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             span.set_tag_str(COMPONENT, config.django.integration_name)
 
             utils._before_request_tags(pin, span, request)
@@ -368,12 +378,19 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             try:
-                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                if _context.get_item("http.request.blocked", span=span):
+                    # Early block (from IP or SRB blocking) before func could run
                     response = HttpResponseForbidden(
                         appsec_utils._get_blocked_template(request_headers.get("Accept")),
                     )
                 else:
                     response = func(*args, **kwargs)
+                    if isinstance(response, HttpResponseForbidden) and _context.get_item(
+                        "http.request.blocked", span=span
+                    ):
+                        # Blocking issued during the response processing from our `block_request`
+                        # function, called by the user
+                        response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
                 return response
             finally:
                 utils._after_request_tags(pin, span, request, response)
