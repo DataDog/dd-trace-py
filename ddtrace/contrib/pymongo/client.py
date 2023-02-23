@@ -33,6 +33,8 @@ log = get_logger(__name__)
 
 VERSION = pymongo.version_tuple
 
+BATCH_PARTIAL_KEY = "Batch"
+
 if VERSION < (3, 6, 0):
     from pymongo.helpers import _unpack_response
 
@@ -151,11 +153,12 @@ class TracedServer(ObjectProxy):
                 return self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
             with span:
                 result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-                if result and result.address:
-                    set_address_tags(span, result.address)
-                if result and self._is_query(operation):
-                    cursor = result.docs[0].get("cursor")
-                    set_query_rowcount(cursor=cursor, span=span)
+                if result:
+                    if result.address:
+                        set_address_tags(span, result.address)
+                    if self._is_query(operation):
+                        cursor = result.docs[0].get("cursor")
+                        set_query_rowcount(cursor=cursor, span=span)
                 return result
 
     # Pymongo < 3.9
@@ -310,8 +313,9 @@ def _set_query_metadata(span, cmd):
 
 
 def set_query_rowcount(span, cursor):
-    search_key = "Batch"
     # results returned in batches, get len of each batch
-    rowcount = sum([len(documents) for batch_key, documents in cursor.items() if search_key in batch_key])
+    if not isinstance(cursor, dict):
+        cursor = cursor.clone()
+    rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
     span.set_metric(db.ROWCOUNT, rowcount)
     return span
