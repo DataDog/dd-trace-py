@@ -78,6 +78,8 @@ def _appsec_rules_data(tracer, features):
 
 
 class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
+    configs = {}
+
     def __init__(self, tracer):
         # type: (Tracer) -> None
         self.tracer = tracer

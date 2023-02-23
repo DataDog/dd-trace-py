@@ -32,8 +32,11 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     assert applied_configs == client_configs
 
 
-def test_load_new_configurations_dispatch_applied_configs():
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
     class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
+        configs = {}
+
         def __call__(self, metadata, features):
             mock_callback(metadata, features)
 
@@ -44,7 +47,7 @@ def test_load_new_configurations_dispatch_applied_configs():
             self.counter += 1
             return {"test{}".format(self.counter): target}
 
-    RemoteConfigClient._extract_target_file = MockExtractFile()
+    mock_extract_target_file.side_effect = MockExtractFile()
     mock_callback = MagicMock()
     callback = RCAppSecCallBack()
 
