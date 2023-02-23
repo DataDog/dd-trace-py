@@ -540,7 +540,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             rust_lib = cdll.LoadLibrary(dynamic_library_path)
             encoded = encoded.replace('"service": null', '"service": "david-ffi-py-test"')
             encoded = encoded.replace('"parent_id": null', '"parent_id": 0')
-            encoded = encoded.substring(1, encoded.length - 1)
+            encoded = encoded[1:-1]
 
             print("encoded: " + encoded)
 
