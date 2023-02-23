@@ -786,7 +786,7 @@ class PylonsTestCase(TracerTestCase):
 
             root_span = spans[0]
             appsec_json = root_span.get_tag("_dd.appsec.json")
-            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+            assert "triggers" not in json.loads(appsec_json if appsec_json else "{}")
 
             span = _context.get_item("http.request.body", span=root_span)
             assert span is None
