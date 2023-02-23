@@ -151,7 +151,7 @@ def probe(_id, _type, attribs):
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # not been used
+            rate=DEFAULT_PROBE_RATE,  # unused
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             value=_compile_expression(attribs.get("value")),
         )

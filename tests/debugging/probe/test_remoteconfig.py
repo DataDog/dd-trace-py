@@ -265,7 +265,7 @@ def test_multiple_configs():
         config.diagnostics_interval = old_interval
 
 
-def test_prase_log_probe_with_rate():
+def test_parse_log_probe_with_rate():
     probe = parse_probe(
         "1244",
         "logProbes",
@@ -282,7 +282,7 @@ def test_prase_log_probe_with_rate():
     assert probe.rate == 1337
 
 
-def test_prase_log_probe_default_rates():
+def test_parse_log_probe_default_rates():
     probe = parse_probe(
         "1244",
         "logProbes",
