@@ -36,7 +36,7 @@
       "language": "python",
       "network.client.ip": "127.0.0.1",
       "runtime-id": "1a9c2a41c0ab4eb78d135c5aea929ebb",
-      "usr.id": "123456",
+      "usr.id": "123456"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
