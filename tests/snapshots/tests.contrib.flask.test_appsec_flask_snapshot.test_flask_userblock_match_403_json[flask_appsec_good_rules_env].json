@@ -35,7 +35,8 @@
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "a743a16ef7c74c3eabf034108ba54340"
+      "runtime-id": "a743a16ef7c74c3eabf034108ba54340",
+      "usr.id": "123456",
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -113,7 +114,7 @@
           "meta": {
             "component": "flask",
             "error.message": "??? Unknown Error: None",
-            "error.stack": "Traceback (most recent call last):\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 586, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/flask/app.py\", line 1503, in dispatch_request\n    return self.ensure_sync(self.view_functions[rule.endpoint])(**req.view_args)\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/wrappers.py\", line 28, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/home/juanjux/go/src/github.com/DataDog/system-tests/binaries/dd-trace-py/tests/contrib/flask/app.py\", line 66, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/trace_utils.py\", line 176, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/_asm_request_context.py\", line 94, in block_request\n    _callable()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 555, in _block_request_callable\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 881, in abort\n    _aborter(status, *args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 859, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+            "error.stack": "",
             "error.type": "werkzeug.exceptions.HTTPException"
           },
           "duration": 1147188,
