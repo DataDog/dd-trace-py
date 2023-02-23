@@ -958,7 +958,7 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg"
+          pattern: "psycopg$"
           snapshot: true
           docker_services: "postgres"
 

@@ -134,7 +134,7 @@ class PsycopgCore(TracerTestCase):
             ),
         )
         root = self.get_root_span()
-        assert root.get_tag("component") == "psycopg"
+        assert root.get_tag("component") == "psycopg2"
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
@@ -160,7 +160,7 @@ class PsycopgCore(TracerTestCase):
         assert_is_measured(self.get_spans()[1])
         self.reset()
 
-        with self.override_config("psycopg", dict(trace_fetch_methods=True)):
+        with self.override_config("psycopg2", dict(trace_fetch_methods=True)):
             db = self._get_conn()
             ot_tracer = init_tracer("psycopg-svc", self.tracer)
 
@@ -358,7 +358,7 @@ class PsycopgCore(TracerTestCase):
     def test_user_specified_app_service(self):
         """
         When a user specifies a service for the app
-            The psycopg integration should not use it.
+            The psycopg2 integration should not use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
