@@ -5,6 +5,7 @@ import json
 import re
 import sys
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Mapping
 from typing import Optional
@@ -31,7 +32,6 @@ from ..utils.version import _pep440_to_semver
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
-    from typing import Dict
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
