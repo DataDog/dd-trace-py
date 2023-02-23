@@ -7,10 +7,6 @@ from ddtrace.ext import user
 from tests.utils import TracerTestCase
 
 
-_BLOCKED_USER = "123456"
-_ALLOWED_USER = "111111"
-
-
 class EventsSDKTestCase(TracerTestCase):
     def test_track_user_login_event_success_without_metadata(self):
         with self.trace("test_success1"):

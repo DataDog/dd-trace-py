@@ -154,7 +154,9 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
 def block_request():  # type: () -> None
     """
     Block the current request and return a 403 Unauthorized response. If the response
-    has already been started to be sent this could not work.
+    has already been started to be sent this could not work. The behaviour of this function
+    could be different among frameworks, but it usually involves raising some kind of internal Exception,
+    meaning that if you capture the exception the request blocking could not work.
     """
     if not config._appsec_enabled:
         log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
@@ -166,7 +168,7 @@ def block_request():  # type: () -> None
 def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> None
     """
     Check if the specified User ID should be blocked and if positive
-    block the current request.
+    block the current request using `block_request`.
 
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
