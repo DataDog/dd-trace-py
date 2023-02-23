@@ -1,15 +1,19 @@
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
+from ddtrace.internal import _context
 
 
 if TYPE_CHECKING:
     from ddtrace import Span
     from ddtrace import Tracer
 
+from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.ext import user
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
@@ -121,3 +125,60 @@ def track_custom_event(tracer, event_name, metadata):
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+
+
+def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
+    """
+    Return true if the specified User ID should be blocked.
+
+    :param tracer: tracer instance to use
+    :param userid: the ID of the user as registered by `set_user`
+    """
+
+    if not config._appsec_enabled:
+        log.warning(
+            "One click blocking of user ids is disabled. To use this feature please enable "
+            "Application Security Monitoring"
+        )
+        return False
+
+    # Early check to avoid calling the WAF if the request is already blocked
+    span = tracer.current_root_span()
+    if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        return True
+
+    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
+    return bool(_context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+
+
+def block_request():  # type: () -> None
+    """
+    Block the current request and return a 403 Unauthorized response. If the response
+    has already been started to be sent this could not work. The behaviour of this function
+    could be different among frameworks, but it usually involves raising some kind of internal Exception,
+    meaning that if you capture the exception the request blocking could not work.
+    """
+    if not config._appsec_enabled:
+        log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
+        return
+
+    _asm_request_context.block_request()
+
+
+def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> None
+    """
+    Check if the specified User ID should be blocked and if positive
+    block the current request using `block_request`.
+
+    :param tracer: tracer instance to use
+    :param userid: the ID of the user as registered by `set_user`
+    """
+    if not config._appsec_enabled:
+        log.warning("should_block_user call requires ASM to be enabled")
+        return
+
+    if should_block_user(tracer, userid):
+        span = tracer.current_root_span()
+        if span:
+            span.set_tag_str(user.ID, str(userid))
+        _asm_request_context.block_request()

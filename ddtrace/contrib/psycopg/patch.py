@@ -35,6 +35,7 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg2_sql_injector),
+        dbms_name="postgresql",
     ),
 )
 
@@ -110,6 +111,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
+        db.SYSTEM: config.psycopg.dbms_name,
         "db.application": dsn.get("application_name"),
     }
 
@@ -149,6 +151,8 @@ def patched_connect(connect_func, _, args, kwargs):
             "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
         ) as span:
             span.set_tag_str(COMPONENT, config.psycopg.integration_name)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)
