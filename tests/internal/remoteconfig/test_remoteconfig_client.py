@@ -40,12 +40,16 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
         def __call__(self, metadata, features):
             mock_callback(metadata, features)
 
+    expected_results = {}
+
     class MockExtractFile:
         counter = 1
 
         def __call__(self, payload, target, config):
             self.counter += 1
-            return {"test{}".format(self.counter): target}
+            result = {"test{}".format(self.counter): target}
+            expected_results.update(result)
+            return result
 
     mock_extract_target_file.side_effect = MockExtractFile()
     mock_callback = MagicMock()
@@ -68,8 +72,9 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
-    mock_callback.assert_called_once_with(None, {"test2": "mock/ASM_FEATURES", "test3": "mock/ASM_DATA"})
+    mock_callback.assert_called_once_with(None, expected_results)
     assert applied_configs == client_configs
+    rc_client._products = {}
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
