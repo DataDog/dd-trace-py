@@ -136,7 +136,7 @@ def probe_factory(attribs):
         take_snapshot = attribs.get("captureSnapshot", False)
 
         args = dict(
-            probe_id=attribs["id"],
+            probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
