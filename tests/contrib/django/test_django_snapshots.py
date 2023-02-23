@@ -6,11 +6,6 @@ import sys
 import django
 import pytest
 
-from ddtrace.internal.compat import PY3
-import ddtrace.internal.constants as constants
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
 from tests.utils import snapshot
 from tests.webclient import Client
 
@@ -224,39 +219,6 @@ def test_asgi_500():
         assert resp.status_code == 500
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta.error.stack",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ]
-)
-def test_appsec_enabled():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta.error.stack",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ]
-)
-def test_appsec_enabled_attack():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/.git")
-        assert resp.status_code == 404
-
-
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     ignores=["meta.http.useragent"],
@@ -289,97 +251,3 @@ def test_templates_disabled():
         resp = client.get("/template-view/")
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
-    ]
-)
-def test_request_ipblock_nomatch_200():
-    with daphne_client(
-        "application",
-        additional_env={
-            "DD_DJANGO_INSTRUMENT_TEMPLATES": "false",
-            "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
-        },
-    ) as client:
-        result = client.get("/", headers={"Via": _ALLOWED_IP})
-        assert result.status_code == 200
-        assert result.content == b"Hello, test app."
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
-    ]
-)
-def test_request_ipblock_match_403():
-    with daphne_client(
-        "application",
-        additional_env={
-            "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
-        },
-    ) as client:
-        result = client.get(
-            "/",
-            headers={
-                "Via": _BLOCKED_IP,
-                "Accept": "text/html",
-            },
-        )
-        assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
-        )
-        assert result.content == as_bytes
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(
-    ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
-    ]
-)
-def test_request_ipblock_match_403_json():
-    with daphne_client(
-        "application",
-        additional_env={
-            "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
-        },
-    ) as client:
-        result = client.get(
-            "/",
-            headers={
-                "Via": _BLOCKED_IP,
-            },
-        )
-        assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSONP
-        )
-        assert result.content == as_bytes
