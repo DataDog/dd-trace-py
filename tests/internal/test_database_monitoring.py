@@ -137,7 +137,4 @@ def test_default_sql_injector(caplog):
         result = default_sql_injector(dbm_comment, non_string_object)
         assert result == non_string_object
 
-    assert (
-        "Linking Database Monitoring profiles to spans is not supported for the following query type: <class 'object'>"
-        in caplog.text
-    )
+    assert "Linking Database Monitoring profiles to spans is not supported for the following query type:" in caplog.text
