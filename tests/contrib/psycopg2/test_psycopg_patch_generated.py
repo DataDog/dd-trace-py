@@ -3,11 +3,11 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.psycopg.patch import patch
+from ddtrace.contrib.psycopg2.patch import patch
 
 
 try:
-    from ddtrace.contrib.psycopg.patch import unpatch
+    from ddtrace.contrib.psycopg2.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
@@ -15,15 +15,15 @@ from tests.contrib.patch import PatchTestCase
 
 class TestPsycopgPatch(PatchTestCase.Base):
     __integration_name__ = "psycopg"
-    __module_name__ = "psycopg"
+    __module_name__ = "psycopg2"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
 
-    def assert_module_patched(self, psycopg):
+    def assert_module_patched(self, psycopg2):
         pass
 
-    def assert_not_module_patched(self, psycopg):
+    def assert_not_module_patched(self, psycopg2):
         pass
 
-    def assert_not_module_double_patched(self, psycopg):
+    def assert_not_module_double_patched(self, psycopg2):
         pass

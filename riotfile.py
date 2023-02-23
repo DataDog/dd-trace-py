@@ -1202,8 +1202,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="psycopg",
-            command="pytest {cmdargs} tests/contrib/psycopg",
+            name="psycopg2",
+            command="pytest {cmdargs} tests/contrib/psycopg2",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1220,6 +1220,24 @@ venv = Venv(
                     pys=select_pys(min_version="3.11"),
                     # psycopg2>=2.9.2 supports Python 3.11
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
+            pkgs={"psycopg2-binary": latest},
+            venvs=[
+                # Venv(
+                #     pys=select_pys(min_version="3.6", max_version="3.11"),
+                #     # Python 3.6 supported up to 3.1.0
+                #     # DEV: Use `psycopg[binary]`
+                #     pkgs={"psycopg[binary]": ["~=3.0.0"]},
+                # ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
+                    pkgs={"psycopg[binary]": ["~=3.1.0", "~=3.2.0", latest]},
                 ),
             ],
         ),

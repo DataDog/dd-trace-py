@@ -137,8 +137,8 @@ def test_404_exceptions(client):
 def psycopg2_patched(transactional_db):
     from django.db import connections
 
-    from ddtrace.contrib.psycopg.patch import patch
-    from ddtrace.contrib.psycopg.patch import unpatch
+    from ddtrace.contrib.psycopg2.patch import patch
+    from ddtrace.contrib.psycopg2.patch import unpatch
 
     patch()
 

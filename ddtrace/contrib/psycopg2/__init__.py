@@ -51,9 +51,9 @@ To configure the psycopg integration on an per-connection basis use the
 ``Pin`` API::
 
     from ddtrace import Pin
-    import psycopg3
+    import psycopg2
 
-    db = psycopg3.connect(connection_factory=factory)
+    db = psycopg2.connect(connection_factory=factory)
     # Use a pin to override the service name.
     Pin.override(db, service="postgres-users")
 
@@ -63,7 +63,7 @@ To configure the psycopg integration on an per-connection basis use the
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["psycopg"]
+required_modules = ["psycopg2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
