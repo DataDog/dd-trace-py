@@ -18,6 +18,7 @@ from django.views.generic import View
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.trace_utils import set_user
 
 
@@ -226,3 +227,8 @@ def weak_hash_view(request):
 def block_callable_view(request):
     _asm_request_context.block_request()
     return HttpResponse("OK", status=200)
+
+
+def checkuser_view(request, user_id):
+    block_request_if_user_blocked(tracer, user_id)
+    return HttpResponse(status=200)

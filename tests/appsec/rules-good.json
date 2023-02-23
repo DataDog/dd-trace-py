@@ -30,6 +30,32 @@
       ]
     },
     {
+      "id": "blk-001-002",
+      "name": "Block User Addresses",
+      "tags": {
+        "type": "block_user",
+        "category": "security_response"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "usr.id"
+              }
+            ],
+            "list": ["123456", "654321"],
+            "data": "blocked_users"
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
       "id": "crs-913-110",
       "name": "Found request header associated with Acunetix security scanner",
       "tags": {
