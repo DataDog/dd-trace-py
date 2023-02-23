@@ -29,7 +29,11 @@ def default_sql_injector(dbm_comment, sql_statement):
     # type: (str, str) -> str
     try:
         if isinstance(sql_statement, bytes):
-            return dbm_comment.encode("utf-8") + sql_statement
+            try:
+                dbm_comment = dbm_comment.encode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                dbm_comment = ""
+            return dbm_comment + sql_statement
         return dbm_comment + sql_statement
     except Exception:
         log.warning(
