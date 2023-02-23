@@ -121,7 +121,13 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        return start_response(status_code, headers)
+        result = start_response(status_code, headers)
+        if config._appsec_enabled:
+            log.debug("Django WAF call for Suspicious Request Blocking on response")
+            _asm_request_context.call_waf_callback()
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
+                _asm_request_context.block_request()
+        return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
         # Create a werkzeug request from the `environ` to make interacting with it easier
@@ -207,6 +213,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
+        if config._appsec_enabled:
+            log.debug("Django WAF call for Suspicious Request Blocking on request")
+            _asm_request_context.call_waf_callback()
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                _asm_request_context.block_request()
 
 
 def patch():
