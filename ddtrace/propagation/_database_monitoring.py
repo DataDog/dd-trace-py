@@ -33,7 +33,7 @@ def default_sql_injector(dbm_comment, sql_statement):
             try:
                 dbm_comment = dbm_comment.encode("utf-8", errors="strict")
             except UnicodeDecodeError:
-                dbm_comment = ""
+                dbm_comment = b""
         return dbm_comment + sql_statement
     except Exception:
         log.warning(
