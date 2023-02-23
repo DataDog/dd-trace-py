@@ -5,7 +5,7 @@ The gevent integration adds support for tracing across greenlets.
 The integration patches the gevent internals to add context management logic.
 
 .. note::
-    If ``ddtrace-run`` is not being used then be sure to ``import ddtrace.bootstrap.sitecustomize``
+    If ``ddtrace-run`` is not being used then be sure to ``import ddtrace.auto``
     before calling ``gevent.monkey.patch_all``.
 
 

@@ -28,12 +28,12 @@ GunicornServerSettings = NamedTuple(
         ("worker_class", str),
         ("bind", str),
         ("use_ddtracerun", bool),
-        ("import_sitecustomize_in_postworkerinit", bool),
+        ("import_auto_in_postworkerinit", bool),
     ],
 )
 
 
-IMPORT_SITECUSTOMIZE = "import ddtrace.bootstrap.sitecustomize"
+IMPORT_AUTO = "import ddtrace.auto"
 
 
 def parse_payload(data):
@@ -51,16 +51,16 @@ def _gunicorn_settings_factory(
     worker_class="sync",  # type: str
     bind="0.0.0.0:8080",  # type: str
     use_ddtracerun=True,  # type: bool
-    import_sitecustomize_in_postworkerinit=False,  # type: bool
-    import_sitecustomize_in_app=None,  # type: Optional[bool]
+    import_auto_in_postworkerinit=False,  # type: bool
+    import_auto_in_app=None,  # type: Optional[bool]
     enable_module_cloning=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
     if env is None:
         env = os.environ.copy()
-    if import_sitecustomize_in_app is not None:
-        env["_DD_TEST_IMPORT_SITECUSTOMIZE"] = str(import_sitecustomize_in_app)
+    if import_auto_in_app is not None:
+        env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
     env["DD_REMOTECONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
@@ -73,13 +73,13 @@ def _gunicorn_settings_factory(
         worker_class=worker_class,
         bind=bind,
         use_ddtracerun=use_ddtracerun,
-        import_sitecustomize_in_postworkerinit=import_sitecustomize_in_postworkerinit,
+        import_auto_in_postworkerinit=import_auto_in_postworkerinit,
     )
 
 
 def build_config_file(gunicorn_server_settings):
-    post_worker_init = "    {sitecustomize}".format(
-        sitecustomize=IMPORT_SITECUSTOMIZE if gunicorn_server_settings.import_sitecustomize_in_postworkerinit else "",
+    post_worker_init = "    {}".format(
+        IMPORT_AUTO if gunicorn_server_settings.import_auto_in_postworkerinit else "",
     )
     cfg = """
 def post_worker_init(worker):
@@ -144,12 +144,12 @@ SETTINGS_GEVENT_DDTRACERUN = _gunicorn_settings_factory(
 SETTINGS_GEVENT_APPIMPORT = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
-    import_sitecustomize_in_app=True,
+    import_auto_in_app=True,
 )
 SETTINGS_GEVENT_POSTWORKERIMPORT = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
-    import_sitecustomize_in_postworkerinit=True,
+    import_auto_in_postworkerinit=True,
 )
 
 
