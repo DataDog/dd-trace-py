@@ -15,9 +15,6 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import memalloc
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
-
-
 def test_start_twice():
     _memalloc.start(64, 1000, 512)
     with pytest.raises(RuntimeError):
@@ -165,13 +162,12 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 152
+            assert event.frames[2][1] == 151
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
 
 
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 @pytest.mark.parametrize(
     "ignore_profiler",
     (True, False),

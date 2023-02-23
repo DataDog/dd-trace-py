@@ -409,7 +409,6 @@ def test_stress_threads_run_as_thread():
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 def test_exception_collection_threads():
     NB_THREADS = 5
 
@@ -651,7 +650,6 @@ def test_stress_trace_collection(tracer_and_collector):
         t.join()
 
 
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 def test_thread_time_cache():
     tt = stack._ThreadTime()
 
