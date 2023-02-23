@@ -111,7 +111,7 @@ def patched_connect(connect_func, _, args, kwargs):
         conn = connect_func(*args, **kwargs)
     else:
         with pin.tracer.trace(
-            f"{connect_func.__module__}.{connect_func.__name__}",
+            "{}.{}".format(connect_func.__module__, connect_func.__name__),
             service=ext_service(pin, pin._config),
             span_type=SpanTypes.SQL,
         ) as span:
