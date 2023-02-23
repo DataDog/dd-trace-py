@@ -2,7 +2,7 @@ from types import CodeType
 from types import FrameType
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.profiling.collector import ddup
+from ddtrace.datadog import ddup
 
 
 log = get_logger(__name__)

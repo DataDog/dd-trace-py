@@ -18,7 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.collector import ddup
+from ddtrace.datadog import ddup
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`

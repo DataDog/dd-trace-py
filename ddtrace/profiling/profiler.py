@@ -27,7 +27,7 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
-from ddtrace.profiling.collector import ddup
+from ddtrace.datadog import ddup
 
 from . import _asyncio
 from ._asyncio import DdtraceProfilerEventLoopPolicy

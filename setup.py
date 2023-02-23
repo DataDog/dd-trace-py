@@ -323,7 +323,7 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={
-        "ddtrace": ["py.typed"],
+        "ddtrace": ["py.typed", "libddupload/libddupload.so"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },

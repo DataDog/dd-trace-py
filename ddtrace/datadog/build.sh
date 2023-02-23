@@ -9,5 +9,5 @@ g++-11 -std=c++20 \
   -I${DDPROF_PATH}/include \
   -L${DDPROF_PATH}/lib \
   src/exporter.cpp \
-  -o libddupload.so \
-  -ldatadog_profiling
+  -o libddup.so \
+  -l:libdatadog_profiling.a
