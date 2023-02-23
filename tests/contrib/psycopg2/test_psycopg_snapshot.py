@@ -33,7 +33,7 @@ def test_connect_traced():
         assert conn
 
 
-@pytest.mark.snapshot(token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced", wait_for_num_traces=1)
+@pytest.mark.snapshot(token="tests.contrib.psycopg2.test_psycopg_snapshot.test_connect_traced", wait_for_num_traces=1)
 def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg2.connect method"""
 

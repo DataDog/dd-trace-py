@@ -1237,7 +1237,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
-                    pkgs={"psycopg[binary]": ["~=3.1.0", "~=3.2.0", latest]},
+                    pkgs={"psycopg[c]": [latest]},
                 ),
             ],
         ),
@@ -2651,7 +2651,8 @@ def update_venv(venv: Venv):
         if PY_Latest or "/" in package:  # local package are always using latest
             return latest_riot
         else:
-            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
+            pkg = package.split("[")[0] if package != "psycopg[c]" else "'psycopg[c]'"
+            return "<=" + LATEST_VERSIONS[pkg]
 
     def update_pkgs(d):
         for k, v in list(d.items()):

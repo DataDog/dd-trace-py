@@ -962,6 +962,15 @@ jobs:
           snapshot: true
           docker_services: "postgres"
 
+  psycopg2:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "psycopg2"
+          snapshot: true
+          docker_services: "postgres"
+
   aiobotocore:
     <<: *contrib_job
     docker:
@@ -1181,6 +1190,7 @@ requires_tests: &requires_tests
     - mysqlpython
     - opentracer
     - psycopg
+    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1282,6 +1292,7 @@ workflows:
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - psycopg: *requires_base_venvs
+      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs

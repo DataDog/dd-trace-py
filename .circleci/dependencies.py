@@ -99,7 +99,7 @@ LATEST_VERSIONS = {
     "packaging": "21.3",
     "pastedeploy": "3.0.1",
     "psycopg2-binary": "2.9.5",
-    "psycopg": "3.1.0",
+    "'psycopg[c]'": "3.1.8",
     "py": "1.11.0",
     "py-cpuinfo": "9.0.0",
     "pycryptodome": "3.16.0",
