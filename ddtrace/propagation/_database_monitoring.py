@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 
 def default_sql_injector(dbm_comment, sql_statement):
-    # type: (Union[str, bytes], Union[str, bytes]) -> Union[str, bytes]
+    # type: (str, Union[str, bytes]) -> Union[str, bytes]
     try:
         if isinstance(sql_statement, bytes):
             try:
