@@ -306,14 +306,6 @@ class AppSecSpanProcessor(SpanProcessor):
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
 
-            if waf_results and waf_results.data:
-                span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
-            if blocked:
-                span.set_tag(APPSEC.BLOCKED, "true")
-
-            # Partial DDAS-011-00
-            span.set_tag_str(APPSEC.EVENT, "true")
-
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
@@ -321,6 +313,14 @@ class AppSecSpanProcessor(SpanProcessor):
                 headers_req = _context.get_item(id_tag, span=span)
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
+
+            if waf_results and waf_results.data:
+                span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
+            if blocked:
+                span.set_tag(APPSEC.BLOCKED, "true")
+
+            # Partial DDAS-011-00
+            span.set_tag_str(APPSEC.EVENT, "true")
 
             remote_ip = _context.get_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, span=span)
             if remote_ip:
@@ -362,10 +362,6 @@ class AppSecSpanProcessor(SpanProcessor):
             self._waf_action(span)
         self._ddwaf._at_request_end()
         # Force to set respond headers at the end
-        for id_tag, kind in [
-            # (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
-            (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
-        ]:
-            headers_req = _context.get_item(id_tag, span=span)
-            if headers_req:
-                _set_headers(span, headers_req, kind=kind)
+        headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+        if headers_req:
+            _set_headers(span, headers_req, kind="response")
