@@ -381,7 +381,13 @@ class PymongoCore(object):
         # scoped query (using the getattr syntax) to get 2 rows
         q = {"artist": "Neil"}
         queried = list(songs_collection.find(q))
+
         assert len(queried) == 2
+        count = 0
+        for row in queried:
+            count += 1
+        assert count == 2
+
         assert queried[0]["name"] == "Powderfinger"
         assert queried[0]["artist"] == "Neil"
 

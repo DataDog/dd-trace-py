@@ -314,8 +314,6 @@ def _set_query_metadata(span, cmd):
 
 def set_query_rowcount(span, cursor):
     # results returned in batches, get len of each batch
-    if not isinstance(cursor, dict):
-        cursor = cursor.clone()
     rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
     span.set_metric(db.ROWCOUNT, rowcount)
     return span
