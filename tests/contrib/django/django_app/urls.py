@@ -81,4 +81,5 @@ urlpatterns = [
     handler(r"^body/$", views.body_view, name="body_view"),
     handler(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
     handler(r"^block/$", views.block_callable_view, name="block"),
+    path(r"checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
 ]

@@ -46,6 +46,7 @@ def _appsec_rc_capabilities():
         value |= 1 << 2  # Enable ASM_IP_BLOCKING
         value |= 1 << 3  # Enable ASM_DD_RULES
         value |= 1 << 4  # Enable ASM_EXCLUSIONS
+        value |= 1 << 7  # Enable ASM_USER_BLOCKING
 
         if sys.version_info.major < 3:
             bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
