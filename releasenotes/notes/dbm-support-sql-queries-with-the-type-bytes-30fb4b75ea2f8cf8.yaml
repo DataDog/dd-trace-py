@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dbm: Support sql comments for byte strings.
