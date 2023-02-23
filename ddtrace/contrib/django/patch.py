@@ -378,14 +378,18 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             try:
-                if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                if _context.get_item("http.request.blocked", span=span):
+                    # Early block (from IP or SRB blocking) before func could run
                     response = HttpResponseForbidden(
                         appsec_utils._get_blocked_template(request_headers.get("Accept")),
                     )
                 else:
                     response = func(*args, **kwargs)
-                    if isinstance(response, HttpResponseForbidden):
-                        # Add our custom block template
+                    if isinstance(response, HttpResponseForbidden) and _context.get_item(
+                        "http.request.blocked", span=span
+                    ):
+                        # Blocking issued during the response processing from our `block_request`
+                        # function, called by the user
                         response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
                 return response
             finally:
