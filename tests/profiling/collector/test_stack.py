@@ -52,7 +52,8 @@ def func5():
 
 def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
     for _ in range(retries):
-        matched = list(filter(cond, collector.recorder.events[stack_event.StackSampleEvent]))
+        events = list(collector.recorder.events[stack_event.StackSampleEvent])
+        matched = list(filter(cond, events))
         if matched:
             return matched[0]
 
@@ -417,7 +418,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 411, "test_exception_collection", "")]
+    assert e.frames == [(__file__, 412, "test_exception_collection", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -449,7 +450,7 @@ def test_exception_collection_trace(
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 438, "test_exception_collection_trace", "")]
+    assert e.frames == [(__file__, 439, "test_exception_collection_trace", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
