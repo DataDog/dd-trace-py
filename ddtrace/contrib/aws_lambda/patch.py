@@ -63,7 +63,7 @@ def _check_timeout(context):
     _handle_signal(signal.SIGALRM, _crash_flush)
     remaining_time_in_millis = context.get_remaining_time_in_millis()
     apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
-    apm_flush_deadline = 0 if apm_flush_deadline < 0 else apm_flush_deadline
+    apm_flush_deadline = 100 if apm_flush_deadline < 0 else apm_flush_deadline
 
     # TODO: Update logic to calculate an approximate of how long it will
     # take us to flush the spans on the queue.
