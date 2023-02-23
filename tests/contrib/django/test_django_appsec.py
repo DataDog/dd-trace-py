@@ -9,8 +9,12 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal import constants
+from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.test_processor import _ALLOWED_IP
+from tests.appsec.test_processor import _BLOCKED_IP
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -388,3 +392,64 @@ def test_django_weak_hash(client, test_spans, tracer):
         vulnerability = json.loads(str_json)["vulnerabilities"][0]
         assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
         assert vulnerability["evidence"]["value"] == "md5"
+
+
+def test_request_ipblock_403(client, test_spans, tracer):
+    """
+    Most blocking tests are done in test_django_snapshots but
+    since those go through ASGI, this tests the blocking
+    using the "normal" path for these Django tests.
+    (They're also a lot less cumbersome to use for experimentation/debugging)
+    """
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        root, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP}
+        )
+        assert result.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert result.content == as_bytes
+        assert root.get_tag("actor.ip") == _BLOCKED_IP
+
+
+def test_request_ipblock_nomatch_200(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        _, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+        )
+        assert result.status_code == 200
+        assert result.content == b"Hello, test app."
+
+
+def test_request_block_request_callable(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        _, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/block/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+        )
+        # Should not block by IP, but the block callable is called directly inside that view
+        assert result.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert result.content == as_bytes
+
+
+_BLOCKED_USER = "123456"
+_ALLOWED_USER = "111111"
+
+
+def test_request_userblock_200(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER)
+        assert result.status_code == 200
+
+
+def test_request_userblock_403(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _BLOCKED_USER)
+        assert result.status_code == 403
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
+        assert result.content == as_bytes
