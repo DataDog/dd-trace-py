@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+from typing import Union  # noqa
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -26,7 +27,7 @@ log = get_logger(__name__)
 
 
 def default_sql_injector(dbm_comment, sql_statement):
-    # type: (str, str) -> str
+    # type: (Union[str, bytes], Union[str, bytes]) -> Union[str, bytes]
     try:
         if isinstance(sql_statement, bytes):
             try:
