@@ -54,6 +54,7 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
                 "span.kind": u"client",
@@ -82,6 +83,7 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
                     "span.kind": u"client",
@@ -237,6 +239,7 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
                 "span.kind": u"client",
@@ -279,6 +282,7 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
                 "span.kind": u"client",
@@ -321,6 +325,7 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
                     "span.kind": u"client",
@@ -462,6 +467,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
                     "span.kind": u"client",

@@ -36,6 +36,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
             tags[tag] = getattr(conn, attr)
+    tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
     Pin(tags=tags).onto(c)

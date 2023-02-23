@@ -49,6 +49,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("redis.raw_command") == u"GET cheese"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
 
@@ -66,6 +67,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("redis.raw_command") == u"GET 😐"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == u"GET 😐"
 

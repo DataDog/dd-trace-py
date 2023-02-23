@@ -58,6 +58,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("redis.raw_command").endswith(u"...")
         assert span.get_tag("component") == "redis"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
 
     def test_basics(self):
         us = self.r.get("cheese")
@@ -75,6 +76,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("redis.raw_command") == u"GET cheese"
         assert span.get_tag("component") == "redis"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -219,6 +221,7 @@ class TestRedisPatch(TracerTestCase):
         assert dd_span.get_tag("redis.raw_command") == u"GET cheese"
         assert dd_span.get_tag("component") == "redis"
         assert dd_span.get_tag("span.kind") == "client"
+        assert dd_span.get_tag("db.system") == "redis"
         assert dd_span.get_metric("redis.args_length") == 2
         assert dd_span.resource == "GET cheese"
 

@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "aws.lambda",
+    "service": "",
+    "resource": "aws.lambda",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.message": "Datadog detected an Impending Timeout",
+      "error.type": "Impending Timeout",
+      "language": "python",
+      "runtime-id": "4e9749a21cbd4bd4ab6281613a984dfa"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 79866
+    },
+    "duration": 1904202000,
+    "start": 1676006123913956000
+  },
+     {
+       "name": "timeout",
+       "service": "",
+       "resource": "timeout",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 1903574000,
+       "start": 1676006123914429000
+     }]]

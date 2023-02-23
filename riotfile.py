@@ -2604,10 +2604,20 @@ venv = Venv(
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="aws_lambda",
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            pys=select_pys(min_version="3.7", max_version="3.9"),
+            pkgs={
+                "boto3": latest,
+                "datadog-lambda": [">=4.66.0", latest],
+                "pytest-asyncio": latest,
+            },
         ),
     ],
 )

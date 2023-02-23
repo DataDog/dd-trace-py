@@ -39,7 +39,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
-        self.assertIsNone(span.get_tag("sql.rows") or span.get_metric("sql.rows"))
+        self.assertIsNone(span.get_metric("db.row_count"))
         self.assertEqual(span.get_tag("component"), "sqlalchemy")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.span_type, "sql")

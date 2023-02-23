@@ -14,11 +14,14 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import ExpressionTemplateSegment
+from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._probe.model import LogFunctionProbe
+from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import SnapshotFunctionProbe
-from ddtrace.debugging._probe.model import SnapshotLineProbe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.utils.cache import LFUCache
@@ -69,6 +72,16 @@ def _compile_expression(expr):
     return DDExpression(dsl=dsl, callable=compiled)
 
 
+def _compile_segment(segment):
+    if segment.get("str", ""):
+        return LiteralTemplateSegment(str=segment["str"])
+    elif segment.get("json", None) is not None:
+        return ExpressionTemplateSegment(expr=_compile_expression(segment))
+
+    # what type of error we should show here?
+    return None
+
+
 def _match_env_and_version(probe):
     # type: (Probe) -> bool
     probe_version = probe.tags.get("version", None)
@@ -108,24 +121,29 @@ def probe(_id, _type, attribs):
     """
     Create a new Probe instance.
     """
-    if _type == "snapshotProbes":
+    if _type == "logProbes":
+        take_snapshot = attribs.get("captureSnapshot", False)
+
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            rate=DEFAULT_SNAPSHOT_PROBE_RATE
+            if take_snapshot
+            else DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
+            take_snapshot=take_snapshot,
+            template=attribs["template"],
+            segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
 
-        return _create_probe_based_on_location(args, attribs, SnapshotLineProbe, SnapshotFunctionProbe)
+        return _create_probe_based_on_location(args, attribs, LogLineProbe, LogFunctionProbe)
 
     elif _type == "metricProbes":
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
@@ -139,8 +157,8 @@ def probe(_id, _type, attribs):
     raise ValueError("Unknown probe type: %s" % _type)
 
 
-_SNAPSHOT_PREFIX = "snapshotProbe_"
 _METRIC_PREFIX = "metricProbe_"
+_LOG_PREFIX = "logProbe_"
 
 
 def _make_probes(probes, _type):
@@ -151,11 +169,11 @@ def _make_probes(probes, _type):
 def get_probes(config_id, config):
     # type: (str, dict) -> Iterable[Probe]
 
-    if config_id.startswith(_SNAPSHOT_PREFIX):
-        return _make_probes([config], "snapshotProbes")
-
     if config_id.startswith(_METRIC_PREFIX):
         return chain(_make_probes([config], "metricProbes"))
+
+    if config_id.startswith(_LOG_PREFIX):
+        return chain(_make_probes([config], "logProbes"))
 
     raise ValueError("Unsupported config id: %s" % config_id)
 
@@ -171,13 +189,6 @@ class ProbePollerEvent(object):
 
 
 ProbePollerEventType = int
-
-
-def probe_modified(reference, probe):
-    # type: (Probe, Probe) -> bool
-    # DEV: Probes are immutable modulo the active state. Hence we expect
-    # probes with the same ID to differ up to this property for now.
-    return probe.active != reference.active
 
 
 class ProbeRCAdapter(object):
@@ -200,7 +211,7 @@ class ProbeRCAdapter(object):
     def _dispatch_probe_events(self, prev_probes, next_probes):
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
-        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and probe_modified(p, prev_probes[_])]
+        modified_probes = []  # DEV: Probes are currently immutable
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)

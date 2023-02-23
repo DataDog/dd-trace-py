@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "component": "asyncpg",
       "db.name": "postgres",
+      "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
@@ -66,6 +67,7 @@
        "meta": {
          "component": "asyncpg",
          "db.name": "postgres",
+         "db.system": "postgresql",
          "db.user": "postgres",
          "out.host": "127.0.0.1",
          "span.kind": "client"
@@ -117,6 +119,7 @@
       "_dd.p.dm": "-0",
       "component": "asyncpg",
       "db.name": "postgres",
+      "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",

@@ -24,10 +24,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 0,
+      "db.row_count": 0,
       "network.destination.port": 3306,
-      "process_id": 9600,
-      "sql.rows": 0
+      "process_id": 9600
     },
     "duration": 4783000,
     "start": 1667513574939043000
@@ -57,10 +56,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 1,
+      "db.row_count": 1,
       "network.destination.port": 3306,
-      "process_id": 9600,
-      "sql.rows": 1
+      "process_id": 9600
     },
     "duration": 56000,
     "start": 1667513574944045000

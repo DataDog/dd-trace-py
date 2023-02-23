@@ -13,6 +13,7 @@
       "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
+      "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
@@ -25,10 +26,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
+      "db.row_count": 2,
       "network.destination.port": 5432,
-      "process_id": 78166,
-      "sql.rows": 2
+      "process_id": 78166
     },
     "duration": 2382000,
     "start": 1667243097706684000

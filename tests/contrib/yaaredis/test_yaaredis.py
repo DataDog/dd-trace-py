@@ -112,6 +112,7 @@ async def test_meta_override(tracer, test_spans, traced_yaaredis):
     assert test_spans.spans[0].service == "redis"
     assert test_spans.spans[0].get_tag("component") == "yaaredis"
     assert test_spans.spans[0].get_tag("span.kind") == "client"
+    assert test_spans.spans[0].get_tag("db.system") == "redis"
     assert "cheese" in test_spans.spans[0].get_tags() and test_spans.spans[0].get_tag("cheese") == "camembert"
 
 

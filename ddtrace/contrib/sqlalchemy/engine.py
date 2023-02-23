@@ -25,6 +25,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import net as netx
 from ...ext import sql as sqlx
 from ...pin import Pin
@@ -117,7 +118,7 @@ class EngineTracer(object):
 
         try:
             if cursor and cursor.rowcount >= 0:
-                span.set_tag(sqlx.ROWS, cursor.rowcount)
+                span.set_tag(db.ROWCOUNT, cursor.rowcount)
         finally:
             span.finish()
 

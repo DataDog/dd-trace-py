@@ -21,6 +21,7 @@ class PyMySQLCore(object):
 
     DB_INFO = {
         "out.host": MYSQL_CONFIG.get("host"),
+        "db.system": "mysql",
     }
     if PY2:
         DB_INFO.update({"db.user": MYSQL_CONFIG.get("user"), "db.name": MYSQL_CONFIG.get("database")})
@@ -69,6 +70,7 @@ class PyMySQLCore(object):
         assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
         assert span.get_tag("component") == "pymysql"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "mysql"
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.get_tags(), meta)
@@ -93,6 +95,7 @@ class PyMySQLCore(object):
             assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
             assert span.get_tag("component") == "pymysql"
             assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mysql"
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.get_tags(), meta)

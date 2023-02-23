@@ -55,7 +55,7 @@ class WsgiCustomMiddleware(wsgi._DDWSGIMiddlewareBase):
     _application_span_name = "test_wsgi.application"
     _response_span_name = "test_wsgi.response"
 
-    def _request_span_modifier(self, req_span, environ):
+    def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         req_span.set_tag("request_tag", "req test tag set")
         req_span.set_metric("request_metric", 1)
         req_span.resource = "request resource was modified"

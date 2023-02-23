@@ -19,6 +19,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.compat import reraise
@@ -149,8 +150,8 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
-
             span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+            span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
 
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
