@@ -30,10 +30,10 @@ def default_sql_injector(dbm_comment, sql_statement):
     # type: (str, Union[str, bytes]) -> Union[str, bytes]
     try:
         if isinstance(sql_statement, bytes):
-            try:
-                dbm_comment = dbm_comment.encode("utf-8", errors="strict")
-            except UnicodeDecodeError:
-                dbm_comment = b""
+            # raises a unicode error when sql statements with non utf-8 encodings
+            # are concatenated. This operation will log a warning.
+            sql_statement = sql_statement.decode("utf-8", errors="strict")
+            return  bytes(dbm_comment + sql_statement, "utf-8")
         return dbm_comment + sql_statement
     except TypeError:
         log.warning(
