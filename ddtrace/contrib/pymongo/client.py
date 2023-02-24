@@ -26,15 +26,18 @@ from .parse import parse_query
 from .parse import parse_spec
 
 
+BATCH_PARTIAL_KEY = "Batch"
+
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
-log = get_logger(__name__)
-
-
 VERSION = pymongo.version_tuple
 
-BATCH_PARTIAL_KEY = "Batch"
+if VERSION < (3, 6, 0):
+    from pymongo.helpers import _unpack_response
+
+
+log = get_logger(__name__)
 
 
 class TracedMongoClient(ObjectProxy):
@@ -171,12 +174,16 @@ class TracedServer(ObjectProxy):
                     if hasattr(result, "address"):
                         set_address_tags(span, result.address)
                     if self._is_query(operation):
-                        if VERSION < (3, 6, 0) and hasattr(result, "number_returned"):
-                            span.set_metric(db.ROWCOUNT, result.number_returned)
-                        elif (
-                            VERSION > (3, 6, 0) and hasattr(result, "data") and hasattr(result.data, "unpack_response")
-                        ):
-                            set_query_rowcount(docs=result.data.unpack_response(), span=span)
+                        if hasattr(result, "data"):
+                            if VERSION >= (3, 6, 0) and hasattr(result.data, "unpack_response"):
+                                set_query_rowcount(docs=result.data.unpack_response(), span=span)
+                            else:
+                                data = _unpack_response(response=result.data)
+                                if VERSION < (3, 2, 0) and data.get("number_returned", None):
+                                    span.set_metric(db.ROWCOUNT, data.get("number_returned"))
+                                elif (3, 2, 0) <= VERSION < (3, 6, 0):
+                                    docs = data.get("data", None)
+                                    set_query_rowcount(docs=docs, span=span)
                 return result
 
     @contextlib.contextmanager
@@ -305,11 +312,10 @@ def _set_query_metadata(span, cmd):
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 
 
-def set_query_rowcount(span, docs):
+def set_query_rowcount(docs, span):
     # results returned in batches, get len of each batch
     if isinstance(docs, Iterable) and len(docs) > 0:
         cursor = docs[0].get("cursor", None)
     if cursor:
         rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
         span.set_metric(db.ROWCOUNT, rowcount)
-    return span
