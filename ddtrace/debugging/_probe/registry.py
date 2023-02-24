@@ -26,14 +26,6 @@ class ProbeRegistryEntry(object):
         self.exc_info = None  # type: Optional[ExcInfoType]
         self.message = None  # type: Optional[str]
 
-    def activate(self):
-        # type: () -> None
-        return self.probe.activate()
-
-    def deactivate(self):
-        # type: () -> None
-        return self.probe.deactivate()
-
     def set_installed(self):
         # type: () -> None
         self.installed = True
