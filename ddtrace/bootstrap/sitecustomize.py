@@ -11,6 +11,9 @@ import logging  # noqa
 import os  # noqa
 from typing import Any  # noqa
 from typing import Dict  # noqa
+import warnings  # noqa
+
+import gevent.monkey  # noqa
 
 from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
@@ -56,6 +59,13 @@ if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
         "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
         postfix="There is no special configuration necessary to make ddtrace work with gevent.",
         removal_version="2.0.0",
+    )
+if gevent.monkey.is_module_patched("sys"):
+    warnings.warn(
+        "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
+        "likely to break the application. Use ddtrace-run to fix this, or "
+        "import ddtrace.auto before calling gevent.monkey.patch_all().",
+        RuntimeWarning,
     )
 
 
