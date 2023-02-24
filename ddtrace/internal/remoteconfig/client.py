@@ -391,7 +391,7 @@ class RemoteConfigClient(object):
                 else:
                     callback(config, config_content)
             except Exception:
-                log.debug("error while loading product %s config %r", config.product_name, config)
+                log.debug("Failed to load configuration %s for product %r", config, config.product_name, exc_info=True)
                 continue
             else:
                 applied_configs[target] = config
