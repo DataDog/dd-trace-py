@@ -35,7 +35,7 @@ def default_sql_injector(dbm_comment, sql_statement):
             sql_statement = sql_statement.decode("utf-8", errors="strict")
             return  bytes(dbm_comment + sql_statement, "utf-8")
         return dbm_comment + sql_statement
-    except TypeError:
+    except (TypeError, UnicodeDecodeError, UnicodeEncodeError):
         log.warning(
             "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
             "To disable this feature please set the following environment variable: "
