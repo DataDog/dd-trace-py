@@ -122,9 +122,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         )
 
         result = start_response(status_code, headers)
-        if config._appsec_enabled:
+        if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
             log.debug("Django WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
+            if _context.get_item("http.request.blocked", span=req_span):
+                start_response("403 FORBIDDEN", [])
         return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
