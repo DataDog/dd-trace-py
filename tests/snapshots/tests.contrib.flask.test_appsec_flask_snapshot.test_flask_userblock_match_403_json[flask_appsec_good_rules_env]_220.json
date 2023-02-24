@@ -155,21 +155,6 @@
           "duration": 185000,
           "start": 1677258839011198000
         },
-           {
-             "name": "flask.handle_http_exception",
-             "service": "flask",
-             "resource": "flask.handle_http_exception",
-             "trace_id": 0,
-             "span_id": 12,
-             "parent_id": 7,
-             "type": "",
-             "error": 0,
-             "meta": {
-               "component": "flask"
-             },
-             "duration": 15000,
-             "start": 1677258839011240000
-           },
         {
           "name": "flask.process_response",
           "service": "flask",
