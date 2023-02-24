@@ -47,7 +47,11 @@ class RemoteConfigWorker(periodic.PeriodicService):
 
     def _agent_check(self):
         # type: () -> None
-        info = agent.info()
+        try:
+            info = agent.info()
+        except Exception:
+            info = None
+
         if info:
             endpoints = info.get("endpoints", [])
             if endpoints and (

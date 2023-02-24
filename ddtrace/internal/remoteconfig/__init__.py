@@ -45,12 +45,23 @@ class RemoteConfig(object):
             log.warning("error starting the RCM client", exc_info=True)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls, join=False):
+        # type: (bool) -> None
         with cls._worker_lock:
             if cls._worker is not None:
                 cls._worker.stop()
+                if join:
+                    cls._worker.join()
                 cls._worker = None
 
                 forksafe.unregister(cls._restart)
                 atexit.unregister(cls.disable)
+
+    def __enter__(self):
+        # type: () -> RemoteConfig
+        self.enable()
+        return self
+
+    def __exit__(self, *args):
+        # type: (...) -> None
+        self.disable(join=True)

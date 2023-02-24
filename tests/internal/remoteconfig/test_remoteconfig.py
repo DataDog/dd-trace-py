@@ -16,7 +16,6 @@ from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
 from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
-from tests.internal.remoteconfig import rcm_endpoint
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 
@@ -131,11 +130,10 @@ def test_remote_configuration_1_click(mock_send_request):
 
     callback = Callback()
 
-    with rcm_endpoint():
+    with RemoteConfig() as rc:
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-        rc = RemoteConfig()
         rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        sleep(0.2)
+        rc._worker._online()
         mock_send_request.assert_called()
         assert callback.features == {"asm": {"enabled": True}}
 
@@ -179,21 +177,21 @@ def test_remote_configuration_ip_blocking(mock_send_request):
             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
             b'"type": "ip_with_expiration"}]}'
         )
-        rc = RemoteConfig()
-        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        rc._worker._online()
-        assert callback.features == {
-            "rules_data": [
-                {
-                    "data": [
-                        {"expiration": 1662804872, "value": "127.0.0.0"},
-                        {"expiration": 1662804872, "value": "52.80.198.1"},
-                    ],
-                    "id": "blocking_ips",
-                    "type": "ip_with_expiration",
-                }
-            ]
-        }
+        with RemoteConfig() as rc:
+            rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+            rc._worker._online()
+            assert callback.features == {
+                "rules_data": [
+                    {
+                        "data": [
+                            {"expiration": 1662804872, "value": "127.0.0.0"},
+                            {"expiration": 1662804872, "value": "52.80.198.1"},
+                        ],
+                        "id": "blocking_ips",
+                        "type": "ip_with_expiration",
+                    }
+                ]
+            }
 
 
 def test_remoteconfig_semver():
