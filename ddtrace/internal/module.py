@@ -6,18 +6,25 @@ from os.path import isfile
 from os.path import join
 import sys
 from types import ModuleType
-from typing import Any
+import typing
 from typing import Callable
-from typing import DefaultDict
-from typing import Dict
-from typing import Iterator
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
-from typing import Union
 from typing import cast
+
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+    from typing import DefaultDict
+    from typing import Dict
+    from typing import Iterator
+    from typing import List
+    from typing import Optional
+    from typing import Set
+    from typing import Tuple
+    from typing import Type
+    from typing import Union
+
+    PreExecHookType = Callable[[Any, ModuleType], None]
+    PreExecHookCond = Union[str, Callable[[str], bool]]
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
@@ -27,8 +34,6 @@ from ddtrace.internal.utils import get_argument_value
 log = get_logger(__name__)
 
 ModuleHookType = Callable[[ModuleType], None]
-PreExecHookType = Callable[[Any, ModuleType], None]
-PreExecHookCond = Union[str, Callable[[str], bool]]
 
 
 _run_code = None
