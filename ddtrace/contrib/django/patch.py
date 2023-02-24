@@ -6,20 +6,28 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseForbidden
+
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
+from ddtrace.contrib.django.compat import get_resolver
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal import _context
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -329,6 +337,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+def _block_request_callable(span):
+    _context.set_item("http.request.blocked", True, span=span)
+    raise PermissionDenied()
+
+
 @trace_utils.with_traced_module
 def traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
@@ -344,25 +357,91 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    request_headers = utils._get_request_headers(request)
 
-    with pin.tracer.trace(
-        "django.request",
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
-        span_type=SpanTypes.WEB,
-    ) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    with _asm_request_context.asm_request_context_manager(
+        request.META.get("REMOTE_ADDR"),
+        request_headers,
+        headers_case_sensitive=django.VERSION < (2, 2),
+    ):
+        with pin.tracer.trace(
+            "django.request",
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.WEB,
+        ) as span:
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+            utils._before_request_tags(pin, span, request)
+            span._metrics[SPAN_MEASURED_KEY] = 1
 
-        response = None
-        try:
-            response = func(*args, **kwargs)
-            return response
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
+            response = None
+
+            def blocked_response():
+                response = HttpResponseForbidden(
+                    appsec_utils._get_blocked_template(request_headers.get("Accept")), content_type="text/plain"
+                )
+                response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                return response
+
+            try:
+                if config._appsec_enabled:
+                    # [IP Blocking]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        return response
+
+                    # set context information for [Suspicious Request Blocking]
+                    query = request.META.get("QUERY_STRING", "")
+                    uri = utils.get_request_uri(request)
+                    if uri is not None and query:
+                        uri += "?" + query
+                    resolver = get_resolver(getattr(request, "urlconf", None))
+                    if resolver:
+                        try:
+                            path = resolver.resolve(request.path_info).kwargs
+                            log.debug("resolver.pattern %s", path)
+                        except Exception:
+                            path = None
+                    parsed_query = request.GET
+                    body = utils._extract_body(request)
+                    trace_utils.set_http_meta(
+                        span,
+                        config.django,
+                        method=request.method,
+                        query=query,
+                        raw_uri=uri,
+                        request_path_params=path,
+                        parsed_query=parsed_query,
+                        request_body=body,
+                        request_cookies=request.COOKIES,
+                    )
+                    log.debug("Django WAF call for Suspicious Request Blocking on request")
+                    _asm_request_context.call_waf_callback()
+                    # [Suspicious Request Blocking on request]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        return response
+                response = func(*args, **kwargs)
+                if config._appsec_enabled:
+                    # [Blocking by client code]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        return response
+                return response
+            finally:
+                # DEV: Always set these tags, this is where `span.resource` is set
+                utils._after_request_tags(pin, span, request, response)
+                # if not blocked yet, try blocking rules on response
+                if config._appsec_enabled and not _context.get_item("http.request.blocked", span=span):
+                    log.debug("Django WAF call for Suspicious Request Blocking on response")
+                    _asm_request_context.call_waf_callback()
+                    # [Suspicious Request Blocking on response]
+                    if _context.get_item("http.request.blocked", span=span):
+                        response = blocked_response()
+                        utils._after_request_tags(pin, span, request, response)
+                        return response
 
 
 @trace_utils.with_traced_module

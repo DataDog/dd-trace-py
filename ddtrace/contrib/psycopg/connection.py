@@ -32,6 +32,7 @@ class TracedCursor(cursor):
 
         with self._datadog_tracer.trace("postgres.query", service=self._datadog_service, span_type=SpanTypes.SQL) as s:
             s.set_tag_str(COMPONENT, config.psycopg.integration_name)
+            s.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             if not s.sampled:
@@ -42,7 +43,7 @@ class TracedCursor(cursor):
             try:
                 return super(TracedCursor, self).execute(query, vars)
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric(db.ROWCOUNT, self.rowcount)
 
     def callproc(self, procname, vars=None):  # noqa: A002
         """just wrap the execution in a span"""
@@ -50,7 +51,7 @@ class TracedCursor(cursor):
 
 
 class TracedConnection(connection):
-    """Wrapper around psycopg2  for tracing"""
+    """Wrapper around psycopg2 for tracing"""
 
     def __init__(self, *args, **kwargs):
 
@@ -66,6 +67,7 @@ class TracedConnection(connection):
             net.TARGET_PORT: dsn.get("port"),
             db.NAME: dsn.get("dbname"),
             db.USER: dsn.get("user"),
+            db.SYSTEM: config.psycopg.dbms_name,
             "db.application": dsn.get("application_name"),
         }
 

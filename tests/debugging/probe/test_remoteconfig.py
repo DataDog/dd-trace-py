@@ -155,7 +155,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
                 # New
                 create_snapshot_line_probe(
@@ -163,7 +162,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
             ]
         )
@@ -176,7 +174,6 @@ def test_poller_events(mock_config):
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
-            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe2"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
@@ -200,26 +197,9 @@ def test_multiple_configs():
         adapter = ProbeRCAdapter(cb)
 
         adapter(
-            config_metadata("snapshotProbe_probe1"),
-            {
-                "id": "probe1",
-                "active": True,
-                "tags": ["boo:far"],
-                "where": {"sourceFile": "tests/debugger/submod/stuff.py", "lines": ["36"]},
-            },
-        )
-
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
-            }
-        )
-
-        adapter(
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
-                "active": True,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
@@ -233,6 +213,23 @@ def test_multiple_configs():
             }
         )
 
+        adapter(
+            config_metadata("logProbe_probe3"),
+            {
+                "id": "probe3",
+                "tags": ["foo:bar"],
+                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "template": "hello {#foo}",
+                "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+            }
+        )
+
         sleep(0.5)
 
         # testing two things:
@@ -243,7 +240,7 @@ def test_multiple_configs():
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2"})),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe2", "probe3"})),
             }
         )
 

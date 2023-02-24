@@ -295,7 +295,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         )
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
-                "There is a known compatibiltiy issue with v0.5 API and Windows, "
+                "There is a known compatibility issue with v0.5 API and Windows, "
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 

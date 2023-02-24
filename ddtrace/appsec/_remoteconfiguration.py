@@ -1,7 +1,8 @@
-import json
 import os
 from typing import TYPE_CHECKING
 
+from ddtrace import config
+from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
@@ -40,14 +41,16 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
-        from ddtrace.appsec._constants import PRODUCTS
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_rc_reload_features(tracer))
-        if tracer._appsec_enabled:
-            RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
-            RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
-            RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+
+    if tracer._appsec_enabled:
+        from ddtrace.internal.remoteconfig import RemoteConfig
+
+        RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
+        RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+        RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
 
 
 def _add_rules_to_list(features, feature, message, rule_list):
@@ -64,18 +67,20 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
-        rule_list = []  # type: list[Any]
-        _add_rules_to_list(features, "rules_data", "rules data", rule_list)
-        _add_rules_to_list(features, "custom_rules", "custom rules", rule_list)
-        _add_rules_to_list(features, "rules", "Datadog rules", rule_list)
-        if rule_list:
-            payload = {"version": "2.2", "rules": rule_list}
-            tracer._appsec_processor._update_rules(json.dumps(payload))
+        ruleset = {"rules": [], "rules_data": []}  # type: dict[str, list[Any]]
+        _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
+        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
+        _add_rules_to_list(features, "rules", "Datadog rules", ruleset["rules"])
+        if any(ruleset.values()):
+            tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
 
 
 def _appsec_1click_activation(tracer, features):
     # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
-    if features is False:
+    if APPSEC_ENV in os.environ:
+        # no one click activation if var env is set
+        rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+    elif features is False:
         rc_appsec_enabled = False
     else:
         rc_appsec_enabled = features.get("asm", {}).get("enabled")
@@ -85,22 +90,24 @@ def _appsec_1click_activation(tracer, features):
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
-        _appsec_enabled = True
 
-        if not (APPSEC_ENV not in os.environ and rc_appsec_enabled) and (
-            not asbool(os.environ.get(APPSEC_ENV)) or not rc_appsec_enabled
-        ):
-            _appsec_enabled = False
-            RemoteConfig.unregister(PRODUCTS.ASM_DATA)
-            RemoteConfig.unregister(PRODUCTS.ASM)
-            RemoteConfig.unregister(PRODUCTS.ASM_DD)
-        else:
+        if rc_appsec_enabled:
             RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_rc_reload_features(tracer))  # IP Blocking
             RemoteConfig.register(PRODUCTS.ASM, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
             RemoteConfig.register(PRODUCTS.ASM_DD, appsec_rc_reload_features(tracer))  # DD Rules
+            if not tracer._appsec_enabled:
+                tracer.configure(appsec_enabled=True)
+            else:
+                config._appsec_enabled = True
 
-        if tracer._appsec_enabled != _appsec_enabled:
-            tracer.configure(appsec_enabled=_appsec_enabled)
+        else:
+            RemoteConfig.unregister(PRODUCTS.ASM_DATA)
+            RemoteConfig.unregister(PRODUCTS.ASM)
+            RemoteConfig.unregister(PRODUCTS.ASM_DD)
+            if tracer._appsec_enabled:
+                tracer.configure(appsec_enabled=False)
+            else:
+                config._appsec_enabled = False
 
 
 def appsec_rc_reload_features(tracer):
@@ -123,7 +130,9 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Updating ASM Remote Configuration: %s", features)
-            _appsec_rules_data(tracer, features)
+            # The order of this matters since 1click could reconfigure the AppSecProcessor
+            # which the second checks
             _appsec_1click_activation(tracer, features)
+            _appsec_rules_data(tracer, features)
 
     return _reload_features

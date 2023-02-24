@@ -129,8 +129,8 @@ class CassandraBase(object):
         assert query.span_type == "cassandra"
 
         assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
+        assert query.get_metric("db.row_count") == 1
         assert query.get_metric("network.destination.port") == self.TEST_PORT
-        assert query.get_metric(cassx.ROW_COUNT) == 1
         assert query.get_tag(cassx.PAGE_NUMBER) is None
         assert query.get_tag(cassx.PAGINATED) == "False"
         assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
@@ -203,8 +203,8 @@ class CassandraBase(object):
         assert dd_span.span_type == "cassandra"
 
         assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
+        assert dd_span.get_metric("db.row_count") == 1
         assert dd_span.get_metric("network.destination.port") == self.TEST_PORT
-        assert dd_span.get_metric(cassx.ROW_COUNT) == 1
         assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
         assert dd_span.get_tag(cassx.PAGINATED) == "False"
         assert dd_span.get_tag(net.TARGET_HOST) == "127.0.0.1"
@@ -266,9 +266,9 @@ class CassandraBase(object):
             assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
             assert query.get_metric("network.destination.port") == self.TEST_PORT
             if i == 3:
-                assert query.get_metric(cassx.ROW_COUNT) == 0
+                assert query.get_metric("db.row_count") == 0
             else:
-                assert query.get_metric(cassx.ROW_COUNT) == 1
+                assert query.get_metric("db.row_count") == 1
             assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
             assert query.get_tag(cassx.PAGINATED) == "True"
             assert query.get_metric(cassx.PAGE_NUMBER) == i + 1

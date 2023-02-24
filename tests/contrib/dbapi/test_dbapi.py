@@ -192,8 +192,7 @@ class TestTracedCursor(TracerTestCase):
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count
-        assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
-        assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_cfg_service(self):
@@ -273,8 +272,7 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         # Row count
-        assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
-        assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
     def test_cursor_analytics_default(self):
         cursor = self.cursor
@@ -426,8 +424,7 @@ class TestFetchTracedCursor(TracerTestCase):
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count
-        assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
-        assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_django_traced_cursor_backward_compatibility(self):
@@ -446,8 +443,7 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         # Row count
-        assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
-        assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
     def test_fetch_no_analytics(self):
         """Confirm fetch* methods do not have analytics sample rate metric"""
@@ -497,8 +493,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
-        assert span.get_metric("db.rowcount") is None
-        assert span.get_metric("sql.rows") is None
+        assert span.get_metric("db.row_count") is None
 
     def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor

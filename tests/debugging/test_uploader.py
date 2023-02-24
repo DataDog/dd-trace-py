@@ -42,22 +42,19 @@ def test_uploader_batching():
 
 def test_uploader_full_buffer():
     size = 1 << 8
-    with ActiveBatchJsonEncoder(size=size, interval=0.5) as uploader:
+    with ActiveBatchJsonEncoder(size=size, interval=1) as uploader:
         item = "hello" * 10
         n = size // len(item)
         assert n
-        for _ in range(n):
-            uploader._encoder.put(item)
 
         with pytest.raises(BufferFull):
-            uploader._encoder.put(item)
-
-            # OK, maybe this time then
-            uploader._encoder.put(item)
+            for _ in range(2 * n):
+                uploader._encoder.put(item)
 
         # The full buffer forces a flush
         sleep(0.01)
         assert len(uploader.queue) == 1
 
-        sleep(0.55)
+        # wakeup to mimik next interval
+        uploader.awake()
         assert len(uploader.queue) == 1
