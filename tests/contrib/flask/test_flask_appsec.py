@@ -17,6 +17,7 @@ from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.appsec.test_processor import _ALLOWED_IP
+from tests.appsec.test_processor import _BLOCKED_IP
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -263,6 +264,16 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
+
+    def test_flask_ipblock_match_403_json(self):
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/", headers={"X-REAL-IP": _BLOCKED_IP})
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
