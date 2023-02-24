@@ -47,6 +47,10 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.6.1"
 
+LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog"))
+
+LIBDATADOGPROF_VERSION = "2.0"
+
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
@@ -118,9 +122,14 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
-class LibDDWaf_Download(BuildPyCommand):
-    @staticmethod
-    def download_dynamic_library():
+class Library_Download(BuildPyCommand):
+    name = None
+    download_dir = None
+    version = None
+    url_root = None
+
+    @classmethod
+    def download_dynamic_library(cls):
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
@@ -131,11 +140,12 @@ class LibDDWaf_Download(BuildPyCommand):
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
-        if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
+        print("ddir is " + cls.download_dir)
+        if os.path.isdir(cls.download_dir) and len(os.listdir(cls.download_dir)):
             return
 
-        if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
-            os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
+        if not os.path.isdir(cls.download_dir):
+            os.makedirs(cls.download_dir)
 
         build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
@@ -143,26 +153,27 @@ class LibDDWaf_Download(BuildPyCommand):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
 
-            arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
+            arch_dir = os.path.join(cls.download_dir, arch)
 
             # If the directory for the architecture exists, assume the right files are there
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-%s-%s-%s" % (LIBDDWAF_VERSION, CURRENT_OS.lower(), arch)
-            ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+            archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, CURRENT_OS.lower(), arch)
+            archive_name = archive_dir + ".tar.gz"
 
-            ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/%s/%s" % (
-                LIBDDWAF_VERSION,
-                ddwaf_archive_name,
+            download_address = "%s/%s/%s" % (
+                cls.url_root,
+                cls.version,
+                archive_name,
             )
-            ddwaf_sha256_address = ddwaf_download_address + ".sha256"
+            sha256_address = download_address + ".sha256"
 
             try:
-                filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-                sha256_filename, http_response = urlretrieve(ddwaf_sha256_address, ddwaf_archive_name + ".sha256")
+                filename, http_response = urlretrieve(download_address, archive_name)
+                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
             except HTTPError as e:
-                print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+                print("No archive found for dynamic library " + cls.name + ": " + archive_dir)
                 raise e
 
             # Verify checksum of downloaded file
@@ -177,18 +188,37 @@ class LibDDWaf_Download(BuildPyCommand):
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
-                os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
+                os.rename(os.path.join(HERE, archive_dir), arch_dir)
 
-            # Rename ddwaf.xxx to libddwaf.xxx so the filename is the same for every OS
-            original_file = os.path.join(arch_dir, "lib", "ddwaf" + SUFFIX)
+            # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
+            original_file = os.path.join(arch_dir, "lib", cls.name + SUFFIX)
             if os.path.exists(original_file):
-                renamed_file = os.path.join(arch_dir, "lib", "libddwaf" + SUFFIX)
+                renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + SUFFIX)
                 os.rename(original_file, renamed_file)
 
             os.remove(filename)
 
     def run(self):
+        pass
+
+class LibDDWaf_Download(Library_Download):
+    name = "ddwaf"
+    download_dir = LIBDDWAF_DOWNLOAD_DIR
+    version = LIBDDWAF_VERSION
+    url_root = "https://github.com/DataDog/libddwaf/releases/download/"
+
+    def run(self):
         LibDDWaf_Download.download_dynamic_library()
+        BuildPyCommand.run(self)
+
+class LibDatadog_Download(Library_Download):
+    name = "datadog"
+    download_dir = LIBDATADOGPROF_DOWNLOAD_DIR
+    version = LIBDATADOGPROF_VERSION
+    url_root = "https://github.com/DataDog/libdatadog/releases/download/"
+
+    def run(self):
+        LibDatadog_Download.download_dynamic_library()
         BuildPyCommand.run(self)
 
 
@@ -196,6 +226,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_dynamic_library():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        shutil.rmtree(LIBDATADOGPROF_DOWNLOAD_DIR, True)
 
     def run(self):
         CleanLibraries.remove_dynamic_library()
