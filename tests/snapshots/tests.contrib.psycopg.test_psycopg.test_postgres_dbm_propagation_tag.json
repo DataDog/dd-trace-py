@@ -24,16 +24,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-<<<<<<< HEAD
       "db.rowcount": 1,
       "out.port": 5432,
       "process_id": 56478,
       "sql.rows": 1
-=======
-      "db.row_count": 1,
-      "network.destination.port": 5432,
-      "process_id": 58527
->>>>>>> e92c3f9ee (fix(dbm): support byte string queries (#5188))
     },
     "duration": 8128000,
     "start": 1677184993764288000
@@ -65,16 +59,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-<<<<<<< HEAD
       "db.rowcount": 2,
       "out.port": 5432,
       "process_id": 56478,
       "sql.rows": 2
-=======
-      "db.row_count": 2,
-      "network.destination.port": 5432,
-      "process_id": 58527
->>>>>>> e92c3f9ee (fix(dbm): support byte string queries (#5188))
     },
     "duration": 5081000,
     "start": 1677184993788584000
@@ -105,16 +93,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-<<<<<<< HEAD
       "db.rowcount": 1,
       "out.port": 5432,
       "process_id": 56478,
       "sql.rows": 1
-=======
-      "db.row_count": 1,
-      "network.destination.port": 5432,
-      "process_id": 58527
->>>>>>> e92c3f9ee (fix(dbm): support byte string queries (#5188))
     },
     "duration": 2678000,
     "start": 1677184993793709000
@@ -146,16 +128,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-<<<<<<< HEAD
       "db.rowcount": 2,
       "out.port": 5432,
       "process_id": 56478,
       "sql.rows": 2
-=======
-      "db.row_count": 2,
-      "network.destination.port": 5432,
-      "process_id": 58527
->>>>>>> e92c3f9ee (fix(dbm): support byte string queries (#5188))
     },
     "duration": 4226000,
     "start": 1677184993796426000
