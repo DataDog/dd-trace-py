@@ -398,7 +398,6 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
                     pkgs={"pytest-asyncio": latest},
                     command="python -m tests.profiling.run pytest --no-cov --capture=no --verbosity=2"
                     " --benchmark-disable {cmdargs} tests/profiling",
@@ -406,6 +405,7 @@ venv = Venv(
                         # profiler with minreqs
                         # https://github.com/gevent/gevent/issues/1674
                         Venv(
+                            pys=["3.10"],
                             pkgs={
                                 "gunicorn": latest,
                                 "tenacity": "==5.0.1",
@@ -417,6 +417,7 @@ venv = Venv(
                         ),
                         # profiler with latest reqs
                         Venv(
+                            pys=select_pys(min_version="3.10"),
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "protobuf": latest,
@@ -426,6 +427,7 @@ venv = Venv(
                         ),
                         # profiler without gevent
                         Venv(
+                            pys=select_pys(min_version="3.10"),
                             pkgs={
                                 "gunicorn": latest,
                                 "protobuf": latest,
