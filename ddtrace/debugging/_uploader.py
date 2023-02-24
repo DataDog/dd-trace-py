@@ -72,13 +72,14 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                     headers=self._headers,
                 )
                 resp = compat.get_connection_response(conn)
-                if resp.status != 200:
-                    log.error("Failed to upload snapshot: [%d] %r", resp.status, resp.read())
-                    meter.increment("upload.error", tags={"status": str(resp.status)})
-                else:
+                if 200 <= resp.status <= 299:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
                     log.debug("Snapshot uploaded: %s", payload)
+                else:
+                    log.error("Failed to upload snapshot: [%d] %r", resp.status, resp.read())
+                    meter.increment("upload.error", tags={"status": str(resp.status)})
+
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
