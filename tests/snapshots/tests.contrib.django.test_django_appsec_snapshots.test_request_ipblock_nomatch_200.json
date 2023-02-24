@@ -28,7 +28,8 @@
       "http.version": "1.1",
       "language": "python",
       "network.client.ip": "1.1.1.1",
-      "runtime-id": "65c8a8d04976400998104795e281ccc9"
+      "runtime-id": "65c8a8d04976400998104795e281ccc9",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

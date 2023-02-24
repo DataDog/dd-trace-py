@@ -38,6 +38,7 @@
       "language": "python",
       "network.client.ip": "127.0.0.1",
       "runtime-id": "1a9c2a41c0ab4eb78d135c5aea929ebb",
+      "span.kind": "server",
       "usr.id": "123456"
     },
     "metrics": {
