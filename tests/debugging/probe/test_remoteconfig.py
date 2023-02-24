@@ -4,10 +4,13 @@ from uuid import uuid4
 import pytest
 
 from ddtrace.debugging._config import config
+from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.remoteconfig import probe_factory
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
@@ -217,6 +220,7 @@ def test_multiple_configs():
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
+                "type": ProbeType.METRIC_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
@@ -234,6 +238,7 @@ def test_multiple_configs():
             config_metadata("logProbe_probe3"),
             {
                 "id": "probe3",
+                "type": ProbeType.LOG_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "template": "hello {#foo}",
@@ -251,7 +256,7 @@ def test_multiple_configs():
 
         # testing two things:
         #  1. after sleep 0.5 probe status should report 2 probes
-        #  2. bad config id raises ValueError
+        #  2. bad config raises ValueError
         with pytest.raises(ValueError):
             adapter(config_metadata("not-supported"), {})
 
@@ -272,3 +277,34 @@ def test_multiple_configs():
 
     finally:
         config.diagnostics_interval = old_interval
+
+
+def test_log_probe_attributes_parsing():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "language": "python",
+            "active": True,
+            "where": {
+                "sourceFile": "foo.py",
+                "lines": ["57"],
+            },
+            "tags": ["env:staging", "version:v12417452-d2552757"],
+            "template": "{weekID} {idea}",
+            "segments": [
+                {"dsl": "weekID", "json": {"eq": [{"ref": "weekID"}, 1]}},
+                {"str": " "},
+                {"dsl": "idea", "json": {"ref": "idea"}},
+            ],
+            "captureSnapshot": False,
+            "capture": {"maxReferenceDepth": 42, "maxLength": 43},
+            "sampling": {"snapshotsPerSecond": 5000},
+        }
+    )
+
+    assert isinstance(probe, LogProbeMixin)
+
+    assert probe.limits.max_level == 42
+    assert probe.limits.max_len == 43
