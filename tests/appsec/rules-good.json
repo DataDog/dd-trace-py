@@ -20,7 +20,9 @@
                 "address": "http.client_ip"
               }
             ],
-            "list": ["8.8.4.4"],
+            "list": [
+              "8.8.4.4"
+            ],
             "data": "blocked_ips"
           }
         }
@@ -44,7 +46,10 @@
                 "address": "usr.id"
               }
             ],
-            "list": ["123456", "654321"],
+            "list": [
+              "123456",
+              "654321"
+            ],
             "data": "blocked_users"
           },
           "operator": "exact_match"
