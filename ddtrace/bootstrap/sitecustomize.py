@@ -13,8 +13,6 @@ from typing import Any  # noqa
 from typing import Dict  # noqa
 import warnings  # noqa
 
-import gevent.monkey  # noqa
-
 from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
@@ -60,13 +58,16 @@ if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
         postfix="There is no special configuration necessary to make ddtrace work with gevent.",
         removal_version="2.0.0",
     )
-if gevent.monkey.is_module_patched("sys"):
-    warnings.warn(
-        "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
-        "likely to break the application. Use ddtrace-run to fix this, or "
-        "import ddtrace.auto before calling gevent.monkey.patch_all().",
-        RuntimeWarning,
-    )
+if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
+    import gevent.monkey  # noqa
+
+    if gevent.monkey.is_module_patched("threading"):
+        warnings.warn(
+            "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
+            "likely to break the application. Use ddtrace-run to fix this, or "
+            "import ddtrace.auto before calling gevent.monkey.patch_all().",
+            RuntimeWarning,
+        )
 
 
 EXTRA_PATCHED_MODULES = {
