@@ -1,4 +1,3 @@
-from itertools import chain
 import time
 from typing import Any
 from typing import Callable
@@ -22,6 +21,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.utils.cache import LFUCache
@@ -31,6 +31,11 @@ log = get_logger(__name__)
 
 
 _EXPRESSION_CACHE = LFUCache()
+
+
+def xlate_keys(d, mapping):
+    # type: (Dict[str, Any], Dict[str, str]) -> Dict[str, Any]
+    return {mapping.get(k, k): v for k, v in d.items()}
 
 
 def _invalid_expression(_):
@@ -74,7 +79,7 @@ def _compile_expression(expr):
 
 def _compile_segment(segment):
     if segment.get("str", ""):
-        return LiteralTemplateSegment(str=segment["str"])
+        return LiteralTemplateSegment(str_value=segment["str"])
     elif segment.get("json", None) is not None:
         return ExpressionTemplateSegment(expr=_compile_expression(segment))
 
@@ -116,19 +121,37 @@ def _create_probe_based_on_location(args, attribs, line_class, function_class):
     return ProbeType(**args)
 
 
-def probe(_id, _type, attribs):
-    # type: (str, str, Dict[str, Any]) -> Probe
+def probe_factory(attribs):
+    # type: (Dict[str, Any]) -> Probe
     """
     Create a new Probe instance.
     """
-    if _type == "logProbes":
+    try:
+        _type = attribs["type"]
+        _id = attribs["id"]
+    except KeyError as e:
+        raise ValueError("Invalid probe attributes: %s" % e)
+
+    if _type == ProbeType.LOG_PROBE:
         take_snapshot = attribs.get("captureSnapshot", False)
 
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
-            limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
+            limits=CaptureLimits(
+                **xlate_keys(
+                    attribs["capture"],
+                    {
+                        "maxReferenceDepth": "max_level",
+                        "maxCollectionSize": "max_size",
+                        "maxLength": "max_len",
+                        "maxFieldDepth": "max_fields",
+                    },
+                )
+            )
+            if "capture" in attribs
+            else None,
             rate=DEFAULT_SNAPSHOT_PROBE_RATE
             if take_snapshot
             else DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
@@ -140,7 +163,7 @@ def probe(_id, _type, attribs):
 
         return _create_probe_based_on_location(args, attribs, LogLineProbe, LogFunctionProbe)
 
-    elif _type == "metricProbes":
+    elif _type == ProbeType.METRIC_PROBE:
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
@@ -157,25 +180,10 @@ def probe(_id, _type, attribs):
     raise ValueError("Unknown probe type: %s" % _type)
 
 
-_METRIC_PREFIX = "metricProbe_"
-_LOG_PREFIX = "logProbe_"
-
-
-def _make_probes(probes, _type):
-    return [probe(p["id"], _type, p) for p in probes]
-
-
 @_filter_by_env_and_version
 def get_probes(config_id, config):
     # type: (str, dict) -> Iterable[Probe]
-
-    if config_id.startswith(_METRIC_PREFIX):
-        return chain(_make_probes([config], "metricProbes"))
-
-    if config_id.startswith(_LOG_PREFIX):
-        return chain(_make_probes([config], "logProbes"))
-
-    raise ValueError("Unsupported config id: %s" % config_id)
+    return [probe_factory(config)]
 
 
 log = get_logger(__name__)
