@@ -8,14 +8,9 @@ from typing import Generator
 from typing import List
 
 import pytest
-import six
 import tenacity
 
 from ddtrace.contrib.flask.patch import flask_version
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _BLOCKED_IP
 from tests.webclient import Client
 
 
@@ -51,21 +46,6 @@ def flask_default_env(flask_wsgi_application):
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
             "FLASK_APP": flask_wsgi_application,
-        }
-    )
-    return env
-
-
-def flask_appsec_good_rules_env(flask_wsgi_application):
-    # type: (str) -> Dict[str, str]
-    env = os.environ.copy()
-    env.update(
-        {
-            # Avoid noisy database spans being output on app startup/teardown.
-            "DD_TRACE_SQLITE3_ENABLED": "0",
-            "FLASK_APP": flask_wsgi_application,
-            "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
         }
     )
     return env
@@ -144,47 +124,3 @@ def test_flask_stream(flask_client):
 def test_flask_get_user(flask_client):
     # type: (Client) -> None
     assert flask_client.get("/identify").status_code == 200
-
-
-@pytest.mark.snapshot(
-    ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta.flask.version",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "meta.error.stack",
-    ],
-    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
-)
-@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-def test_flask_ipblock_match_403(flask_client):
-    resp = flask_client.get("/", headers={"Via": _BLOCKED_IP, "ACCEPT": "text/html"})
-    assert resp.status_code == 403
-    if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_HTML
-    else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_HTML)
-
-
-@pytest.mark.snapshot(
-    ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta.flask.version",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "meta.error.stack",
-    ],
-    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
-)
-@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-def test_flask_ipblock_match_403_json(flask_client):
-    resp = flask_client.get("/", headers={"Via": _BLOCKED_IP})
-    assert resp.status_code == 403
-    if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
-    else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)

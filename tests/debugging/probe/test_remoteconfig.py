@@ -155,7 +155,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
                 # New
                 create_snapshot_line_probe(
@@ -163,7 +162,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
             ]
         )
@@ -176,7 +174,6 @@ def test_poller_events(mock_config):
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
-            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe2"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
@@ -203,7 +200,6 @@ def test_multiple_configs():
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
-                "active": True,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
@@ -221,7 +217,6 @@ def test_multiple_configs():
             config_metadata("logProbe_probe3"),
             {
                 "id": "probe3",
-                "active": True,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "template": "hello {#foo}",

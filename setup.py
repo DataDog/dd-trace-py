@@ -4,6 +4,7 @@ import platform
 import shutil
 import sys
 import tarfile
+import glob
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
@@ -45,7 +46,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.6.1"
+LIBDDWAF_VERSION = "1.8.2"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -290,6 +291,20 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
+        if sys.version_info >= (3, 6, 0):
+            ext_modules.append(
+                Extension(
+                    "ddtrace.appsec.iast._taint_tracking",
+                    # Sort source files for reproducibility
+                    sources=sorted(
+                        glob.glob(
+                            os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                            recursive=True,
+                        )
+                    ),
+                    extra_compile_args=debug_compile_args + ["-std=c++17"],
+                )
+            )
 else:
     ext_modules = []
 
