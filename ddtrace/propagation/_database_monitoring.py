@@ -33,7 +33,7 @@ def default_sql_injector(dbm_comment, sql_statement):
             # raises a unicode error when sql statements with non utf-8 encodings
             # are concatenated. This operation will log a warning.
             sql_statement = sql_statement.decode("utf-8", errors="strict")
-            return  bytes(dbm_comment + sql_statement, "utf-8")
+            return bytes(dbm_comment + sql_statement, "utf-8")
         return dbm_comment + sql_statement
     except (TypeError, UnicodeDecodeError, UnicodeEncodeError):
         log.warning(
