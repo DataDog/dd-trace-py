@@ -2,6 +2,7 @@
 Generic dbapi tracing code.
 """
 from typing import TYPE_CHECKING
+from typing import Union
 
 import six
 
@@ -181,15 +182,17 @@ class TracedCursor(wrapt.ObjectProxy):
         return args
 
     def _dbm_sql_injector(self, dbm_comment, sql_statement):
+        # type: (str, Union[str, bytes]) -> Union[str, bytes]
         try:
+            if isinstance(sql_statement, bytes):
+                return dbm_comment.encode("utf-8", errors="strict") + sql_statement
             return dbm_comment + sql_statement
-        except TypeError:
+        except (TypeError, ValueError):
             log.warning(
                 "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
                 "To disable this feature please set the following environment variable: "
                 "DD_DBM_PROPAGATION_MODE=disabled",
                 type(sql_statement),
-                exc_info=True,
             )
         return sql_statement
 

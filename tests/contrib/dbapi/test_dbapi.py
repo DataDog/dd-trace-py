@@ -1,3 +1,5 @@
+import logging
+
 import mock
 import pytest
 
@@ -19,6 +21,10 @@ class TestTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
+
+    @pytest.fixture(autouse=True)
+    def prepare_fixture(self, caplog):
+        self._caplog = caplog
 
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -68,6 +74,29 @@ class TestTracedCursor(TracerTestCase):
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
         # DBM comment should not be added procedure names
         cursor.callproc.assert_called_once_with("procedure_named_moon")
+
+    def test_default_sql_injector(self):
+        # test sql injection with unicode str
+        cursor = TracedCursor(self.cursor, Pin(), {})
+        dbm_comment = "/*dddbs='orders-db'*/ "
+        str_query = "select * from table;"
+        assert cursor._dbm_sql_injector(dbm_comment, str_query) == "/*dddbs='orders-db'*/ select * from table;"
+
+        # test sql injection with uft-8 byte str query
+        dbm_comment = "/*dddbs='orders-db'*/ "
+        str_query = "select * from table;".encode("utf-8")
+        assert cursor._dbm_sql_injector(dbm_comment, str_query) == b"/*dddbs='orders-db'*/ select * from table;"
+
+        # test sql injection with a non supported type
+        with self._caplog.at_level(logging.INFO):
+            dbm_comment = "/*dddbs='orders-db'*/ "
+            non_string_object = object()
+            result = cursor._dbm_sql_injector(dbm_comment, non_string_object)
+            assert result == non_string_object
+            assert (
+                "Linking Database Monitoring profiles to spans is not supported for the following query type:"
+                in self._caplog.text
+            )
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
