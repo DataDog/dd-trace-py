@@ -264,9 +264,6 @@ class Debugger(Service):
         for bulk processing. This way we avoid adding delay while the
         instrumented code is running.
         """
-        if not probe.active:
-            return
-
         try:
             actual_frame = sys._getframe(1)
 
@@ -312,9 +309,7 @@ class Debugger(Service):
 
         def _(wrapped, args, kwargs):
             # type: (FunctionType, Tuple[Any], Dict[str,Any]) -> Any
-            active_probes = [probe for probe in wrappers.values() if probe.active]
-
-            if not active_probes:
+            if not wrappers:
                 return wrapped(*args, **kwargs)
 
             argnames = wrapped.__code__.co_varnames
@@ -324,7 +319,7 @@ class Debugger(Service):
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
-            for probe in active_probes:
+            for probe in wrappers.values():
                 if isinstance(probe, MetricFunctionProbe):
                     metricSample = MetricSample(
                         probe=probe,
@@ -428,13 +423,6 @@ class Debugger(Service):
                 )
                 self._probe_registry.set_error(probe, "Source file location cannot be resolved")
                 continue
-
-            # Update active status if necessary
-            entry = self._probe_registry[probe.probe_id]
-            if probe.active:
-                entry.activate()
-            else:
-                entry.deactivate()
 
         for source in {probe.source_file for probe in probes if probe.source_file is not None}:
             try:
@@ -605,12 +593,6 @@ class Debugger(Service):
                         log.error("Modified probe %r was not found in registry.", probe)
                         continue
 
-                    if probe.active:
-                        log.debug("Activating %r", registered_probe)
-                        registered_probe.activate()
-                    else:
-                        log.debug("Deactivating %r", registered_probe)
-                        registered_probe.deactivate()
             return
 
         line_probes = []  # type: List[LineProbe]
