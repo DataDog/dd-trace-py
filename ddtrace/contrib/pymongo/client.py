@@ -1,6 +1,7 @@
 # stdlib
 import contextlib
 import json
+from typing import Iterable
 
 # 3p
 import pymongo
@@ -34,9 +35,6 @@ log = get_logger(__name__)
 VERSION = pymongo.version_tuple
 
 BATCH_PARTIAL_KEY = "Batch"
-
-if VERSION < (3, 6, 0):
-    from pymongo.helpers import _unpack_response
 
 
 class TracedMongoClient(ObjectProxy):
@@ -137,11 +135,11 @@ class TracedServer(ObjectProxy):
                 return self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
             with span:
                 result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
-                if result and result.address:
-                    set_address_tags(span, result.address)
-                if result and self._is_query(operation):
-                    cursor = result.docs[0].get("cursor")
-                    set_query_rowcount(cursor=cursor, span=span)
+                if result:
+                    if hasattr(result, "address"):
+                        set_address_tags(span, result.address)
+                    if self._is_query(operation) and hasattr(result, "docs"):
+                        set_query_rowcount(docs=result.docs, span=span)
                 return result
 
     # Pymongo >= 3.9, <3.12
@@ -154,11 +152,10 @@ class TracedServer(ObjectProxy):
             with span:
                 result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
                 if result:
-                    if result.address:
+                    if hasattr(result, "address"):
                         set_address_tags(span, result.address)
-                    if self._is_query(operation):
-                        cursor = result.docs[0].get("cursor")
-                        set_query_rowcount(cursor=cursor, span=span)
+                    if self._is_query(operation) and hasattr(result, "docs"):
+                        set_query_rowcount(docs=result.docs, span=span)
                 return result
 
     # Pymongo < 3.9
@@ -170,20 +167,16 @@ class TracedServer(ObjectProxy):
                 return self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
             with span:
                 result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-                if result and result.address:
-                    set_address_tags(span, result.address)
-                if result and self._is_query(operation):
-                    if VERSION < (3, 2, 0):
-                        docs = _unpack_response(response=result.data)
-                        span.set_metric(db.ROWCOUNT, docs["number_returned"])
-                    elif (3, 2, 0) <= VERSION < (3, 6, 0):
-                        docs = _unpack_response(response=result.data)
-                        cursor = docs["data"][0]["cursor"]
-                        set_query_rowcount(cursor=cursor, span=span)
-                    else:
-                        docs = result.data.unpack_response()
-                        cursor = docs[0]["cursor"]
-                        set_query_rowcount(cursor=cursor, span=span)
+                if result:
+                    if hasattr(result, "address"):
+                        set_address_tags(span, result.address)
+                    if self._is_query(operation):
+                        if VERSION < (3, 6, 0) and hasattr(result, "number_returned"):
+                            span.set_metric(db.ROWCOUNT, result.number_returned)
+                        elif (
+                            VERSION > (3, 6, 0) and hasattr(result, "data") and hasattr(result.data, "unpack_response")
+                        ):
+                            set_query_rowcount(docs=result.data.unpack_response(), span=span)
                 return result
 
     @contextlib.contextmanager
@@ -312,8 +305,11 @@ def _set_query_metadata(span, cmd):
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 
 
-def set_query_rowcount(span, cursor):
+def set_query_rowcount(span, docs):
     # results returned in batches, get len of each batch
-    rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
-    span.set_metric(db.ROWCOUNT, rowcount)
+    if isinstance(docs, Iterable) and len(docs) > 0:
+        cursor = docs[0].get("cursor", None)
+    if cursor:
+        rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
+        span.set_metric(db.ROWCOUNT, rowcount)
     return span
