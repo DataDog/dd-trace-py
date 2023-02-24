@@ -60,9 +60,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "component": "fastapi"
-          },
           "duration": 28000,
           "start": 1656543965400167000
         }]]

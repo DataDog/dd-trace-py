@@ -59,10 +59,7 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled:
         return await wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("fastapi.serialize_response") as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.fastapi.integration_name)
-
+    with pin.tracer.trace("fastapi.serialize_response"):
         return await wrapped(*args, **kwargs)
 
 

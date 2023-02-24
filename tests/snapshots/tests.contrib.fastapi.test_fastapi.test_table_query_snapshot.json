@@ -39,9 +39,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "component": "fastapi"
-       },
        "duration": 80000,
        "start": 1656543965510900000
      }],
@@ -86,9 +83,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "component": "fastapi"
-       },
        "duration": 65000,
        "start": 1656543965512188000
      }]]
