@@ -127,7 +127,6 @@ def probe(_id, _type, attribs):
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             limits=CaptureLimits(**attribs.get("capture", None)) if attribs.get("capture", None) else None,
             rate=DEFAULT_SNAPSHOT_PROBE_RATE
@@ -145,7 +144,6 @@ def probe(_id, _type, attribs):
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
@@ -193,13 +191,6 @@ class ProbePollerEvent(object):
 ProbePollerEventType = int
 
 
-def probe_modified(reference, probe):
-    # type: (Probe, Probe) -> bool
-    # DEV: Probes are immutable modulo the active state. Hence we expect
-    # probes with the same ID to differ up to this property for now.
-    return probe.active != reference.active
-
-
 class ProbeRCAdapter(object):
     """Probe configuration adapter for the RCM client.
 
@@ -220,7 +211,7 @@ class ProbeRCAdapter(object):
     def _dispatch_probe_events(self, prev_probes, next_probes):
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
-        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and probe_modified(p, prev_probes[_])]
+        modified_probes = []  # DEV: Probes are currently immutable
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
