@@ -20,13 +20,14 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ...propagation._database_monitoring import default_sql_injector as _default_sql_injector
 
 
 def _psycopg2_sql_injector(dbm_comment, sql_statement):
     # type: (str, Composable) -> Composable
     if isinstance(sql_statement, Composable):
         return psycopg2.sql.SQL(dbm_comment) + sql_statement
-    return dbm_comment + sql_statement
+    return _default_sql_injector(dbm_comment, sql_statement)
 
 
 config._add(
