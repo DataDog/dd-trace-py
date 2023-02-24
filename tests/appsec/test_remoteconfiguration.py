@@ -204,7 +204,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             "rules_data": [
                 {
                     "data": [
-                        {"expiration": int(time.time()), "value": "8.8.4.4"},
+                        {"expiration": int(time.time()) + 10000, "value": "8.8.4.4"},
                     ],
                     "id": "blocked_ips",
                     "type": "ip_with_expiration",
