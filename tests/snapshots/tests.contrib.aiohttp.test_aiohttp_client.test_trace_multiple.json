@@ -38,9 +38,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "component": "aiohttp"
-       },
        "duration": 26278000,
        "start": 1646794505598411000
      }],
@@ -84,9 +81,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "component": "aiohttp"
-       },
        "duration": 70000,
        "start": 1646794505627940000
      }],
@@ -130,9 +124,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "component": "aiohttp"
-       },
        "duration": 136000,
        "start": 1646794505631851000
      }]]
