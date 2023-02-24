@@ -1,4 +1,3 @@
-from contextlib import suppress
 import functools
 import sys
 from typing import TYPE_CHECKING
@@ -84,10 +83,6 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._self_span_finished = True
 
 
-class _Appsec_block_interruption(UserWarning):
-    """flow control for ASM blocking features"""
-
-
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 
@@ -128,7 +123,8 @@ class _DDWSGIMiddlewareBase(object):
 
         headers = get_request_headers(environ)
         closing_iterator = ()
-        with suppress(_Appsec_block_interruption), _asm_request_context.asm_request_context_manager(
+        not_blocked = True
+        with _asm_request_context.asm_request_context_manager(
             environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
         ):
             req_span = self.tracer.trace(
@@ -140,52 +136,53 @@ class _DDWSGIMiddlewareBase(object):
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
                 if _context.get_item("http.request.blocked", span=req_span):
-                    start_response("403 FORBIDDEN", [])
+                    start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
                     closing_iterator = utils._get_blocked_template(headers.get("Accept"))
-                    raise _Appsec_block_interruption
+                    not_blocked = False
 
-            req_span.set_tag_str(COMPONENT, self._config.integration_name)
-            self._request_span_modifier(req_span, environ)
+            if not_blocked:
+                req_span.set_tag_str(COMPONENT, self._config.integration_name)
+                self._request_span_modifier(req_span, environ)
+                if self.tracer._appsec_enabled:
+                    # [Suspicious Request Blocking on request]
+                    if _context.get_item("http.request.blocked", span=req_span):
+                        start_response("403 FORBIDDEN", [])
+                        closing_iterator = utils._get_blocked_template(headers.get("Accept"))
+                        not_blocked = False
 
-            if self.tracer._appsec_enabled:
-                # [Suspicious Request Blocking on request]
-                if _context.get_item("http.request.blocked", span=req_span):
-                    start_response("403 FORBIDDEN", [])
-                    closing_iterator = utils._get_blocked_template(headers.get("Accept"))
-                    raise _Appsec_block_interruption
+            if not_blocked:
+                try:
+                    app_span = self.tracer.trace(self._application_span_name)
 
-            try:
-                app_span = self.tracer.trace(self._application_span_name)
+                    app_span.set_tag_str(COMPONENT, self._config.integration_name)
 
-                app_span.set_tag_str(COMPONENT, self._config.integration_name)
-
-                intercept_start_response = functools.partial(
-                    self._traced_start_response, start_response, req_span, app_span
-                )
-                closing_iterator = self.app(environ, intercept_start_response)
-                self._application_span_modifier(app_span, environ, closing_iterator)
-                app_span.finish()
-            finally:
-                req_span.set_exc_info(*sys.exc_info())
-                if app_span is not None:
+                    intercept_start_response = functools.partial(
+                        self._traced_start_response, start_response, req_span, app_span
+                    )
+                    closing_iterator = self.app(environ, intercept_start_response)
+                    self._application_span_modifier(app_span, environ, closing_iterator)
+                    app_span.finish()
+                except BaseException:
+                    req_span.set_exc_info(*sys.exc_info())
                     app_span.set_exc_info(*sys.exc_info())
                     app_span.finish()
-                req_span.finish()
+                    req_span.finish()
+                    raise
+                if self.tracer._appsec_enabled:
+                    # [Suspicious Request Blocking on response]
+                    if _context.get_item("http.request.blocked", span=req_span):
+                        start_response("403 FORBIDDEN", [])
+                        closing_iterator = utils._get_blocked_template(headers.get("Accept"))
+
             # start flask.response span. This span will be finished after iter(result) is closed.
             # start_span(child_of=...) is used to ensure correct parenting.
-        if self.tracer._appsec_enabled:
-            # [Suspicious Request Blocking on response]
-            if _context.get_item("http.request.blocked", span=req_span):
-                start_response("403 FORBIDDEN", [])
-                closing_iterator = utils._get_blocked_template(headers.get("Accept"))
+            resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
 
-        resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+            resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
-        resp_span.set_tag_str(COMPONENT, self._config.integration_name)
+            self._response_span_modifier(resp_span, closing_iterator)
 
-        self._response_span_modifier(resp_span, closing_iterator)
-
-        return _TracedIterable(iter(closing_iterator), resp_span, req_span)
+            return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
