@@ -451,8 +451,9 @@ class RemoteConfigClient(object):
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
             response = self._send_request(payload)
-            if response is not None:
-                self._process_response(response)
+            if response is None:
+                return False
+            self._process_response(response)
             self._last_error = None
             return True
 
