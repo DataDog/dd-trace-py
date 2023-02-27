@@ -42,6 +42,7 @@ def _connect(func, instance, args, kwargs):
         net.TARGET_PORT: kwargs["port"],
         db.USER: kwargs["user"],
         db.NAME: kwargs["database"],
+        db.SYSTEM: "mariadb",
     }
 
     pin = Pin(tags=tags)

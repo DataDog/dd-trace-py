@@ -69,6 +69,7 @@ def test_simple_query(connection, tracer):
         {
             "out.host": u"127.0.0.1",
             "db.name": u"test",
+            "db.system": u"mariadb",
             "db.user": u"test",
             "component": u"mariadb",
             "span.kind": "client",
