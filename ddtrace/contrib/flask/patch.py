@@ -126,7 +126,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
             if _context.get_item("http.request.blocked", span=req_span):
-                start_response("403 FORBIDDEN", [])
+                # response code must be set here or it will be too late
+                result = start_response("403 FORBIDDEN", [])
         return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
@@ -216,8 +217,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         if config._appsec_enabled:
             log.debug("Flask WAF call for Suspicious Request Blocking on request")
             _asm_request_context.call_waf_callback()
-            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
-                _asm_request_context.block_request()
 
 
 def patch():
