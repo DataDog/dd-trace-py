@@ -56,16 +56,6 @@ benchmark-tracer:
   variables:
     SCENARIO: "tracer"
 
-benchmark-http-propagation-extract:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "http_propagation_extract"
-
-benchmark-http-propagation-inject:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "http_propagation_inject"
-
 benchmark-sampling-rule-matches:
   extends: .benchmarks
   variables:
@@ -75,8 +65,3 @@ benchmark-set-http-meta:
   extends: .benchmarks
   variables:
     SCENARIO: "set_http_meta"
-
-benchmark-threading:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "threading"
