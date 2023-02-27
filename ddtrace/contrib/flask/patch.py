@@ -181,7 +181,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
                 else:
-                    req_body = request.get_data()
+                    # no raw body
+                    req_body = None
             except (
                 AttributeError,
                 RuntimeError,
