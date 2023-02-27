@@ -146,7 +146,7 @@ class _DDWSGIMiddlewareBase(object):
                 if self.tracer._appsec_enabled:
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=req_span):
-                        start_response("403 FORBIDDEN", [])
+                        start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
                         closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
                         not_blocked = False
 

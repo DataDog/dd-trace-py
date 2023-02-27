@@ -123,7 +123,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
         result = start_response(status_code, headers)
         if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
-            log.debug("Django WAF call for Suspicious Request Blocking on response")
+            log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
             if _context.get_item("http.request.blocked", span=req_span):
                 start_response("403 FORBIDDEN", [])
@@ -214,7 +214,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             peer_ip=request.remote_addr,
         )
         if config._appsec_enabled:
-            log.debug("Django WAF call for Suspicious Request Blocking on request")
+            log.debug("Flask WAF call for Suspicious Request Blocking on request")
             _asm_request_context.call_waf_callback()
             if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
                 _asm_request_context.block_request()
