@@ -330,3 +330,30 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
                 assert resp.text == "localhost"
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_simple_iast_header_not_tainted_if_iast_disabled(self):
+        @self.app.route("/sqli", methods=["GET"])
+        def test_sqli():
+            from flask import request
+
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
+            assert not is_pyobject_tainted(request.headers["Host"])
+            return request.headers["Host"], 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.get("/sqli")
+            assert resp.status_code == 200
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == "localhost"
