@@ -113,6 +113,13 @@ def taint_request_environ(wrapped, instance, args, kwargs):
                     super(LazyTaintDict, self).__setitem__(key, value)
                 return value
 
+            def items(self):
+                for k, v in super(LazyTaintDict, self).items():
+                    if isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
+                        v = taint_pyobject(v, Input_info(k, v, 0))
+
+                    yield (k, v)
+
         return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
