@@ -26,8 +26,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def inject_fixtures(self, caplog):
         self._caplog = caplog
 
-    def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
+    def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
         self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -301,3 +302,29 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
+
+    def test_flask_simple_iast_header_tainted(self):
+        @self.app.route("/sqli", methods=["GET"])
+        def test_sqli():
+            from flask import request
+
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
+            assert is_pyobject_tainted(request.headers["Host"])
+            return request.headers["Host"], 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.get("/sqli")
+            assert resp.status_code == 200
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == "localhost"

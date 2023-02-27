@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec import _asm_request_context
@@ -96,6 +97,25 @@ else:
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
+
+
+def taint_request_environ(wrapped, instance, args, kwargs):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+
+        class LazyTaintDict(dict):
+            def __getitem__(self, key):
+                value = super(LazyTaintDict, self).__getitem__(key)
+                if isinstance(value, (str, bytes, bytearray)) and not is_pyobject_tainted(value):
+                    value = taint_pyobject(value, Input_info(key, value, 0))
+                    super(LazyTaintDict, self).__setitem__(key, value)
+                return value
+
+        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
+
+    return wrapped(*args, **kwargs)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -220,6 +240,7 @@ def patch():
 
     Pin().onto(flask.Flask)
 
+    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_environ)
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_tracer("dispatch_request"))
