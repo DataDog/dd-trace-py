@@ -229,7 +229,7 @@ def test_django_request_body_plain(client, test_spans, tracer):
         query = _context.get_item("http.request.body", span=root_span)
 
         assert root_span.get_tag(APPSEC_JSON) is None
-        assert query == "foo=bar"
+        assert query is None
 
 
 def test_django_request_body_plain_attack(client, test_spans, tracer):
@@ -238,9 +238,8 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
 
         query = _context.get_item("http.request.body", span=root_span)
         str_json = root_span.get_tag(APPSEC_JSON)
-        assert str_json is not None, "no JSON tag in root span"
-        assert "triggers" in json.loads(str_json)
-        assert query == "1' or '1' = '1'"
+        assert str_json is None, "JSON tag in root span"
+        assert query is None
 
 
 def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
@@ -551,7 +550,12 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", payload="yqrweytqwreasldhkuqwgervflnmlnli"
+            client,
+            test_spans,
+            tracer,
+            url="/",
+            payload='{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+            content_type="application/json",
         )
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
