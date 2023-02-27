@@ -19,6 +19,7 @@ from ...pin import Pin
 
 log = get_logger(__name__)
 
+
 _PATCHED = False
 
 
@@ -209,6 +210,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 span_type=conf.get("span_type"),
             ) as span:
                 span.set_tag_str(COMPONENT, config.integration_name)
+                span.set_tag_str(dbx.SYSTEM, "vertica")
 
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)
