@@ -98,6 +98,7 @@ LATEST_VERSIONS = {
     "opentracing": "2.4.0",
     "packaging": "21.3",
     "pastedeploy": "3.0.1",
+    "pep562": "1.1",
     "psycopg2-binary": "2.9.5",
     "py": "1.11.0",
     "py-cpuinfo": "9.0.0",
