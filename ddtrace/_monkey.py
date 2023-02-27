@@ -138,8 +138,8 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, should_patch=True, prefix="ddtrace.contrib", raise_errors=True):
-    # type: (str, bool, str, bool) -> Callable[[Any], None]
+def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, should_patch=True):
+    # type: (str, str, bool, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -229,7 +229,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, should_patch, raise_errors=False))
+            when_imported(module)(_on_import_factory(contrib, raise_errors=False, should_patch=should_patch))
 
         # manually add module to patched modules
         with _LOCK:
