@@ -18,6 +18,7 @@ from django.views.generic import View
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.trace_utils import set_user
 
@@ -232,3 +233,31 @@ def block_callable_view(request):
 def checkuser_view(request, user_id):
     block_request_if_user_blocked(tracer, user_id)
     return HttpResponse(status=200)
+
+
+def taint_checking_enabled_view(request):
+    if python_supported_by_iast():
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    else:
+
+        def is_pyobject_tainted(x):
+            return True
+
+    assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
+    assert is_pyobject_tainted(request.headers["User-Agent"])
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def taint_checking_disabled_view(request):
+    if python_supported_by_iast():
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    else:
+
+        def is_pyobject_tainted(x):
+            return False
+
+    assert not is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
+    assert not is_pyobject_tainted(request.headers["User-Agent"])
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)

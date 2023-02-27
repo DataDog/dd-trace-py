@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from ddtrace._monkey import patch_iast
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
@@ -603,3 +604,42 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
+    with override_global_config(dict(_iast_enabled=True)):
+        tracer._iast_enabled = True
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/taint-checking-enabled/",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
+    with override_global_config(dict(_iast_enabled=False)):
+        tracer._iast_enabled = False
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/taint-checking-disabled/",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        # query = dict(_context.get_item("http.request.body", span=root_span))
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"

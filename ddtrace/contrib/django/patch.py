@@ -20,6 +20,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -595,6 +596,11 @@ def _patch(django):
     if config.django.instrument_middleware:
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
+    if "django.core.handlers.wsgi" not in sys.modules:
+        import django.core.handlers.wsgi
+
+        trace_utils.wrap(django, "core.handlers.wsgi.WSGIRequest.__init__", wrap_wsgi_environ)
+
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
     if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
@@ -644,6 +650,32 @@ def _patch(django):
             trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
     except ImportError:
         pass  # channels is not installed
+
+
+def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+
+        class LazyTaintDict(dict):
+            def __getitem__(self, key):
+                value = super(LazyTaintDict, self).__getitem__(key)
+                if isinstance(value, (str, bytes, bytearray)) and not is_pyobject_tainted(value):
+                    value = taint_pyobject(value, Input_info(key, value, 0))
+                    super(LazyTaintDict, self).__setitem__(key, value)
+                return value
+
+            def items(self):
+                for k, v in super(LazyTaintDict, self).items():
+                    if isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
+                        v = taint_pyobject(v, Input_info(k, v, 0))
+
+                    yield (k, v)
+
+        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
+
+    return wrapped(*args, **kwargs)
 
 
 def patch():
