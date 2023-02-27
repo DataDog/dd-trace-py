@@ -4,6 +4,7 @@ import logging
 from flask import request
 import pytest
 
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
@@ -303,6 +304,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
 
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_simple_iast_header_tainted(self):
         @self.app.route("/sqli", methods=["GET"])
         def test_sqli():
