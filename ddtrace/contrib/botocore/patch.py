@@ -3,6 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import collections
+from enum import Enum
 import json
 import os
 import typing
@@ -10,6 +11,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 import botocore.client
@@ -34,6 +36,33 @@ from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
+
+class SubModules(Enum):
+    LAMBDA = "lambda"
+    SQS = "sqs"
+    EVENTS = "events"
+    KINESIS = "kinesis"
+    SNS = "sns"
+
+    @classmethod
+    def parse_list(cls, sub_modules):
+        # type: (List[str]) -> List[SubModules]
+        return [cls.parse(s) for s in sub_modules]
+
+    @classmethod
+    def parse(cls, sub_module):
+        # type: (str) -> SubModules
+        if sub_module not in cls._value2member_map_:
+            raise ValueError("Invalid sub module: {}".format(sub_module))
+        return cls._value2member_map_[sub_module]
+
+    @classmethod
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        return other in self._value2member_map_
+
+
+_PATCHED_SUB_MODULES = set()  # type: Set[SubModules]
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
@@ -306,12 +335,21 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
+    _PATCHED_SUB_MODULES.update(list(SubModules))
 
 
 def unpatch():
+    _PATCHED_SUB_MODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
         unwrap(botocore.client.BaseClient, "_make_api_call")
+
+
+def patch_sub_modules(sub_modules):
+    if isinstance(sub_modules, bool) and sub_modules:
+        _PATCHED_SUB_MODULES.update(list(SubModules))
+    elif isinstance(sub_modules, list):
+        _PATCHED_SUB_MODULES.update(SubModules.parse_list(sub_modules))
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -321,6 +359,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+
+    if endpoint_name not in _PATCHED_SUB_MODULES:
+        return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
@@ -339,19 +380,19 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             if config.botocore["distributed_tracing"]:
                 try:
-                    if endpoint_name == "lambda" and operation == "Invoke":
+                    if endpoint_name == SubModules.LAMBDA and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
-                    if endpoint_name == "sqs" and operation == "SendMessage":
+                    if endpoint_name == SubModules.SQS and operation == "SendMessage":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
-                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
+                    if endpoint_name == SubModules.SQS and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
-                    if endpoint_name == "events" and operation == "PutEvents":
+                    if endpoint_name == SubModules.EVENTS and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
-                    if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
+                    if endpoint_name == SubModules.KINESIS and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
-                    if endpoint_name == "sns" and operation == "Publish":
+                    if endpoint_name == SubModules.SNS and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
-                    if endpoint_name == "sns" and operation == "PublishBatch":
+                    if endpoint_name == SubModules.SNS and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)

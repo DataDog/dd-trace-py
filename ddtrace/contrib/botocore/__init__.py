@@ -97,5 +97,6 @@ required_modules = ["botocore.client"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
+        from .patch import patch_sub_modules
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "patch_sub_modules"]

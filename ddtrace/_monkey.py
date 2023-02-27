@@ -138,8 +138,8 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
-    # type: (str, str, bool) -> Callable[[Any], None]
+def _on_import_factory(module, should_patch=True, prefix="ddtrace.contrib", raise_errors=True):
+    # type: (str, bool, str, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -153,6 +153,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
+            if hasattr(imported_module, "patch_sub_modules"):
+                imported_module.patch_sub_modules(should_patch)
             telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
@@ -215,8 +217,8 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
-    contribs = [c for c, should_patch in patch_modules.items() if should_patch]
-    for contrib in contribs:
+    contribs = {c: should_patch for c, should_patch in patch_modules.items() if should_patch}
+    for contrib, should_patch in contribs.items():
         # Check if we have the requested contrib.
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
             if raise_errors:
@@ -227,7 +229,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+            when_imported(module)(_on_import_factory(contrib, should_patch, raise_errors=False))
 
         # manually add module to patched modules
         with _LOCK:
