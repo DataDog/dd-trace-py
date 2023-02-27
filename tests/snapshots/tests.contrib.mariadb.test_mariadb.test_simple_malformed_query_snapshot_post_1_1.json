@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
+      "db.system": "mariadb",
       "db.user": "test",
       "error.message": "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/dbapi/__init__.py\", line 109, in _trace_method\n    return method(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3913_mariadb~10/lib/python3.9/site-packages/mariadb/cursors.py\", line 307, in execute\n    self._readresponse()\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n",
