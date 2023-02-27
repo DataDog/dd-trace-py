@@ -55,7 +55,8 @@ log = get_logger(__name__)
 if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
     deprecate(
         "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
-        postfix="There is no special configuration necessary to make ddtrace work with gevent if using ddtrace-run. If not using ddtrace-run, import ddtrace.auto before calling gevent.monkey.patch_all().",
+        postfix="There is no special configuration necessary to make ddtrace work with gevent if using ddtrace-run. "
+                "If not using ddtrace-run, import ddtrace.auto before calling gevent.monkey.patch_all().",
         removal_version="2.0.0",
     )
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
