@@ -551,7 +551,12 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", payload="yqrweytqwreasldhkuqwgervflnmlnli"
+            client,
+            test_spans,
+            tracer,
+            url="/",
+            payload='{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}',
+            content_type="application/json",
         )
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
