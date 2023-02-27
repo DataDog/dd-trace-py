@@ -31,6 +31,8 @@
       "http.request.headers.host": "0.0.0.0:8000",
       "http.request.headers.user-agent": "python-requests/2.28.2",
       "http.request.headers.via": "8.8.4.4",
+      "http.response.headers.content-length": "1564",
+      "http.response.headers.content-type": "text/html",
       "http.route": "/",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
@@ -99,7 +101,7 @@
           "meta": {
             "component": "flask",
             "error.message": "??? Unknown Error: None",
-            "error.stack": "Traceback (most recent call last):\n  File \"/Users/christophe.papazian/GitHub/version_blocking/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 578, in _traced_request\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+            "error.stack": "",
             "error.type": "werkzeug.exceptions.HTTPException"
           },
           "duration": 534000,

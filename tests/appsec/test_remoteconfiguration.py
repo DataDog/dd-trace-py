@@ -104,14 +104,21 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 
 
 @pytest.mark.parametrize(
-    "rc_enabled, capability",
+    "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "Bg=="),
-        ("false", ""),
+        ("true", "true", "nA=="),
+        ("false", "true", "nA=="),
+        ("true", "false", "nA=="),
+        ("false", "false", ""),
+        ("true", "", "ng=="),
+        ("false", "", ""),
     ],
 )
-def test_rc_capabilities(rc_enabled, capability):
-    with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
+def test_rc_capabilities(rc_enabled, appsec_enabled, capability):
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}
+    if appsec_enabled:
+        env[APPSEC_ENV] = appsec_enabled
+    with override_env(env):
         assert _appsec_rc_capabilities() == capability
 
 
@@ -196,7 +203,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             "rules_data": [
                 {
                     "data": [
-                        {"expiration": int(time.time()), "value": "8.8.4.4"},
+                        {"expiration": int(time.time()) + 10000, "value": "8.8.4.4"},
                     ],
                     "id": "blocked_ips",
                     "type": "ip_with_expiration",
