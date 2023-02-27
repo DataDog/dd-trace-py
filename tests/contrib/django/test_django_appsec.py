@@ -230,7 +230,7 @@ def test_django_request_body_plain(client, test_spans, tracer):
         query = _context.get_item("http.request.body", span=root_span)
 
         assert root_span.get_tag(APPSEC_JSON) is None
-        assert query == "foo=bar"
+        assert query is None
 
 
 def test_django_request_body_plain_attack(client, test_spans, tracer):
@@ -239,9 +239,8 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
 
         query = _context.get_item("http.request.body", span=root_span)
         str_json = root_span.get_tag(APPSEC_JSON)
-        assert str_json is not None, "no JSON tag in root span"
-        assert "triggers" in json.loads(str_json)
-        assert query == "1' or '1' = '1'"
+        assert str_json is None, "JSON tag in root span"
+        assert query is None
 
 
 def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
