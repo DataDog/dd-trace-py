@@ -121,7 +121,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        return start_response(status_code, headers)
+        result = start_response(status_code, headers)
+        if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
+            log.debug("Flask WAF call for Suspicious Request Blocking on response")
+            _asm_request_context.call_waf_callback()
+            if _context.get_item("http.request.blocked", span=req_span):
+                # response code must be set here or it will be too late
+                result = start_response("403 FORBIDDEN", [])
+        return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
         # Create a werkzeug request from the `environ` to make interacting with it easier
@@ -174,7 +181,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
                 else:
-                    req_body = request.get_data()
+                    # no raw body
+                    req_body = None
             except (
                 AttributeError,
                 RuntimeError,
@@ -207,6 +215,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
+        if config._appsec_enabled:
+            log.debug("Flask WAF call for Suspicious Request Blocking on request")
+            _asm_request_context.call_waf_callback()
 
 
 def patch():
