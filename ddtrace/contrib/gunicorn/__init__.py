@@ -2,9 +2,9 @@
 ddtrace works with Gunicorn.
 
 .. note::
-    If your Gunicorn server does not run inside of ``ddtrace-run`` and uses ``gevent`` workers,
-    be sure to ``import ddtrace.auto`` as early as possible in your application's
-    lifecycle.
+    If you cannot wrap your Gunicorn server with the ``ddtrace-run``command and
+    it uses ``gevent`` workers, be sure to ``import ddtrace.auto`` as early as
+    possible in your application's lifecycle.
 """
 
 
