@@ -7,6 +7,7 @@ The integration patches the gevent internals to add context management logic.
 .. note::
     If ``ddtrace-run`` is not being used then be sure to ``import ddtrace.auto``
     before calling ``gevent.monkey.patch_all``.
+    If ``ddtrace-run`` is being used then no additional configuration is required.
 
 
 The integration also configures the global tracer instance to use a gevent
