@@ -36,6 +36,7 @@ SERVICE = "cassandra"
 CURRENT_SPAN = "_ddtrace_current_span"
 PAGE_NUMBER = "_ddtrace_page_number"
 
+
 # Original connect connect function
 _connect = cassandra_cluster.Cluster.connect
 
@@ -179,6 +180,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     span = tracer.trace("cassandra.query", service=service, span_type=SpanTypes.CASSANDRA)
 
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
+    span.set_tag_str(db.SYSTEM, "cassandra")
 
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)
