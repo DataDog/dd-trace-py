@@ -8,6 +8,8 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec import _asm_request_context
@@ -634,6 +636,9 @@ def _set_request_tags(span):
         request = flask.request
 
         span.set_tag_str(COMPONENT, config.flask.integration_name)
+
+        if span.name.split(".")[-1] == "request":
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
