@@ -152,7 +152,11 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
 
     def _set_post_execute_tags(self, span):
-        row_count = self.__wrapped__.rowcount
+        # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
+        # but some database drivers (cassandra-driver specifically) don't implement it.
+        row_count = getattr(self.__wrapped__, "rowcount", None)
+        if row_count is None:
+            return
         span.set_metric("db.rowcount", row_count)
         # Necessary for django integration backward compatibility. Django integration used to provide its own
         # implementation of the TracedCursor, which used to store the row count into a tag instead of

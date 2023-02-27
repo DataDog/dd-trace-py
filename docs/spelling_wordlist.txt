@@ -155,6 +155,7 @@ resolvers
 repo
 respawn
 rq
+rowcount
 runnable
 runtime
 runtimes
