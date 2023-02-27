@@ -16,6 +16,8 @@ from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
+from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
+from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
 from tests.webclient import Client
 
 
@@ -99,6 +101,11 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
+    # DEV uncomment those lines if you need more info locally
+    # stdout = proc.stdout.read()
+    # print(stdout)
+    # stderr = proc.stderr.read()
+    # print(stderr.decode("UTF-8"))
 
 
 @pytest.mark.snapshot(
@@ -153,3 +160,53 @@ def test_flask_ipblock_match_403_json(flask_client):
         assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
     else:
         assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_userblock_match_403_json(flask_client):
+    resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
+    assert resp.status_code == 403
+    if hasattr(resp, "text"):
+        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+    else:
+        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_userblock_match_200_json(flask_client):
+    resp = flask_client.get("/checkuser/%s" % _ALLOWED_USER)
+    assert resp.status_code == 200

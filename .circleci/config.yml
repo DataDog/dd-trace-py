@@ -33,6 +33,10 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.9.4
 
+contrib_job_large: &contrib_job_large
+  executor: ddtrace_dev
+  parallelism: 8
+
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 4
@@ -570,7 +574,7 @@ jobs:
           pattern: 'ddtracerun'
 
   test_logging:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'test_logging'
@@ -583,6 +587,7 @@ jobs:
 
   asyncpg:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'asyncpg'
@@ -597,7 +602,7 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 10
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
@@ -605,7 +610,7 @@ jobs:
           docker_services: 'httpbin_local'
 
   asgi:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'asgi$'
@@ -639,7 +644,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 7
+    parallelism: 13
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -673,7 +678,7 @@ jobs:
 
   elasticsearch:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'elasticsearch'
@@ -713,6 +718,7 @@ jobs:
 
   fastapi:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "fastapi"
@@ -905,6 +911,7 @@ jobs:
 
   pyramid:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'pyramid'
@@ -937,6 +944,7 @@ jobs:
 
   starlette:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "starlette"
@@ -972,7 +980,7 @@ jobs:
           docker_services: "postgres"
 
   aiobotocore:
-    <<: *contrib_job
+    <<: *contrib_job_large
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
@@ -1037,6 +1045,7 @@ jobs:
 
   rediscluster:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'rediscluster'
@@ -1106,7 +1115,7 @@ jobs:
           pattern: 'jinja2'
 
   mako:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'mako'

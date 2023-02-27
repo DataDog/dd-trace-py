@@ -41,6 +41,7 @@
          "component": "psycopg2",
          "db.application": "None",
          "db.name": "test_postgres",
+         "db.system": "postgresql",
          "db.user": "postgres",
          "out.host": "127.0.0.1"
        },
