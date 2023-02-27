@@ -6,4 +6,4 @@ deprecations:
 fixes:
   - |
     internal: This fix resolves an incompatibility between ddtrace and gevent that caused threads to hang in certain configurations, for example
-    the profiler running in a gunicorn worker process.
+    the profiler running in a gunicorn application's gevent worker process.
