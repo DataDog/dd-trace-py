@@ -84,6 +84,7 @@ if _DDWAF_LOADED:
             self._info = ddwaf_ruleset_info()
             self._ruleset_map = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = ddwaf_init(self._ruleset_map, ctypes.byref(config), ctypes.byref(self._info))
+            self._ctx = 0
             if not self._handle or self._info.failed:
                 LOGGER.error(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
@@ -118,6 +119,18 @@ if _DDWAF_LOADED:
                 self._handle = result
                 return False
 
+        def _at_request_start(self):
+            if self._ctx:
+                ddwaf_context_destroy(self._ctx)
+            self._ctx = ddwaf_context_init(self._handle)
+            if self._ctx == 0:
+                LOGGER.error("DDWaf failure to create the context")
+
+        def _at_request_end(self):
+            if self._ctx:
+                ddwaf_context_destroy(self._ctx)
+                self._ctx = 0
+
         def run(
             self,  # type: DDWaf
             data,  # type: DDWafRulesType
@@ -126,33 +139,34 @@ if _DDWAF_LOADED:
             # type: (...) -> DDWaf_result
             start = time.time()
 
-            ctx = ddwaf_context_init(self._handle)
-            if ctx == 0:
-                LOGGER.error("DDWaf failure to create the context")
+            if self._ctx == 0:
+                LOGGER.warning("DDWaf failsafe to create the context")
+                self._ctx = ddwaf_context_init(self._handle)
+
+            if self._ctx == 0:
+                LOGGER.error("DDWaf failure: no context created")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
 
+            result = ddwaf_result()
+            wrapper = ddwaf_object(data)
+            error = ddwaf_run(self._ctx, wrapper, ctypes.byref(result), timeout_ms * 1000)
+            if error < 0:
+                LOGGER.warning("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             try:
-                result = ddwaf_result()
-                wrapper = ddwaf_object(data)
-                error = ddwaf_run(ctx, wrapper, ctypes.byref(result), timeout_ms * 1000)
-                if error < 0:
-                    LOGGER.warning("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
-                try:
-                    return DDWaf_result(
-                        result.data.decode("UTF-8", errors="ignore")
-                        if hasattr(result, "data") and result.data
-                        else None,
-                        [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
-                        result.total_runtime / 1e3,
-                        (time.time() - start) * 1e6,
-                    )
-                finally:
-                    ddwaf_result_free(ctypes.byref(result))
+                return DDWaf_result(
+                    result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
+                    [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
+                    result.total_runtime / 1e3,
+                    (time.time() - start) * 1e6,
+                )
             finally:
-                ddwaf_context_destroy(ctx)
+                ddwaf_result_free(ctypes.byref(result))
 
         def __dealloc__(self):
-            ddwaf_destroy(self._handle)
+            if self._ctx:
+                ddwaf_context_destroy(self._ctx)
+            if self._handle:
+                ddwaf_destroy(self._handle)
 
     def version():
         # type: () -> text_type
