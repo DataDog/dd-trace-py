@@ -40,7 +40,7 @@ jobs:
       # even on failures, we want to have artifact to be able to investigate
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: ${{ always() }}  
+        if: ${{ always() }}
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
@@ -71,6 +71,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
+          ref: 5aa8c4fea01ea6a929acb9b78b2b70403fe6c961
 
       - name: Build
         run: ./lib-injection/build.sh
