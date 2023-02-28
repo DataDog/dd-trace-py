@@ -17,7 +17,7 @@ from ...internal.utils.formats import stringify_cache_args
 
 format_command_args = stringify_cache_args
 
-single_key_commands = [
+SINGLE_KEY_COMMANDS = [
     "GET",
     "GETDEL",
     "GETEX",
@@ -34,8 +34,8 @@ single_key_commands = [
     "HRANDFIELD",
     "HVALS",
 ]
-multi_key_commands = ["MGET"]
-row_returning_commands = single_key_commands + multi_key_commands
+MULTI_KEY_COMMANDS = ["MGET"]
+ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
 
 
 def _extract_conn_tags(conn_kwargs):
@@ -81,11 +81,11 @@ def _run_redis_command(span, func, args, kwargs):
         result = func(*args, **kwargs)
         return result
     except Exception:
-        if redis_command in row_returning_commands:
+        if redis_command in ROW_RETURNING_COMMANDS:
             span.set_metric(db.ROWCOUNT, 0)
         raise
     finally:
-        if redis_command in row_returning_commands:
+        if redis_command in ROW_RETURNING_COMMANDS:
             determine_row_count(redis_command=redis_command, span=span, result=result)
 
 

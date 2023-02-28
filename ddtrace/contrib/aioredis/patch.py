@@ -18,10 +18,10 @@ from ...ext import net
 from ...ext import redis as redisx
 from ...internal.utils.formats import stringify_cache_args
 from ..redis.asyncio_patch import _run_redis_command_async
+from ..redis.util import ROW_RETURNING_COMMANDS
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import determine_row_count
-from ..redis.util import row_returning_commands
 
 
 try:
@@ -151,12 +151,12 @@ def traced_13_execute_command(func, instance, args, kwargs):
             #   - The future is in an invalid state
             redis_command = span.resource.split(" ")[0]
             future.result()
-            if redis_command in row_returning_commands:
+            if redis_command in ROW_RETURNING_COMMANDS:
                 determine_row_count(redis_command=redis_command, span=span, result=future.result())
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except BaseException:
             span.set_exc_info(*sys.exc_info())
-            if redis_command in row_returning_commands:
+            if redis_command in ROW_RETURNING_COMMANDS:
                 span.set_metric(db.ROWCOUNT, 0)
         finally:
             span.finish()

@@ -3,10 +3,10 @@ from ddtrace import config
 from ...ext import db
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
+from .util import ROW_RETURNING_COMMANDS
 from .util import _trace_redis_cmd
 from .util import _trace_redis_execute_pipeline
 from .util import determine_row_count
-from .util import row_returning_commands
 
 
 #
@@ -40,9 +40,9 @@ async def _run_redis_command_async(span, func, args, kwargs):
         result = await func(*args, **kwargs)
         return result
     except Exception:
-        if redis_command in row_returning_commands:
+        if redis_command in ROW_RETURNING_COMMANDS:
             span.set_metric(db.ROWCOUNT, 0)
         raise
     finally:
-        if redis_command in row_returning_commands:
+        if redis_command in ROW_RETURNING_COMMANDS:
             determine_row_count(redis_command=redis_command, span=span, result=result)
