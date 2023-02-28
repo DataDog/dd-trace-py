@@ -1,5 +1,5 @@
 """
-The psycopg integration instruments the psycopg2 library to trace Postgres queries.
+The psycopg2 integration instruments the psycopg2 library to trace Postgres queries.
 
 
 Enabling
@@ -11,35 +11,35 @@ The psycopg integration is enabled automatically when using
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
-    patch(psycopg=True)
+    patch(psycopg2=True)
 
 
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.psycopg["service"]
+.. py:data:: ddtrace.config.psycopg2["service"]
 
-   The service name reported by default for psycopg spans.
+   The service name reported by default for psycopg2 spans.
 
    This option can also be set with the ``DD_PSYCOPG_SERVICE`` environment
    variable.
 
    Default: ``"postgres"``
 
-.. py:data:: ddtrace.config.psycopg["trace_fetch_methods"]
+.. py:data:: ddtrace.config.psycopg2["trace_fetch_methods"]
 
    Whether or not to trace fetch methods.
 
-   Can also configured via the ``DD_PSYCOPG_TRACE_FETCH_METHODS`` environment variable.
+   Can also configured via the ``DD_PSYCOPG2_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
 
 
-.. py:data:: ddtrace.config.psycopg["trace_connect"]
+.. py:data:: ddtrace.config.psycopg2["trace_connect"]
 
    Whether or not to trace ``psycopg2.connect`` method.
 
-   Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
+   Can also configured via the ``DD_PSYCOPG2_TRACE_CONNECT`` environment variable.
 
    Default: ``False``
 
@@ -47,7 +47,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure the psycopg integration on an per-connection basis use the
+To configure the psycopg2 integration on an per-connection basis use the
 ``Pin`` API::
 
     from ddtrace import Pin
@@ -67,7 +67,7 @@ required_modules = ["psycopg2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ..utils import patch_conn
+        from ..psycopg.utils import patch_conn
         from .patch import patch
 
         __all__ = ["patch", "patch_conn"]

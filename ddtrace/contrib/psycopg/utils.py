@@ -71,6 +71,7 @@ def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, extensions_to_patc
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
         "db.application": dsn.get("application_name"),
+        db.SYSTEM: "postgresql",
     }
     Pin(tags=tags).onto(c)
     return c

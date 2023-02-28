@@ -1,5 +1,5 @@
 """
-The psycopg integration instruments the psycopg2 library to trace Postgres queries.
+The psycopg integration instruments the psycopg3 library to trace Postgres queries.
 
 
 Enabling
@@ -37,7 +37,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.psycopg["trace_connect"]
 
-   Whether or not to trace ``psycopg2.connect`` method.
+   Whether or not to trace ``psycopg.connect`` method.
 
    Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
 
@@ -67,7 +67,7 @@ required_modules = ["psycopg"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ..utils import patch_conn
         from .patch import patch
+        from .utils import patch_conn
 
         __all__ = ["patch", "patch_conn"]

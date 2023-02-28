@@ -80,6 +80,7 @@ class TracedConnectionFactory:
                     db.NAME: dsn.get("dbname"),
                     db.USER: dsn.get("user"),
                     "db.application": dsn.get("application_name"),
+                    db.SYSTEM: "postgresql",
                 }
 
                 self._datadog_cursor_class = functools.partial(
