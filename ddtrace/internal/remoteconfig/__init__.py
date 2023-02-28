@@ -24,7 +24,7 @@ class RemoteConfig(object):
                 "/" + REMOTE_CONFIG_AGENT_ENDPOINT
             ) in data.get("endpoints", []):
                 return True
-        log.warning(
+        log.debug(
             "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
