@@ -36,7 +36,7 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    DynamicInstrumentationConfig()._snapshot_intake_url == get_trace_url()
+    DynamicInstrumentationConfig()._intake_url == get_trace_url()
 
 
 def test_service_name():
