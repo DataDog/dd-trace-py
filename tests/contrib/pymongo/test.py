@@ -361,6 +361,52 @@ class PymongoCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    def test_rowcount(self):
+        tracer, client = self.get_tracer_and_client()
+        db = client["testdb"]
+        songs_collection = db["songs"]
+        songs_collection.delete_many({})
+
+        input_songs = [
+            {"name": "Powderfinger", "artist": "Neil"},
+            {"name": "Harvest", "artist": "Neil"},
+            {"name": "Suzanne", "artist": "Leonard"},
+            {"name": "Partisan", "artist": "Leonard"},
+        ]
+        songs_collection.insert_many(input_songs)
+
+        # scoped query (using the getattr syntax) to get 1 row
+        q = {"name": "Powderfinger"}
+        queried = list(songs_collection.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        # scoped query (using the getattr syntax) to get 2 rows
+        q = {"artist": "Neil"}
+        queried = list(songs_collection.find(q))
+
+        assert len(queried) == 2
+        count = 0
+        for row in queried:
+            count += 1
+        assert count == 2
+
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        assert queried[1]["name"] == "Harvest"
+        assert queried[1]["artist"] == "Neil"
+
+        spans = tracer.pop()
+        one_row_span = spans[2]
+        two_row_span = spans[3]
+
+        assert len(spans) == 4
+        assert one_row_span.name == "pymongo.cmd"
+        assert one_row_span.get_metric("db.row_count") == 1
+        assert two_row_span.get_metric("db.row_count") == 2
+
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
