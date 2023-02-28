@@ -637,7 +637,9 @@ def _set_request_tags(span):
         request = flask.request
 
         span.set_tag_str(COMPONENT, config.flask.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
+        if span.name.split(".")[-1] == "request":
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
