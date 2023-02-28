@@ -13,7 +13,7 @@ from ddtrace.internal.utils.http import connector
 
 
 log = get_logger(__name__)
-meter = metrics.get_meter("snapshot.uploader")
+meter = metrics.get_meter("uploader")
 
 
 class LogsIntakeUploaderV1(AwakeablePeriodicService):
@@ -23,7 +23,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     the debugger and the events platform.
     """
 
-    ENDPOINT = config._snapshot_intake_endpoint
+    ENDPOINT = config._intake_endpoint
 
     RETRY_ATTEMPTS = 3
 
@@ -44,7 +44,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
         if config._tags_in_qs and config.tags:
             self.ENDPOINT += "?ddtags=" + config.tags
-        self._connect = connector(config._snapshot_intake_url, timeout=config.upload_timeout)
+        self._connect = connector(config._intake_url, timeout=config.upload_timeout)
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
@@ -56,7 +56,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
         log.debug(
             "Logs intake uploader initialized (url: %s, endpoint: %s, interval: %f)",
-            config._snapshot_intake_url,
+            config._intake_url,
             self.ENDPOINT,
             self.interval,
         )
@@ -72,13 +72,13 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                     headers=self._headers,
                 )
                 resp = compat.get_connection_response(conn)
-                if resp.status != 200:
-                    log.error("Failed to upload snapshot: [%d] %r", resp.status, resp.read())
+                if not (200 <= resp.status < 300):
+                    log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
-                    log.debug("Snapshot uploaded: %s", payload)
+                    log.debug("Payload uploaded: %s", payload)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
