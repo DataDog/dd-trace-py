@@ -5,9 +5,9 @@ import aiopg.connection
 import psycopg2.extensions
 
 from ddtrace.contrib.aiopg.connection import AIOTracedConnection
-from ddtrace.contrib.utils import _patch_extensions
-from ddtrace.contrib.utils import _unpatch_extensions
-from ddtrace.contrib.utils import patch_conn as psycopg_patch_conn
+from ddtrace.contrib.psycopg.utils import _patch_extensions
+from ddtrace.contrib.psycopg.utils import _unpatch_extensions
+from ddtrace.contrib.psycopg.utils import patch_conn as psycopg_patch_conn
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 

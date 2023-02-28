@@ -6,10 +6,10 @@ from psycopg2.sql import SQL
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.utils import _patch_extensions
-from ddtrace.contrib.utils import _unpatch_extensions
-from ddtrace.contrib.utils import patched_connect
-from ddtrace.contrib.utils import psycopg_sql_injector_factory
+from ddtrace.contrib.psycopg.utils import _patch_extensions
+from ddtrace.contrib.psycopg.utils import _unpatch_extensions
+from ddtrace.contrib.psycopg.utils import patched_connect
+from ddtrace.contrib.psycopg.utils import psycopg_sql_injector_factory
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool

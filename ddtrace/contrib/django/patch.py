@@ -79,7 +79,7 @@ def patch_conn(django, conn):
         try:
             from psycopg2._psycopg import cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.utils import PsycopgTracedCursor
+            from ddtrace.contrib.psycopg.utils import PsycopgTracedCursor
         except ImportError:
             psycopg_cursor_cls = None
             PsycopgTracedCursor = None
@@ -105,7 +105,7 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg"):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.utils import PsycopgTracedCursor
+                from ddtrace.contrib.psycopg.utils import PsycopgTracedCursor
 
                 traced_cursor_cls = PsycopgTracedCursor
         except AttributeError:
