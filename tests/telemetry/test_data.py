@@ -16,6 +16,7 @@ from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.internal.telemetry.data import get_version
+from ddtrace.settings import _config as config
 
 
 def test_get_application():
@@ -34,7 +35,7 @@ def test_get_application():
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {},
+        "products": {"appsec": {"version": get_version(), "enabled": config._appsec_enabled}},
     }
 
     assert get_application("", "", "") == expected_application
@@ -74,7 +75,7 @@ assert application["env"] == "prod"
 
 def test_get_application_is_cached():
     """ensures get_application() returns cached dictionary when it's called with the same arguments"""
-    with mock.patch("ddtrace.internal.telemetry.data.get_version") as gv:
+    with mock.patch("platform.python_implementation") as gv:
         get_application("is_cached-service", "1.2.3", "test")
         get_application("is_cached-service", "1.2.3", "test")
         get_application("is_cached-service", "1.2.3", "test")
@@ -182,9 +183,10 @@ def test_get_dependencies():
     assert pkgs_as_dicts == pkgs_as_distributions
 
 
-def test_enable_appsec(run_python_code_in_subprocess):
+def test_enable_products(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
@@ -196,8 +198,9 @@ assert "products" in application
 
 assert application["products"] == {
     "appsec": {
-        "version": get_version()
-    }
+        "version": get_version(),
+        "enabled": True,
+    },
 }
 """,
         env=env,
