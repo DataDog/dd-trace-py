@@ -99,8 +99,7 @@ def _unpatch_extensions(_extensions):
 
 
 def patched_connect(connect_func, _, args, kwargs):
-    configg = globals()["config"]
-    _config = configg._config
+    _config = globals()["config"]._config
     module_name = (
         connect_func.__module__
         if len(connect_func.__module__.split(".")) == 1
@@ -117,6 +116,8 @@ def patched_connect(connect_func, _, args, kwargs):
             span_type=SpanTypes.SQL,
         ) as span:
             span.set_tag_str(COMPONENT, pin._config.integration_name)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

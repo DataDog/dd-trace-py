@@ -27,6 +27,7 @@ config._add(
         _dbm_propagator=_DBM_Propagator(
             0, "query", psycopg_sql_injector_factory(composable_class=Composable, sql_class=SQL)
         ),
+        dbms_name="postgresql",
     ),
 )
 
