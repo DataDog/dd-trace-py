@@ -1,667 +1,200 @@
 # -*- coding: utf-8 -*-
-import json
-import os
 
 import mock
+from mock.mock import MagicMock
 import pytest
 
-from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig import remoteconfig_poller
+from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.utils import override_env
+from ddtrace.internal.remoteconfig.client import RemoteConfigError
+from ddtrace.internal.remoteconfig.client import TargetFile
 
 
-def _expected_payload(
-    rc_client,
-    has_errors=False,
-    targets_version=0,
-    backend_client_state=None,
-    config_states=[],
-    cached_target_files=[],
-    error_msg=None,
-):
-    payload = {
-        "client": {
-            "id": rc_client.id,
-            "products": ["ASM_FEATURES"],
-            "is_tracer": True,
-            "client_tracer": {
-                "runtime_id": runtime.get_runtime_id(),
-                "language": "python",
-                "tracer_version": _pep440_to_semver(),
-                "service": None,
-                "env": None,
-                "app_version": None,
-            },
-            "state": {
-                "root_version": 1,
-                "targets_version": targets_version,
-                "config_states": config_states,
-                "has_error": has_errors,
-            },
-            "capabilities": "Ag==",
-        },
-        "cached_target_files": cached_target_files,
-    }
-    if backend_client_state:
-        payload["client"]["state"]["backend_client_state"] = backend_client_state
-    if has_errors:
-        payload["client"]["state"]["error"] = error_msg
-    return payload
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_update_applied_configs(mock_extract_target_file):
+    mock_config_content = {"test": "content"}
+    mock_extract_target_file.return_value = mock_config_content
+    mock_callback = MagicMock()
+    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
 
+    applied_configs = {}
+    payload = {}
+    client_configs = {"mock/ASM_FEATURES": mock_config}
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-MOCK_AGENT_RESPONSES_FILE = os.path.join(ROOT_DIR, "rc_mocked_responses_asm_features.json")
-
-
-def _assert_response(mock_send_request, expected_response):
-    expected_response["cached_target_files"].sort(key=lambda x: x["path"], reverse=True)
-    expected_response["client"]["state"]["config_states"].sort(key=lambda x: x["id"], reverse=True)
-    response = json.loads(mock_send_request.call_args.args[0])
-    response["cached_target_files"].sort(key=lambda x: x["path"], reverse=True)
-    response["client"]["state"]["config_states"].sort(key=lambda x: x["id"], reverse=True)
-
-    assert response["client"]["client_tracer"]["tags"]
-    del response["client"]["client_tracer"]["tags"]
-
-    assert response == expected_response
-
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
-def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
-    remoteconfig_poller.disable()
-    with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
-        MOCK_AGENT_RESPONSES = json.load(f)
-
-    mock_appsec_rc_capabilities.return_value = "Ag=="
     rc_client = RemoteConfigClient()
-    mock_callback = mock.mock.MagicMock()
     rc_client.register_product("ASM_FEATURES", mock_callback)
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
-        # 0.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client)
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
+    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
-        # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
-        # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+    mock_callback.assert_called_with(mock_config, mock_config_content)
+    assert applied_configs == client_configs
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
 
-        # 2. A single configuration for the product is added. (“base”)
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=2,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"}],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                }
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_config_exists(mock_extract_target_file):
+    mock_callback = MagicMock()
+    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+
+    applied_configs = {}
+    payload = {}
+    client_configs = {"mock/ASM_FEATURES": mock_config}
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_product("ASM_FEATURES", mock_callback)
+    rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
+
+    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+
+    mock_extract_target_file.assert_not_called()
+    mock_callback.assert_not_called()
+    assert applied_configs == {}
+
+
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_error_extract_target_file(mock_extract_target_file):
+    mock_extract_target_file.return_value = None
+    mock_callback = MagicMock()
+    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+
+    applied_configs = {}
+    payload = {}
+    client_configs = {"mock/ASM_FEATURES": mock_config}
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_product("ASM_FEATURES", mock_callback)
+
+    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+
+    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+    mock_callback.assert_not_called()
+    assert applied_configs == {}
+
+
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_error_callback(mock_extract_target_file):
+    class RemoteConfigCallbackTestException(Exception):
+        pass
+
+    def exception_callback():
+        raise RemoteConfigCallbackTestException("error")
+
+    mock_config_content = {"test": "content"}
+    mock_extract_target_file.return_value = mock_config_content
+    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+
+    applied_configs = {}
+    payload = {}
+    client_configs = {"mock/ASM_FEATURES": mock_config}
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_product("ASM_FEATURES", exception_callback)
+
+    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+
+    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+    assert applied_configs != client_configs
+
+
+@pytest.mark.parametrize(
+    "payload_client_configs,num_payload_target_files,cache_target_files,expected_result_ok",
+    [
+        (
+            [
+                "target/path/0",
             ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 3. The “base” configuration is modified.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[3]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=3,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"}],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 48,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "a38ebf9fa256071f9823a5f512a84e8a786c8da2b0719452deeb5dc287ec990f",
-                        }
-                    ],
-                }
+            1,
+            {},
+            True,
+        ),
+        (
+            [
+                "target/path/0",
             ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, False)
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 4. The “base” configuration is removed.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[4]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=4,
-            config_states=[],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 5. The “base” configuration is added along with the “second” configuration.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[5]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=5,
-            config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+            3,
+            {},
+            True,
+        ),
+        (
+            [
+                "target/path/2",
             ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
+            3,
+            {},
+            True,
+        ),
+        (
+            [
+                "target/path/6",
             ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 6. The “third” configuration is added, the “second” configuration is removed
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[6]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=6,
-            config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
+            3,
+            {},
+            False,
+        ),
+        (
+            [
+                "target/path/0",
             ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/config",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
+            3,
+            [{"path": "target/path/1"}],
+            True,
+        ),
+        (
+            [
+                "target/path/0",
             ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 7. The “second” configuration is added back. The “first” configuration is modified.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[7]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=7,
-            config_states=[
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+            3,
+            [{"path": "target/path/1"}, {"path": "target/path/2"}],
+            True,
+        ),
+        (
+            [
+                "target/path/1",
             ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/config",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 48,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "a38ebf9fa256071f9823a5f512a84e8a786c8da2b0719452deeb5dc287ec990f",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
+            0,
+            [{"path": "target/path/1"}],
+            True,
+        ),
+        (
+            [
+                "target/path/2",
             ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 8. The “first” configuration is modified again, the “third” configuration is removed.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[8]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=8,
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+            0,
+            [{"path": "target/path/1"}],
+            False,
+        ),
+        (
+            [
+                "target/path/0",
+                "target/path/1",
             ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-            ],
-        )
+            1,
+            [{"path": "target/path/1"}],
+            True,
+        ),
+        (["target/path/0", "target/path/1", "target/path/6"], 2, [{"path": "target/path/6"}], True),
+    ],
+)
+def test_validate_config_exists_in_target_paths(
+    payload_client_configs, num_payload_target_files, cache_target_files, expected_result_ok
+):
+    def build_payload_target_files(num_payloads):
+        payload_target_files = []
+        for i in range(num_payloads):
+            mock = TargetFile(path="target/path/%s" % i, raw="")
+            payload_target_files.append(mock)
+        return payload_target_files
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
+    rc_client = RemoteConfigClient()
+    rc_client.cached_target_files = cache_target_files
 
-        # 9. Another update that doesn’t have any new or updated config files but has a newer TUF Targets file.
-        # This tests that a tracer handles this scenario and still reports that it has tracked config files in
-        # the next update.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[9]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=9,
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-            ],
-        )
+    payload_target_files = build_payload_target_files(num_payload_target_files)
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 10. A file is included in TUF Targets that is NOT specified in client_configs.
-        # The tracer should ignore this file and not report it in the next update request.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[10]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=10,
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-            ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 11. The “first” configuration is modified. Another file is included in the TUF Targets that is not specified
-        # in client_configs. This again tests that the tracer is only processing files in client_configs.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[11]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=11,
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
-            ],
-        )
-
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 12. A new configuration file’s raw bytes are missing from target_files that is referenced by client_configs
-        # and targets.signed.targets. This update should fail. The tracer client’s state should not change other
-        # than reporting the error in the has_error field along with a message in the error field of the next request.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[12]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=12,
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 48,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "a38ebf9fa256071f9823a5f512a84e8a786c8da2b0719452deeb5dc287ec990f",
-                        }
-                    ],
-                },
-            ],
-        )
-
-        assert rc_client._last_error == "Not all client configurations have target files"
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 13. A new configuration file is missing the TUF metadata in targets.signed.targets but is referenced in
-        # client_configs and target_files. This update should fail. The tracer client’s state should not change
-        # other than reporting the error in the has_error field along with a message in the error field of the next
-        # request.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[13]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=12,
-            has_errors=True,
-            error_msg="Not all client configurations have target files",
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 48,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "a38ebf9fa256071f9823a5f512a84e8a786c8da2b0719452deeb5dc287ec990f",
-                        }
-                    ],
-                },
-            ],
-        )
-
-        assert rc_client._last_error == (
-            "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-            "not exists in client_config and signed targets"
-        )
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 14.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[13]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=12,
-            has_errors=True,
-            error_msg=(
-                "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-                "not exists in client_config and signed targets"
-            ),
-            config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname",
-                    "length": 41,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "1e4a75edfd5f65e0adec704cc7c32f79987117d84755544ae4905045cdb0a443",
-                        }
-                    ],
-                },
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 48,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "a38ebf9fa256071f9823a5f512a84e8a786c8da2b0719452deeb5dc287ec990f",
-                        }
-                    ],
-                },
-            ],
-        )
-
-        assert rc_client._last_error == (
-            "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-            "not exists in client_config and signed targets"
-        )
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
+    if expected_result_ok:
+        rc_client._validate_config_exists_in_target_paths(payload_client_configs, payload_target_files)
+    else:
+        with pytest.raises(RemoteConfigError):
+            rc_client._validate_config_exists_in_target_paths(payload_client_configs, payload_target_files)
 
 
 @pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
