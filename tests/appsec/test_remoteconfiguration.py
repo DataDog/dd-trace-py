@@ -107,11 +107,11 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "nA=="),
-        ("false", "true", "nA=="),
-        ("true", "false", "nA=="),
+        ("true", "true", "Afw="),
+        ("false", "true", "Afw="),
+        ("true", "false", "Afw="),
         ("false", "false", ""),
-        ("true", "", "ng=="),
+        ("true", "", "Af4="),
         ("false", "", ""),
     ],
 )
