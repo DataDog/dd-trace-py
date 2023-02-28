@@ -1,27 +1,13 @@
 # type: ignore
 import logging
-import os
-import sys
-from typing import List
-from typing import Tuple
+from typing import List  # noqa
+from typing import Tuple  # noqa
 
 from riot import Venv
-from riot import latest as latest_riot
 
 
 logger = logging.getLogger(__name__)
-latest = object()  # sentinel value
-
-
-# Import fixed version if needed
-PY_Latest = os.environ.get("DD_USE_LATEST_VERSION") == "true"
-if not PY_Latest:
-    try:
-        sys.path.extend([".", ".circleci"])
-        from dependencies import LATEST_VERSIONS
-    except ModuleNotFoundError:
-        logger.error("missing dependencies.py")
-        raise
+latest = ""
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -2621,34 +2607,3 @@ venv = Venv(
         ),
     ],
 )
-
-
-def update_venv(venv: Venv):
-    """Recursively update the venvs by replacing the sentinel object 'latest' with either
-    - constant latest from riot package if PY_Latest
-    - fixed version string from local package dependencies
-    """
-
-    def replace(package):
-        if PY_Latest or "/" in package:  # local package are always using latest
-            return latest_riot
-        else:
-            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
-
-    def update_pkgs(d):
-        for k, v in list(d.items()):
-            if v is latest:
-                d[k] = replace(k)
-            elif isinstance(v, list):
-                for i, e in enumerate(v):
-                    if e is latest:
-                        v[i] = replace(k)
-
-    if hasattr(venv, "pkgs"):
-        update_pkgs(venv.pkgs)
-    if hasattr(venv, "venvs"):
-        for v in venv.venvs:
-            update_venv(v)
-
-
-update_venv(venv)
