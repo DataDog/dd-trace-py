@@ -113,7 +113,11 @@ class TraceMiddleware:
         self.span_modifier = span_modifier
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
+        if scope["type"] == "http":
+            method = scope["method"]
+        elif scope["type"] == "websocket":
+            method = "WEBSOCKET"
+        else:
             return await self.app(scope, receive, send)
 
         try:
@@ -132,7 +136,7 @@ class TraceMiddleware:
         else:
             ip = ""
 
-        resource = " ".join((scope["method"], scope["path"]))
+        resource = " ".join(method, scope["path"])
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(
@@ -170,7 +174,6 @@ class TraceMiddleware:
                         )
                     break
 
-            method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
             full_path = scope.get("root_path", "") + scope.get("path", "")
