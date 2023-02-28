@@ -7,7 +7,7 @@ from typing import cast
 
 import attr
 
-from ddtrace.debugging import safety
+from ddtrace.debugging import _safety
 from ddtrace.debugging._capture import utils
 from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._capture.model import CapturedEvent
@@ -92,7 +92,7 @@ class Snapshot(CapturedEvent):
 
         probe = self.probe
         frame = self.frame
-        _args = list(self.args or safety.get_args(frame))
+        _args = list(self.args or _safety.get_args(frame))
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             return
@@ -138,7 +138,7 @@ class Snapshot(CapturedEvent):
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
-                self.args or safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
+                self.args or _safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
             )
         self.duration = duration
         self.state = CaptureState.DONE_AND_COMMIT
@@ -161,8 +161,8 @@ class Snapshot(CapturedEvent):
                 return
 
             self.line_capture = _capture_context(
-                self.args or safety.get_args(frame),
-                list(_locals.items()) if _locals else safety.get_locals(frame),
+                self.args or _safety.get_args(frame),
+                list(_locals.items()) if _locals else _safety.get_locals(frame),
                 exc_info,
                 limits=probe.limits,
             )

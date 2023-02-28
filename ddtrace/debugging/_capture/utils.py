@@ -11,7 +11,7 @@ from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging._probe.model import MAXLEN
 from ddtrace.debugging._probe.model import MAXLEVEL
 from ddtrace.debugging._probe.model import MAXSIZE
-from ddtrace.debugging.safety import get_fields
+from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
