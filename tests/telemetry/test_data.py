@@ -186,7 +186,6 @@ def test_get_dependencies():
 def test_enable_products(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_APPSEC_ENABLED"] = "true"
-    env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
