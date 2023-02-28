@@ -13,17 +13,17 @@
       "error.message": "Datadog detected an Impending Timeout",
       "error.type": "Impending Timeout",
       "language": "python",
-      "runtime-id": "7474f6c9ef664162885f182e18254e89"
+      "runtime-id": "e1c641912ee6480591403dbce66ecd68"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 73306
+      "process_id": 52072
     },
-    "duration": 903030000,
-    "start": 1677036758905622000
+    "duration": 204807000,
+    "start": 1677616361362006000
   },
      {
        "name": "timeout",
@@ -34,6 +34,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 902821000,
-       "start": 1677036758905744000
+       "duration": 204452000,
+       "start": 1677616361362248000
      }]]

@@ -11,7 +11,7 @@ from tests.contrib.aws_lambda.handlers import timeout_handler
 
 
 class LambdaContext:
-    def __init__(self, remaining_time_in_millis=2000):
+    def __init__(self, remaining_time_in_millis=300):
         self.invoked_function_arn = "arn:aws:lambda:us-east-1:000000000000:function:fake-function-name"
         self.memory_limit_in_mb = 2048
         self.client_context = {}
@@ -25,7 +25,7 @@ class LambdaContext:
 
 @pytest.fixture()
 def context():
-    def create_context(remaining_time_in_millis=1000):
+    def create_context(remaining_time_in_millis=300):
         return LambdaContext(remaining_time_in_millis)
 
     return create_context
@@ -43,7 +43,7 @@ def setup():
     unpatch()
 
 
-@pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("500")])
+@pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot()
 def test_timeout_traces(context, customApmFlushDeadline):
     os.environ.update(

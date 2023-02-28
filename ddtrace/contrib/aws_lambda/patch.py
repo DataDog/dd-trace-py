@@ -32,25 +32,22 @@ def _crash_flush(_, __):
 
 def _handle_signal(sig, f):
     """
-    Wraps the given signal with a previously defined signal, if
-    it's callable and is different than the function `f` to handle.
-    Else, it doesn't wrap and just sets the function to handle as `f`.
-    This to avoid our signals overriding existing ones.
+    Returns a signal of type `sig` with function `f`, if there are
+    no previously defined signals.
 
-    Returns a signal of type `sig` with function `_f`
+    Else, wraps the given signal with the previously defined one,
+    so no signals are overridden.
     """
     old_signal = signal.getsignal(sig)
     if not callable(old_signal) or old_signal == f:
-        old_signal = None
+        return signal.signal(sig, f)
 
     def wrap_signals(*args, **kwargs):
         if old_signal is not None:
             old_signal(*args, **kwargs)
         f(*args, **kwargs)
 
-    _f = wrap_signals if old_signal else f
-
-    return signal.signal(sig, _f)
+    return signal.signal(sig, wrap_signals)
 
 
 def _check_timeout(context):
