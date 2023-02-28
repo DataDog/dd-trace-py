@@ -7,12 +7,9 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "",
-    "error": 1,
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "error.message": "Sorry Friend, I failed you",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 72, in test_otel_start_span_ignore_exceptions\n    raise Exception(\"Sorry Friend, I failed you\")\nException: Sorry Friend, I failed you\n",
-      "error.type": "builtins.Exception",
       "language": "python",
       "runtime-id": "86d94e107de5452e80709b37ac12b380"
     },

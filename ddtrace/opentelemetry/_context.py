@@ -34,8 +34,8 @@ class DDRuntimeContext:
     def attach(self, otel_context):
         # type: (OtelContext) -> object
         """
-        Retrieves an otel span from a context dictionary then activates it's underlying
-        datadog span or datadog context object.
+        Activates an OpenTelemetry Span by storing its corresponding Datadog Span/Context in the
+        Datadog Context Provider.
         """
         # Get Otel Span from the context object. Otelspan can be none if the context
         # only contains baggage or some other propagated object.
@@ -87,6 +87,6 @@ class DDRuntimeContext:
         # type: () -> DDBaseContextProvider
         """
         Get the ddtrace context provider from the global Datadog tracer.
-        This can reterive a default, gevent, or async context provider.
+        This can reterive a default, gevent, or asyncio context provider.
         """
         return ddtracer.context_provider

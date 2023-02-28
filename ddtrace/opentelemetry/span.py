@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 class Span(OtelSpan):
     """Initializes an Open Telemetry compatible shim for a datadog span"""
 
+    _RECORD_EXCEPTION_KEY = "_dd.otel.record_exception"
+    _SET_EXCEPTION_STATUS_KEY = "_dd.otel.set_status_on_exception"
+
     def __init__(
         self,
         datadog_span,  # type: DDSpan
@@ -38,6 +41,10 @@ class Span(OtelSpan):
             datadog_span.start = start_time / 1e9
 
         self._ddspan = datadog_span
+        if record_exception is not None:
+            self._record_exception = record_exception
+        if set_status_on_exception is not None:
+            self._set_status_on_exception = set_status_on_exception
 
         if kind is not SpanKind.INTERNAL:
             # Only set if it isn't "internal" to save on bytes
@@ -46,8 +53,27 @@ class Span(OtelSpan):
         if attributes:
             self.set_attributes(attributes)
 
-        # BUG: record_exception and set_status_on_exception are not used in Span.__exit__()
-        # TODO: add record_exception and set_status_on_exception attributes to ddspan
+    @property
+    def _record_exception(self):
+        # type: () -> bool
+        # default value is True, if record exception key is not set return True
+        return self._ddspan._get_ctx_item(self._RECORD_EXCEPTION_KEY) is not False
+
+    @_record_exception.setter
+    def _record_exception(self, value):
+        # type: (bool) -> None
+        self._ddspan._set_ctx_item(self._RECORD_EXCEPTION_KEY, value)
+
+    @property
+    def _set_status_on_exception(self):
+        # type: () -> bool
+        # default value is True, if set status on exception key is not set return True
+        return self._ddspan._get_ctx_item(self._SET_EXCEPTION_STATUS_KEY) is not False
+
+    @_set_status_on_exception.setter
+    def _set_status_on_exception(self, value):
+        # type: (bool) -> None
+        self._ddspan._set_ctx_item(self._SET_EXCEPTION_STATUS_KEY, value)
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None
@@ -143,6 +169,8 @@ class Span(OtelSpan):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Ends Span context manager"""
         if exc_val:
-            self.record_exception(exc_val)
-            self.set_status(StatusCode.ERROR)
+            if self._record_exception:
+                self.record_exception(exc_val)
+            if self._set_status_on_exception:
+                self.set_status(StatusCode.ERROR)
         self.end()
