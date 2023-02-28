@@ -288,8 +288,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     old_value = 0.0
                 span.set_metric(name, value + old_value)
 
-            update_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            update_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+            span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             if waf_results:
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
