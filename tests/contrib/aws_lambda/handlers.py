@@ -27,6 +27,14 @@ def timeout_handler(event, context):
 
     return {"success": False}
 
+def finishing_spans_early_handler(event, context):
+    root_span = tracer.current_root_span()
+    root_span.finish()
+
+    time.sleep(0.5)
+
+    return {"success": False}
+
 
 def datadog(_handler):
     @tracer.wrap("aws.lambda")

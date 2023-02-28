@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    aws_lambda: This fix resolves an issue where the runtime would crash when no root span is found on an impending timeout. The root span provided by `datadog-lambda` is not recommended to be finished by the customer. But it will log a warning stating that no root span was found. 
+    aws_lambda: This fix resolves an issue where the runtime would crash when no root span is found on an impending timeout. The root span provided by `datadog-lambda` is not recommended to be finished by the customer. But it will log a warning stating that no root span was found.
+ 
