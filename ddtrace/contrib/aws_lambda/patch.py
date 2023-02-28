@@ -26,7 +26,7 @@ def _crash_flush(_, __):
         root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
         root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
     else:
-        log.warning("An impending timeout was reached, but no root span was found. No error will be tagged")
+        log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
     current_span = tracer.current_span()
     if current_span is not None:
