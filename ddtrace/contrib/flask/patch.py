@@ -101,25 +101,9 @@ flask_version = parse_version(flask_version_str)
 
 def taint_request_environ(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        class LazyTaintDict(dict):
-            def __getitem__(self, key):
-                value = super(LazyTaintDict, self).__getitem__(key)
-                if isinstance(value, (str, bytes, bytearray)) and not is_pyobject_tainted(value):
-                    value = taint_pyobject(value, Input_info(key, value, 0))
-                    super(LazyTaintDict, self).__setitem__(key, value)
-                return value
-
-            def items(self):
-                for k, v in super(LazyTaintDict, self).items():
-                    if isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
-                        v = taint_pyobject(v, Input_info(k, v, 0))
-
-                    yield (k, v)
-
+        # Swap WSGI environ argument for a LazyTaintDict
         return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
