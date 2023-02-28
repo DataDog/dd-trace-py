@@ -37,6 +37,7 @@
          "db.application": "PythonConnector",
          "db.name": "mock-db-name",
          "db.schema": "mock-schema-name",
+         "db.system": "snowflake",
          "db.user": "mock-user",
          "db.warehouse": "mock-warehouse-name",
          "out.host": "mock-account.snowflakecomputing.com",

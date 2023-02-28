@@ -222,6 +222,8 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
+        self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
+
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
             "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
