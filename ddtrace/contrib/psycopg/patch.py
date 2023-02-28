@@ -6,13 +6,13 @@ from psycopg.sql import SQL
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.psycopg.utils import patched_connect
-from ddtrace.contrib.psycopg.utils import psycopg_sql_injector_factory
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..utils import patched_connect
+from ..utils import psycopg_sql_injector_factory
 
 
 config._add(

@@ -372,7 +372,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG2_SERVICE="mysvc"))
     def test_user_specified_service(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")

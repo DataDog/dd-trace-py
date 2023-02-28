@@ -10,12 +10,14 @@ from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
+from ..propagation._database_monitoring import default_sql_injector as _default_sql_injector
+
 
 def psycopg_sql_injector_factory(composable_class, sql_class):
     def _psycopg_sql_injector(dbm_comment, sql_statement):
         if isinstance(sql_statement, composable_class):
             return sql_class(dbm_comment) + sql_statement
-        return dbm_comment + sql_statement
+        return _default_sql_injector(dbm_comment, sql_statement)
 
     return _psycopg_sql_injector
 

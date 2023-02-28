@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "psycopg2",
+      "db.system": "postgresql",
       "language": "python",
       "runtime-id": "4165259776d24f23aae066cf1adfca38"
     },
