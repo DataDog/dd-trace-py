@@ -72,7 +72,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install -e git+ssh://git@github.com:DataDog/riot.git@feat/add-requirements-caching
+      - run: pip3 install -e git+ssh://git@github.com:DataDog/riot.git@feat/add-requirements-caching#egg=riot
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
