@@ -5,7 +5,7 @@ import os
 import mock
 
 from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig import remoteconfig_poller
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
@@ -70,7 +70,7 @@ def _assert_response(mock_send_request, expected_response):
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
-    RemoteConfig.disable()
+    remoteconfig_poller.disable()
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
