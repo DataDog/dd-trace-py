@@ -134,7 +134,8 @@ class MongoEngineCore(object):
         assert span.span_type == "mongodb"
         assert span.service == self.TEST_SERVICE
         assert span.get_tag("component") == "pymongo"
-        self.assertEqual(span.get_tag("span.kind"), "client")
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "mongodb"
         _assert_timing(span, start, end)
 
     def test_opentracing(self):

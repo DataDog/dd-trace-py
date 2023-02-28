@@ -35,7 +35,7 @@
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
-      "_dd.appsec.event_rules.loaded": 270.0,
+      "_dd.appsec.event_rules.loaded": 135.0,
       "_dd.appsec.waf.duration": 116.136,
       "_dd.appsec.waf.duration_ext": 192.16537475585938,
       "_dd.measured": 1,
