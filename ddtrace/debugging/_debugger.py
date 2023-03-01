@@ -1,6 +1,5 @@
 from collections import defaultdict
 from itertools import chain
-from pprint import pprint
 import sys
 import threading
 from types import FunctionType
@@ -42,6 +41,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -253,7 +253,10 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
+        self._entry_functions = {}  # type: Dict[str, Probe]
+
         self._tracer.subscribe(TracerEvent.ON_SPAN_START, lambda span: self._capture_exit_span(span))
+        self._tracer.subscribe(TracerEvent.ON_SPAN_ENTRY, lambda spanAndFunc: self._capture_span_method(spanAndFunc[1]))
 
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
@@ -265,10 +268,42 @@ class Debugger(Service):
         # Send upload request
         self._uploader.upload()
 
+    def _capture_span_method(self, func):
+        func_qname = func.__name__
+        module = func.__module__
+        probe_id = module + "." + func_qname
+
+        if probe_id in self._entry_functions:
+            return
+
+        template = "span snapshot func " + probe_id
+
+        probe = LogFunctionProbe(
+            probe_id=probe_id,
+            limits=CaptureLimits(),
+            tags={},
+            rate=DEFAULT_PROBE_RATE,
+            module=module,
+            func_qname=func_qname,
+            evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+            condition=None,
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,
+            take_snapshot=True,
+            template=template,
+            segments=[LiteralTemplateSegment(str_value=template)],
+        )
+
+        print(probe)
+
+        self._wrap_functions([probe])
+        self._entry_functions[probe_id] = probe
+
     def _capture_exit_span(self, span):
         # type: (ddtrace.Span) -> None
 
         print("span started", span)
+
+        return
 
         actual_frame = sys._getframe(4)
         filename = actual_frame.f_code.co_filename
@@ -293,9 +328,10 @@ class Debugger(Service):
             context=self._tracer.current_trace_context(),
         )
 
+        self._tracer.current_span().set_tag("has_debug_info", True)
+
         snapshot.line(exc_info=sys.exc_info())
 
-        pprint(snapshot)
         self._collector.push(snapshot)
 
     def _dd_debugger_hook(self, probe):

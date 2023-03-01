@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace import tracer
 from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._capture.model import CapturedEvent
 from ddtrace.debugging._encoding import BufferedEncoder
@@ -102,6 +103,10 @@ class CapturedEventCollector(object):
             meter.increment("skip", tags={"cause": "rate", "probe_id": event.probe.probe_id})
         elif event.state == CaptureState.DONE_AND_COMMIT:
             meter.increment("capture", tags={"probe_id": event.probe.probe_id})
+            if event.context:
+                span = tracer.current_span()
+                if span:
+                    span.set_tag("has_debug_info", True)
             self._enqueue(event)
 
     def attach(self, event):
