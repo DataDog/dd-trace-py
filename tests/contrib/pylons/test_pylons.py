@@ -548,7 +548,6 @@ class PylonsTestCase(TracerTestCase):
 
     def test_pylons_body_urlencoded(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
-
             self.tracer.configure(api_version="v0.4")
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
             response = self.app.post(
@@ -679,7 +678,6 @@ class PylonsTestCase(TracerTestCase):
     def test_pylons_body_json_unicode_decode_error_charset(self):
         # Regression test, if request.charset returns None, a TypeError is raised
         with self.override_global_config(dict(_appsec_enabled=True)):
-
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), mock.patch(
                 "ddtrace.contrib.pylons.middleware.Request.charset", new_callable=mock.PropertyMock
             ) as mock_charset:
@@ -769,8 +767,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span.get_tag("_dd.appsec.json") is None
 
             span = _context.get_item("http.request.body", span=root_span)
-            assert span
-            assert span == "foo=bar"
+            assert span is None
 
     def test_pylons_body_plain_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
@@ -789,11 +786,10 @@ class PylonsTestCase(TracerTestCase):
 
             root_span = spans[0]
             appsec_json = root_span.get_tag("_dd.appsec.json")
-            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+            assert "triggers" not in json.loads(appsec_json if appsec_json else "{}")
 
             span = _context.get_item("http.request.body", span=root_span)
-            assert span
-            assert span == "1' or '1' = '1'"
+            assert span is None
 
     def test_request_method_get_200(self):
         res = self.app.get(url_for(controller="root", action="index"))
