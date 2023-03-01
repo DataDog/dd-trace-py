@@ -563,8 +563,8 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(headers, span):
     _context.set_item("http.request.blocked", True, span=span)
-    ctype = headers.get("Accept") or "text/json"
-    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
+    block_ctype = "text/html" if "text/html" in headers.get("Accept", "") else "text/json"
+    abort(flask.Response(utils._get_blocked_template(block_ctype), content_type=block_ctype, status=403))
 
 
 def request_tracer(name):

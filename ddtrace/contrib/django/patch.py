@@ -394,10 +394,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
-                response = HttpResponseForbidden(
-                    appsec_utils._get_blocked_template(request_headers.get("Accept")), content_type="text/plain"
-                )
-                response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                block_ctype = "text/html" if "text/html" in request_headers.get("Accept", "") else "text/json"
+                response_content = appsec_utils._get_blocked_template(block_ctype)
+                response = HttpResponseForbidden(response_content, content_type=block_ctype)
                 return response
 
             try:

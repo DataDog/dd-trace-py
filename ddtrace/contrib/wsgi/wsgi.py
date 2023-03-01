@@ -133,11 +133,13 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
+            block_ctype = "text/html" if "text/html" in headers.get("Accept") else "text/json"
+
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
                 if _context.get_item("http.request.blocked", span=req_span):
-                    start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
-                    closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                    start_response("403 FORBIDDEN", [("content-type", block_ctype)])
+                    closing_iterator = [utils._get_blocked_template(block_ctype).encode("UTF-8")]
                     not_blocked = False
 
             if not_blocked:
@@ -146,8 +148,8 @@ class _DDWSGIMiddlewareBase(object):
                 if self.tracer._appsec_enabled:
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=req_span):
-                        start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
-                        closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                        start_response("403 FORBIDDEN", [("content-type", block_ctype)])
+                        closing_iterator = [utils._get_blocked_template(block_ctype).encode("UTF-8")]
                         not_blocked = False
 
             if not_blocked:
@@ -170,7 +172,7 @@ class _DDWSGIMiddlewareBase(object):
                     raise
                 if self.tracer._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
                     # [Suspicious Request Blocking on response]
-                    closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                    closing_iterator = [utils._get_blocked_template(block_ctype).encode("UTF-8")]
 
             # start flask.response span. This span will be finished after iter(result) is closed.
             # start_span(child_of=...) is used to ensure correct parenting.
