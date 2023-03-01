@@ -111,13 +111,13 @@ if _DDWAF_LOADED:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             result = ddwaf_update(self._handle, rules, ctypes.byref(self._info))
-            if result == 0:
+            if result == 0 or result is None:
                 LOGGER.error("DDWAF.update_rules: invalid rules")
-                return True
+                return False
             else:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
                 self._handle = result
-                return False
+                return True
 
         def _at_request_start(self):
             if self._ctx:
