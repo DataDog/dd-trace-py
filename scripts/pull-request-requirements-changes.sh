@@ -17,10 +17,6 @@ then
     gh pr create --base "1.x" --title "$PR_NAME" --body "This is just a test" --repo "DataDog/dd-trace-py"
 fi
 
-found_prs="$(gh search prs is:open \"$PR_NAME_PREFIX\" in:title --json state,id,title --repo DataDog/dd-trace-py)"
-found_pr_id="$(echo "${found_prs}" | jq -r '.[0].id')"
-echo $found_pr_id
-
 # figure out whether branch exists
 # if it doesn't, create it
 # pull branch
