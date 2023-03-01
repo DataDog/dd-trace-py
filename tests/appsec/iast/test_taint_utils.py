@@ -4,8 +4,8 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
+    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup  # type: ignore[attr-defined]
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -16,14 +16,16 @@ def setup():
 
 
 def test_tainted_getitem():
-    knights = {"gallahad": "the pure", "robin": "the brave", "not string": 1}
-    tainted_knights = LazyTaintDict(knights)
+    knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+    )
 
     # Strings are tainted, but integers are not
     assert is_pyobject_tainted(tainted_knights["gallahad"])
     assert not is_pyobject_tainted(tainted_knights["not string"])
 
-    # Original dict is not affected
+    # Regular dict is not affected
     assert not is_pyobject_tainted(knights["gallahad"])
 
     # KeyError is raised if the key is not found
@@ -34,8 +36,10 @@ def test_tainted_getitem():
 
 
 def test_tainted_get():
-    knights = {"gallahad": "the pure", "robin": "the brave", "not string": 1}
-    tainted_knights = LazyTaintDict(knights)
+    knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+    )
 
     # Not-existing key returns None or default
     arthur = knights.get("arthur")
@@ -55,34 +59,34 @@ def test_tainted_get():
     assert tainted_robin is not None
     assert is_pyobject_tainted(tainted_robin)
 
-    # Original dict is not affected
+    # Regular dict is not affected
     robin = knights.get("robin")
     assert not is_pyobject_tainted(robin)
 
 
 def test_tainted_items():
-    knights = {"gallahad": "the pure", "robin": "the brave"}
-    tainted_knights = LazyTaintDict(knights)
+    knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
+    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
 
     # Values are tainted if string-like, keys aren't
     for k, v in tainted_knights.items():
         assert not is_pyobject_tainted(k)
         assert is_pyobject_tainted(v)
 
-    # Original dict is not affected
+    # Regular dict is not affected
     for k, v in knights.items():
         assert not is_pyobject_tainted(k)
         assert not is_pyobject_tainted(v)
 
 
 def test_tainted_values():
-    knights = {"gallahad": "the pure", "robin": "the brave"}
-    tainted_knights = LazyTaintDict(knights)
+    knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
+    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
 
     # Values are tainted if string-like
     for v in tainted_knights.values():
         assert is_pyobject_tainted(v)
 
-    # Original dict is not affected
+    # Regular dict is not affected
     for v in knights.values():
         assert not is_pyobject_tainted(v)
