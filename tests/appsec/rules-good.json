@@ -1,5 +1,8 @@
 {
   "version": "2.1",
+  "metadata": {
+    "rules_version": "1.5.1"
+  },
   "rules": [
     {
       "id": "blk-001-001",
