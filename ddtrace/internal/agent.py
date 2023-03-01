@@ -4,6 +4,7 @@ import socket
 from typing import TypeVar
 from typing import Union
 
+from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 
@@ -148,11 +149,11 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
 
-def _healthcheck():
+def info():
     agent_url = get_trace_url()
     _conn = get_connection(agent_url, timeout=get_trace_agent_timeout())
     try:
-        _conn.request("GET", "info", {}, {"content-type": "application/json"})
+        _conn.request("GET", "info", "{}", {"content-type": "application/json"})
         resp = _conn.getresponse()
         data = resp.read()
     finally:
@@ -166,4 +167,4 @@ def _healthcheck():
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(data)
+    return json.loads(ensure_str(data))
