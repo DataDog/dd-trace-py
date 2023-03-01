@@ -24,6 +24,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.utils.cache import LFUCache
 
 
@@ -199,7 +200,7 @@ class ProbePollerEvent(object):
 ProbePollerEventType = int
 
 
-class ProbeRCAdapter(object):
+class ProbeRCAdapter(RemoteConfigCallBack):
     """Probe configuration adapter for the RCM client.
 
     This adapter turns configuration events from the RCM client into probe

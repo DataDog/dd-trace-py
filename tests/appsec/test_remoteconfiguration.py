@@ -5,8 +5,8 @@ import time
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._remoteconfiguration import RCAppSecCallBack
 from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
-from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
@@ -16,6 +16,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.remoteconfig import RemoteConfig
 from tests.appsec.test_processor import Config
+from tests.appsec.test_processor import ROOT_DIR
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -57,7 +58,7 @@ def test_rc_enabled_by_default(tracer):
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": True}})
+    RCAppSecCallBack(tracer)(None, {"asm": {"enabled": True}})
     assert "triggers" in _set_and_get_appsec_tags(tracer)
 
 
@@ -74,7 +75,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
-        appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
+        RCAppSecCallBack(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
         assert result
         assert "triggers" in result
@@ -97,7 +98,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
         if rc_value is False:
             rc_config = False
 
-        appsec_rc_reload_features(tracer)(None, rc_config)
+        RCAppSecCallBack(tracer)(None, rc_config)
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
 
@@ -105,11 +106,11 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "nA=="),
-        ("false", "true", "nA=="),
-        ("true", "false", "nA=="),
+        ("true", "true", "Afw="),
+        ("false", "true", "Afw="),
+        ("true", "false", "Afw="),
         ("false", "false", ""),
-        ("true", "", "ng=="),
+        ("true", "", "Af4="),
         ("false", "", ""),
     ],
 )
@@ -127,7 +128,7 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 
         assert not RemoteConfig._worker
 
-        appsec_rc_reload_features(tracer)(None, rc_config)
+        RCAppSecCallBack(tracer)(None, rc_config)
 
         assert RemoteConfig._worker._client._products["ASM_DATA"]
 
@@ -154,7 +155,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
 
         assert not RemoteConfig._worker
 
-        appsec_rc_reload_features(tracer)(None, rc_config)
+        RCAppSecCallBack(tracer)(None, rc_config)
         with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
@@ -182,7 +183,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
         assert not RemoteConfig._worker
 
-        appsec_rc_reload_features(tracer)(None, rc_config)
+        RCAppSecCallBack(tracer)(None, rc_config)
 
         with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -210,7 +211,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
         assert not RemoteConfig._worker
 
-        appsec_rc_reload_features(tracer)(None, rc_config)
+        RCAppSecCallBack(tracer)(None, rc_config)
 
         with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -223,8 +224,9 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
 
 def test_rc_rules_data(tracer):
+    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/appsec/rules.json")
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}), open(
-        "ddtrace/appsec/rules.json", "r"
+        RULES_PATH, "r"
     ) as dd_rules:
         config = {
             "rules_data": [],

@@ -1,3 +1,4 @@
+import abc
 import base64
 from datetime import datetime
 import hashlib
@@ -31,12 +32,9 @@ from ..utils.version import _pep440_to_semver
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
-
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
 
 
 log = get_logger(__name__)
@@ -149,6 +147,26 @@ AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
 
+class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def __call__(self, metadata, config):
+        # type: (Optional[ConfigMetadata], Any) -> None
+        pass
+
+
+class RemoteConfigCallBackAfterMerge(RemoteConfigCallBack):
+    configs = {}  # type: Dict[str, Any]
+
+    def append(self, config):
+        self.configs.update(config)
+
+    def dispatch(self):
+        try:
+            self.__call__(None, self.configs)
+        finally:
+            self.configs = {}
+
+
 class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
@@ -204,14 +222,14 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, ProductCallback]
+        self._products = dict()  # type: MutableMapping[str, RemoteConfigCallBack]
         self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, Optional[ProductCallback]) -> None
+        # type: (str, Optional[RemoteConfigCallBack]) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -245,7 +263,7 @@ class RemoteConfigClient(object):
 
     @staticmethod
     def _extract_target_file(payload, target, config):
-        # type: (AgentPayload, str, ConfigMetadata) -> Optional[Mapping[str, Any]]
+        # type: (AgentPayload, str, ConfigMetadata) -> Optional[Dict[str, Any]]
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug("invalid target_files for %r", target)
@@ -353,9 +371,9 @@ class RemoteConfigClient(object):
 
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
+        list_callbacks = []
         for target, config in client_configs.items():
             callback = self._products[config.product_name]
-
             applied_config = self._applied_configs.get(target)
             if applied_config == config:
                 continue
@@ -366,12 +384,19 @@ class RemoteConfigClient(object):
 
             try:
                 log.debug("Load new configuration: %s. content ", target)
-                callback(config, config_content)
+                if isinstance(callback, RemoteConfigCallBackAfterMerge):
+                    callback.append(config_content)
+                    if callback not in list_callbacks:
+                        list_callbacks.append(callback)
+                else:
+                    callback(config, config_content)
             except Exception:
                 log.debug("Failed to load configuration %s for product %r", config, config.product_name, exc_info=True)
                 continue
             else:
                 applied_configs[target] = config
+        for callback in list_callbacks:
+            callback.dispatch()
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:
