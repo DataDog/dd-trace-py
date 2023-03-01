@@ -3,7 +3,6 @@ import base64
 import datetime
 import hashlib
 import json
-from time import sleep
 import warnings
 
 import mock
