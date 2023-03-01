@@ -76,7 +76,7 @@ else:
 
 log = get_logger(__name__)
 
-_probe_metrics = Metrics(namespace="debugger.metric")
+_probe_metrics = Metrics(namespace="dynamic.instrumentation.metric")
 _probe_metrics.enable()
 
 

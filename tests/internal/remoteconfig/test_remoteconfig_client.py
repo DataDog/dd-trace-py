@@ -5,6 +5,7 @@ from mock.mock import MagicMock
 import pytest
 
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import RemoteConfigError
 from ddtrace.internal.remoteconfig.client import TargetFile
@@ -27,8 +28,53 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.assert_called_with(mock_config, mock_config_content)
+    mock_callback.assert_called_once_with(mock_config, mock_config_content)
     assert applied_configs == client_configs
+
+
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
+    class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
+        configs = {}
+
+        def __call__(self, metadata, features):
+            mock_callback(metadata, features)
+
+    expected_results = {}
+
+    class MockExtractFile:
+        counter = 1
+
+        def __call__(self, payload, target, config):
+            self.counter += 1
+            result = {"test{}".format(self.counter): target}
+            expected_results.update(result)
+            return result
+
+    mock_extract_target_file.side_effect = MockExtractFile()
+    mock_callback = MagicMock()
+    callback = RCAppSecCallBack()
+
+    applied_configs = {}
+    payload = {}
+    client_configs = {
+        "mock/ASM_FEATURES": ConfigMetadata(
+            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
+        ),
+        "mock/ASM_DATA": ConfigMetadata(
+            id="", product_name="ASM_DATA", sha256_hash="sha256_hash", length=5, tuf_version=5
+        ),
+    }
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_product("ASM_DATA", callback)
+    rc_client.register_product("ASM_FEATURES", callback)
+
+    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+
+    mock_callback.assert_called_once_with(None, expected_results)
+    assert applied_configs == client_configs
+    rc_client._products = {}
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
