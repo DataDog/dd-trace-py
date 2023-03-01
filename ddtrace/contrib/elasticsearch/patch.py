@@ -1,6 +1,7 @@
 from importlib import import_module
 
 from ddtrace import config
+from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -95,7 +96,19 @@ def _get_perform_request(elasticsearch):
                 span.set_tag_str(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
-                span.set_tag_str(metadata.BODY, instance.serializer.dumps(body))
+                ser_body = instance.serializer.dumps(body)
+                # Elasticsearch request bodies can be very large resulting in traces being too large
+                # to send.
+                # When this occurs, drop the value.
+                # Ideally the body should be truncated, however we cannot truncate as the obfuscation
+                # logic for the body lives in the agent and truncating would make the body undecodable.
+                if len(ser_body) <= _limits.MAX_SPAN_META_VALUE_LEN:
+                    span.set_tag_str(metadata.BODY, ser_body)
+                else:
+                    span.set_tag_str(
+                        metadata.BODY,
+                        "<body size %s exceeds limit of %s>" % (len(ser_body), _limits.MAX_SPAN_META_VALUE_LEN),
+                    )
             status = None
 
             # set analytics sample rate
