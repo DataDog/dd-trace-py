@@ -1022,8 +1022,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # flask-caching dropped support for Python 2.7/3.5 in 1.8
-                    pys=select_pys(max_version="3.5"),
+                    # flask-caching dropped support for Python 3.5 in 1.8
+                    pys="3.5",
                     pkgs={
                         "flask": "~=1.0.0",
                         "flask-caching": "~=1.7.0",
@@ -1053,7 +1053,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "flask": "~=1.1.0",
-                        "flask-caching": ["~=1.11.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
                         "itsdangerous": "<2.0",
@@ -1113,9 +1113,9 @@ venv = Venv(
             venvs=[
                 Venv(
                     # psycopg2-binary dropped support for Python 2.7 in 2.9
-                    pys=select_pys(max_version="3.5"),
+                    pys="2.7",
                     # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
-                    pkgs={"psycopg2-binary": "~=2.7.0"},
+                    pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1152,7 +1152,7 @@ venv = Venv(
                     # pynamodb dropped support for Python 2.7/3.5 in 4.4
                     pys=select_pys(max_version="3.5"),
                     pkgs={
-                        "pynamodb": ["~=4.3"],
+                        "pynamodb": ["~=4.3.0"],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
@@ -1339,9 +1339,9 @@ venv = Venv(
                     pkgs={"mongoengine": "~=0.19"},
                 ),
                 Venv(
-                    # mongoengine dropped support for Python 3.5 in 0.21
+                    # mongoengine dropped support for Python 3.5 in 0.22
                     pys="3.5",
-                    pkgs={"mongoengine": "~=0.20"},
+                    pkgs={"mongoengine": "<0.22"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1612,9 +1612,10 @@ venv = Venv(
                     pkgs={"grpcio": ["~=1.26.0"]},
                 ),
                 Venv(
-                    # grpcio dropped support for Python 3.5 in 1.40
+                    # grpcio dropped support for Python 3.5 in 1.40, but aio module (not compatible with Python 3.5)
+                    # was added in 1.32
                     pys="3.5",
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.39.0"]},
+                    pkgs={"grpcio": ["~=1.31.0"]},
                 ),
                 Venv(
                     # grpcio dropped support for Python 3.6 in 1.49
@@ -1646,11 +1647,6 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
             venvs=[
-                Venv(
-                    # grpcio dropped support for Python 3.5 in 1.40
-                    pys="3.5",
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.39.0"]},
-                ),
                 Venv(
                     # grpcio dropped support for Python 3.6 in 1.49
                     pys="3.6",
@@ -1696,7 +1692,7 @@ venv = Venv(
             command="pytest tests/contrib/rq",
             venvs=[
                 Venv(
-                    # rq dropped support for Python 2.7 in 1.3.0
+                    # rq dropped support for Python 2.7 in 1.4.0
                     pys="2.7",
                     pkgs={
                         "rq": [
@@ -1705,9 +1701,9 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # rq dropped support for Python 3.5 in 1.13
+                    # rq dropped support for Python 3.5 in 1.12
                     pys="3.5",
-                    pkgs={"rq": ["~=1.8", "~=1.12"]},
+                    pkgs={"rq": ["~=1.8.0", "~=1.11.1"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1864,7 +1860,7 @@ venv = Venv(
                     pys="3.5",
                     pkgs={
                         # aiohttp 3.8 dropped support for Python 3.5
-                        "aiohttp": ["~=2.3", "~=3.7"],
+                        "aiohttp": ["~=2.3", "<3.8"],
                         "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
@@ -1875,7 +1871,6 @@ venv = Venv(
                     pkgs={
                         "aiohttp": [
                             "~=3.7",
-                            "~=4.0",
                             latest,
                         ],
                         "yarl": "~=1.0",
@@ -1906,7 +1901,6 @@ venv = Venv(
                     pkgs={
                         "aiohttp": [
                             "~=3.7",
-                            "~=4.0",
                             latest,
                         ],
                         "aiohttp_jinja2": [
@@ -1921,7 +1915,6 @@ venv = Venv(
                         "pytest-asyncio": [latest],
                         "aiohttp": [
                             "~=3.7",
-                            "~=4.0",
                             latest,
                         ],
                         "aiohttp_jinja2": [
@@ -2096,7 +2089,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pys=select_pys(min_version="3.7", max_version="3.8"),
                     pkgs={"snowflake-connector-python": ["~=2.3.0", "~=2.9.0", latest]},
                 ),
                 Venv(
