@@ -3,15 +3,16 @@
 import pytest
 
 
-taint_tracking = pytest.importorskip("ddtrace.appsec.iast._taint_tracking")
-
-if taint_tracking:
-    is_pyobject_tainted = taint_tracking.is_pyobject_tainted
+try:
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def setup():
-    taint_tracking.setup(bytes.join, bytearray.join)
+    taint_tracking_setup(bytes.join, bytearray.join)
 
 
 def test_tainted_getitem():
