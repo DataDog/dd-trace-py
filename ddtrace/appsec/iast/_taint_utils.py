@@ -23,6 +23,7 @@ class LazyTaintDict(dict):
         for k, v in super(LazyTaintDict, self).items():
             if isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
                 v = taint_pyobject(v, Input_info(k, v, 0))
+                super(LazyTaintDict, self).__setitem__(k, v)
 
             yield (k, v)
 
