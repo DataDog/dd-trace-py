@@ -35,6 +35,10 @@ tests/contrib/*/test*appsec*.py    @DataDog/asm-python
 ddtrace/profiling                   @DataDog/apm-core-python @DataDog/debugger-python
 tests/profiling                     @DataDog/apm-core-python @DataDog/debugger-python
 
+# Remote Config
+ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
+tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
+
 # Guild
 # Note that core is added here since 2 reviewers are required. The guild isn't
 # big enough to support if a guild member makes a change which means 2 other
@@ -51,5 +55,3 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/remoteconfig       @DataDog/python-guild
-tests/internal/remoteconfig         @DataDog/python-guild
