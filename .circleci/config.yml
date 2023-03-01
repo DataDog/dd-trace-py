@@ -601,7 +601,7 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 3
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
@@ -691,6 +691,7 @@ jobs:
 
   django:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'django$'
@@ -732,7 +733,7 @@ jobs:
           docker_services: "memcached redis"
 
   gevent:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'gevent'
