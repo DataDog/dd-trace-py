@@ -50,6 +50,12 @@ def release_it():
 
     commit_id = main_branch.commit
     # dd_repo.create_git_release(name=version, tag=version, prerelease=True, draft=True, target_commitish=main_branch, message=rn)
+    
+    # compare 1.x to the latest release to get the commits, release notes, PRs and authors.
+    #     diff = dd_repo.compare("e6029d50785bd09f7dfa1aa78c976ccd42115e57", "2a87fa2160e23d6444947bd2a17d6881848118a2")
+
+    diff = dd_repo.compare("1.9", "1.x")
+    import pdb; pdb.set_trace()
 
     # edit release notes to be put inside notebook
     rn_notebook = rn.replace("-", "- [ ]")
