@@ -416,7 +416,7 @@ def test_request_ipblock_403(client, test_spans, tracer):
         )
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
-        if hasattr(result, 'headers'):
+        if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/json"
 
 
@@ -435,7 +435,7 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
-        if hasattr(result, 'headers'):
+        if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/html"
 
 
@@ -479,7 +479,7 @@ def test_request_userblock_403(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
-        if hasattr(result, 'headers'):
+        if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/json"
 
 
@@ -491,7 +491,7 @@ def test_request_userblock_403_html(client, test_spans, tracer):
         assert result.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
-        if hasattr(result, 'headers'):
+        if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/html"
 
 
