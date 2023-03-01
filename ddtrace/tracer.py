@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 import json
 import logging
@@ -59,7 +60,6 @@ from .span import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
     from typing import Dict
     from typing import List
     from typing import Optional
@@ -67,6 +67,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Union
     from typing import Tuple
 
+from typing import Any
 from typing import Callable
 from typing import TypeVar
 
@@ -184,6 +185,15 @@ def _default_span_processors_factory(
     return span_processors, appsec_processor
 
 
+TracerEventHandler = Callable[[Any], None]
+
+
+class TracerEvent(object):
+    ON_SPAN_START = "on_span_start"
+    ON_SPAN_FINISH = "on_span_finish"
+    ON_SPAN_ENTRY = "on_span_entry"
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -274,6 +284,8 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._event_handlers = defaultdict(list)  # type: Dict[str, List[TracerEventHandler]]
+
     def _atexit(self):
         # type: () -> None
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -283,6 +295,19 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
+
+    def subscribe(self, event, handler):
+        # type: (str, TracerEventHandler) -> None
+        self._event_handlers[event].append(handler)
+
+    def _notify(self, event, data):
+        # type: (str, Any) -> None
+        for handler in self._event_handlers[event]:
+            handler(data)
+
+    def on_entry_span(self, span, user_func):
+        print(TracerEvent.ON_SPAN_ENTRY, span, user_func)
+        self._notify(TracerEvent.ON_SPAN_ENTRY, (span, user_func))
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
@@ -778,6 +803,8 @@ class Tracer(object):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
+        self._notify(TracerEvent.ON_SPAN_FINISH, span)
+
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
 
@@ -837,7 +864,8 @@ class Tracer(object):
             assert parent2.parent_id is None
             parent2.finish()
         """
-        return self.start_span(
+
+        span = self.start_span(
             name,
             child_of=self.context_provider.active(),
             service=service,
@@ -845,6 +873,10 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
         )
+
+        self._notify(TracerEvent.ON_SPAN_START, span)
+
+        return span
 
     def current_root_span(self):
         # type: () -> Optional[Span]

@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+from pprint import pprint
 import sys
 import threading
 from types import FunctionType
@@ -28,10 +29,14 @@ from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.debugging._metrics import metrics
+from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
+from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
@@ -60,6 +65,7 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
+from ddtrace.tracer import TracerEvent
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -247,6 +253,8 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
+        self._tracer.subscribe(TracerEvent.ON_SPAN_START, lambda span: self._capture_exit_span(span))
+
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
@@ -256,6 +264,39 @@ class Debugger(Service):
         # type (Any, bytes) -> None
         # Send upload request
         self._uploader.upload()
+
+    def _capture_exit_span(self, span):
+        # type: (ddtrace.Span) -> None
+
+        print("span started", span)
+
+        actual_frame = sys._getframe(4)
+        filename = actual_frame.f_code.co_filename
+        lineno = actual_frame.f_lineno
+
+        snapshot = Snapshot(
+            probe=LogLineProbe(
+                probe_id=filename + ":L" + str(lineno),
+                limits=CaptureLimits(),
+                tags={},
+                rate=DEFAULT_PROBE_RATE,
+                source_file=filename,
+                line=lineno,
+                condition=None,
+                condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,
+                take_snapshot=True,
+                template="span snapshot for: " + span.name,
+                segments=[LiteralTemplateSegment(str_value="span snapshot for: " + span.name)],
+            ),
+            frame=actual_frame,
+            thread=threading.current_thread(),
+            context=self._tracer.current_trace_context(),
+        )
+
+        snapshot.line(exc_info=sys.exc_info())
+
+        pprint(snapshot)
+        self._collector.push(snapshot)
 
     def _dd_debugger_hook(self, probe):
         # type: (Probe) -> None

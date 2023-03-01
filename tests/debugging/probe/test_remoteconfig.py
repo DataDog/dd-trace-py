@@ -204,7 +204,6 @@ def test_multiple_configs():
             {
                 "id": "probe1",
                 "type": ProbeType.SPAN_PROBE,
-                "active": True,
                 "tags": ["foo:bar"],
                 "where": {"type": "Stuff", "method": "foo"},
                 "resource": "resourceX",

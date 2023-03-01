@@ -186,7 +186,6 @@ def probe_factory(attribs):
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
-            active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
