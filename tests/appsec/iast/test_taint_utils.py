@@ -2,13 +2,16 @@
 
 import pytest
 
-from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import setup as setup_taint_tracking
-from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+taint_tracking = pytest.importorskip("ddtrace.appsec.iast._taint_tracking")
+
+if taint_tracking:
+    is_pyobject_tainted = taint_tracking.is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
 
 def setup():
-    setup_taint_tracking(bytes.join, bytearray.join)
+    taint_tracking.setup(bytes.join, bytearray.join)
 
 
 def test_tainted_getitem():
