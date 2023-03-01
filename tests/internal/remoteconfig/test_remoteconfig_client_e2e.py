@@ -5,7 +5,6 @@ import os
 import mock
 
 from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.utils.version import _pep440_to_semver
