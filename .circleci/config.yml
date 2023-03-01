@@ -16,6 +16,11 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
+parameters:
+  recompile_requirements:
+    type: boolean
+    default: false
+
 orbs:
   win: circleci/windows@5.0
 
@@ -63,6 +68,11 @@ commands:
       - store_artifacts:
           path: coverage
 
+  pull_request_requirements_changes:
+    description: ""
+    steps:
+      - run: |
+          ./scripts/pull-request-requirements-changes.sh
   setup_tox:
     description: "Install tox"
     steps:
@@ -163,7 +173,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run `[[ << pipeline.parameters.recompile_requirements >> ]] && echo '-c'` --exitfirst --pass-env -s
       - unless:
           condition:
               << parameters.snapshot >>
@@ -178,7 +188,12 @@ commands:
                       command: riot -v run 'wait' << parameters.wait >>
 
             - run:
-                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
+                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run `[[ << pipeline.parameters.recompile_requirements >> ]] && echo '-c'` --exitfirst --pass-env -s"
+      - when:
+          condition:
+            << pipeline.parameters.recompile_requirements >>
+          steps:
+            - pull_request_requirements_changes
       - save_pip_cache
       - when:
           condition:
