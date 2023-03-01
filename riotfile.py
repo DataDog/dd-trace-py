@@ -567,7 +567,7 @@ venv = Venv(
                     # https://github.com/pypa/setuptools/issues/2086
                     pys=select_pys(max_version="3.5"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=5.0",
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
                     },
@@ -577,7 +577,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=5.0",
                         "celery": "~=4.2.2",
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
@@ -589,7 +589,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.7"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=5.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
@@ -601,7 +601,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=5.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
@@ -705,9 +705,6 @@ venv = Venv(
         Venv(
             name="pymongo",
             command="pytest {cmdargs} tests/contrib/pymongo",
-            pkgs={
-                "mongoengine": latest,
-            },
             venvs=[
                 Venv(
                     # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by pymongo>=3.4
@@ -1315,7 +1312,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.44.0"],
                                 # 2.8.x is the last one support Python 2.7
                                 "psycopg2-binary": ["~=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
@@ -1324,17 +1321,17 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.44.0"],
+                                "psycopg2-binary": "~=2.9.0",
+                                "mysql-connector-python": "~=8.0.0",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10"),
                             pkgs={
-                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
+                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", "~=1.44.0"],
+                                "psycopg2-binary": "~=2.9.0",
+                                "mysql-connector-python": "~=8.0.0",
                             },
                         ),
                     ],
@@ -1606,13 +1603,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
                     pkgs={
-                        "pytest": [
-                            ">=3.0,<4.0",
-                            ">=4.0,<5.0",
-                            ">=5.0,<6.0",
-                            ">=6.0,<7.0",
-                            latest,
-                        ],
+                        "pytest": ["~=3.0", "~=4.0", "~=5.0", "~=6.0", latest],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                     },
@@ -1839,7 +1830,7 @@ venv = Venv(
                             "~=1.8.0",
                             "~=1.9.0",
                             "~=1.10.0",
-                            latest,
+                            "~=1.11.0"
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
                         "click": "==7.1.2",
