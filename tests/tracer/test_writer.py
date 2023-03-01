@@ -56,7 +56,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -68,7 +68,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=True)):
+        with override_global_config(dict(health_metrics_enabled=True)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -88,7 +88,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=True)):
+        with override_global_config(dict(health_metrics_enabled=True)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -113,7 +113,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_multi(self):
         statsd = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=True)):
+        with override_global_config(dict(health_metrics_enabled=True)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -149,7 +149,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_write_sync(self):
         statsd = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=True)):
+        with override_global_config(dict(health_metrics_enabled=True)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, sync_mode=True)
             writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
@@ -166,7 +166,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
@@ -182,7 +182,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
@@ -201,7 +201,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
@@ -222,7 +222,7 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
         writer_metrics_reset = mock.Mock()
         writer_encoder.encode.side_effect = Exception
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             writer._encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
@@ -241,7 +241,7 @@ class AgentWriterTests(BaseTestCase):
         writer_run_periodic = mock.Mock()
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
-        with override_global_config(dict(_health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False)):
             writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
             writer.run_periodic = writer_run_periodic
             writer._put = writer_put
