@@ -96,11 +96,9 @@ def get_application(service, version, env):
 
 def _get_products():
     # type: () -> Dict
-    products = {}
-    if config._appsec_enabled:
-        products["appsec"] = {"version": get_version()}
-
-    return products
+    return {
+        "appsec": {"version": get_version(), "enabled": config._appsec_enabled},
+    }
 
 
 _host_info = None
