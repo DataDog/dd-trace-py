@@ -478,7 +478,7 @@ venv = Venv(
                 Venv(
                     # vertica-python dropped support for Python 3.5/3.6 in 1.1
                     pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"vertica-python": ["~=0.11", "~=1.0"]},
+                    pkgs={"vertica-python": ["~=1.0"]},
                 ),
                 Venv(
                     # vertica-python added support for Python 3.9/3.10 in 1.0
@@ -774,16 +774,16 @@ venv = Venv(
                 ),
                 Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
-                    pys=select_pys(min_version="3.8", max_version="3.10"),
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "django": ["~=4.0", "~=4.2"],
+                        "django": ["~=4.0", latest],
                         "channels": latest,
                     },
                 ),
                 Venv(
-                    pys="3.11",
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "django": ["~=4.1", latest],
+                        "django": [latest],
                         "channels": latest,
                     },
                 ),
@@ -824,6 +824,7 @@ venv = Venv(
         Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
+            pkgs={"pytest-django": "==3.10.0"},
             venvs=[
                 Venv(
                     # djangorestframework dropped support for Python 2.7 in 3.10.0
@@ -831,16 +832,22 @@ venv = Venv(
                     pkgs={
                         "django": "==1.11",
                         "djangorestframework": "~=3.9.3",
-                        "pytest-django": "==3.10.0",
+                    },
+                ),
+                Venv(
+                    # djangorestframework dropped support for Python 3.5 in 3.13.0
+                    pys="3.5",
+                    pkgs={
+                        "django": ">=2.2,<2.3",
+                        "djangorestframework": "~=3.12",
                     },
                 ),
                 Venv(
                     # djangorestframework dropped support for Django 2.x in 3.14
-                    pys=select_pys(min_version="3.5", max_version="3.9"),
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={
                         "django": ">=2.2,<2.3",
                         "djangorestframework": ["~=3.12", "~=3.13"],
-                        "pytest-django": "==3.10.0",
                     },
                 ),
                 Venv(
@@ -848,7 +855,6 @@ venv = Venv(
                     pkgs={
                         "django": "~=3.2",
                         "djangorestframework": ">=3.11,<3.12",
-                        "pytest-django": "==3.10.0",
                     },
                 ),
                 Venv(
@@ -856,7 +862,6 @@ venv = Venv(
                     pkgs={
                         "django": "~=4.0",
                         "djangorestframework": ["~=3.13", latest],
-                        "pytest-django": "==3.10.0",
                     },
                 ),
             ],
@@ -878,8 +883,11 @@ venv = Venv(
                         ]
                     },
                 ),
+                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.11.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.11.0"]}),
             ],
         ),
         Venv(
@@ -1044,7 +1052,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "flask": "~=1.0.0",
+                        "flask": "~=1.1.0",
                         "flask-caching": ["~=1.11.0", latest],
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
@@ -1104,10 +1112,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    # psycopg2-binary dropped support for Python 2.7/3.5 in 2.9
+                    # psycopg2-binary dropped support for Python 2.7 in 2.9
                     pys=select_pys(max_version="3.5"),
                     # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
-                    pkgs={"psycopg2-binary": "~=2.8.0"},
+                    pkgs={"psycopg2-binary": "~=2.7.0"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1141,10 +1149,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    # pynamodb dropped support for Python 2.7/3.5 in 5.0
+                    # pynamodb dropped support for Python 2.7/3.5 in 4.4
                     pys=select_pys(max_version="3.5"),
                     pkgs={
-                        "pynamodb": ["~=4.4"],
+                        "pynamodb": ["~=4.3"],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
@@ -1203,7 +1211,7 @@ venv = Venv(
                             # sqlalchemy dropped support for Python 2.7/3.5/3.6 in 2.0
                             pys=select_pys(max_version="3.6"),
                             pkgs={
-                                "sqlalchemy": ["~=1.3", "~=1.4"],
+                                "sqlalchemy": ["<2.0"],
                                 "psycopg2-binary": "~=2.8.0",
                                 "mysql-connector-python": "<8.0.24",
                             },
@@ -1331,9 +1339,9 @@ venv = Venv(
                     pkgs={"mongoengine": "~=0.19"},
                 ),
                 Venv(
-                    # mongoengine dropped support for Python 3.5 in 0.22
+                    # mongoengine dropped support for Python 3.5 in 0.21
                     pys="3.5",
-                    pkgs={"mongoengine": "~=0.21"},
+                    pkgs={"mongoengine": "~=0.20"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1599,13 +1607,18 @@ venv = Venv(
                 # Versions between 1.14 and 1.20 have known threading issues
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
-                    # grpcio dropped support for Python 2.7 in 1.40
+                    # grpcio dropped support for Python 2.7 in 1.27
                     pys="2.7",
+                    pkgs={"grpcio": ["~=1.26.0"]},
+                ),
+                Venv(
+                    # grpcio dropped support for Python 3.5 in 1.40
+                    pys="3.5",
                     pkgs={"grpcio": ["~=1.34.0", "~=1.39.0"]},
                 ),
                 Venv(
-                    # grpcio dropped support for Python 3.5/3.6 in 1.49
-                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    # grpcio dropped support for Python 3.6 in 1.49
+                    pys="3.6",
                     pkgs={"grpcio": ["~=1.34.0", "~=1.48.0"]},
                 ),
                 Venv(
@@ -1634,8 +1647,13 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # grpcio dropped support for Python 3.5/3.6 in 1.49
-                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    # grpcio dropped support for Python 3.5 in 1.40
+                    pys="3.5",
+                    pkgs={"grpcio": ["~=1.34.0", "~=1.39.0"]},
+                ),
+                Venv(
+                    # grpcio dropped support for Python 3.6 in 1.49
+                    pys="3.6",
                     pkgs={"grpcio": ["~=1.34.0", "~=1.48.0"]},
                 ),
                 Venv(
@@ -1678,18 +1696,18 @@ venv = Venv(
             command="pytest tests/contrib/rq",
             venvs=[
                 Venv(
-                    # rq dropped support for Python 2.7 in 1.4.2
+                    # rq dropped support for Python 2.7 in 1.3.0
                     pys="2.7",
                     pkgs={
                         "rq": [
-                            "~=1.4.1",
+                            "~=1.3.0",
                         ],
                     },
                 ),
                 Venv(
                     # rq dropped support for Python 3.5 in 1.13
                     pys="3.5",
-                    pkgs={"rq": ["~=1.8", "~=1.13"]},
+                    pkgs={"rq": ["~=1.8", "~=1.12"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1906,30 +1924,12 @@ venv = Venv(
                             "~=4.0",
                             latest,
                         ],
+                        "aiohttp_jinja2": [
+                            "~=1.5.0",
+                            latest,
+                        ],
+                        "jinja2": latest,
                     },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "aiohttp_jinja2": [
-                                    "~=1.5.0",
-                                    latest,
-                                ],
-                                # Jinja2 makes breaking changes in 3.0.
-                                "jinja2": "<3.0",
-                                # MarkupSafe makes breaking changes in 2.1.
-                                "MarkupSafe": "<2.1",
-                            }
-                        ),
-                        Venv(
-                            pkgs={
-                                "aiohttp_jinja2": [
-                                    "~=1.5.0",
-                                    latest,
-                                ],
-                                "jinja2": latest,
-                            }
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -2089,6 +2089,13 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # snowflake-connector-python dropped support for Python 3.6 in 2.7.5
+                    pys="3.6",
+                    pkgs={
+                        "snowflake-connector-python": ["~=2.3.0", "~=2.7.4"],
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
                     pkgs={"snowflake-connector-python": ["~=2.3.0", "~=2.9.0", latest]},
                 ),
@@ -2137,11 +2144,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
             venvs=[
-                Venv(
-                    # asyncpg dropped support for Python 3.5 in 0.24
-                    pys="3.5",
-                    pkgs={"asyncpg": "~=0.22"},
-                ),
+                # our test_asyncpg.py uses `yield` in an async function and is not compatible with Python 3.5
                 Venv(
                     # asyncpg dropped support for Python 3.6 in 0.27
                     pys="3.6",
