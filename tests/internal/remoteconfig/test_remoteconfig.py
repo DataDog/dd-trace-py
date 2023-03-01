@@ -213,8 +213,13 @@ def test_remoteconfig_semver():
 @mock.patch("ddtrace.internal.agent.info")
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_info, result, expected):
     mock_info.return_value = result
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.05")):
-        worker = RemoteConfigWorker()
-        worker.start()
-        sleep(0.2)
-        assert worker._state == worker._online if expected else worker._agent_check
+
+    worker = RemoteConfigWorker()
+
+    # Check that the initial state is agent_check
+    assert worker._state == worker._agent_check
+
+    worker.periodic()
+
+    # Check that the state is online if the agent supports remote config
+    assert worker._state == worker._online if expected else worker._agent_check
