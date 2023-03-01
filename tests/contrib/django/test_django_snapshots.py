@@ -58,7 +58,7 @@ def daphne_client(django_asgi, additional_env=None):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
+@snapshot(variants={"": django.VERSION >= (2, 2)})
 def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
@@ -69,9 +69,7 @@ def test_urlpatterns_include(client):
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -86,9 +84,7 @@ def test_middleware_trace_callable_view(client):
 )
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -107,9 +103,7 @@ def test_safe_string_encoding(client, snapshot_context):
     client.get("/safe-template/")
     with snapshot_context(
         variants={
-            "18x": django.VERSION < (1, 9),
             "111x": (1, 9) <= django.VERSION < (1, 12),
-            "21x": (1, 12) < django.VERSION < (2, 2),
             "": django.VERSION >= (2, 2),
         }
     ):
@@ -118,9 +112,7 @@ def test_safe_string_encoding(client, snapshot_context):
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -169,8 +161,6 @@ def test_psycopg_query_default(client, snapshot_context, psycopg2_patched):
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
     ignores=["meta.http.useragent"],
@@ -208,8 +198,6 @@ def test_asgi_200_traced_simple_app():
 @snapshot(
     ignores=["meta.error.stack", "meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -223,8 +211,6 @@ def test_asgi_500():
 @snapshot(
     ignores=["meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -240,8 +226,6 @@ def test_templates_enabled():
 @snapshot(
     ignores=["meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
