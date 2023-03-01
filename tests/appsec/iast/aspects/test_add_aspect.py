@@ -50,8 +50,10 @@ def test_add_aspect_type_error(obj1, obj2):
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
         ("Hello ", "world", True),
-        (b"bye ", b"bye ", True),
-        ("🙀", "🙀", True),
+        (b"bye ", b"".join((b"bye", b" ")), True),
+        ("🙀", "".join(("🙀", "")), True),
+        ("a", "a", True),
+        (b"a", b"a", True),
         (b"Hi", b"", True),
         (b"Hi ", b" world", True),
         (["a"], ["b"], False),
@@ -72,18 +74,15 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        new_obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
-        assert obj1 is not new_obj1
-    else:
-        new_obj1 = obj1
+        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
 
-    result = ddtrace_aspects.add_aspect(new_obj1, obj2)
-    assert result == new_obj1 + obj2
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+    assert result == obj1 + obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
-        assert result is not new_obj1 + obj2
+        assert result is not obj1 + obj2
     assert is_pyobject_tainted(result) == should_be_tainted
     if should_be_tainted:
-        assert get_tainted_ranges(result) == get_tainted_ranges(new_obj1)
+        assert get_tainted_ranges(result) == get_tainted_ranges(obj1)
 
 
 @pytest.mark.parametrize(
