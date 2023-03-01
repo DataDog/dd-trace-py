@@ -243,9 +243,9 @@ def test_rc_rules_data(tracer):
 def test_rc_rules_data_error_empty(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
-        config = {
-        }
+        config = {}
         assert not _appsec_rules_data(tracer, config)
+
 
 def test_rc_rules_data_error_ddwaf(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
