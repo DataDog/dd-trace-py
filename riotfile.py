@@ -1830,7 +1830,7 @@ venv = Venv(
                             "~=1.8.0",
                             "~=1.9.0",
                             "~=1.10.0",
-                            "~=1.11.0"
+                            "~=1.11.0",
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
                         "click": "==7.1.2",
