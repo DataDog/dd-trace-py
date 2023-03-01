@@ -137,7 +137,7 @@ def probe_factory(attribs):
         take_snapshot = attribs.get("captureSnapshot", False)
 
         rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
-        sampling = attribs.get("sampling"):
+        sampling = attribs.get("sampling")
         if sampling is not None:
             rate = sampling.get("snapshotsPerSecond", rate)
 
