@@ -69,6 +69,7 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
+        log.debug("Updating ASM Remote Configuration %s", [feature_key for feature_key in features.keys()])
         ruleset = {"rules": [], "rules_data": [], "exclusions": [], "rules_override": []}  # type: dict[str, list[Any]]
         _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
@@ -103,7 +104,6 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         """
 
         if features is not None:
-            log.debug("Updating ASM Remote Configuration: %s", features)
             # The order of this matters since 1click could reconfigure the AppSecProcessor
             # which the second checks
             self._appsec_1click_activation(features)
@@ -123,7 +123,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
             from ddtrace.appsec._constants import PRODUCTS
             from ddtrace.internal.remoteconfig import RemoteConfig
 
-            log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
+            log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
                 RemoteConfig.register(PRODUCTS.ASM_DATA, self)  # IP Blocking
