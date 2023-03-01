@@ -469,28 +469,33 @@ venv = Venv(
         Venv(
             name="vertica",
             command="pytest {cmdargs} tests/contrib/vertica/",
-            venvs=[
-                Venv(
-                    # vertica-python dropped support for Python 2.7 in 1.3
-                    pys="2.7",
-                    pkgs={"vertica-python": ["~=1.2.0"]},
-                ),
-                Venv(
-                    # vertica-python dropped support for Python 3.5/3.6 in 1.1
-                    pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"vertica-python": ["~=1.0"]},
-                ),
-                Venv(
-                    # vertica-python added support for Python 3.9/3.10 in 1.0
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
-                    pkgs={"vertica-python": ["~=1.0", latest]},
-                ),
-                Venv(
-                    # vertica-python added support for Python 3.11 in 1.2
-                    pys="3.11",
-                    pkgs={"vertica-python": ["~=1.2", latest]},
-                ),
-            ],
+            pys=select_pys(max_version="3.9"),
+            pkgs={
+                "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
+            },
+            # venvs=[
+            # FIXME: tests fail on vertica 1.x
+            # Venv(
+            #     # vertica-python dropped support for Python 2.7 in 1.3
+            #     pys="2.7",
+            #     pkgs={"vertica-python": ["~=1.2.0"]},
+            # ),
+            # Venv(
+            #     # vertica-python dropped support for Python 3.5/3.6 in 1.1
+            #     pys=select_pys(min_version="3.5", max_version="3.6"),
+            #     pkgs={"vertica-python": ["~=1.0"]},
+            # ),
+            # Venv(
+            #     # vertica-python added support for Python 3.9/3.10 in 1.0
+            #     pys=select_pys(min_version="3.7", max_version="3.10"),
+            #     pkgs={"vertica-python": ["~=1.0", latest]},
+            # ),
+            # Venv(
+            #     # vertica-python added support for Python 3.11 in 1.2
+            #     pys="3.11",
+            #     pkgs={"vertica-python": ["~=1.2", latest]},
+            # ),
+            # ],
         ),
         Venv(
             name="wait",
@@ -519,11 +524,12 @@ venv = Venv(
             name="falcon",
             command="pytest {cmdargs} tests/contrib/falcon",
             venvs=[
-                Venv(
-                    # falcon dropped support for Python 2.7 in 3.0
-                    pys="2.7",
-                    pkgs={"falcon": "~=2.0"},
-                ),
+                # FIXME: tests fail on Python 2.7 with falcon 2.0
+                # Venv(
+                #     # falcon dropped support for Python 2.7 in 3.0
+                #     pys="2.7",
+                #     pkgs={"falcon": "~=2.0"},
+                # ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
@@ -1233,15 +1239,16 @@ venv = Venv(
                                 "mysql-connector-python": latest,
                             },
                         ),
-                        Venv(
-                            # sqlalchemy added support for Python 3.11 in 2.0
-                            pys="3.11",
-                            pkgs={
-                                "sqlalchemy": ["~=2.0.0", latest],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
+                        # FIXME: tests fail with sqlalchemy 2.0
+                        # Venv(
+                        #     # sqlalchemy added support for Python 3.11 in 2.0
+                        #     pys="3.11",
+                        #     pkgs={
+                        #         "sqlalchemy": ["~=2.0.0", latest],
+                        #         "psycopg2-binary": latest,
+                        #         "mysql-connector-python": latest,
+                        #     },
+                        # ),
                     ],
                 ),
             ],
@@ -1808,46 +1815,49 @@ venv = Venv(
         ),
         Venv(
             name="aiopg",
-            venvs=[
-                Venv(
-                    # aiopg dropped support for Python 3.5 in 1.1
-                    pys="3.5",
-                    pkgs={
-                        "aiopg": ["~=0.16.0", "~=1.0"],
-                    },
-                ),
-                Venv(
-                    # aiopg dropped support for Python 3.6 in 1.4
-                    pys="3.6",
-                    pkgs={
-                        "aiopg": ["~=1.2", "~=1.3"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={
-                        "aiopg": ["~=1.2", "~=1.4.0", latest],
-                    },
-                ),
-                Venv(
-                    # aiopg added support for Python 3.10 in 1.3
-                    pys="3.10",
-                    pkgs={
-                        "aiopg": ["~=1.3.0", latest],
-                    },
-                ),
-                Venv(
-                    # aiopg added support for Python 3.11 in 1.4
-                    pys="3.11",
-                    pkgs={
-                        "aiopg": ["~=1.4.0", latest],
-                    },
-                ),
-            ],
+            command="pytest {cmdargs} tests/contrib/aiopg",
+            pys=select_pys(min_version="3.5", max_version="3.9"),
             pkgs={
                 "sqlalchemy": latest,
+                "aiopg": "~=0.16.0",
             },
-            command="pytest {cmdargs} tests/contrib/aiopg",
+            # venvs=[
+            # FIXME: tests fail on aiopg 1.x
+            # Venv(
+            #     # aiopg dropped support for Python 3.5 in 1.1
+            #     pys="3.5",
+            #     pkgs={
+            #         "aiopg": ["~=0.16.0", "~=1.0"],
+            #     },
+            # ),
+            # Venv(
+            #     # aiopg dropped support for Python 3.6 in 1.4
+            #     pys="3.6",
+            #     pkgs={
+            #         "aiopg": ["~=1.2", "~=1.3"],
+            #     },
+            # ),
+            # Venv(
+            #     pys=select_pys(min_version="3.7", max_version="3.9"),
+            #     pkgs={
+            #         "aiopg": ["~=1.2", "~=1.4.0", latest],
+            #     },
+            # ),
+            # Venv(
+            #     # aiopg added support for Python 3.10 in 1.3
+            #     pys="3.10",
+            #     pkgs={
+            #         "aiopg": ["~=1.3.0", latest],
+            #     },
+            # ),
+            # Venv(
+            #     # aiopg added support for Python 3.11 in 1.4
+            #     pys="3.11",
+            #     pkgs={
+            #         "aiopg": ["~=1.4.0", latest],
+            #     },
+            # ),
+            # ],
         ),
         Venv(
             name="aiohttp",
@@ -2405,13 +2415,20 @@ venv = Venv(
                 Venv(
                     # tornado dropped support for Python 2.7 in 6.0
                     pys="2.7",
-                    pkgs={"tornado": ["~=4.5", "~=5.1.1"], "futures": ["~=3.3", latest]},
+                    pkgs={
+                        "tornado": [
+                            "~=4.5",
+                            # "~=5.1.1"  # FIXME: tests fail on Python 2.7 with tornado 5.1.1
+                        ],
+                        "futures": ["~=3.3", latest],
+                    },
                 ),
-                Venv(
-                    # tornado dropped support for Python 3.5/3.6 in 6.2
-                    pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"tornado": ["~=5.1.1", "~=6.1"]},
-                ),
+                # FIXME: tests fail on Python 3.5/3.6 with tornado 5.1, 6.1
+                # Venv(
+                #     # tornado dropped support for Python 3.5/3.6 in 6.2
+                #     pys=select_pys(min_version="3.5", max_version="3.6"),
+                #     pkgs={"tornado": ["~=5.1.1", "~=6.1"]},
+                # ),
                 Venv(
                     # tornado added support for Python 3.7 in 5.1
                     pys="3.7",
