@@ -133,7 +133,7 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
-            block_ctype = "text/html" if "text/html" in headers.get("Accept") else "text/json"
+            block_ctype = "text/html" if "text/html" in headers.get("Accept", "") else "text/json"
 
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
