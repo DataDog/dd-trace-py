@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from ddtrace.internal import agent
@@ -6,6 +7,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -37,7 +39,8 @@ class RemoteConfig(object):
     @classmethod
     def enable(cls):
         # type: () -> bool
-        if cls._check_remote_config_enable_in_agent():
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        if rc_env_enabled and cls._check_remote_config_enable_in_agent():
             with cls._worker_lock:
                 if cls._worker is None:
                     cls._worker = RemoteConfigWorker()

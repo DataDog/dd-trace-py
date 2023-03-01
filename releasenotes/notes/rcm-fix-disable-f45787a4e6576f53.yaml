@@ -1,0 +1,5 @@
+---
+issues:
+  - |
+    Ensure ddtrace doesn't check remote config is enabled in agent if ``DD_REMOTE_CONFIGURATION_ENABLED`` 
+    environment variable is false
