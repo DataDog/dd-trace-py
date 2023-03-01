@@ -2,4 +2,3 @@
 fixes:
   - |
     aws_lambda: Resolves an unhandled exception which occurs when no root span is found before a lambda timeouts.
- 
