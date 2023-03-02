@@ -394,7 +394,7 @@ jobs:
       run:
         working-directory: pylons
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: '2.7'
       - uses: actions/checkout@v2
@@ -430,7 +430,7 @@ jobs:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v2
