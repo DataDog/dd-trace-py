@@ -26,7 +26,7 @@ class RemoteConfig(object):
 
                     forksafe.register(cls._restart)
                     atexit.register(cls.disable)
-                    return True
+            return True
         return False
 
     @classmethod
