@@ -153,7 +153,7 @@ def info():
     agent_url = get_trace_url()
     _conn = get_connection(agent_url, timeout=get_trace_agent_timeout())
     try:
-        _conn.request("GET", "info", "{}", {"content-type": "application/json"})
+        _conn.request("GET", "info", {}, {"content-type": "application/json"})
         resp = _conn.getresponse()
         data = resp.read()
     finally:
