@@ -555,7 +555,7 @@ jobs:
 
   boto:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: '^boto'  # run boto and botocore
