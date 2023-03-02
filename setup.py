@@ -119,6 +119,12 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
+def is_64_bit_python():
+    import struct
+
+    return (struct.calcsize("P") * 8) == 64
+
+
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
@@ -144,12 +150,9 @@ class LibDDWaf_Download(BuildPyCommand):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
             elif CURRENT_OS == "Windows":
-                print(os.environ)
-            #     # Only include 32 bit lib for win32 platform, and viceversa
-            #     if (build_platform.endswith("32") and not arch.endswith("32")) or (
-            #         not build_platform.endswith("32") and arch.endswith("32")
-            #     ):
-            #         continue
+                python_64_bit = is_64_bit_python()
+                if (python_64_bit and arch.endswith("32")) or (not python_64_bit and not arch.endswith("32")):
+                    continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
