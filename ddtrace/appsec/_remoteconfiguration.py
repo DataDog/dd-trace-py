@@ -35,19 +35,21 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc():
-    # type: () -> None
+def enable_appsec_rc(tracer=None):
+    # type: (Optional[Tracer]) -> None
+    # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    from ddtrace import tracer
+    if tracer is None:
+        from ddtrace import tracer  # type: ignore
 
-    appsec_callback = RCAppSecCallBack(tracer)
+    appsec_callback = RCAppSecCallBack(tracer)  # type: ignore
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_callback)
 
-    if tracer._appsec_enabled:
+    if tracer._appsec_enabled:  # type: ignore
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
@@ -88,7 +90,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         self.tracer = tracer
 
     def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
+        # type: (Optional[ConfigMetadata], Any) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
