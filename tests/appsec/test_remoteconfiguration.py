@@ -2,6 +2,7 @@ import json
 import os
 import time
 
+import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
