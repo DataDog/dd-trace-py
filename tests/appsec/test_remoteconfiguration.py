@@ -2,6 +2,7 @@ import json
 import os
 import time
 
+import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -228,9 +229,26 @@ def test_rc_rules_data(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules_data": [],
             "custom_rules": [],
-            "rules": json.load(dd_rules),
+            "rules": json.load(dd_rules)["rules"],
         }
-        _appsec_rules_data(tracer, config)
+        assert _appsec_rules_data(tracer, config)
+
+
+def test_rc_rules_data_error_empty(tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        config = {}
+        assert not _appsec_rules_data(tracer, config)
+
+
+def test_rc_rules_data_error_ddwaf(tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        config = {
+            "rules": [{"invalid": mock.MagicMock()}],
+        }
+        assert not _appsec_rules_data(tracer, config)
