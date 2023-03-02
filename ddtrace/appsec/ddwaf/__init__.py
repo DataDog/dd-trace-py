@@ -116,6 +116,10 @@ if _DDWAF_LOADED:
                 return True
             else:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
+                if self._handle:
+                    ddwaf_destroy(self._handle)
+                if self._ctx:
+                    ddwaf_context_destroy(self._ctx)
                 self._handle = result
                 return False
 
