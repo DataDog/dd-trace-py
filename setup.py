@@ -143,12 +143,12 @@ class LibDDWaf_Download(BuildPyCommand):
             if CURRENT_OS in ("Darwin", "Linux") and not build_platform.endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
-            elif CURRENT_OS == "Windows":
-                # Only include 32 bit lib for win32 platform, and viceversa
-                if (build_platform.endswith("32") and not arch.endswith("32")) or (
-                    not build_platform.endswith("32") and arch.endswith("32")
-                ):
-                    continue
+            # elif CURRENT_OS == "Windows":
+            #     # Only include 32 bit lib for win32 platform, and viceversa
+            #     if (build_platform.endswith("32") and not arch.endswith("32")) or (
+            #         not build_platform.endswith("32") and arch.endswith("32")
+            #     ):
+            #         continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
