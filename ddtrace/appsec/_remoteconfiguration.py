@@ -35,21 +35,23 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc(tracer=None):
+def enable_appsec_rc(test_tracer=None):
     # type: (Optional[Tracer]) -> None
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    if tracer is None:
-        from ddtrace import tracer  # type: ignore
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
 
-    appsec_callback = RCAppSecCallBack(tracer)  # type: ignore
+    appsec_callback = RCAppSecCallBack(tracer)
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_callback)
 
-    if tracer._appsec_enabled:  # type: ignore
+    if tracer._appsec_enabled:
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
