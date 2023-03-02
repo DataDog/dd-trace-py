@@ -46,7 +46,7 @@ Support levels
      - No support.
 
 
-.. _versioning_integration_library_support
+.. _versioning_integration_library_support:
 
 Library support
 ===============
