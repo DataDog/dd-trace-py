@@ -5,7 +5,6 @@ from ddtrace import Pin
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 
 
@@ -34,7 +33,6 @@ class AiopgTestCase(AsyncioTestCase):
 
         return conn, self.tracer
 
-    @mark_asyncio
     async def test_async_generator(self):
         conn, tracer = await self._get_conn_and_tracer()
         cursor = await conn.cursor()

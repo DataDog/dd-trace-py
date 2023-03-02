@@ -1,6 +1,3 @@
-# 3p
-import asyncio
-
 import aiopg.connection
 import psycopg2.extensions
 
@@ -31,9 +28,8 @@ def unpatch():
         _unpatch_extensions(_aiopg_extensions)
 
 
-@asyncio.coroutine
-def patched_connect(connect_func, _, args, kwargs):
-    conn = yield from connect_func(*args, **kwargs)
+async def patched_connect(connect_func, _, args, kwargs):
+    conn = await connect_func(*args, **kwargs)
     return psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
 
 

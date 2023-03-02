@@ -1,5 +1,3 @@
-import asyncio
-
 import aiopg
 
 # project
@@ -7,7 +5,6 @@ from ddtrace import Pin
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 
 
@@ -30,9 +27,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         unpatch()
 
-    @asyncio.coroutine
-    def _get_conn_and_tracer(self):
-        conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+    async def _get_conn_and_tracer(self):
+        conn = self._conn = await aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
@@ -54,8 +50,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         span = spans[0]
         assert span.name == "postgres.query"
 
-    @mark_asyncio
-    def test_cursor_ctx_manager(self):
+    async def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
-        yield from self._test_cursor_ctx_manager()
+        await self._test_cursor_ctx_manager()

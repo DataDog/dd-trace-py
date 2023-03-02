@@ -1,5 +1,4 @@
 import asyncio
-from functools import wraps
 
 from ddtrace.contrib.asyncio import context_provider
 from tests.utils import TracerTestCase
@@ -29,21 +28,3 @@ class AsyncioTestCase(TracerTestCase):
         asyncio.set_event_loop(self._main_loop)
         self.loop = None
         self._main_loop = None
-
-
-def mark_asyncio(f):
-    """
-    Test decorator that wraps a function so that it can be executed
-    as an asynchronous coroutine. This uses the event loop set in the
-    ``TestCase`` class, and runs the loop until it's completed.
-    """
-
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        coro = asyncio.coroutine(f)
-        future = coro(*args, **kwargs)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(future)
-        loop.close()
-
-    return wrapper
