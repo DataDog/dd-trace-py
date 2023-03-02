@@ -669,7 +669,7 @@ jobs:
           pattern: 'consul'
 
   dogpile_cache:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'dogpile_cache'

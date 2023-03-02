@@ -2211,14 +2211,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/dogpile_cache",
             venvs=[
                 Venv(
+                    # dogpile.cache dropped support for Python 2.7/3.5 in 1.0
                     pys=select_pys(max_version="3.5"),
                     pkgs={
-                        "dogpile.cache": [
-                            "==0.6.*",
-                            "==0.7.*",
-                            "==0.8.*",
-                            "==0.9.*",
-                        ],
+                        "dogpile.cache": ["~=0.8", "~=0.9"],
                         "decorator": "<5",
                     },
                 ),
@@ -2226,11 +2222,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
                     pkgs={
                         "dogpile.cache": [
-                            "==0.6.*",
-                            "==0.7.*",
-                            "==0.8.*",
-                            "==0.9.*",
-                            "==1.0.*",
+                            "~=0.9",
+                            "~=1.0",
                             latest,
                         ],
                     },
@@ -2239,10 +2232,9 @@ venv = Venv(
                     pys=select_pys(min_version="3.11"),
                     pkgs={
                         "dogpile.cache": [
-                            "==0.8.*",
-                            "==0.9.*",
-                            "==1.0.*",
-                            "==1.1.*",
+                            "~=0.9",
+                            "~=1.0",
+                            "~=1.1",
                             latest,
                         ],
                     },
@@ -2484,7 +2476,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8"),
-                    pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
+                    pkgs={"gunicorn": ["==20.0.4", latest]},
                 ),
             ],
         ),
