@@ -123,7 +123,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 pass
 
     def release(self, *args, **kwargs):
-        # type: (typing.Any, typing.Any) -> None
+        # type (typing.Any, typing.Any) -> None
         try:
             return self.__wrapped__.release(*args, **kwargs)
         finally:
