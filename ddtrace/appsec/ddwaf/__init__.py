@@ -192,6 +192,17 @@ else:
             LOGGER.warning("DDWaf features disabled. dry run")
             return DDWaf_result(None, [], 0.0, 0.0)
 
+        def update_rules(self, _):
+            # type: (dict[text_type, DDWafRulesType]) -> bool
+            LOGGER.warning("DDWaf features disabled. dry update")
+            return True
+
+        def _at_request_start(self):
+            pass
+
+        def _at_request_end(self):
+            pass
+
     def version():
         # type: () -> text_type
         LOGGER.warning("DDWaf features disabled. null version")
