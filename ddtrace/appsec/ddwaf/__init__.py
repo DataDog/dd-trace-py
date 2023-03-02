@@ -116,6 +116,10 @@ if _DDWAF_LOADED:
                 return False
             else:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
+                if self._handle:
+                    ddwaf_destroy(self._handle)
+                if self._ctx:
+                    ddwaf_context_destroy(self._ctx)
                 self._handle = result
                 return True
 
@@ -191,6 +195,17 @@ else:
             # type: (...) -> DDWaf_result
             LOGGER.warning("DDWaf features disabled. dry run")
             return DDWaf_result(None, [], 0.0, 0.0)
+
+        def update_rules(self, _):
+            # type: (dict[text_type, DDWafRulesType]) -> bool
+            LOGGER.warning("DDWaf features disabled. dry update")
+            return True
+
+        def _at_request_start(self):
+            pass
+
+        def _at_request_end(self):
+            pass
 
     def version():
         # type: () -> text_type
