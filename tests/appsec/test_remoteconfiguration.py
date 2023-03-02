@@ -2,7 +2,6 @@ import json
 import os
 import time
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -123,9 +122,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability):
         assert _appsec_rc_capabilities() == capability
 
 
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
-def test_rc_activation_validate_products(mock_check_remote_config_enable_in_agent, tracer, remote_config_worker):
-    mock_check_remote_config_enable_in_agent.return_value = True
+def test_rc_activation_validate_products(tracer, remote_config_worker):
     with override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
         rc_config = {"asm": {"enabled": True}}
 
