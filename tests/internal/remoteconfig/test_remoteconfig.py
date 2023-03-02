@@ -99,7 +99,23 @@ def test_remote_config_register_auto_enable():
 
     RemoteConfig.disable()
 
+
+def test_remote_config_register_validate_rc_disabled():
     assert RemoteConfig._worker is None
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
+
+        assert RemoteConfig._worker is None
+
+
+def test_remote_config_enable_validate_rc_disabled():
+    assert RemoteConfig._worker is None
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        RemoteConfig.enable()
+
+        assert RemoteConfig._worker is None
 
 
 @pytest.mark.subprocess
