@@ -487,7 +487,7 @@ class RemoteConfigClient(object):
             log.debug("remote configuration client reported an error", exc_info=True)
         except ValueError as e:
             log.debug("Unexpected response data: %s", e)  # noqa: G200
-        except Exception as e:
-            log.debug("Unexpected error: %s", e)  # noqa: G200
+        except Exception:
+            log.debug("Unexpected error", exc_info=True)  # noqa: G200
 
         return False
