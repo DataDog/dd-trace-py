@@ -21,7 +21,14 @@ ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-lib
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
+ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
+ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
 tests/debugging/                    @DataDog/debugger-python
+tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 
 # ASM
 ddtrace/appsec/                     @DataDog/asm-python
