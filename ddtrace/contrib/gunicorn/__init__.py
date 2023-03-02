@@ -1,5 +1,8 @@
 """
-**Note:** ``ddtrace-run`` and Python 2 are both not supported with `Gunicorn <https://gunicorn.org>`__.
+``ddtrace-run`` can be used with `Gunicorn <https://gunicorn.org>`__ when not using Gunicorn's ``gevent`` worker type.
+
+**Note:** ``ddtrace-run`` and Python 2 are both not supported with `Gunicorn <https://gunicorn.org>`__ when using
+Gunicorn's ``gevent`` worker type.
 
 ``ddtrace`` only supports Gunicorn's ``gevent`` worker type when configured as follows:
 

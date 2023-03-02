@@ -1,4 +1,5 @@
 ---
 issues:
   - |
-    gunicorn: ddtrace-run does not work with gunicorn. To instrument a gunicorn application, follow the instructions `here <https://ddtrace.readthedocs.io/en/latest/integrations.html#gunicorn>`_.
+    gunicorn: ``ddtrace-run`` does not work with gunicorn when using Gunicorn's ``gevent`` worker type. 
+    To instrument a gunicorn application, follow the instructions `here <https://ddtrace.readthedocs.io/en/latest/integrations.html#gunicorn>`_.
