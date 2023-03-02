@@ -154,7 +154,7 @@ def get_request_uri(request):
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
-    for (k, v) in urlparts.items():
+    for k, v in urlparts.items():
         if isinstance(v, SimpleLazyObject):
             if issubclass(v.__class__, str):
                 v = str(v)
@@ -272,8 +272,8 @@ def _extract_body(request):
                     if rest_framework
                     else xmltodict.parse(request.body.decode("UTF-8"))
                 )
-            else:  # text/plain, xml, others: take them as strings
-                req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+            else:  # text/plain, others: don't use them
+                req_body = None
         except (
             AttributeError,
             RawPostDataException,

@@ -38,6 +38,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         for result in results:
             assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
+        # Wait for all spans to finish
+        sleep(0.5)
         traces = self.pop_traces()
         assert len(traces) == (200 if self.ASYNC_USE_CELERY_FIXTURES else 100)
 

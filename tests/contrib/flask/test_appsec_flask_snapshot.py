@@ -101,6 +101,11 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
+    # DEV uncomment those lines if you need more info locally
+    # stdout = proc.stdout.read()
+    # print(stdout)
+    # stderr = proc.stderr.read()
+    # print(stderr.decode("UTF-8"))
 
 
 @pytest.mark.snapshot(
