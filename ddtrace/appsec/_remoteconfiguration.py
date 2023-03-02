@@ -35,10 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc():
-    # type: () -> None
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
+    # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    from ddtrace import tracer
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
 
     appsec_callback = RCAppSecCallBack(tracer)
 
@@ -67,9 +71,8 @@ def _add_rules_to_list(features, feature, message, rule_list):
 
 
 def _appsec_rules_data(tracer, features):
-    # type: (Tracer, Mapping[str, Any]) -> None
+    # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
-        log.debug("Updating ASM Remote Configuration %s", [feature_key for feature_key in features.keys()])
         ruleset = {"rules": [], "rules_data": [], "exclusions": [], "rules_override": []}  # type: dict[str, list[Any]]
         _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
@@ -77,7 +80,9 @@ def _appsec_rules_data(tracer, features):
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset["exclusions"])
         _add_rules_to_list(features, "rules_override", "rules override", ruleset["rules_override"])
         if any(ruleset.values()):
-            tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+            return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+
+    return False
 
 
 class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
@@ -88,7 +93,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         self.tracer = tracer
 
     def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
+        # type: (Optional[ConfigMetadata], Any) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
