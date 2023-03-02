@@ -239,7 +239,7 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, ProductCallback]
+        self._products = dict()  # type: MutableMapping[str, Optional[ProductCallback]]
         self._applied_configs = dict()  # type: Mapping[str, ConfigMetadata]
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
@@ -348,7 +348,8 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                callback(None, None)
+                if callback:
+                    callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -374,34 +375,35 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products[config.product_name]
-
-            try:
-                callback(config, callback_action)
-            except Exception:
-                log.debug("error while removing product %s config %r", config.product_name, config)
-                continue
+            callback = self._products.get(config.product_name)
+            if callback:
+                try:
+                    callback(config, callback_action)
+                except Exception:
+                    log.debug("error while removing product %s config %r", config.product_name, config)
+                    continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            callback = self._products[config.product_name]
+            callback = self._products.get(config.product_name)
 
-            applied_config = self._applied_configs.get(target)
-            if applied_config == config:
-                continue
+            if callback:
+                applied_config = self._applied_configs.get(target)
+                if applied_config == config:
+                    continue
 
-            config_content = _extract_target_file(payload, target, config)
-            if config_content is None:
-                continue
+                config_content = _extract_target_file(payload, target, config)
+                if config_content is None:
+                    continue
 
-            try:
-                log.debug("Load new configuration: %s. content %s", target, config_content)
-                callback(config, config_content)
-            except Exception:
-                log.debug("error while loading product %s config %r", config.product_name, config)
-                continue
-            else:
-                applied_configs[target] = config
+                try:
+                    log.debug("Load new configuration: %s. content %s", target, config_content)
+                    callback(config, config_content)
+                except Exception:
+                    log.debug("error while loading product %s config %r", config.product_name, config)
+                    continue
+                else:
+                    applied_configs[target] = config
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
