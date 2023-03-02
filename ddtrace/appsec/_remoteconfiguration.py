@@ -35,10 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc():
-    # type: () -> None
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
+    # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    from ddtrace import tracer
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
 
     appsec_callback = RCAppSecCallBack(tracer)
 
@@ -89,7 +93,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         self.tracer = tracer
 
     def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
+        # type: (Optional[ConfigMetadata], Any) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
