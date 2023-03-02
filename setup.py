@@ -151,7 +151,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 continue
             elif CURRENT_OS == "Windows":
                 python_64_bit = is_64_bit_python()
-                if (python_64_bit and arch.endswith("32")) or (not python_64_bit and not arch.endswith("32")):
+                if not python_64_bit and not arch.endswith("32"):
                     continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
