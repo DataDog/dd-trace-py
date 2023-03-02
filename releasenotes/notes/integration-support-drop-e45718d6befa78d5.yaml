@@ -1,0 +1,135 @@
+---
+#instructions:
+#    The style guide below provides explanations, instructions, and templates to write your own release note.
+#    Once finished, all irrelevant sections (including this instruction section) should be removed,
+#    and the release note should be committed with the rest of the changes.
+#
+#    The main goal of a release note is to provide a brief overview of a change and provide actionable steps to the user.
+#    The release note should clearly communicate what the change is, why the change was made, and how a user can migrate their code.
+#
+#    The release note should also clearly distinguish between announcements and user instructions. Use:
+#    * Past tense for previous/existing behavior (ex: ``resulted, caused, failed``)
+#    * Third person present tense for the change itself (ex: ``adds, fixes, upgrades``)
+#    * Active present infinitive for user instructions (ex: ``set, use, add``)
+#
+#    Release notes should:
+#    * Use plain language
+#    * Be concise
+#    * Include actionable steps with the necessary code changes
+#    * Include relevant links (bug issues, upstream issues or release notes, documentation pages)
+#    * Use full sentences with sentence-casing and punctuation.
+#    * Before using Datadog specific acronyms/terminology, a release note must first introduce them with a definition.
+#
+#    Release notes should not:
+#    * Be vague. Example: ``fixes an issue in tracing``.
+#    * Use overly technical language
+#    * Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash) whenever possible so that they don't break in the future.
+prelude: >
+  While ``ddtrace`` aims to support as many versions of a library as possible, this is difficult in practice due to
+  the maintenance burden of testing all possible versions of a library. The ``ddtrace`` library's support policy
+  moving forward is to have testing support for:
+    - The latest major version of a library, which includes testing the oldest and latest minor versions going back 2 years. 
+    - The latest minor version for previous major versions going back 2 years.
+    - Legacy Python versions will have testing support for the latest version to support that legacy Python version.
+  
+  .. note:
+    While compatibility for older versions has not changed, support for these older versions has ended moving forward 
+    and we recommend upgrading to the minimum supported version as indicated on the integration-specific release note below.
+
+upgrade:
+  - |
+    aiobotocore: Support for ``aiobotocore==0.2.3`` has ended and ``aiobotocore>=0.11`` is now required.
+  - |
+    aiohttp: Support for ``aiohttp==2.0`` has ended and ``aiohttp>=2.3`` is now required.
+  - |
+    algoliasearch: Support for ``algoliasearch==1.20`` has ended and ``algoliasearch>=2.5`` is now required.
+  - |
+    asgi: Support for ``asgiref==2.0`` has ended and ``asgiref>=3.0`` is now required.
+  - |
+    asyncpg: Support for ``asyncpg==0.18`` has ended and ``asyncpg>=0.22`` is now required.
+  - |
+    boto: Support for ``boto==2.29`` has ended and ``boto>=2.49`` is now required.
+  - |
+    botocore: Support for ``botocore==1.4.51`` has ended and ``botocore>=1.29`` is now required.
+  - |
+    bottle: Support for ``bottle==0.11`` has ended and ``bottle>=0.12`` is now required.
+  - |
+    cassandra: Support for ``cassandra-driver==3.5`` has ended and ``cassandra-driver>=3.2.4`` is now required.
+  - |
+    celery: Support for ``celery==3.1`` has ended and ``celery>=4.4`` is now required.
+  - |
+    cherrypy: Support for ``cherrypy==11.2.0`` has ended and ``cherrypy>=17.4.2`` is now required.
+  - |
+    consul: Support for ``python-consul==0.7`` has ended and ``python-consul>=1.1`` is now required.
+  - |
+    django: Support for ``django==1.8`` has ended and ``django>=1.11`` is now required.
+  - |
+    django: Support for ``djangorestframework==3.4`` has ended and ``djangorestframework>=3.9`` is now required.
+  - |
+    dogpile.cache: Support for ``dogpile.cache==0.6`` has ended and ``dogpile.cache>=0.8`` is now required.
+  - |
+    falcon: Support for ``falcon==1.0`` has ended and ``falcon>=3.0`` is now required.
+  - |
+    fastapi: Support for ``fastapi==0.51`` has ended and ``fastapi>=0.64`` is now required.
+  - |
+    flask: Support for ``flask==0.10`` has ended and ``flask>=1.0`` is now required.
+  - |
+    flask_cache: Support for ``flask_cache==0.12`` has ended and ``flask_cache>=0.13`` is now required.
+  - |
+    gevent: Support for ``gevent==1.1`` has ended and ``gevent>=1.3`` is now required.
+  - |
+    grpc: Support for ``grpcio==1.12`` has ended and ``grpcio>=1.26`` is now required.
+  - |
+    graphene: Support for ``graphene==2.0.0`` has ended and ``graphene>=3.0`` is now required.
+  - |
+    graphql: Support for ``graphql-core==2.0.0`` has ended and ``graphql-core>=3.1`` is now required.
+  - |
+    httpx: Support for ``httpx==0.9`` has ended and ``httpx>=0.17.0`` is now required.
+  - |
+    jinja2: Support for ``jinja2==2.7`` has ended and ``jinja2>=2.11`` is now required.
+  - |
+    mako: Support for ``mako==0.1.0`` has ended and ``mako>=1.1.0`` is now required.
+  - |
+    molten: Support for ``molten==0.7.0`` has ended and ``molten>=1.0`` is now required.
+  - |
+    mongoengine: Support for ``mongoengine==0.11`` has ended and ``mongoengine>=0.19`` is now required.
+  - |
+    mysql: Support for ``mysql-connector-python==2.1`` has ended and ``mysql-connector-python>=8.0`` is now required.
+  - |
+    mysql: Support for ``mysqlclient==1.3`` has ended and ``mysqlclient>=1.4.6`` is now required.
+  - |
+    elasticsearch: Support for ``opensearch-py==1.0`` has ended and ``opensearch-py>=1.1`` is now required.
+  - |
+    psycopg: Support for ``psycopg2-binary==2.7`` has ended and ``psycopg2-binary>=2.8`` is now required.
+  - |
+    pylibmc: Support for ``pylibmc==1.4`` has ended and ``pylibmc>=1.6.1`` is now required.
+  - |
+    pylons: Support for ``pylons==0.9.6`` has ended and ``pylons>=0.10`` is now required.
+  - |
+    pymemcache: Support for ``pymemcache==1.3`` has ended and ``pymemcache>=3.4`` is now required.
+  - |
+    pymongo: Support for ``pymongo==3.0`` has ended and ``pymongo>=3.4`` is now required.
+  - |
+    pymysql: Support for ``pymysql==0.7`` has ended and ``pymysql>=0.9`` is now required.
+  - |
+    pynamodb: Support for ``pynamodb==4.0`` has ended and ``pynamodb>=4.3`` is now required.
+  - |
+    pyramid: Support for ``pyramid==1.7`` has ended and ``pyramid>=1.10`` is now required.
+  - |
+    redis: Support for ``redis==2.6`` has ended and ``redis>=3.5`` is now required.
+  - |
+    rediscluster: Support for ``rediscluster==1.3.5`` has ended and ``redis>=2.0`` is now required.
+  - |
+    requests: Support for ``requests==2.08`` has ended and ``requests>=2.26`` is now required.
+  - |
+    rq: Support for ``rq==1.0`` has ended and ``rq>=1.3`` is now required.
+  - |
+    sanic: Support for ``sanic==19.6`` has ended and ``sanic>=20.12`` is now required.
+  - |
+    snowflake: Support for ``snowflake-connector-python==2.0`` has ended and ``snowflake-connector-python>=2.1`` is now required.
+  - |
+    starlette: Support for ``starlette==0.13`` has ended and ``starlette>=0.14`` is now required.
+  - |
+    tornado: Support for ``tornado==4.0`` has ended and ``tornado>=4.5`` is now required.
+  - |
+    urllib3: Support for ``urllib3==1.22`` has ended and ``urllib3>=1.26`` is now required.

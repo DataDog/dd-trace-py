@@ -413,12 +413,14 @@ venv = Venv(
                             },
                         ),
                         Venv(
+                            # gevent added support for Python 3.10 in 21.8.0
                             pys="3.10",
                             pkgs={
                                 "gevent": ["~=21.8.0", latest],
                             },
                         ),
                         Venv(
+                            # gevent added support for Python 3.11 in 22.8.0
                             pys="3.11",
                             pkgs={
                                 "gevent": ["~=22.8.0", latest],

@@ -283,6 +283,8 @@ The ``ddtrace`` library's support policy for third-party libraries we provide in
 
   - For legacy Python versions (2.7,3.5,3.6), test the latest minor version known to support that legacy Python version.
 
+While we aim to support all minor versions going back 2 years, in practice testing every minor version is
+a heavy maintenance burden. To alleviate that burden we test just the oldest and latest minor versions.
 
 For libraries with many versions it is recommended to pull out the version of
 the library to use when instrumenting volatile features. A great example of
