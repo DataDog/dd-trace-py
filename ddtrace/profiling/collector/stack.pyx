@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 
 import sys
-import threading as ddtrace_threading
+import threading as ddtrace_threading  # this is ddtrace's internal copy of the module, not the application's copy
 import typing
 
 import attr
