@@ -6,6 +6,7 @@ from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -60,13 +61,18 @@ class RemoteConfigWorker(periodic.PeriodicService):
                 self._state = self._online
                 return
 
-        log.warning(
+        if asbool(os.environ.get("DD_TRACE_DEBUG")) or "DD_REMOTE_CONFIGURATION_ENABLED" in os.environ:
+            LOG_LEVEL = logging.WARNING
+        else:
+            LOG_LEVEL = logging.DEBUG
+
+        log.log(
+            LOG_LEVEL,
             "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
             "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
-            "DD_REMOTE_CONFIGURATION_KEY=<YOUR-KEY>\n"
-            "See: https://app.datadoghq.com/organization-settings/remote-config"
+            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/",
         )
 
     def _online(self):
