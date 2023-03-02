@@ -11,6 +11,7 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..utils import PsycopgTracedCursor
 from ..utils import patched_connect
 from ..utils import psycopg_sql_injector_factory
 
@@ -48,6 +49,8 @@ def patch():
     config.psycopg.base_module = psycopg
 
     wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg, "Cursor", PsycopgTracedCursor)
     # _patch_extensions(_psycopg_extensions)  # do this early just in case
 
 

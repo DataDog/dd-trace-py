@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -25,6 +27,15 @@ def psycopg_sql_injector_factory(composable_class, sql_class):
 class PsycopgTracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg instances"""
 
+    def __init__(self, cursor, pin, cfg, connection=None):
+        if isinstance(cfg, Tuple):
+            connection = cfg[0]
+        if connection and not pin:
+            pin = Pin.get_from(connection)
+            cfg = pin._config
+            cursor = cursor(connection)
+        super(PsycopgTracedCursor, self).__init__(cursor, pin, cfg)
+
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         # treat Composable resource objects as strings
         if resource.__class__.__name__ == "SQL" or resource.__class__.__name__ == "Composed":
@@ -51,13 +62,32 @@ class PsycopgTracedConnection(dbapi.TracedConnection):
 
         super(PsycopgTracedConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
 
+    def execute(self, *args, **kwargs):
+        """Execute a query and return a cursor to read its results."""
+        span_name = "{}.{}".format(self._self_datadog_name, "execute")
 
-def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, extensions_to_patch=None):
+        def patched_execute(*args, **kwargs):
+            try:
+                cur = self.cursor()
+                if kwargs.get("binary", None):
+                    cur.format = 1  # set to 1 for binary or 0 if not
+                return cur.execute(*args, **kwargs)
+            except Exception as ex:
+                raise ex.with_traceback(None)
+
+        return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+
+
+def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, pin=None):
     """Wrap will patch the instance so that its queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
-    if extensions_to_patch:
-        _patch_extensions(extensions_to_patch)
+    _config = None
+    if pin:
+        extensions_to_patch = pin._config.get("_extensions_to_patch", None)
+        _config = pin._config
+        if extensions_to_patch:
+            _patch_extensions(extensions_to_patch)
 
     c = traced_conn_cls(conn)
 
@@ -75,7 +105,7 @@ def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, extensions_to_patc
         "db.application": dsn.get("application_name"),
         db.SYSTEM: "postgresql",
     }
-    Pin(tags=tags).onto(c)
+    Pin(tags=tags, _config=_config).onto(c)
     return c
 
 
@@ -124,4 +154,4 @@ def patched_connect(connect_func, _, args, kwargs):
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)
 
-    return patch_conn(conn, extensions_to_patch=pin._config.get("_extensions_to_patch", None))
+    return patch_conn(conn, pin=pin)
