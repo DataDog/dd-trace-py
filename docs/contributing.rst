@@ -274,13 +274,14 @@ enabling and disabling the instrumentation and overriding the service name.
 Library support
 ~~~~~~~~~~~~~~~
 
-``ddtrace`` tries to support as many active versions of a library as possible.
-The general rule is:
+The ``ddtrace`` library's support policy for third-party libraries we provide integrations for is as follows:
 
-  - If the integration depends on internals of the library then test every
-    minor version going back 2 years.
 
-  - Else test each major version going back 2 years.
+  - Test the oldest and latest minor versions of the most latest major version going back 2 years.
+
+  - Test the latest minor version of any previous major version going back 2 years.
+
+  - For legacy Python versions (2.7,3.5,3.6), test the latest minor version known to support that legacy Python version.
 
 
 For libraries with many versions it is recommended to pull out the version of

@@ -46,6 +46,21 @@ Support levels
      - No support.
 
 
+.. _versioning_integration_library_support
+
+Library support
+===============
+
+
+``ddtrace`` tries to support as many active versions of a library as possible, but in practice this is difficult
+due to the sheer maintenance burden of testing. The ddtrace library's support policy for third-party libraries that
+we provide integrations is to test the oldest and latest minor versions of the latest major version of each third-party
+library going back 2 years.
+Generally, testing will include the last minor release of any previous major versions going back 2 years.
+For legacy Python versions (e.g. Python 2.7/3.5/3.6), the library will continue to test the latest minor version
+known to support legacy Python versions regardless of the 2 year window.
+
+
 .. _versioning_release:
 
 Release versions
