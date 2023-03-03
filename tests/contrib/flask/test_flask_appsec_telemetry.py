@@ -31,7 +31,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
         ):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"Via": _BLOCKED_IP})
+            resp = self.client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
