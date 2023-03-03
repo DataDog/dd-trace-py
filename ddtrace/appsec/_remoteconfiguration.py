@@ -35,10 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc():
-    # type: () -> None
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
+    # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    from ddtrace import tracer
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
