@@ -248,7 +248,10 @@ class ddwaf_result(ctypes.Structure):
         )
 
     def __del__(self):
-        ddwaf_result_free(self)
+        try:
+            ddwaf_result_free(self)
+        except TypeError:
+            pass
 
 
 ddwaf_result_p = ctypes.POINTER(ddwaf_result)
@@ -329,7 +332,11 @@ class ddwaf_handle_capsule:
 
     def __del__(self):
         if self.handle:
-            self.free_fn(self.handle)
+            try:
+                self.free_fn(self.handle)
+            except TypeError:
+                pass
+            self.handle = None
 
     def __bool__(self):
         return bool(self.handle)
@@ -343,7 +350,11 @@ class ddwaf_context_capsule:
 
     def __del__(self):
         if self.ctx:
-            self.free_fn(self.ctx)
+            try:
+                self.free_fn(self.ctx)
+            except TypeError:
+                pass
+            self.ctx = None
 
     def __bool__(self):
         return bool(self.ctx)
