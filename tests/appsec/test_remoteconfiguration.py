@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import os
+import sys
 import time
 
 import mock
@@ -392,6 +393,7 @@ def test_rc_rules_data_error_empty(tracer):
         assert not _appsec_rules_data(tracer, config)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 2 is handling that test differently")
 def test_rc_rules_data_error_ddwaf(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
