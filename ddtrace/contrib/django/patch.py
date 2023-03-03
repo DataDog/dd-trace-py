@@ -361,7 +361,7 @@ def _set_block_tags(request, request_headers, span):
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
         _set_url_tag(config.django, span, url, query)
-        if query:
+        if query and config.django.trace_query_string:
             span.set_tag_str(http.QUERY_STRING, query)
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
