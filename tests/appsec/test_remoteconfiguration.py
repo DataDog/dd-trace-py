@@ -398,4 +398,5 @@ def test_rc_rules_data_error_ddwaf(tracer):
         config = {
             "rules": [{"invalid": mock.MagicMock()}],
         }
-        assert not _appsec_rules_data(tracer, config)
+        # a waf handle is still created
+        assert _appsec_rules_data(tracer, config)
