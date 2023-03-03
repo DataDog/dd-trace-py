@@ -117,7 +117,7 @@ if _DDWAF_LOADED:
                 self._handle = result
                 return False
             else:
-                LOGGER.error("DDWAF.update_rules: invalid rules. Keeping the previous handle.")
+                LOGGER.debug("DDWAF.update_rules: keeping the previous handle.")
                 return True
 
         def _at_request_start(self):
@@ -174,6 +174,7 @@ else:
 
         def run(
             self,  # type: DDWaf
+            ctx,  # type: ddwaf_context_capsule
             data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
