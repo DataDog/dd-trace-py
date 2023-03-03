@@ -274,7 +274,9 @@ enabling and disabling the instrumentation and overriding the service name.
 Library support
 ~~~~~~~~~~~~~~~
 
-``ddtrace`` supports as many active versions of a library as possible.
+``ddtrace`` supports as many active versions of a library as possible, however testing all possible versions of a
+library combined with all supported Python versions is a heavy maintenance burden and provides limited added value in practice.
+Testing using the below guidelines helps alleviate that burden.
 
 The ``ddtrace`` library's testing support guidelines is as follows:
 
@@ -285,9 +287,6 @@ The ``ddtrace`` library's testing support guidelines is as follows:
   - If there are no new releases in the past 2 years, test the latest released version.
 
   - For legacy Python versions (2.7,3.5,3.6), test the latest minor version known to support that legacy Python version.
-
-While we support all minor versions going back 2 years, in practice testing every minor version combined with all supported
-Python versions is a heavy maintenance burden. To alleviate that burden we test just the oldest and latest minor versions.
 
 For libraries with many versions it is recommended to pull out the version of
 the library to use when instrumenting volatile features. A great example of
