@@ -44,8 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.ddwaf import DDWaf_result
-    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
+    from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_context_capsule
     from ddtrace.span import Span
 
 
@@ -94,10 +93,13 @@ _COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
     "accept-language",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
     "content-encoding",
     "content-language",
     "content-length",
     "content-type",
+    "fastly-client-ip",
     "forwarded",
     "forwarded-for",
     "host",
@@ -253,7 +255,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if span.span_type != SpanTypes.WEB:
             return
-        self._ddwaf._at_request_start()
+        ctx = self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
@@ -263,7 +265,7 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None):
-            return self._waf_action(span._local_root or span, custom_data)
+            return self._waf_action(span._local_root or span, ctx, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
 
@@ -286,8 +288,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span, custom_data=None):
-        # type: (Span, dict[str, Any] | None) -> None
+    def _waf_action(self, span, ctx, custom_data=None):
+        # type: (Span, ddwaf_context_capsule, dict[str, Any] | None) -> None
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -325,7 +327,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
         log.debug("[DDAS-001-00] Executing ASM In-App WAF")
-        waf_results = self._ddwaf.run(data, self._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", waf_results.data)
 
@@ -402,15 +404,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (str) -> bool
         return address in self._addresses_to_keep
 
-    def _run_ddwaf(self, data):
-        # type: (DDWafRulesType) -> DDWaf_result | None
-        try:
-            return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-        except Exception:
-            log.warning("Error executing ASM In-App WAF: ", exc_info=True)
-
-        return None
-
     def on_span_finish(self, span):
         # type: (Span) -> None
 
@@ -419,7 +412,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # this call is only necessary for tests or frameworks that are not using blocking
         if span.get_tag(APPSEC.JSON) is None:
             log.debug("metrics waf call")
-            self._waf_action(span)
+            _asm_request_context.call_waf_callback()
         self._set_metrics()
         self._ddwaf._at_request_end()
         # Force to set respond headers at the end
