@@ -45,7 +45,6 @@ class DynamicSpan(CapturedEvent):
             return
 
         if self.span:
-            print("close span")
             self.span.__exit__(*exc_info)
 
     def line(self, _locals=None, exc_info=(None, None, None)):
