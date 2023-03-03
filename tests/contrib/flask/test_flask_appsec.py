@@ -1,7 +1,6 @@
 import json
 import logging
 
-from ddtrace.settings import config
 from flask import Response
 from flask import request
 import pytest
