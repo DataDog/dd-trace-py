@@ -22,7 +22,7 @@
       "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "0.0.0.0:8000",
       "http.request.headers.user-agent": "python-requests/2.28.2",
-      "http.request.headers.via": "8.8.4.4",
+      "http.request.headers.x-real-ip": "8.8.4.4",
       "language": "python",
       "runtime-id": "a1bf23fab3154ad9b68624b6f18f4301"
     },
