@@ -349,7 +349,7 @@ def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer
             test_spans,
             tracer,
             url="/?a=1&b&c=d",
-            headers={"HTTP_CLIENT_IP": "8.8.8.8", "HTTP_X_USE_THIS": "4.4.4.4"},
+            headers={"HTTP_X_CLIENT_IP": "8.8.8.8", "HTTP_X_USE_THIS": "4.4.4.4"},
         )
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
 
@@ -364,10 +364,10 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
 @pytest.mark.parametrize(
     "kwargs,expected",
     [
-        ({"HTTP_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
+        ({"HTTP_X_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
     ],
 )
 def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
