@@ -24,6 +24,7 @@ try:
     from .ddwaf_types import ddwaf_get_version
     from .ddwaf_types import ddwaf_init
     from .ddwaf_types import ddwaf_object
+    from .ddwaf_types import ddwaf_object_free
     from .ddwaf_types import ddwaf_result
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
@@ -82,16 +83,19 @@ if _DDWAF_LOADED:
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
             self._info = ddwaf_ruleset_info()
-            self._ruleset_map = ddwaf_object.create_without_limits(ruleset_map)
-            self._handle = ddwaf_init(self._ruleset_map, ctypes.byref(config), ctypes.byref(self._info))
-            self._ctx = 0
+            ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
+            self._handle = ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(self._info))
+            self._ctx = None
             if not self._handle or self._info.failed:
+                # We keep the handle alive in case of errors, as some valid rules can be loaded
+                # at the same time some invalid ones are rejected
                 LOGGER.error(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
-                    self._ruleset_map.struct,
+                    ruleset_map_object.struct,
                     self._info.loaded,
                     self.info.errors,
                 )
+            ddwaf_object_free(ctypes.byref(ruleset_map_object))
 
         @property
         def required_data(self):
@@ -111,25 +115,30 @@ if _DDWAF_LOADED:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             result = ddwaf_update(self._handle, rules, ctypes.byref(self._info))
-            if result == 0:
-                LOGGER.error("DDWAF.update_rules: invalid rules")
-                return True
-            else:
+            if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
+                if self._handle:
+                    ddwaf_destroy(self._handle)
                 self._handle = result
                 return False
+            else:
+                LOGGER.error("DDWAF.update_rules: invalid rules. Keeping the previous handle.")
+                return True
 
         def _at_request_start(self):
             if self._ctx:
+                LOGGER.error("DDWaf._at_request_start: context already set.")
                 ddwaf_context_destroy(self._ctx)
-            self._ctx = ddwaf_context_init(self._handle)
-            if self._ctx == 0:
-                LOGGER.error("DDWaf failure to create the context")
+                self._ctx = None
+            if self._handle:
+                self._ctx = ddwaf_context_init(self._handle)
+            if not self._ctx:
+                LOGGER.error("DDWaf._at_request_start: failure to create the context.")
 
         def _at_request_end(self):
             if self._ctx:
                 ddwaf_context_destroy(self._ctx)
-                self._ctx = 0
+                self._ctx = None
 
         def run(
             self,  # type: DDWaf
@@ -139,12 +148,8 @@ if _DDWAF_LOADED:
             # type: (...) -> DDWaf_result
             start = time.time()
 
-            if self._ctx == 0:
-                LOGGER.warning("DDWaf failsafe to create the context")
-                self._ctx = ddwaf_context_init(self._handle)
-
-            if self._ctx == 0:
-                LOGGER.error("DDWaf failure: no context created")
+            if not self._ctx:
+                LOGGER.error("DDWaf.run: dry run. no context created.")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6)
 
             result = ddwaf_result()
@@ -165,13 +170,14 @@ if _DDWAF_LOADED:
         def __dealloc__(self):
             if self._ctx:
                 ddwaf_context_destroy(self._ctx)
+                self._ctx = None
             if self._handle:
                 ddwaf_destroy(self._handle)
+                self._handle = None
 
     def version():
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing

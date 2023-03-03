@@ -278,7 +278,14 @@ class ddwaf_config_obfuscator(ctypes.Structure):
     ]
 
 
-ddwaf_object_free_fn = ctypes.POINTER(ctypes.CFUNCTYPE(None, ddwaf_object_p))
+free_callback = ctypes.CFUNCTYPE(None, ddwaf_object_p)
+ddwaf_object_free = free_callback(
+    ("ddwaf_object_free", ddwaf),
+    ((1, "object"),),
+)
+
+
+ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
 
 
 class ddwaf_config(ctypes.Structure):
@@ -296,7 +303,7 @@ class ddwaf_config(ctypes.Structure):
         max_string_length=0,
         key_regex="",
         value_regex="",
-        free_fn=None,
+        free_fn=ddwaf_object_free,
     ):
         # type: (ddwaf_config, int, int, int, unicode, unicode, Optional[Any]) -> None
         self.limits.max_container_size = max_container_size
@@ -470,10 +477,6 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
 # ddwaf_object_get_index
 # ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
 
-ddwaf_object_free = ctypes.CFUNCTYPE(None, ddwaf_object_p)(
-    ("ddwaf_object_free", ddwaf),
-    ((1, "object"),),
-)
 
 ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     ("ddwaf_get_version", ddwaf),
