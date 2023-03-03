@@ -35,6 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
+ruleset = {
+    "rules": None,
+    "rules_data": None,
+    "exclusions": None,
+    "rules_override": None,
+}  # type: dict[str, Optional[list[Any]]]
+
+
 def enable_appsec_rc(test_tracer=None):
     # type: (Optional[Tracer]) -> None
     # Tracer is a parameter for testing propose
@@ -75,12 +83,7 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
-        ruleset = {
-            "rules": None,
-            "rules_data": None,
-            "exclusions": None,
-            "rules_override": None,
-        }  # type: dict[str, Optional[list[Any]]]
+        global ruleset
         _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset["rules"])
