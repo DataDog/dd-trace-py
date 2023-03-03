@@ -2,7 +2,7 @@ import mock
 import pytest
 
 from ddtrace.internal import agent
-from ddtrace.internal.agent import _healthcheck
+from ddtrace.internal.agent import info
 
 
 @pytest.mark.parametrize(
@@ -265,7 +265,7 @@ def _mock_raise(ex):
     ],
 )
 @mock.patch("ddtrace.internal.agent.get_connection")
-def test_healthcheck(mock_connection, request_response, read_response, status_response, expected):
+def test_info(mock_connection, request_response, read_response, status_response, expected):
     class MockResponse(object):
         def read(self):
             return read_response
@@ -289,4 +289,4 @@ def test_healthcheck(mock_connection, request_response, read_response, status_re
             return None
 
     mock_connection.return_value = MockConn()
-    assert _healthcheck() == expected
+    assert info() == expected

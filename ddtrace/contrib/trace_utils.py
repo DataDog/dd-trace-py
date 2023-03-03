@@ -61,13 +61,14 @@ USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 IP_PATTERNS = (
     "x-forwarded-for",
     "x-real-ip",
-    "client-ip",
-    "x-forwarded",
-    "x-cluster-client-ip",
-    "forwarded-for",
-    "forwarded",
-    "via",
     "true-client-ip",
+    "x-client-ip",
+    "x-forwarded",
+    "forwarded-for",
+    "x-cluster-client-ip",
+    "fastly-client-ip",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
 )
 
 

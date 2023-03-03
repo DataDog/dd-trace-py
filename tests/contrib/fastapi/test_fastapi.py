@@ -132,6 +132,7 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
@@ -154,6 +155,7 @@ def test_read_item_bad_token(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/bar"
@@ -174,6 +176,7 @@ def test_read_item_nonexistent_item(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foobar"
@@ -196,6 +199,7 @@ def test_read_item_query_string(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo?q=query"
@@ -221,6 +225,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo?name=Foo&q=query"
@@ -249,6 +254,7 @@ def test_create_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
@@ -277,6 +283,7 @@ def test_create_item_bad_token(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
@@ -303,6 +310,7 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
@@ -324,6 +332,7 @@ def test_invalid_path(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /invalid_path"
+    assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/invalid_path"
@@ -343,6 +352,7 @@ def test_500_error_raised(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /500"
+    assert request_span.get_tag("http.route") == "/500"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/500"
@@ -366,6 +376,7 @@ def test_streaming_response(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /stream"
+    assert request_span.get_tag("http.route") == "/stream"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/stream"
@@ -387,6 +398,7 @@ def test_file_response(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /file"
+    assert request_span.get_tag("http.route") == "/file"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/file"
@@ -408,6 +420,7 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID"
@@ -431,6 +444,7 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/info"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}/info"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/info"
@@ -454,6 +468,7 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/{attribute:str}"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}/{attribute:str}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/name"
@@ -558,6 +573,7 @@ def test_w_patch_starlette(client, tracer, test_spans):
         assert request_span.service == "fastapi"
         assert request_span.name == "fastapi.request"
         assert request_span.resource == "GET /file"
+        assert request_span.get_tag("http.route") == "/file"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
         assert request_span.get_tag("http.url") == "http://testserver/file"

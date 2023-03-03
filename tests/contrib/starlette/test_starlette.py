@@ -303,6 +303,7 @@ def test_invalid_path_param(client, tracer, test_spans):
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/test"
+    assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/test"
@@ -321,6 +322,7 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}"
+    assert request_span.get_tag("http.route") == "/users/{userid:int}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
@@ -339,6 +341,7 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}/info"
+    assert request_span.get_tag("http.route") == "/users/{userid:int}/info"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1/info"
@@ -357,6 +360,7 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}/{attribute:str}"
+    assert request_span.get_tag("http.route") == "/users/{userid:int}/{attribute:str}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1/name"
@@ -376,6 +380,7 @@ def test_path_param_no_aggregate(client, tracer, test_spans):
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/1"
+    assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"

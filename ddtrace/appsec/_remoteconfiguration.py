@@ -35,10 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc():
-    # type: () -> None
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
+    # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
-    from ddtrace import tracer
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
 
     appsec_callback = RCAppSecCallBack(tracer)
 
@@ -67,7 +71,7 @@ def _add_rules_to_list(features, feature, message, rule_list):
 
 
 def _appsec_rules_data(tracer, features):
-    # type: (Tracer, Mapping[str, Any]) -> None
+    # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
         ruleset = {"rules": [], "rules_data": [], "exclusions": [], "rules_override": []}  # type: dict[str, list[Any]]
         _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
@@ -76,7 +80,9 @@ def _appsec_rules_data(tracer, features):
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset["exclusions"])
         _add_rules_to_list(features, "rules_override", "rules override", ruleset["rules_override"])
         if any(ruleset.values()):
-            tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+            return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+
+    return False
 
 
 class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
@@ -87,7 +93,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         self.tracer = tracer
 
     def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
+        # type: (Optional[ConfigMetadata], Any) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -103,7 +109,6 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         """
 
         if features is not None:
-            log.debug("Updating ASM Remote Configuration: %s", features)
             # The order of this matters since 1click could reconfigure the AppSecProcessor
             # which the second checks
             self._appsec_1click_activation(features)
@@ -123,7 +128,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
             from ddtrace.appsec._constants import PRODUCTS
             from ddtrace.internal.remoteconfig import RemoteConfig
 
-            log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
+            log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
                 RemoteConfig.register(PRODUCTS.ASM_DATA, self)  # IP Blocking

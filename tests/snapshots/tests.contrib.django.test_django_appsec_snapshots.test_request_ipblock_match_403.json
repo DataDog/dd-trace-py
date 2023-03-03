@@ -28,7 +28,7 @@
       "http.request.headers.accept-encoding": "gzip, deflate, br",
       "http.request.headers.host": "localhost:8000",
       "http.request.headers.user-agent": "python-requests/2.28.1",
-      "http.request.headers.via": "8.8.4.4",
+      "http.request.headers.x-real-ip": "8.8.4.4",
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
