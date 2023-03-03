@@ -126,7 +126,7 @@ class _DDWSGIMiddlewareBase(object):
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")
             _set_url_tag(self._config, span, url, query_string)
-            if query_string:
+            if query_string and self._config.trace_query_string:
                 span.set_tag_str(http.QUERY_STRING, query_string)
             method = environ.get("REQUEST_METHOD")
             if method:
