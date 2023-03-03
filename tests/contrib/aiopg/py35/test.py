@@ -1,4 +1,5 @@
 import aiopg
+import pytest
 
 # project
 from ddtrace import Pin
@@ -33,6 +34,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         return conn, self.tracer
 
+    @pytest.mark.asyncio
     async def _test_cursor_ctx_manager(self):
         conn, tracer = await self._get_conn_and_tracer()
         cur = await conn.cursor()

@@ -1945,6 +1945,7 @@ venv = Venv(
             ],
             pkgs={
                 "sqlalchemy": latest,
+                "pytest-asyncio": latest,
             },
             command="pytest {cmdargs} tests/contrib/aiopg",
         ),

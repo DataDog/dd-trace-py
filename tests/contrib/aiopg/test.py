@@ -2,6 +2,7 @@ import time
 
 import aiopg
 from psycopg2 import extras
+import pytest
 
 # project
 from ddtrace import Pin
@@ -118,6 +119,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.span_type == "sql"
         assert span.get_tag("component") == "aiopg"
 
+    @pytest.mark.asyncio
     async def test_disabled_execute(self):
         conn, tracer = await self._get_conn_and_tracer()
         tracer.enabled = False
@@ -126,6 +128,7 @@ class AiopgTestCase(AsyncioTestCase):
         await (await conn.cursor()).execute("select 'blah'")
         assert not self.pop_spans()
 
+    @pytest.mark.asyncio
     async def test_manual_wrap_extension_types(self):
         conn, _ = await self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
@@ -133,6 +136,7 @@ class AiopgTestCase(AsyncioTestCase):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
 
+    @pytest.mark.asyncio
     async def test_connect_factory(self):
         services = ["db", "another"]
         for service in services:
@@ -214,17 +218,20 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
 
         return self.get_spans()
 
+    @pytest.mark.asyncio
     async def test_analytics_default(self):
         spans = await self.trace_spans()
         self.assertEqual(len(spans), 1)
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
+    @pytest.mark.asyncio
     async def test_analytics_with_rate(self):
         with self.override_config("aiopg", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             spans = await self.trace_spans()
             self.assertEqual(len(spans), 1)
             self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
+    @pytest.mark.asyncio
     async def test_analytics_without_rate(self):
         with self.override_config("aiopg", dict(analytics_enabled=True)):
             spans = await self.trace_spans()

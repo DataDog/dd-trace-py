@@ -1,4 +1,5 @@
 import aiopg
+import pytest
 
 # project
 from ddtrace import Pin
@@ -33,6 +34,7 @@ class AiopgTestCase(AsyncioTestCase):
 
         return conn, self.tracer
 
+    @pytest.mark.asyncio
     async def test_async_generator(self):
         conn, tracer = await self._get_conn_and_tracer()
         cursor = await conn.cursor()
