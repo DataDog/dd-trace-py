@@ -2,8 +2,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*env*
-*myproject*
 
 # C extensions
 ddtrace/appsec/_ddwaf.cpp
@@ -20,7 +18,6 @@ ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
 *.a
-*venv*
 
 # Cython annotate HTML files
 ddtrace/**/*.html
@@ -110,6 +107,7 @@ celerybeat-schedule
 # virtualenv
 venv/
 ENV/
+venv*
 
 # Spyder project settings
 .spyderproject
