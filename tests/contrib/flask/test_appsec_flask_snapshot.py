@@ -127,7 +127,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 def test_flask_ipblock_match_403(flask_client):
-    resp = flask_client.get("/", headers={"Via": _BLOCKED_IP, "ACCEPT": "text/html"})
+    resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP, "ACCEPT": "text/html"})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
         assert resp.text == APPSEC_BLOCKED_RESPONSE_HTML
@@ -154,7 +154,7 @@ def test_flask_ipblock_match_403(flask_client):
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 def test_flask_ipblock_match_403_json(flask_client):
-    resp = flask_client.get("/", headers={"Via": _BLOCKED_IP})
+    resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
         assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON

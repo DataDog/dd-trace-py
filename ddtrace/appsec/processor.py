@@ -94,10 +94,13 @@ _COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
     "accept-language",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
     "content-encoding",
     "content-language",
     "content-length",
     "content-type",
+    "fastly-client-ip",
     "forwarded",
     "forwarded-for",
     "host",
@@ -186,11 +189,13 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules):
-        # type: (Dict[str, Any]) -> None
+        # type: (Dict[str, Any]) -> bool
+        result = False
         try:
-            self._ddwaf.update_rules(new_rules)
+            result = self._ddwaf.update_rules(new_rules)
         except TypeError:
             log.debug("Error updating ASM rules", exc_info=True)
+        return result
 
     def _set_metrics(self):
         try:

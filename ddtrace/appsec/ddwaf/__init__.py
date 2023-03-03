@@ -111,13 +111,17 @@ if _DDWAF_LOADED:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             result = ddwaf_update(self._handle, rules, ctypes.byref(self._info))
-            if result == 0:
+            if result == 0 or result is None:
                 LOGGER.error("DDWAF.update_rules: invalid rules")
-                return True
+                return False
             else:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
+                if self._handle:
+                    ddwaf_destroy(self._handle)
+                if self._ctx:
+                    ddwaf_context_destroy(self._ctx)
                 self._handle = result
-                return False
+                return True
 
         def _at_request_start(self):
             if self._ctx:
@@ -191,6 +195,17 @@ else:
             # type: (...) -> DDWaf_result
             LOGGER.warning("DDWaf features disabled. dry run")
             return DDWaf_result(None, [], 0.0, 0.0)
+
+        def update_rules(self, _):
+            # type: (dict[text_type, DDWafRulesType]) -> bool
+            LOGGER.warning("DDWaf features disabled. dry update")
+            return True
+
+        def _at_request_start(self):
+            pass
+
+        def _at_request_end(self):
+            pass
 
     def version():
         # type: () -> text_type
