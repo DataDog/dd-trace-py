@@ -1,0 +1,9 @@
+---
+deprecations:
+  - |
+    gevent: ``DD_GEVENT_PATCH_ALL`` is deprecated and will be removed in the next major version. Gevent compatibility is now automatic
+    and does not require extra configuration when running with ``ddtrace-run``. If not using ``ddtrace-run``, please import ``ddtrace.auto`` before calling ``gevent.monkey.patch_all()``.
+fixes:
+  - |
+    gevent: This fix resolves an incompatibility between ddtrace and gevent that caused threads to hang in certain configurations, for example
+    the profiler running in a gunicorn application's gevent worker process.
