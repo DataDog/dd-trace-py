@@ -27,13 +27,14 @@ def psycopg_sql_injector_factory(composable_class, sql_class):
 class PsycopgTracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg instances"""
 
-    def __init__(self, cursor, pin, cfg, connection=None):
-        if isinstance(cfg, Tuple):
-            connection = cfg[0]
-        if connection and not pin:
+    def __init__(self, wrapped_cursor_class, _, connection, *args, **kwargs):
+        if isinstance(connection, Tuple):
+            connection = connection[0]
+        cfg = None
+        if connection:
             pin = Pin.get_from(connection)
             cfg = pin._config
-            cursor = cursor(connection)
+            cursor = wrapped_cursor_class(connection)
         super(PsycopgTracedCursor, self).__init__(cursor, pin, cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
@@ -43,6 +44,24 @@ class PsycopgTracedCursor(dbapi.TracedCursor):
         return super(PsycopgTracedCursor, self)._trace_method(
             method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
         )
+
+    async def __aenter__(self):
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that errors
+        # messages will be the same.
+        await self.__wrapped__.__aenter__()
+
+        # and finally, yield the traced cursor.
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that errors
+        # messages will be the same.
+        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+        # and finally, yield the traced cursor.
+        return self
 
 
 class PsycopgFetchTracedCursor(PsycopgTracedCursor, dbapi.FetchTracedCursor):
@@ -76,6 +95,21 @@ class PsycopgTracedConnection(dbapi.TracedConnection):
                 raise ex.with_traceback(None)
 
         return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+
+    async def execute(self, *args, **kwargs):  # noqa
+        """Execute a query and return a cursor to read its results."""
+        span_name = "{}.{}".format(self._self_datadog_name, "execute")
+
+        async def patched_execute(*args, **kwargs):
+            try:
+                cur = await self.cursor()
+                if kwargs.get("binary", None):
+                    cur.format = 1  # set to 1 for binary or 0 if not
+                return cur.execute(*args, **kwargs)
+            except Exception as ex:
+                raise ex.with_traceback(None)
+
+        return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
 
 
 def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, pin=None):
@@ -153,5 +187,32 @@ def patched_connect(connect_func, _, args, kwargs):
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)
+
+    return patch_conn(conn, pin=pin)
+
+
+async def patched_connect_async(connect_func, _, args, kwargs):
+    _config = globals()["config"]._config
+    module_name = (
+        connect_func.__module__
+        if len(connect_func.__module__.split(".")) == 1
+        else connect_func.__module__.split(".")[0]
+    )
+    pin = Pin.get_from(_config[module_name].base_module)
+
+    if not pin or not pin.enabled() or not pin._config.trace_connect:
+        conn = await connect_func(*args, **kwargs)
+    else:
+        with pin.tracer.trace(
+            "{}.{}".format(connect_func.__module__, connect_func.__name__),
+            service=ext_service(pin, pin._config),
+            span_type=SpanTypes.SQL,
+        ) as span:
+            span.set_tag_str(COMPONENT, pin._config.integration_name)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
+
+            span.set_tag(SPAN_MEASURED_KEY)
+            conn = await connect_func(*args, **kwargs)
 
     return patch_conn(conn, pin=pin)
