@@ -491,7 +491,7 @@ class RemoteConfigClient(object):
             self._last_error = str(e)
             log.debug("remote configuration client reported an error", exc_info=True)
         except ValueError:
-            log.debug("Unexpected response data: %s", exc_info=True)
+            log.debug("Unexpected response data", exc_info=True)
         except Exception:
             log.debug("Unexpected error", exc_info=True)
 
