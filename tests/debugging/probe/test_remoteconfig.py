@@ -4,6 +4,8 @@ from uuid import uuid4
 import pytest
 
 from ddtrace.debugging._config import config
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
@@ -287,7 +289,6 @@ def test_log_probe_attributes_parsing():
             "version": 0,
             "type": ProbeType.LOG_PROBE,
             "language": "python",
-            "active": True,
             "where": {
                 "sourceFile": "foo.py",
                 "lines": ["57"],
@@ -309,3 +310,52 @@ def test_log_probe_attributes_parsing():
 
     assert probe.limits.max_level == 42
     assert probe.limits.max_len == 43
+
+
+def test_parse_log_probe_with_rate():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "sampling": {"snapshotsPerSecond": 1337},
+        }
+    )
+
+    assert probe.rate == 1337
+
+
+def test_parse_log_probe_default_rates():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": True,
+        }
+    )
+
+    assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
+
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": False,
+        }
+    )
+
+    assert probe.rate == DEFAULT_PROBE_RATE

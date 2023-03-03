@@ -361,40 +361,43 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products[config.product_name]
-
-            try:
-                callback(config, callback_action)
-            except Exception:
-                log.debug("error while removing product %s config %r", config.product_name, config)
-                continue
+            callback = self._products.get(config.product_name)
+            if callback:
+                try:
+                    callback(config, callback_action)
+                except Exception:
+                    log.debug("error while removing product %s config %r", config.product_name, config)
+                    continue
 
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
         list_callbacks = []
         for target, config in client_configs.items():
-            callback = self._products[config.product_name]
-            applied_config = self._applied_configs.get(target)
-            if applied_config == config:
-                continue
+            callback = self._products.get(config.product_name)
+            if callback:
+                applied_config = self._applied_configs.get(target)
+                if applied_config == config:
+                    continue
 
-            config_content = self._extract_target_file(payload, target, config)
-            if config_content is None:
-                continue
+                config_content = self._extract_target_file(payload, target, config)
+                if config_content is None:
+                    continue
 
-            try:
-                log.debug("Load new configuration: %s. content ", target)
-                if isinstance(callback, RemoteConfigCallBackAfterMerge):
-                    callback.append(config_content)
-                    if callback not in list_callbacks:
-                        list_callbacks.append(callback)
+                try:
+                    log.debug("Load new configuration: %s. content ", target)
+                    if isinstance(callback, RemoteConfigCallBackAfterMerge):
+                        callback.append(config_content)
+                        if callback not in list_callbacks:
+                            list_callbacks.append(callback)
+                    else:
+                        callback(config, config_content)
+                except Exception:
+                    log.debug(
+                        "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
+                    )
+                    continue
                 else:
-                    callback(config, config_content)
-            except Exception:
-                log.debug("Failed to load configuration %s for product %r", config, config.product_name, exc_info=True)
-                continue
-            else:
-                applied_configs[target] = config
+                    applied_configs[target] = config
         for callback in list_callbacks:
             callback.dispatch()
 
@@ -471,14 +474,17 @@ class RemoteConfigClient(object):
         self._add_apply_config_to_cache()
 
     def request(self):
-        # type: () -> None
+        # type: () -> bool
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
             response = self._send_request(payload)
             if response is None:
-                return
+                return False
             self._process_response(response)
+            self._last_error = None
+            return True
+
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.debug("remote configuration client reported an error", exc_info=True)
@@ -486,5 +492,5 @@ class RemoteConfigClient(object):
             log.debug("Unexpected response data: %s", e)  # noqa: G200
         except Exception as e:
             log.debug("Unexpected error: %s", e)  # noqa: G200
-        else:
-            self._last_error = None
+
+        return False
