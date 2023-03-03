@@ -484,7 +484,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-def instrument_view(django, view):
+def instrument_view(django, pin, view):
     """
     Helper to wrap Django views.
 
@@ -492,12 +492,12 @@ def instrument_view(django, view):
     """
     if hasattr(view, "__mro__"):
         for cls in reversed(getmro(view)):
-            _instrument_view(django, cls)
+            _instrument_view(django, pin, cls)
 
-    return _instrument_view(django, view)
+    return _instrument_view(django, pin, view)
 
 
-def _instrument_view(django, view):
+def _instrument_view(django, pin, view):
     """Helper to wrap Django views."""
     # All views should be callable, double check before doing anything
     if not callable(view):
@@ -511,7 +511,7 @@ def _instrument_view(django, view):
             func = getattr(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
-
+            pin.tracer.on_user_func(func)
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
             trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
@@ -529,6 +529,7 @@ def _instrument_view(django, view):
                 if not func or isinstance(func, wrapt.ObjectProxy):
                     continue
 
+                pin.tracer.on_user_func(func)
                 resource = "{0}.{1}".format(func_name(response_cls), name)
                 op_name = "django.response.{0}".format(name)
                 trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
@@ -537,6 +538,7 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
+        pin.tracer.on_user_func(view)
         view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
@@ -548,10 +550,10 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
         if "view" in kwargs:
-            kwargs["view"] = instrument_view(django, kwargs["view"])
+            kwargs["view"] = instrument_view(django, pin, kwargs["view"])
         elif len(args) >= 2:
             args = list(args)
-            args[1] = instrument_view(django, args[1])
+            args[1] = instrument_view(django, pin, args[1])
             args = tuple(args)
     except Exception:
         log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
@@ -564,7 +566,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     Wrapper for django's View.as_view class method
     """
     try:
-        instrument_view(django, instance)
+        instrument_view(django, pin, instance)
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)

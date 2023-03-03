@@ -1,13 +1,17 @@
 from collections import defaultdict
 from itertools import chain
+import os
+import pathlib
 import sys
 import threading
+from types import FrameType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
 from typing import Iterable
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
@@ -72,6 +76,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.tracer import Tracer
 
 
+try:
+    import importlib.metadata as il_md
+except ImportError:
+    import importlib_metadata as il_md  # type: ignore[no-redef]
+
+
 # Coroutine support
 if PY3:
     from types import CoroutineType
@@ -84,6 +94,38 @@ log = get_logger(__name__)
 
 _probe_metrics = Metrics(namespace="dynamic.instrumentation.metric")
 _probe_metrics.enable()
+
+
+# We don't store every file of every package but filter commonly used extensions
+SUPPORTED_EXTENSIONS = (".py", ".so", ".dll", ".pyc")
+
+
+Distribution = NamedTuple("Distribution", [("name", str), ("version", str)])
+
+
+def _is_python_source_file(
+    path,  # type: pathlib.PurePath
+):
+    # type: (...) -> bool
+    return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
+
+
+def _build_package_file_mapping():
+    # type: (...) -> Dict[str, Distribution]
+    mapping = {}
+
+    for ilmd_d in il_md.distributions():
+        if ilmd_d is not None and ilmd_d.files is not None:
+            d = Distribution(ilmd_d.metadata["name"], ilmd_d.version)
+            for f in ilmd_d.files:
+                if _is_python_source_file(f):
+                    mapping[os.fspath(f.locate())] = d
+
+    return mapping
+
+
+_FILE_PACKAGE_MAPPING = _build_package_file_mapping()
+_FILE_PATH_MAPPING = ["/dd-trace-py/ddtrace/"]
 
 
 class DebuggerError(Exception):
@@ -256,7 +298,7 @@ class Debugger(Service):
         self._entry_functions = {}  # type: Dict[str, Probe]
 
         self._tracer.subscribe(TracerEvent.ON_SPAN_START, lambda span: self._capture_exit_span(span))
-        self._tracer.subscribe(TracerEvent.ON_SPAN_ENTRY, lambda spanAndFunc: self._capture_span_method(spanAndFunc[1]))
+        self._tracer.subscribe(TracerEvent.ON_USER_FUNC, lambda func: self._capture_user_method(func))
 
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
@@ -268,10 +310,14 @@ class Debugger(Service):
         # Send upload request
         self._uploader.upload()
 
-    def _capture_span_method(self, func):
+    def _capture_user_method(self, func):
+        filename = func.__code__.co_filename
         func_qname = func.__name__
         module = func.__module__
         probe_id = module + "." + func_qname
+
+        if not self._is_user_code(filename):
+            print("Skipping user method intrumentation as it not seems to be user code", probe_id, filename)
 
         if probe_id in self._entry_functions:
             return
@@ -298,16 +344,38 @@ class Debugger(Service):
         self._wrap_functions([probe])
         self._entry_functions[probe_id] = probe
 
+    def _is_user_code(self, path):
+        # type: (str) -> bool
+        if path in _FILE_PACKAGE_MAPPING:
+            return False
+        for parital in _FILE_PATH_MAPPING:
+            if path.find(parital) != -1:
+                return False
+        return True
+
     def _capture_exit_span(self, span):
         # type: (ddtrace.Span) -> None
 
-        print("span started", span)
+        print("span started", span.span_type)
 
-        return
+        if not span.span_type:
+            return
 
-        actual_frame = sys._getframe(4)
+        actual_frame = sys._getframe(1)  # type: Optional[FrameType]
+        while actual_frame and not self._is_user_code(actual_frame.f_code.co_filename):
+            actual_frame = actual_frame.f_back
+
+        if not actual_frame:
+            print("didn't found user code")
+            return
+
         filename = actual_frame.f_code.co_filename
         lineno = actual_frame.f_lineno
+
+        print("found user code", filename, lineno)
+        first_line = actual_frame.f_code.co_firstlineno
+        last_line = first_line + sum(actual_frame.f_code.co_lnotab[1::2])
+        print(first_line, last_line)
 
         snapshot = Snapshot(
             probe=LogLineProbe(
@@ -328,7 +396,11 @@ class Debugger(Service):
             context=self._tracer.current_trace_context(),
         )
 
-        self._tracer.current_span().set_tag("has_debug_info", True)
+        span.set_tag("has_debug_info", True)
+        span.set_tag("source.file_path", filename)
+        span.set_tag("source.line_number", lineno)
+        span.set_tag("source.method_begin_line_number", first_line)
+        span.set_tag("source.method_end_line_number", last_line)
 
         snapshot.line(exc_info=sys.exc_info())
 

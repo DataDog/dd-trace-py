@@ -106,7 +106,14 @@ class CapturedEventCollector(object):
             if event.context:
                 span = tracer.current_span()
                 if span:
+                    actual_frame = event.frame
+                    filename = actual_frame.f_code.co_filename
+                    first_line = actual_frame.f_code.co_firstlineno
+                    last_line = first_line + sum(actual_frame.f_code.co_lnotab[1::2])
                     span.set_tag("has_debug_info", True)
+                    span.set_tag("source.file_path", filename)
+                    span.set_tag("source.method_begin_line_number", first_line)
+                    span.set_tag("source.method_end_line_number", last_line)
             self._enqueue(event)
 
     def attach(self, event):

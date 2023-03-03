@@ -191,7 +191,7 @@ TracerEventHandler = Callable[[Any], None]
 class TracerEvent(object):
     ON_SPAN_START = "on_span_start"
     ON_SPAN_FINISH = "on_span_finish"
-    ON_SPAN_ENTRY = "on_span_entry"
+    ON_USER_FUNC = "on_user_found"
 
 
 class Tracer(object):
@@ -305,9 +305,9 @@ class Tracer(object):
         for handler in self._event_handlers[event]:
             handler(data)
 
-    def on_entry_span(self, span, user_func):
-        print(TracerEvent.ON_SPAN_ENTRY, span, user_func)
-        self._notify(TracerEvent.ON_SPAN_ENTRY, (span, user_func))
+    def on_user_func(self, user_func):
+        print(TracerEvent.ON_USER_FUNC, user_func)
+        self._notify(TracerEvent.ON_USER_FUNC, user_func)
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
