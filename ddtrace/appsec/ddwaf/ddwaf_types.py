@@ -247,6 +247,9 @@ class ddwaf_result(ctypes.Structure):
             self.actions,
         )
 
+    def __del__(self):
+        ddwaf_result_free(self)
+
 
 ddwaf_result_p = ctypes.POINTER(ddwaf_result)
 
@@ -278,14 +281,11 @@ class ddwaf_config_obfuscator(ctypes.Structure):
     ]
 
 
-free_callback = ctypes.CFUNCTYPE(None, ddwaf_object_p)
-ddwaf_object_free = free_callback(
+ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
+ddwaf_object_free = ddwaf_object_free_fn(
     ("ddwaf_object_free", ddwaf),
     ((1, "object"),),
 )
-
-
-ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
 
 
 class ddwaf_config(ctypes.Structure):
@@ -317,9 +317,37 @@ class ddwaf_config(ctypes.Structure):
 ddwaf_config_p = ctypes.POINTER(ddwaf_config)
 
 
-# TODO MAYBE LATER
 ddwaf_handle = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
+
+
+class ddwaf_handle_capsule:
+    def __init__(self, handle):
+        # type: (ddwaf_handle) -> None
+        self.handle = handle
+        self.free_fn = ddwaf_destroy
+
+    def __del__(self):
+        if self.handle:
+            self.free_fn(self.handle)
+
+    def __bool__(self):
+        return bool(self.handle)
+
+
+class ddwaf_context_capsule:
+    def __init__(self, ctx):
+        # type: (ddwaf_context) -> None
+        self.ctx = ctx
+        self.free_fn = ddwaf_context_destroy
+
+    def __del__(self):
+        if self.ctx:
+            self.free_fn(self.ctx)
+
+    def __bool__(self):
+        return bool(self.ctx)
+
 
 ddwaf_log_cb = ctypes.POINTER(
     ctypes.CFUNCTYPE(
@@ -340,6 +368,12 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
         (1, "info", None),
     ),
 )
+
+
+def py_ddwaf_init(ruleset_map, config, info):
+    # type: (ddwaf_object, Any, Any) -> ddwaf_handle_capsule
+    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info))
+
 
 ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_ruleset_info_p)(
     ("ddwaf_update", ddwaf),
@@ -373,9 +407,9 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 
 
 def py_ddwaf_required_addresses(handle):
-    # type: (ctypes.c_void_p) -> list[unicode]
+    # type: (ddwaf_handle_capsule) -> list[unicode]
     size = ctypes.c_uint32()
-    obj = ddwaf_required_addresses(handle, ctypes.byref(size))
+    obj = ddwaf_required_addresses(handle.handle, ctypes.byref(size))
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
@@ -383,6 +417,12 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
     ("ddwaf_context_init", ddwaf),
     ((1, "handle"),),
 )
+
+
+def py_ddwaf_context_init(handle):
+    # type: (ddwaf_handle_capsule) -> ddwaf_context_capsule
+    return ddwaf_context_capsule(ddwaf_context_init(handle.handle))
+
 
 ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
     ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
