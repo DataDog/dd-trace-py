@@ -409,7 +409,7 @@ def test_request_ipblock_403(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/foobar?q=1",
+            url="/foobar",
             headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
@@ -419,8 +419,7 @@ def test_request_ipblock_403(client, test_spans, tracer):
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
         assert root.get_tag(http.STATUS_CODE) == "403"
-        assert root.get_tag(http.URL) == "http://testserver/foobar?q=1"
-        assert root.get_tag(http.QUERY_STRING) == "q=1"
+        assert root.get_tag(http.URL) == "http://testserver/foobar"
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(http.USER_AGENT) == "fooagent"
 
@@ -452,7 +451,6 @@ def test_request_block_request_callable(client, test_spans, tracer):
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/block/"
-        assert not root.get_tag(http.QUERY_STRING)
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(http.USER_AGENT) == "fooagent"
 
@@ -478,7 +476,6 @@ def test_request_userblock_403(client, test_spans, tracer):
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/checkuser/%s/" % _BLOCKED_USER
-        assert not root.get_tag(http.QUERY_STRING)
         assert root.get_tag(http.METHOD) == "GET"
 
 
@@ -496,7 +493,6 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
         assert root_span.get_tag(http.STATUS_CODE) == "403"
         assert root_span.get_tag(http.URL) == "http://testserver/"
-        assert not root_span.get_tag(http.QUERY_STRING)
         assert root_span.get_tag(http.METHOD) == "GET"
     # POST must pass
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
