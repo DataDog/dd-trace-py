@@ -1,3 +1,4 @@
+import abc
 import base64
 from datetime import datetime
 import hashlib
@@ -5,6 +6,7 @@ import json
 import re
 import sys
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Mapping
 from typing import Optional
@@ -30,13 +32,9 @@ from ..utils.version import _pep440_to_semver
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
-
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
 
 
 log = get_logger(__name__)
@@ -145,43 +143,28 @@ def _load_json(data):
     return json.loads(data)
 
 
-def _extract_target_file(payload, target, config):
-    # type: (AgentPayload, str, ConfigMetadata) -> Optional[Mapping[str, Any]]
-    candidates = [item.raw for item in payload.target_files if item.path == target]
-    if len(candidates) != 1 or candidates[0] is None:
-        log.debug("invalid target_files for %r", target)
-        return None
-
-    try:
-        raw = base64.b64decode(candidates[0])
-    except Exception:
-        raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
-
-    computed_hash = hashlib.sha256(raw).hexdigest()
-    if computed_hash != config.sha256_hash:
-        raise RemoteConfigError(
-            "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
-        )
-
-    try:
-        return _load_json(raw)
-    except Exception:
-        raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+AppliedConfigType = Dict[str, ConfigMetadata]
+TargetsType = Dict[str, ConfigMetadata]
 
 
-def _parse_target(target, metadata):
-    # type: (str, TargetDesc) -> ConfigMetadata
-    m = TARGET_FORMAT.match(target)
-    if m is None:
-        raise RemoteConfigError("unexpected target format {!r}".format(target))
-    _, product_name, config_id, _ = m.groups()
-    return ConfigMetadata(
-        id=config_id,
-        product_name=product_name,
-        sha256_hash=metadata.hashes.get("sha256"),
-        length=metadata.length,
-        tuf_version=metadata.custom.get("v"),
-    )
+class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def __call__(self, metadata, config):
+        # type: (Optional[ConfigMetadata], Any) -> None
+        pass
+
+
+class RemoteConfigCallBackAfterMerge(RemoteConfigCallBack):
+    configs = {}  # type: Dict[str, Any]
+
+    def append(self, config):
+        self.configs.update(config)
+
+    def dispatch(self):
+        try:
+            self.__call__(None, self.configs)
+        finally:
+            self.configs = {}
 
 
 class RemoteConfigClient(object):
@@ -222,7 +205,7 @@ class RemoteConfigClient(object):
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
         )
-        self.cached_target_files = []  # type: List[Dict[str, Any]]
+        self.cached_target_files = []  # type: List[AppliedConfigType]
         self.converter = cattr.Converter()
 
         # cattrs doesn't implement datetime converter in Py27, we should register
@@ -239,14 +222,14 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, ProductCallback]
-        self._applied_configs = dict()  # type: Mapping[str, ConfigMetadata]
+        self._products = dict()  # type: MutableMapping[str, RemoteConfigCallBack]
+        self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, Optional[ProductCallback]) -> None
+        # type: (str, Optional[RemoteConfigCallBack]) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -277,6 +260,45 @@ class RemoteConfigClient(object):
             return None
 
         return json.loads(data)
+
+    @staticmethod
+    def _extract_target_file(payload, target, config):
+        # type: (AgentPayload, str, ConfigMetadata) -> Optional[Dict[str, Any]]
+        candidates = [item.raw for item in payload.target_files if item.path == target]
+        if len(candidates) != 1 or candidates[0] is None:
+            log.debug("invalid target_files for %r", target)
+            return None
+
+        try:
+            raw = base64.b64decode(candidates[0])
+        except Exception:
+            raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
+
+        computed_hash = hashlib.sha256(raw).hexdigest()
+        if computed_hash != config.sha256_hash:
+            raise RemoteConfigError(
+                "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
+            )
+
+        try:
+            return _load_json(raw)
+        except Exception:
+            raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+
+    @staticmethod
+    def _parse_target(target, metadata):
+        # type: (str, TargetDesc) -> ConfigMetadata
+        m = TARGET_FORMAT.match(target)
+        if m is None:
+            raise RemoteConfigError("unexpected target format {!r}".format(target))
+        _, product_name, config_id, _ = m.groups()
+        return ConfigMetadata(
+            id=config_id,
+            product_name=product_name,
+            sha256_hash=metadata.hashes.get("sha256"),
+            length=metadata.length,
+            tuf_version=metadata.custom.get("v"),
+        )
 
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
@@ -311,59 +333,24 @@ class RemoteConfigClient(object):
         return state
 
     def _process_targets(self, payload):
-        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[Mapping[str, ConfigMetadata]]]
+        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]
         if payload.targets is None:
             # no targets received
             return None, None, None
 
         signed = payload.targets.signed
-        targets = dict()
+        targets = dict()  # type: TargetsType
 
         for target, metadata in signed.targets.items():
-            config = _parse_target(target, metadata)
+            config = self._parse_target(target, metadata)
             if config is not None:
                 targets[target] = config
 
         backend_state = signed.custom.get("opaque_backend_state")
         return signed.version, backend_state, targets
 
-    def _process_response(self, data):
-        # type: (Mapping[str, Any]) -> None
-        try:
-            # log.debug("response payload: %r", data)
-            payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
-        except Exception:
-            log.debug("invalid agent payload received: %r", data, exc_info=True)
-            raise RemoteConfigError("invalid agent payload received")
-
-        paths = {_.path for _ in payload.target_files}
-        paths = paths.union({_["path"] for _ in self.cached_target_files})
-
-        # !(payload.client_configs is a subset of paths or payload.client_configs is equal to paths)
-        if not set(payload.client_configs) <= paths:
-            raise RemoteConfigError("Not all client configurations have target files")
-
-        # 1. Deserialize targets
-        last_targets_version, backend_state, targets = self._process_targets(payload)
-        if last_targets_version is None or targets is None:
-            log.debug("No targets in configuration payload")
-            for callback in self._products.values():
-                callback(None, None)
-            return
-
-        client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug("Retrieved client configs last version %s: %s", last_targets_version, client_configs)
-
-        for target in payload.target_files:
-            if (payload.targets.signed.targets and not payload.targets.signed.targets.get(target.path)) and (
-                client_configs and not client_configs.get(target.path)
-            ):
-                raise RemoteConfigError(
-                    "target file %s not exists in client_config and signed targets" % (target.path,)
-                )
-
-        # 2. Remove previously applied configurations
-        applied_configs = dict()
+    def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
+        # type: (AppliedConfigType, TargetsType, TargetsType) -> None
         for target, config in self._applied_configs.items():
             callback_action = None
             if target in client_configs and targets.get(target) == config:
@@ -374,39 +361,47 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products[config.product_name]
+            callback = self._products.get(config.product_name)
+            if callback:
+                try:
+                    callback(config, callback_action)
+                except Exception:
+                    log.debug("error while removing product %s config %r", config.product_name, config)
+                    continue
 
-            try:
-                callback(config, callback_action)
-            except Exception:
-                log.debug("error while removing product %s config %r", config.product_name, config)
-                continue
-
-        # 3. Load new configurations
+    def _load_new_configurations(self, applied_configs, client_configs, payload):
+        # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
+        list_callbacks = []
         for target, config in client_configs.items():
-            callback = self._products[config.product_name]
+            callback = self._products.get(config.product_name)
+            if callback:
+                applied_config = self._applied_configs.get(target)
+                if applied_config == config:
+                    continue
 
-            applied_config = self._applied_configs.get(target)
-            if applied_config == config:
-                continue
+                config_content = self._extract_target_file(payload, target, config)
+                if config_content is None:
+                    continue
 
-            config_content = _extract_target_file(payload, target, config)
-            if config_content is None:
-                continue
+                try:
+                    log.debug("Load new configuration: %s. content ", target)
+                    if isinstance(callback, RemoteConfigCallBackAfterMerge):
+                        callback.append(config_content)
+                        if callback not in list_callbacks:
+                            list_callbacks.append(callback)
+                    else:
+                        callback(config, config_content)
+                except Exception:
+                    log.debug(
+                        "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
+                    )
+                    continue
+                else:
+                    applied_configs[target] = config
+        for callback in list_callbacks:
+            callback.dispatch()
 
-            try:
-                log.debug("Load new configuration: %s. content %s", target, config_content)
-                callback(config, config_content)
-            except Exception:
-                log.debug("error while loading product %s config %r", config.product_name, config)
-                continue
-            else:
-                applied_configs[target] = config
-
-        self._last_targets_version = last_targets_version
-        self._applied_configs = applied_configs
-        self._backend_state = backend_state
-
+    def _add_apply_config_to_cache(self):
         if self._applied_configs:
             cached_data = []
             for target, config in self._applied_configs.items():
@@ -421,16 +416,75 @@ class RemoteConfigClient(object):
         else:
             self.cached_target_files = []
 
+    def _validate_config_exists_in_target_paths(self, payload_client_configs, payload_target_files):
+        # type: (Set[str], List[TargetFile]) -> None
+        paths = {_.path for _ in payload_target_files}
+        paths = paths.union({_["path"] for _ in self.cached_target_files})
+
+        # !(payload.client_configs is a subset of paths or payload.client_configs is equal to paths)
+        if not set(payload_client_configs) <= paths:
+            raise RemoteConfigError("Not all client configurations have target files")
+
+    @staticmethod
+    def _validate_signed_target_files(payload_target_files, payload_targets_signed, client_configs):
+        # type: (List[TargetFile], Targets, TargetsType) -> None
+        for target in payload_target_files:
+            if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
+                client_configs and not client_configs.get(target.path)
+            ):
+                raise RemoteConfigError(
+                    "target file %s not exists in client_config and signed targets" % (target.path,)
+                )
+
+    def _process_response(self, data):
+        # type: (Mapping[str, Any]) -> None
+        try:
+            # log.debug("response payload: %r", data)
+            payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
+        except Exception:
+            log.debug("invalid agent payload received: %r", data, exc_info=True)
+            raise RemoteConfigError("invalid agent payload received")
+
+        self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
+
+        # 1. Deserialize targets
+        last_targets_version, backend_state, targets = self._process_targets(payload)
+        if last_targets_version is None or targets is None:
+            log.debug("No targets in configuration payload")
+            for callback in self._products.values():
+                callback(None, None)
+            return
+
+        client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
+        log.debug("Retrieved client configs last version %s: %s", last_targets_version, client_configs)
+
+        self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
+
+        # 2. Remove previously applied configurations
+        applied_configs = dict()  # type: AppliedConfigType
+        self._remove_previously_applied_configurations(applied_configs, client_configs, targets)
+
+        # 3. Load new configurations
+        self._load_new_configurations(applied_configs, client_configs, payload)
+
+        self._last_targets_version = last_targets_version
+        self._applied_configs = applied_configs
+        self._backend_state = backend_state
+
+        self._add_apply_config_to_cache()
+
     def request(self):
-        # type: () -> None
+        # type: () -> bool
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
-
             response = self._send_request(payload)
             if response is None:
-                return
+                return False
             self._process_response(response)
+            self._last_error = None
+            return True
+
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.debug("remote configuration client reported an error", exc_info=True)
@@ -438,5 +492,5 @@ class RemoteConfigClient(object):
             log.debug("Unexpected response data: %s", e)  # noqa: G200
         except Exception as e:
             log.debug("Unexpected error: %s", e)  # noqa: G200
-        else:
-            self._last_error = None
+
+        return False

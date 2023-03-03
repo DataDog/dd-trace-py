@@ -46,7 +46,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.6.1"
+LIBDDWAF_VERSION = "1.8.2"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -291,20 +291,20 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
-    if sys.version_info >= (3, 6, 0):
-        ext_modules.append(
-            Extension(
-                "ddtrace.appsec.iast._taint_tracking",
-                # Sort source files for reproducibility
-                sources=sorted(
-                    glob.glob(
-                        os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
-                        recursive=True,
-                    )
-                ),
-                extra_compile_args=debug_compile_args + ["-std=c++17"],
+        if sys.version_info >= (3, 6, 0):
+            ext_modules.append(
+                Extension(
+                    "ddtrace.appsec.iast._taint_tracking",
+                    # Sort source files for reproducibility
+                    sources=sorted(
+                        glob.glob(
+                            os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                            recursive=True,
+                        )
+                    ),
+                    extra_compile_args=debug_compile_args + ["-std=c++17"],
+                )
             )
-        )
 else:
     ext_modules = []
 
@@ -342,7 +342,6 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },
-    py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -392,9 +391,6 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-        ],
-        "gevent.plugins.monkey.did_patch_all": [
-            "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
     },
     classifiers=[

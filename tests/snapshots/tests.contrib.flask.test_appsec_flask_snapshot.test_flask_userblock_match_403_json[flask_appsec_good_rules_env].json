@@ -1,0 +1,232 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /checkuser/<user_id>",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.appsec.event_rules.version": "1.5.1",
+      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-002\",\"name\":\"Block User Addresses\",\"tags\":{\"type\":\"block_user\",\"category\":\"security_response\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"exact_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"usr.id\",\"key_path\":[],\"value\":\"123456\",\"highlight\":[\"123456\"]}]}]}]}",
+      "_dd.appsec.waf.version": "1.8.2",
+      "_dd.origin": "appsec",
+      "_dd.p.dm": "-4",
+      "_dd.runtime_family": "python",
+      "actor.ip": "127.0.0.1",
+      "appsec.blocked": "true",
+      "appsec.event": "true",
+      "component": "flask",
+      "flask.endpoint": "checkuser",
+      "flask.url_rule": "/checkuser/<user_id>",
+      "flask.version": "1.1.4",
+      "flask.view_args.user_id": "123456",
+      "http.client_ip": "127.0.0.1",
+      "http.method": "GET",
+      "http.request.headers.accept": "*/*",
+      "http.request.headers.accept-encoding": "gzip, deflate",
+      "http.request.headers.host": "0.0.0.0:8000",
+      "http.request.headers.user-agent": "python-requests/2.28.2",
+      "http.response.headers.content-length": "169",
+      "http.response.headers.content-type": "*/*",
+      "http.route": "/checkuser/<user_id>",
+      "http.status_code": "403",
+      "http.url": "http://0.0.0.0:8000/checkuser/123456",
+      "http.useragent": "python-requests/2.28.2",
+      "language": "python",
+      "network.client.ip": "127.0.0.1",
+      "runtime-id": "60b39be8a99b4c17b1f5bb09832a2892",
+      "usr.id": "123456"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0.0,
+      "_dd.appsec.event_rules.loaded": 15.0,
+      "_dd.appsec.waf.duration": 39.208,
+      "_dd.appsec.waf.duration_ext": 118.255615234375,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 27242
+    },
+    "duration": 4900000,
+    "start": 1677258839007749000
+  },
+     {
+       "name": "flask.application",
+       "service": "flask",
+       "resource": "GET /checkuser/<user_id>",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "flask",
+         "flask.endpoint": "checkuser",
+         "flask.url_rule": "/checkuser/<user_id>",
+         "flask.view_args.user_id": "123456"
+       },
+       "duration": 3592000,
+       "start": 1677258839008592000
+     },
+        {
+          "name": "flask.try_trigger_before_first_request_functions",
+          "service": "flask",
+          "resource": "flask.try_trigger_before_first_request_functions",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 18000,
+          "start": 1677258839008721000
+        },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 33000,
+          "start": 1677258839008980000
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 1,
+          "meta": {
+            "component": "flask",
+            "error.message": "??? Unknown Error: None",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 600, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/flask/app.py\", line 1936, in dispatch_request\n    return self.view_functions[rule.endpoint](**req.view_args)\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/contrib/flask/wrappers.py\", line 28, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/tests/contrib/flask/app.py\", line 67, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/appsec/trace_utils.py\", line 184, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/appsec/_asm_request_context.py\", line 90, in block_request\n    _callable()\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 567, in _block_request_callable\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+            "error.type": "werkzeug.exceptions.HTTPException"
+          },
+          "duration": 1817000,
+          "start": 1677258839009196000
+        },
+           {
+             "name": "tests.contrib.flask.app.checkuser",
+             "service": "flask",
+             "resource": "/checkuser/<user_id>",
+             "trace_id": 0,
+             "span_id": 11,
+             "parent_id": 6,
+             "type": "",
+             "error": 1,
+             "meta": {
+               "component": "flask",
+               "error.message": "??? Unknown Error: None",
+               "error.stack": "Traceback (most recent call last):\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/contrib/flask/wrappers.py\", line 28, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/tests/contrib/flask/app.py\", line 67, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/appsec/trace_utils.py\", line 184, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/appsec/_asm_request_context.py\", line 90, in block_request\n    _callable()\n  File \"/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 567, in _block_request_callable\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/Users/christophe.papazian/.pyenv/versions/3.10.6/lib/python3.10/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+               "error.type": "werkzeug.exceptions.HTTPException"
+             },
+             "duration": 1156000,
+             "start": 1677258839009244000
+           },
+        {
+          "name": "flask.handle_user_exception",
+          "service": "flask",
+          "resource": "flask.handle_user_exception",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 185000,
+          "start": 1677258839011198000
+        },
+           {
+             "name": "flask.handle_http_exception",
+             "service": "flask",
+             "resource": "flask.handle_http_exception",
+             "trace_id": 0,
+             "span_id": 12,
+             "parent_id": 7,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "component": "flask"
+             },
+             "duration": 15000,
+             "start": 1677258839011240000
+           },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 22000,
+          "start": 1677258839011576000
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 20000,
+          "start": 1677258839011848000
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 10,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 17000,
+          "start": 1677258839012024000
+        },
+     {
+       "name": "flask.response",
+       "service": "flask",
+       "resource": "flask.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "flask"
+       },
+       "duration": 194000,
+       "start": 1677258839012324000
+     }]]

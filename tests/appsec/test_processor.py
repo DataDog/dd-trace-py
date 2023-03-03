@@ -31,6 +31,9 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
 RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
+RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
+RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
+RULES_SRB_METHOD = os.path.join(ROOT_DIR, "rules-suspicious-requests-get.json")
 
 
 @pytest.fixture
@@ -244,15 +247,17 @@ def test_ip_update_rules_and_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
-            [
-                {
-                    "data": [
-                        {"value": _BLOCKED_IP},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
+            {
+                "rules_data": [
+                    {
+                        "data": [
+                            {"value": _BLOCKED_IP},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
         )
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -269,15 +274,17 @@ def test_ip_update_rules_expired_no_block(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
-            [
-                {
-                    "data": [
-                        {"expiration": 1662804872, "value": _BLOCKED_IP},
-                    ],
-                    "id": "blocked_ips",
-                    "type": "ip_with_expiration",
-                },
-            ]
+            {
+                "rules_data": [
+                    {
+                        "data": [
+                            {"expiration": 1662804872, "value": _BLOCKED_IP},
+                        ],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
         )
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -482,10 +489,10 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info.loaded == 4
+        assert info.loaded == 5
         assert info.failed == 0
         assert info.errors == {}
-        assert info.version == ""
+        assert info.version == "1.5.1"
 
 
 def test_ddwaf_info_with_2_errors():

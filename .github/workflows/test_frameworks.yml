@@ -53,6 +53,7 @@ jobs:
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1:
+    timeout-minutes: 30
     strategy:
       matrix:
         expl_profiler: [0, 1]
@@ -151,7 +152,7 @@ jobs:
       - name: Run tests
         run: ddtrace-run pytest graphene
 
-  fastapi-testsuite-0_75:
+  fastapi-testsuite-0_92:
     runs-on: ubuntu-latest
     env:
       DD_TESTING_RAISE: true
@@ -169,21 +170,16 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: tiangolo/fastapi
-          ref: 0.75.0
+          ref: 0.92.0
           path: fastapi
       - uses: actions/cache@v3.2.5
         id: cache
         with:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-python-${{ env.pythonLocation }}-fastapi
-      #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
-      - name: Install Flit
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: pip install flit
-      #Installs all dependencies needed for FastAPI
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: flit install --symlink
+        run: pip install -e .[all,dev,doc,test]
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
@@ -398,7 +394,7 @@ jobs:
       run:
         working-directory: pylons
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: '2.7'
       - uses: actions/checkout@v2
@@ -434,7 +430,7 @@ jobs:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v2
@@ -454,7 +450,7 @@ jobs:
 
   uwsgi-testsuite-2_0_21:
     name: uwsgi 2.0.21
-    runs-on: "ubuntu-18.04"
+    runs-on: "ubuntu-latest"
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true

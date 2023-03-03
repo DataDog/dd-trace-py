@@ -2,181 +2,57 @@
   {
     "name": "flask.request",
     "service": "flask",
-    "resource": "GET /",
+    "resource": "flask.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "",
+      "_dd.appsec.event_rules.version": "1.5.1",
       "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"tags\":{\"type\":\"ip_addresses\",\"category\":\"blocking\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}]}]}",
-      "_dd.appsec.waf.duration": "37.341",
-      "_dd.appsec.waf.duration_ext": "250.81634521484375",
-      "_dd.appsec.waf.version": "1.6.1",
+      "_dd.appsec.waf.version": "1.8.2",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
       "_dd.runtime_family": "python",
       "actor.ip": "8.8.4.4",
       "appsec.blocked": "true",
       "appsec.event": "true",
-      "component": "flask",
-      "flask.endpoint": "index",
-      "flask.url_rule": "/",
-      "flask.version": "2.2.2",
-      "http.client_ip": "8.8.4.4",
-      "http.method": "GET",
       "http.request.headers.accept": "*/*",
-      "http.request.headers.accept-encoding": "gzip, deflate, br",
+      "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "0.0.0.0:8000",
-      "http.request.headers.user-agent": "python-requests/2.28.1",
-      "http.request.headers.via": "8.8.4.4",
-      "http.response.headers.content-length": "169",
-      "http.response.headers.content-type": "*/*",
-      "http.route": "/",
-      "http.status_code": "403",
-      "http.url": "http://0.0.0.0:8000/",
-      "http.useragent": "python-requests/2.28.1",
+      "http.request.headers.user-agent": "python-requests/2.28.2",
+      "http.request.headers.x-real-ip": "8.8.4.4",
       "language": "python",
-      "network.client.ip": "8.8.4.4",
-      "runtime-id": "926fc947d13c487fba9be29168e7f9fe"
+      "runtime-id": "3c48709b8c85403bb3ca8736c2156c83"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
-      "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 4,
-      "_dd.measured": 1,
+      "_dd.appsec.event_rules.error_count": 0.0,
+      "_dd.appsec.event_rules.loaded": 5.0,
+      "_dd.appsec.waf.duration": 31.625,
+      "_dd.appsec.waf.duration_ext": 61.98883056640625,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 3009106
+      "process_id": 27237
     },
-    "duration": 2012332,
-    "start": 1675675638110490820
+    "duration": 848000,
+    "start": 1677258837659645000
   },
      {
-       "name": "flask.application",
+       "name": "flask.response",
        "service": "flask",
-       "resource": "GET /",
+       "resource": "flask.response",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
        "error": 0,
        "meta": {
-         "component": "flask",
-         "flask.endpoint": "index",
-         "flask.url_rule": "/"
-       },
-       "duration": 1090518,
-       "start": 1675675638111141370
-     },
-        {
-          "name": "flask.preprocess_request",
-          "service": "flask",
-          "resource": "flask.preprocess_request",
-          "trace_id": 0,
-          "span_id": 4,
-          "parent_id": 2,
-          "type": "",
-          "error": 1,
-          "meta": {
-            "component": "flask",
-            "error.message": "??? Unknown Error: None",
-            "error.stack": "Traceback (most recent call last):\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 583, in _traced_request\n    abort(Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 881, in abort\n    _aborter(status, *args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 859, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
-            "error.type": "werkzeug.exceptions.HTTPException"
-          },
-          "duration": 540140,
-          "start": 1675675638111335815
-        },
-        {
-          "name": "flask.handle_user_exception",
-          "service": "flask",
-          "resource": "flask.handle_user_exception",
-          "trace_id": 0,
-          "span_id": 5,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "component": "flask"
-          },
-          "duration": 44601,
-          "start": 1675675638111927622
-        },
-           {
-             "name": "flask.handle_http_exception",
-             "service": "flask",
-             "resource": "flask.handle_http_exception",
-             "trace_id": 0,
-             "span_id": 9,
-             "parent_id": 5,
-             "type": "",
-             "error": 0,
-             "meta": {
-               "component": "flask"
-             },
-             "duration": 7385,
-             "start": 1675675638111958248
-           },
-        {
-          "name": "flask.process_response",
-          "service": "flask",
-          "resource": "flask.process_response",
-          "trace_id": 0,
-          "span_id": 6,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "component": "flask"
-          },
-          "duration": 17577,
-          "start": 1675675638112088860
-        },
-        {
-          "name": "flask.do_teardown_request",
-          "service": "flask",
-          "resource": "flask.do_teardown_request",
-          "trace_id": 0,
-          "span_id": 7,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "component": "flask"
-          },
-          "duration": 12475,
-          "start": 1675675638112177973
-        },
-        {
-          "name": "flask.do_teardown_appcontext",
-          "service": "flask",
-          "resource": "flask.do_teardown_appcontext",
-          "trace_id": 0,
-          "span_id": 8,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "component": "flask"
-          },
-          "duration": 8484,
-          "start": 1675675638112213921
-        },
-     {
-       "name": "flask.response",
-       "service": "flask",
-       "resource": "flask.response",
-       "trace_id": 0,
-       "span_id": 3,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
          "component": "flask"
        },
-       "duration": 248906,
-       "start": 1675675638112240146
+       "duration": 244000,
+       "start": 1677258837660082000
      }]]

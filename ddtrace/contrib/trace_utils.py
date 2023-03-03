@@ -61,13 +61,14 @@ USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 IP_PATTERNS = (
     "x-forwarded-for",
     "x-real-ip",
-    "client-ip",
-    "x-forwarded",
-    "x-cluster-client-ip",
-    "forwarded-for",
-    "forwarded",
-    "via",
     "true-client-ip",
+    "x-client-ip",
+    "x-forwarded",
+    "forwarded-for",
+    "x-cluster-client-ip",
+    "fastly-client-ip",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
 )
 
 
@@ -605,6 +606,12 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
+
+    if config._appsec_enabled:
+        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+        block_request_if_user_blocked(tracer, user_id)
+
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
