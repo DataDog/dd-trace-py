@@ -384,6 +384,12 @@ ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwa
     ),
 )
 
+
+def py_ddwaf_update(handle, ruleset_map, info):
+    # type: (ddwaf_handle_capsule, ddwaf_object, Any) -> ddwaf_handle_capsule
+    return ddwaf_handle_capsule(ddwaf_update(handle.handle, ruleset_map, ctypes.byref(info)))
+
+
 ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
     ("ddwaf_destroy", ddwaf),
     ((1, "handle"),),

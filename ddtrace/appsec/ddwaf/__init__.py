@@ -25,10 +25,10 @@ try:
     from .ddwaf_types import ddwaf_result
     from .ddwaf_types import ddwaf_ruleset_info
     from .ddwaf_types import ddwaf_run
-    from .ddwaf_types import ddwaf_update
     from .ddwaf_types import py_ddwaf_context_init
     from .ddwaf_types import py_ddwaf_init
     from .ddwaf_types import py_ddwaf_required_addresses
+    from .ddwaf_types import py_ddwaf_update
 
     _DDWAF_LOADED = True
 except OSError:
@@ -111,7 +111,7 @@ if _DDWAF_LOADED:
             # type: (dict[text_type, DDWafRulesType]) -> bool
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
-            result = ddwaf_update(self._handle.handle, rules, ctypes.byref(self._info))
+            result = py_ddwaf_update(self._handle, rules, self._info)
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
                 self._handle = result
