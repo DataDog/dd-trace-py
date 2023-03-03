@@ -20,14 +20,17 @@ def _crash_flush(_, __):
     Tags the current root span with an Impending Timeout error.
     Finishes spans with ancestors from the current span.
     """
-
     root_span = tracer.current_root_span()
-    root_span.error = 1
-    root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
-    root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+    if root_span is not None:
+        root_span.error = 1
+        root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
+        root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+    else:
+        log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
     current_span = tracer.current_span()
-    current_span.finish_with_ancestors()
+    if current_span is not None:
+        current_span.finish_with_ancestors()
 
 
 def _handle_signal(sig, f):
