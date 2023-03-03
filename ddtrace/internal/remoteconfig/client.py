@@ -266,7 +266,9 @@ class RemoteConfigClient(object):
         # type: (AgentPayload, str, ConfigMetadata) -> Optional[Dict[str, Any]]
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
-            log.debug("invalid target_files for %r", target)
+            log.debug(
+                "invalid target_files for %r. target files: %s", target, [item.path for item in payload.target_files]
+            )
             return None
 
         try:
@@ -488,9 +490,9 @@ class RemoteConfigClient(object):
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.debug("remote configuration client reported an error", exc_info=True)
-        except ValueError as e:
-            log.debug("Unexpected response data: %s", e)  # noqa: G200
-        except Exception as e:
-            log.debug("Unexpected error: %s", e)  # noqa: G200
+        except ValueError:
+            log.debug("Unexpected response data: %s", exc_info=True)
+        except Exception:
+            log.debug("Unexpected error", exc_info=True)
 
         return False
