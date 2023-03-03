@@ -268,12 +268,18 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
+            resp = self.client.get("/foobar?q=1", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
             else:
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
+            assert root_span.get_tag(http.URL) == "http://localhost/foobar?q=1"
+            assert root_span.get_tag(http.QUERY_STRING) == "q=1"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
@@ -293,6 +299,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
 
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
+            assert root_span.get_tag(http.URL) == "http://localhost/block"
+            assert not root_span.get_tag(http.QUERY_STRING)
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+
     def test_flask_userblock_json(self):
         @self.app.route("/checkuser/<user_id>")
         def test_route(user_id):
@@ -308,6 +321,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
+            assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
+            assert not root_span.get_tag(http.QUERY_STRING)
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
@@ -326,7 +346,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
 
-            resp = self.client.get("index.html?toto=xtrace")
+            resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
@@ -335,6 +355,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=xtrace"
+            assert root_span.get_tag(http.QUERY_STRING) == "toto=xtrace"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
 
     def test_request_suspicious_request_block_match_uri(self):
         @self.app.route("/")
@@ -353,6 +378,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
+            assert root_span.get_tag(http.URL) == "http://localhost/.git"
+            assert not root_span.get_tag(http.QUERY_STRING)
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
 
     def test_request_suspicious_request_block_match_body(self):
         @self.app.route("/")

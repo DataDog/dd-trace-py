@@ -406,7 +406,11 @@ def test_request_ipblock_403(client, test_spans, tracer):
     """
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP}
+            client,
+            test_spans,
+            tracer,
+            url="/foobar?q=1",
+            headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
         as_bytes = (
@@ -414,21 +418,31 @@ def test_request_ipblock_403(client, test_spans, tracer):
         )
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/foobar?q=1"
+        assert root.get_tag(http.QUERY_STRING) == "q=1"
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(http.USER_AGENT) == "fooagent"
 
 
 def test_request_ipblock_nomatch_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        _, result = _aux_appsec_get_root_span(
+        root, result = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
         )
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
+        assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_block_request_callable(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        _, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/block/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+        root, result = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/block/",
+            headers={"HTTP_X_REAL_IP": _ALLOWED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
@@ -436,6 +450,11 @@ def test_request_block_request_callable(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/block/"
+        assert not root.get_tag(http.QUERY_STRING)
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(http.USER_AGENT) == "fooagent"
 
 
 _BLOCKED_USER = "123456"
@@ -446,6 +465,7 @@ def test_request_userblock_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER)
         assert result.status_code == 200
+        assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_userblock_403(client, test_spans, tracer):
@@ -456,6 +476,10 @@ def test_request_userblock_403(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/checkuser/%s/" % _BLOCKED_USER
+        assert not root.get_tag(http.QUERY_STRING)
+        assert root.get_tag(http.METHOD) == "GET"
 
 
 def test_request_suspicious_request_block_match_method(client, test_spans, tracer):
@@ -470,6 +494,10 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+        assert root_span.get_tag(http.STATUS_CODE) == "403"
+        assert root_span.get_tag(http.URL) == "http://testserver/"
+        assert not root_span.get_tag(http.QUERY_STRING)
+        assert root_span.get_tag(http.METHOD) == "GET"
     # POST must pass
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
         tracer._appsec_enabled = True
