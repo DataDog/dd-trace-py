@@ -115,10 +115,10 @@ if _DDWAF_LOADED:
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
                 self._handle = result
-                return False
+                return True
             else:
                 LOGGER.debug("DDWAF.update_rules: keeping the previous handle.")
-                return True
+                return False
 
         def _at_request_start(self):
             # type: () -> ddwaf_context_capsule
@@ -185,7 +185,7 @@ else:
         def update_rules(self, _):
             # type: (dict[text_type, DDWafRulesType]) -> bool
             LOGGER.warning("DDWaf features disabled. dry update")
-            return True
+            return False
 
         def _at_request_start(self):
             pass
