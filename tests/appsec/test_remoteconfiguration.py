@@ -11,6 +11,7 @@ import pytest
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._remoteconfiguration import RCAppSecCallBack
+from ddtrace.appsec._remoteconfiguration import RCAppSecFeaturesCallBack
 from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec.utils import _appsec_rc_capabilities
@@ -67,7 +68,7 @@ def test_rc_enabled_by_default(tracer):
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    RCAppSecCallBack(tracer)(None, {"asm": {"enabled": True}})
+    RCAppSecFeaturesCallBack(tracer)(None, {"asm": {"enabled": True}})
     assert "triggers" in _set_and_get_appsec_tags(tracer)
 
 
@@ -84,7 +85,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
-        RCAppSecCallBack(tracer)(None, {"asm": {"enabled": rc_value}})
+        RCAppSecFeaturesCallBack(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
         assert result
         assert "triggers" in result
@@ -107,7 +108,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
         if rc_value is False:
             rc_config = False
 
-        RCAppSecCallBack(tracer)(None, rc_config)
+        RCAppSecFeaturesCallBack(tracer)(None, rc_config)
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
 
@@ -137,7 +138,7 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 
         assert not RemoteConfig._worker
 
-        RCAppSecCallBack(tracer)(None, rc_config)
+        RCAppSecFeaturesCallBack(tracer)(None, rc_config)
 
         assert RemoteConfig._worker._client._products["ASM_DATA"]
 
@@ -151,14 +152,14 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(trac
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM)
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_FEATURES)
 
-        RCAppSecCallBack(tracer)(None, False)
+        RCAppSecFeaturesCallBack(tracer)(None, False)
 
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_DATA) is None
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM) is None
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_FEATURES)
 
 
-@mock.patch.object(RCAppSecCallBack, "_appsec_1click_activation")
+@mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_dispatch_applied_configs(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
@@ -192,11 +193,11 @@ def test_load_new_configurations_dispatch_applied_configs(
         }
 
         RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
-        mock_appsec_rules_data.assert_called_with(ANY, {"asm": {"enabled": True}, "data": {}})
-        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": {}})
+        mock_appsec_rules_data.assert_called_with(ANY, {"data": {}})
+        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}})
 
 
-@mock.patch.object(RCAppSecCallBack, "_appsec_1click_activation")
+@mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker
@@ -230,8 +231,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     RemoteConfig._worker._client._applied_configs = client_configs
     RemoteConfig._worker._client._remove_previously_applied_configurations({}, {}, [])
 
-    mock_appsec_rules_data.assert_called_with(ANY, False)
     mock_appsec_1click_activation.assert_called_with(False)
+    mock_appsec_rules_data.assert_not_called()
     mock_appsec_1click_activation.reset_mock()
     mock_appsec_rules_data.reset_mock()
 
