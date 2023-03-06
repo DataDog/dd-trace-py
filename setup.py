@@ -150,6 +150,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 # Darwin Universal2 should bundle both architectures
                 continue
             elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
+                # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
