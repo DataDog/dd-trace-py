@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.5.1",
+      "_dd.appsec.event_rules.version": "1.5.2",
       "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-002\",\"name\":\"Block User Addresses\",\"tags\":{\"type\":\"block_user\",\"category\":\"security_response\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"exact_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"usr.id\",\"key_path\":[],\"value\":\"123456\",\"highlight\":[\"123456\"]}]}]}]}",
       "_dd.appsec.waf.version": "1.8.2",
       "_dd.origin": "appsec",
