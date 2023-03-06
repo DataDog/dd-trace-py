@@ -16,6 +16,7 @@ import six
 import tenacity
 
 import ddtrace
+from ddtrace import config
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -24,6 +25,7 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
+from ..internal.telemetry import telemetry_metrics_writer
 from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -532,6 +534,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+
+                    if config._telemetry_metrics_enabled:
+                        telemetry_metrics_writer.enable()
+
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
                     enable_appsec_rc()
