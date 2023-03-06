@@ -1,5 +1,3 @@
-from typing import Tuple
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -27,14 +25,7 @@ def psycopg_sql_injector_factory(composable_class, sql_class):
 class PsycopgTracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg instances"""
 
-    def __init__(self, wrapped_cursor_class, _, connection, *args, **kwargs):
-        if isinstance(connection, Tuple):
-            connection = connection[0]
-        cfg = None
-        if connection:
-            pin = Pin.get_from(connection)
-            cfg = pin._config
-            cursor = wrapped_cursor_class(connection)
+    def __init__(self, cursor, pin, cfg, *args, **kwargs):
         super(PsycopgTracedCursor, self).__init__(cursor, pin, cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
@@ -44,6 +35,11 @@ class PsycopgTracedCursor(dbapi.TracedCursor):
         return super(PsycopgTracedCursor, self)._trace_method(
             method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
         )
+
+
+class PsycopgTracedAsyncCursor(dbapi.TracedAsyncCursor):
+    def __init__(self, cursor, pin, cfg, *args, **kwargs):
+        super(PsycopgTracedAsyncCursor, self).__init__(cursor, pin, cfg)
 
     async def __aenter__(self):
         # previous versions of the dbapi didn't support context managers. let's
@@ -65,11 +61,15 @@ class PsycopgTracedCursor(dbapi.TracedCursor):
 
 
 class PsycopgFetchTracedCursor(PsycopgTracedCursor, dbapi.FetchTracedCursor):
-    """FetchTracedCursor for psycopg"""
+    """PsycopgFetchTracedCursor for psycopg"""
+
+
+class PsycopgFetchTracedAsyncCursor(PsycopgTracedAsyncCursor, dbapi.FetchTracedAsyncCursor):
+    """PsycopgFetchTracedAsyncCursor for psycopg"""
 
 
 class PsycopgTracedConnection(dbapi.TracedConnection):
-    """TracedConnection wraps a Connection with tracing code."""
+    """PsycopgTracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cursor_cls=None):
         package = conn.__class__.__module__.split(".")[0]
@@ -95,6 +95,20 @@ class PsycopgTracedConnection(dbapi.TracedConnection):
                 raise ex.with_traceback(None)
 
         return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+
+
+class PsycopgTracedAsyncConnection(dbapi.TracedAsyncConnection):
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        package = conn.__class__.__module__.split(".")[0]
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = (
+                PsycopgFetchTracedAsyncCursor
+                if config._config[package].trace_fetch_methods
+                else PsycopgTracedAsyncCursor
+            )
+
+        super(PsycopgTracedAsyncConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
 
     async def execute(self, *args, **kwargs):  # noqa
         """Execute a query and return a cursor to read its results."""

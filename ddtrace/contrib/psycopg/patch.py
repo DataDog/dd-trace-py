@@ -11,6 +11,7 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..utils import PsycopgTracedAsyncCursor
 from ..utils import PsycopgTracedCursor
 from ..utils import patched_connect
 from ..utils import patched_connect_async
@@ -51,10 +52,10 @@ def patch():
 
     wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect)
     wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect)
-    wrapt.wrap_function_wrapper(psycopg, "Cursor", PsycopgTracedCursor)
+    wrapt.wrap_function_wrapper(psycopg, "Cursor", PsycopgTracedCursor._init_from_connection)
 
     wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async)
-    wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", PsycopgTracedCursor)
+    wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", PsycopgTracedAsyncCursor._init_from_connection)
     # _patch_extensions(_psycopg_extensions)  # do this early just in case
 
 

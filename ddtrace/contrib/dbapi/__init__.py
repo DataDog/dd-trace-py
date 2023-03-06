@@ -64,45 +64,14 @@ class TracedCursor(wrapt.ObjectProxy):
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
 
-    # def _trace_method_bad(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
-    #     """
-    #     Internal function to trace the call to the underlying cursor method
-    #     :param method: The callable to be wrapped
-    #     :param name: The name of the resulting span.
-    #     :param resource: The sql query. Sql queries are obfuscated on the agent side.
-    #     :param extra_tags: A dict of tags to store into the span's meta
-    #     :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
-    #     :param args: The args that will be passed as positional args to the wrapped method
-    #     :param kwargs: The args that will be passed as kwargs to the wrapped method
-    #     :return: The result of the wrapped method invocation
-    #     """
-    #     with self._trace_method_helper(self, name, resource, extra_tags, dbm_propagator, *args, **kw
-    #         span = None
-    #         if not span:
-    #             return method(*args, **kwargs)
-    #         else:
-    #             try:
-    #                 return method(*args, **kwargs)
-    #             finally:
-    #                 # Try to fetch custom properties that were passed by the specific Database implementation
-    #                 self._set_post_execute_tags(span)
-
-    # async def _trace_method_bad(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
-    #     span = None
-    #     kwargs = {}
-    #     try:
-    #         with yeidl(self) as f:
-    #             args = f
-    #             if not span:
-    #                 return await method(*args, **kwargs)
-    #             else:
-    #                 try:
-    #                     return await method(*args, **kwargs)
-    #                 finally:
-    #                     # Try to fetch custom properties that were passed by the specific Database implementation
-    #                     self._set_post_execute_tags(span)
-    #     except Exception as e:
-    #         print(e.message)
+    @classmethod
+    def _init_from_connection(traced_cursor_cls, wrapped_cursor_cls, _, args, kwargs):
+        connection = kwargs.get("connection", None)
+        if connection:
+            pin = Pin.get_from(connection)
+            cfg = pin._config
+            cursor = wrapped_cursor_cls(connection)
+            return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
         """
@@ -142,48 +111,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
             try:
                 return method(*args, **kwargs)
-            finally:
-                # Try to fetch custom properties that were passed by the specific Database implementation
-                self._set_post_execute_tags(s)
-
-    async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
-        """
-        Internal function to trace the call to the underlying cursor method
-        :param method: The callable to be wrapped
-        :param name: The name of the resulting span.
-        :param resource: The sql query. Sql queries are obfuscated on the agent side.
-        :param extra_tags: A dict of tags to store into the span's meta
-        :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
-        :param args: The args that will be passed as positional args to the wrapped method
-        :param kwargs: The args that will be passed as kwargs to the wrapped method
-        :return: The result of the wrapped method invocation
-        """
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
-            return await method(*args, **kwargs)
-        measured = name == self._self_datadog_name
-
-        with pin.tracer.trace(
-            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
-        ) as s:
-            if measured:
-                s.set_tag(SPAN_MEASURED_KEY)
-            # No reason to tag the query since it is set as the resource by the agent. See:
-            # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(pin.tags)
-            s.set_tags(extra_tags)
-
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
-
-            # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
-
-            if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
-
-            try:
-                return await method(*args, **kwargs)
             finally:
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
@@ -253,6 +180,50 @@ class TracedCursor(wrapt.ObjectProxy):
 
         # and finally, yield the traced cursor.
         return self
+
+
+class TracedAsyncCursor(TracedCursor):
+    async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
+        """
+        Internal function to trace the call to the underlying cursor method
+        :param method: The callable to be wrapped
+        :param name: The name of the resulting span.
+        :param resource: The sql query. Sql queries are obfuscated on the agent side.
+        :param extra_tags: A dict of tags to store into the span's meta
+        :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
+        :param args: The args that will be passed as positional args to the wrapped method
+        :param kwargs: The args that will be passed as kwargs to the wrapped method
+        :return: The result of the wrapped method invocation
+        """
+        pin = Pin.get_from(self)
+        if not pin or not pin.enabled():
+            return await method(*args, **kwargs)
+        measured = name == self._self_datadog_name
+
+        with pin.tracer.trace(
+            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
+        ) as s:
+            if measured:
+                s.set_tag(SPAN_MEASURED_KEY)
+            # No reason to tag the query since it is set as the resource by the agent. See:
+            # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
+            s.set_tags(pin.tags)
+            s.set_tags(extra_tags)
+
+            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set analytics sample rate if enabled but only for non-FetchTracedCursor
+            if not isinstance(self, FetchTracedCursor):
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
+
+            if dbm_propagator:
+                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+
+            try:
+                return await method(*args, **kwargs)
+            finally:
+                # Try to fetch custom properties that were passed by the specific Database implementation
+                self._set_post_execute_tags(s)
 
     async def executemany(self, query, *args, **kwargs):  # noqa
         """Wraps the cursor.executemany method"""
@@ -330,6 +301,8 @@ class FetchTracedCursor(TracedCursor):
             self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, None, *args, **kwargs
         )
 
+
+class FetchTracedAsyncCursor(TracedAsyncCursor):
     """FetchTracedAsyncCursor for psycopg"""
 
     async def fetchone(self, *args, **kwargs):  # noqa
@@ -445,7 +418,7 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, self._self_config)
+        return self._self_cursor_cls(cursor=cursor, pin=pin, cfg=self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
@@ -455,6 +428,8 @@ class TracedConnection(wrapt.ObjectProxy):
         span_name = "{}.{}".format(self._self_datadog_name, "rollback")
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
+
+class TracedAsyncConnection(wrapt.ObjectProxy):
     async def __aenter__(self):  # noqa
         """Context management is not defined by the dbapi spec.
 
