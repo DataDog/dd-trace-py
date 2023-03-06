@@ -219,7 +219,11 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                accept_header = headers.get("accept", "text/json")
+                accept_header = (
+                    "text/html"
+                    if "text/html" in _asm_request_context.get_headers().get("accept", "").lower()
+                    else "text/json"
+                )
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = [
                         (
