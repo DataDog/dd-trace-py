@@ -60,6 +60,8 @@ class ConfigMetadata(object):
     sha256_hash = attr.ib(type=Optional[str])
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
+    apply_state = attr.ib(type=Optional[int])
+    apply_error = attr.ib(type=Optional[str])
 
 
 @attr.s
@@ -433,12 +435,15 @@ class RemoteConfigClient(object):
                 try:
                     log.debug("Load new configuration: %s. content ", target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
+                    config.apply_state = 1  # Unacknowledged (not applied yet)
                 except Exception:
-                    log.debug(
-                        "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
-                    )
+                    error_message = "Failed to load configuration %s for product %r" % (config, config.product_name)
+                    log.debug(error_message, exc_info=True)
+                    applied_config.apply_state = 3  # Error state
+                    applied_config.apply_error = error_message
                     continue
                 else:
+                    config.apply_state = 2  # Acknowledged (applied)
                     applied_configs[target] = config
 
         for callback_to_dispach in list_callbacks:
