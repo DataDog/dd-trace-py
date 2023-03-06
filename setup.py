@@ -44,9 +44,13 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
 
+LIBDDOG_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "internal", "libddog"))
+
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.8.2"
+
+LIBDDDOG_VERSION = "2.0.0"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -114,14 +118,62 @@ class Tox(TestCommand):
         if args:
             args = shlex.split(self.tox_args)
 
-        LibDDWaf_Download.download_dynamic_library()
+        DynamicLibs_Download.download_dynamic_libraries()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
 
-class LibDDWaf_Download(BuildPyCommand):
+class DynamicLibs_Download(BuildPyCommand):
     @staticmethod
-    def download_dynamic_library():
+    def download_dynamic_libraries():
+        DynamicLibs_Download.download_libddwaf()
+        DynamicLibs_Download.download_libddog()
+
+    @staticmethod
+    def download_libddog():
+        SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}[CURRENT_OS]
+        AVAILABLE_RELEASES = {"Linux": ["aarch64", "x86_64"]}
+
+        if os.path.isdir(LIBDDOG_DOWNLOAD_DIR) and len(os.listdir(LIBDDOG_DOWNLOAD_DIR)):
+            return
+
+        if not os.path.isdir(LIBDDOG_DOWNLOAD_DIR):
+            os.makedirs(LIBDDOG_DOWNLOAD_DIR)
+
+        for arch in AVAILABLE_RELEASES[CURRENT_OS]:
+            arch_dir = os.path.join(LIBDDOG_DOWNLOAD_DIR, arch)
+            # If the directory for the architecture exists, assume the right files are there
+            if os.path.isdir(arch_dir):
+                continue
+
+            archive_dir = "libdatadog-%s-unknown-linux-gnu" % (arch,)
+            archive_name = archive_dir + ".tar.gz"
+
+            download_address = "https://github.com/DataDog/libdatadog/releases/download/v%s/%s" % (
+                LIBDDDOG_VERSION,
+                archive_name,
+            )
+            try:
+                filename, http_response = urlretrieve(download_address, archive_name)
+            except HTTPError as e:
+                print("No archive found for dynamic library ddwaf : " + archive_dir)
+                raise e
+
+            # Open the tarfile first to get the files needed.
+            # This could be solved with "r:gz" mode, that allows random access
+            # but that approach does not work on Windows
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                print("extracting files:", [c.name for c in dynfiles])
+                tar.extractall(members=dynfiles, path=HERE)
+                os.rename(os.path.join(HERE, archive_dir), arch_dir)
+
+            os.remove(filename)
+
+    @staticmethod
+    def download_libddwaf():
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
@@ -189,7 +241,7 @@ class LibDDWaf_Download(BuildPyCommand):
             os.remove(filename)
 
     def run(self):
-        LibDDWaf_Download.download_dynamic_library()
+        DynamicLibs_Download.download_dynamic_libraries()
         BuildPyCommand.run(self)
 
 
@@ -197,6 +249,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_dynamic_library():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        shutil.rmtree(LIBDDOG_DOWNLOAD_DIR, True)
 
     def run(self):
         CleanLibraries.remove_dynamic_library()
@@ -382,7 +435,7 @@ setup(
     cmdclass={
         "test": Tox,
         "build_ext": BuildExtCommand,
-        "build_py": LibDDWaf_Download,
+        "build_py": DynamicLibs_Download,
         "clean": CleanLibraries,
     },
     entry_points={
