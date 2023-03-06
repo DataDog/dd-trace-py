@@ -291,7 +291,6 @@ def test_load_multiple_targets_file_same_product(
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
-        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'
@@ -339,7 +338,6 @@ def test_remove_targets_file_same_product(
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
-        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'

@@ -157,10 +157,9 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
 
 
 class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
-    configs = {}
-
     def __init__(self, tracer):
         # type: (Tracer) -> None
+        super(RCAppSecCallBack, self).__init__()
         self.tracer = tracer
 
     def __call__(self, target, features):

@@ -155,7 +155,8 @@ class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
 
 
 class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
-    configs = {}  # type: Dict[str, Any]
+    def __init__(self):
+        self.configs = {}
 
     @abc.abstractmethod
     def __call__(self, target, config):
@@ -412,14 +413,24 @@ class RemoteConfigClient(object):
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
         list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
+        print("_applied_configs")
+        print(self._applied_configs)
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
                 applied_config = self._applied_configs.get(target)
+                print("applied_config!!!!!")
+                print(applied_config)
+                print("config!!!!!")
+                print(config)
+                print("applied_config == config!!!!!!!!!!!!!1")
+                print(applied_config == config)
                 if applied_config == config:
                     continue
 
                 config_content = self._extract_target_file(payload, target, config)
+                print("config_content!!!!!!!!!!!!!1")
+                print(config_content)
                 if config_content is None:
                     continue
 
