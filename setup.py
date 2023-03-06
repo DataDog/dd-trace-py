@@ -120,7 +120,7 @@ class Tox(TestCommand):
 
 
 def is_64_bit_python():
-    return sys.maxsize > 2 ** 32
+    return sys.maxsize > (1 << 32)
 
 
 class CleanLibraries(CleanCommand):
