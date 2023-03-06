@@ -6,6 +6,7 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.utils.formats import asbool
 
@@ -44,12 +45,13 @@ def enable_appsec_rc(test_tracer=None):
     else:
         tracer = test_tracer
 
+    appsec_features_callback = RCAppSecFeaturesCallBack(tracer)
     appsec_callback = RCAppSecCallBack(tracer)
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
-        RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_callback)
+        RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_features_callback)
 
     if tracer._appsec_enabled:
         from ddtrace.internal.remoteconfig import RemoteConfig
@@ -85,15 +87,17 @@ def _appsec_rules_data(tracer, features):
     return False
 
 
-class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
-    configs = {}
-
+class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
     def __init__(self, tracer):
         # type: (Tracer) -> None
         self.tracer = tracer
 
     def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Any) -> None
+        if features is not None:
+            self._appsec_1click_activation(features)
+
+    def _appsec_1click_activation(self, features):
+        # type: (Union[Literal[False], Mapping[str, Any]]) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -107,15 +111,6 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         | true              | true       | Enabled  |
         ```
         """
-
-        if features is not None:
-            # The order of this matters since 1click could reconfigure the AppSecProcessor
-            # which the second checks
-            self._appsec_1click_activation(features)
-            _appsec_rules_data(self.tracer, features)
-
-    def _appsec_1click_activation(self, features):
-        # type: (Union[Literal[False], Mapping[str, Any]]) -> None
         if APPSEC_ENV in os.environ:
             # no one click activation if var env is set
             rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
@@ -131,9 +126,10 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
             log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
-                RemoteConfig.register(PRODUCTS.ASM_DATA, self)  # IP Blocking
-                RemoteConfig.register(PRODUCTS.ASM, self)  # Exclusion Filters & Custom Rules
-                RemoteConfig.register(PRODUCTS.ASM_DD, self)  # DD Rules
+                appsec_callback = RCAppSecCallBack(self.tracer)
+                RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
+                RemoteConfig.register(PRODUCTS.ASM, appsec_callback)  # Exclusion Filters & Custom Rules
+                RemoteConfig.register(PRODUCTS.ASM_DD, appsec_callback)  # DD Rules
                 if not self.tracer._appsec_enabled:
                     self.tracer.configure(appsec_enabled=True)
                 else:
@@ -147,3 +143,16 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
                     self.tracer.configure(appsec_enabled=False)
                 else:
                     config._appsec_enabled = False
+
+
+class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
+    configs = {}
+
+    def __init__(self, tracer):
+        # type: (Tracer) -> None
+        self.tracer = tracer
+
+    def __call__(self, metadata, features):
+        # type: (Optional[ConfigMetadata], Any) -> None
+        if features is not None:
+            _appsec_rules_data(self.tracer, features)
