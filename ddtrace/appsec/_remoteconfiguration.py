@@ -31,7 +31,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Union
 
     from ddtrace import Tracer
-    from ddtrace.internal.remoteconfig.client import ConfigMetadata
 
 log = get_logger(__name__)
 
@@ -45,20 +44,21 @@ def enable_appsec_rc(test_tracer=None):
     else:
         tracer = test_tracer
 
-    appsec_features_callback = RCAppSecFeaturesCallBack(tracer)
-    appsec_callback = RCAppSecCallBack(tracer)
+    asm_features_callback = RCAppSecFeaturesCallBack(tracer)
+    asm_dd_callback = RCASMDDCallBack(tracer)
+    asm_callback = RCAppSecCallBack(tracer)
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
-        RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_features_callback)
+        RemoteConfig.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
 
     if tracer._appsec_enabled:
         from ddtrace.internal.remoteconfig import RemoteConfig
 
-        RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
-        RemoteConfig.register(PRODUCTS.ASM, appsec_callback)  # Exclusion Filters & Custom Rules
-        RemoteConfig.register(PRODUCTS.ASM_DD, appsec_callback)  # DD Rules
+        RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+        RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+        RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
 
 
 def _add_rules_to_list(features, feature, message, rule_list):
@@ -85,6 +85,16 @@ def _appsec_rules_data(tracer, features):
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
 
     return False
+
+
+class RCASMDDCallBack(RemoteConfigCallBack):
+    def __init__(self, tracer):
+        # type: (Tracer) -> None
+        self.tracer = tracer
+
+    def __call__(self, metadata, features):
+        if features is not None:
+            _appsec_rules_data(self.tracer, features)
 
 
 class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
@@ -126,10 +136,11 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
             log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
-                appsec_callback = RCAppSecCallBack(self.tracer)
-                RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
-                RemoteConfig.register(PRODUCTS.ASM, appsec_callback)  # Exclusion Filters & Custom Rules
-                RemoteConfig.register(PRODUCTS.ASM_DD, appsec_callback)  # DD Rules
+                asm_dd_callback = RCASMDDCallBack(self.tracer)
+                asm_callback = RCAppSecCallBack(self.tracer)
+                RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+                RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+                RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
                 if not self.tracer._appsec_enabled:
                     self.tracer.configure(appsec_enabled=True)
                 else:
@@ -152,7 +163,7 @@ class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
         # type: (Tracer) -> None
         self.tracer = tracer
 
-    def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Any) -> None
+    def __call__(self, target, features):
+        # type: (str, Any) -> None
         if features is not None:
             _appsec_rules_data(self.tracer, features)

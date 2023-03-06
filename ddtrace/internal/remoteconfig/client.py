@@ -154,15 +154,35 @@ class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
-class RemoteConfigCallBackAfterMerge(RemoteConfigCallBack):
+class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
     configs = {}  # type: Dict[str, Any]
 
-    def append(self, config):
-        self.configs.update(config)
+    @abc.abstractmethod
+    def __call__(self, target, config):
+        # type: (str, Any) -> None
+        pass
+
+    def append(self, target, config):
+        if not self.configs.get(target):
+            self.configs[target] = {}
+        if config is False:
+            del self.configs[target]
+        elif config is not None:
+            self.configs[target].update(config)
 
     def dispatch(self):
         try:
-            self.__call__(None, self.configs)
+            config_result = {}
+            for target, config in self.configs.items():
+                for key, value in config.items():
+                    if config_result.get(key):
+                        if isinstance(value, list):
+                            config_result[key] = config_result[key] + value
+                        else:
+                            raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
+                    else:
+                        config_result[key] = value
+            self.__call__("", config_result)
         finally:
             self.configs = {}
 
@@ -351,10 +371,22 @@ class RemoteConfigClient(object):
         backend_state = signed.custom.get("opaque_backend_state")
         return signed.version, backend_state, targets
 
+    @staticmethod
+    def _apply_callback(list_callbacks, callback, config_content, target, config):
+        # type: (List[RemoteConfigCallBackAfterMerge], Any, Any, str, ConfigMetadata) -> None
+        if isinstance(callback, RemoteConfigCallBackAfterMerge):
+            callback.append(target, config_content)
+            if callback not in list_callbacks and not any(
+                filter(lambda x: isinstance(x, type(callback)), list_callbacks)
+            ):
+                list_callbacks.append(callback)
+        else:
+            callback(config, config_content)
+
     def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
         # type: (AppliedConfigType, TargetsType, TargetsType) -> None
+        list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
         for target, config in self._applied_configs.items():
-            callback_action = None
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
@@ -362,18 +394,24 @@ class RemoteConfigClient(object):
             elif target not in client_configs:
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
+            else:
+                continue
 
             callback = self._products.get(config.product_name)
             if callback:
                 try:
-                    callback(config, callback_action)
+                    log.debug("Disable configuration 2: %s. ", target)
+                    self._apply_callback(list_callbacks, callback, callback_action, target, config)
                 except Exception:
                     log.debug("error while removing product %s config %r", config.product_name, config)
                     continue
 
+        for callback_to_dispach in list_callbacks:
+            callback_to_dispach.dispatch()
+
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []
+        list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
@@ -387,12 +425,7 @@ class RemoteConfigClient(object):
 
                 try:
                     log.debug("Load new configuration: %s. content ", target)
-                    if isinstance(callback, RemoteConfigCallBackAfterMerge):
-                        callback.append(config_content)
-                        if callback not in list_callbacks:
-                            list_callbacks.append(callback)
-                    else:
-                        callback(config, config_content)
+                    self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
                     log.debug(
                         "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
@@ -400,8 +433,9 @@ class RemoteConfigClient(object):
                     continue
                 else:
                     applied_configs[target] = config
-        for callback in list_callbacks:
-            callback.dispatch()
+
+        for callback_to_dispach in list_callbacks:
+            callback_to_dispach.dispatch()
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:
