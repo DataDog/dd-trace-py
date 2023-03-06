@@ -11,7 +11,6 @@ from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
 
 try:
     # ORDER MATTERS
@@ -199,18 +198,9 @@ class LibDDWaf_Download(BuildPyCommand):
             os.remove(filename)
 
     def run(self):
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         LibDDWaf_Download.download_dynamic_library()
         BuildPyCommand.run(self)
-
-
-class CleanLibraries(CleanCommand):
-    @staticmethod
-    def remove_dynamic_library():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-
-    def run(self):
-        CleanLibraries.remove_dynamic_library()
-        CleanCommand.run(self)
 
 
 long_description = """
@@ -392,7 +382,6 @@ setup(
         "test": Tox,
         "build_ext": BuildExtCommand,
         "build_py": LibDDWaf_Download,
-        "clean": CleanLibraries,
     },
     entry_points={
         "console_scripts": [

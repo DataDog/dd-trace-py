@@ -127,8 +127,6 @@ jobs:
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
           CIBW_BUILD_VERBOSITY_WINDOWS: 3
-          CIBW_BEFORE_BUILD: python setup.py clean
-
 
       - uses: actions/upload-artifact@v3
         with:
