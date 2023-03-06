@@ -8,6 +8,7 @@ import time
 import mock
 from mock.mock import ANY
 import pytest
+import six
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import PRODUCTS
@@ -283,6 +284,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
 
 
+@pytest.mark.skipif(six.PY2, reason="Mock return order is different in python 2.7")
 @mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_multiple_targets_file_same_product(
@@ -407,6 +409,7 @@ def test_remove_targets_file_same_product(
         mock_appsec_rules_data.assert_called_with(ANY, {})
 
 
+@pytest.mark.skipif(six.PY2, reason="Mock return order is different in python 2.7")
 @mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_config_and_remove_targets_file_same_product(
