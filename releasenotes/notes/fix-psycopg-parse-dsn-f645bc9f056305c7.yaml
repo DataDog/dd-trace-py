@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This change fixes a bug with DSN parsing in the psycopg2
+    integration.

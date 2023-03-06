@@ -1,6 +1,7 @@
 import os
 
 import psycopg2
+from psycopg2.extensions import parse_dsn
 from psycopg2.sql import Composable
 
 from ddtrace import Pin
@@ -11,7 +12,6 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
@@ -106,7 +106,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     c = traced_conn_cls(conn)
 
     # fetch tags from the dsn
-    dsn = sql.parse_pg_dsn(conn.dsn)
+    dsn = parse_dsn(conn.dsn)
     tags = {
         net.TARGET_HOST: dsn.get("host"),
         net.TARGET_PORT: dsn.get("port"),
