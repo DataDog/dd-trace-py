@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "aws.lambda",
+    "service": "",
+    "resource": "aws.lambda",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "2a38d844990949379810ed84bb6e71d7"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 55112
+    },
+    "duration": 6433000,
+    "start": 1677616801872185000
+  }]]

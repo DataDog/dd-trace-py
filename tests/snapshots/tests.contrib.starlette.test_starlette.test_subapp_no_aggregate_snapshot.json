@@ -17,7 +17,8 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,8 +27,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 46438
     },
-    "duration": 417000,
-    "start": 1666810088224639000
+    "duration": 263000,
+    "start": 1667244144959128000
   },
      {
        "name": "starlette.request",
@@ -44,8 +45,9 @@
          "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
-         "http.version": "1.1"
+         "http.version": "1.1",
+         "span.kind": "server"
        },
-       "duration": 225000,
-       "start": 1666810088224858000
+       "duration": 113000,
+       "start": 1667244144959290000
      }]]

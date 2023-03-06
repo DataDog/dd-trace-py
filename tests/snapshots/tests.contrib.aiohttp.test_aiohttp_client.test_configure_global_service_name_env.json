@@ -16,7 +16,8 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
-      "runtime-id": "8526833e8df641078cadc6c0afac4e1a"
+      "runtime-id": "199b022a2b424271839012721b577861",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 48841
     },
-    "duration": 13019000,
-    "start": 1666808694312566000
+    "duration": 21637000,
+    "start": 1667240262983497000
   },
      {
        "name": "TCPConnector.connect",

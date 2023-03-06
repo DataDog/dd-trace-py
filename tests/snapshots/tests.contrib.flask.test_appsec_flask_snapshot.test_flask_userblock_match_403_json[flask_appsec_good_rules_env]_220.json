@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "",
+      "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-002\",\"name\":\"Block User Addresses\",\"tags\":{\"type\":\"block_user\",\"category\":\"security_response\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"exact_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"usr.id\",\"key_path\":[],\"value\":\"123456\",\"highlight\":[\"123456\"]}]}]}]}",
       "_dd.appsec.waf.version": "1.8.2",
       "_dd.origin": "appsec",
@@ -37,7 +37,8 @@
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "9ff1bcaa1e6a41e7b4d1ee953f124793",
+      "runtime-id": "1a9c2a41c0ab4eb78d135c5aea929ebb",
+      "span.kind": "server",
       "usr.id": "123456"
     },
     "metrics": {

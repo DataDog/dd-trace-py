@@ -20,14 +20,18 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.contrib.django.compat import get_resolver
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import _context
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -162,7 +166,20 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             keys = utils.quantize_key_values(args[0])
             span.set_tag_str("django.cache.key", keys)
 
-        return func(*args, **kwargs)
+        result = func(*args, **kwargs)
+        command_name = func.__name__
+        if command_name == "get_many":
+            span.set_metric(
+                db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+            )
+        elif command_name == "get":
+            # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
+            # missing key
+            if result and result != getattr(instance, "_missing_key", None):
+                span.set_metric(db.ROWCOUNT, 1)
+            else:
+                span.set_metric(db.ROWCOUNT, 0)
+        return result
 
 
 def instrument_caches(django):
@@ -372,6 +389,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         ) as span:
             _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             span.set_tag_str(COMPONENT, config.django.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             utils._before_request_tags(pin, span, request)
             span._metrics[SPAN_MEASURED_KEY] = 1

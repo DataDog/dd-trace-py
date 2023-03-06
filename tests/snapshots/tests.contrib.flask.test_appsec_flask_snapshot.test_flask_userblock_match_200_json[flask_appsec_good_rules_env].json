@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "",
+      "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.waf.version": "1.8.2",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",
@@ -28,7 +28,8 @@
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "c880c45b1c8c41948745944f08826242"
+      "runtime-id": "42f560dc61cf46e1b293120c41d29109",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

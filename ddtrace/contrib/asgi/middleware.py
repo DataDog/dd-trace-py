@@ -6,6 +6,8 @@ from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
@@ -141,6 +143,9 @@ class TraceMiddleware:
             )
 
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             if "datadog" not in scope:
                 scope["datadog"] = {"request_spans": [span]}
