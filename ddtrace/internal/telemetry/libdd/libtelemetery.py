@@ -49,85 +49,74 @@ class LibddAPI:
     #
     #                                                        ddog_CharSlice tracer_version);
     def ddog_builder_instantiate(self, builder, service, language, language_verion, ddtrace_version):
-        with self._lock:
-            self._libdd.ddog_builder_instantiate.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_instantiate(
-                byref(builder),
-                str_to_charslice(service),
-                str_to_charslice(language),
-                str_to_charslice(language_verion),
-                str_to_charslice(ddtrace_version),
-            )
+        self._libdd.ddog_builder_instantiate.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_instantiate(
+            byref(builder),
+            str_to_charslice(service),
+            str_to_charslice(language),
+            str_to_charslice(language_verion),
+            str_to_charslice(ddtrace_version),
+        )
 
     def ddog_builder_with_bool_config_telemetry_debug_logging_enabled(self, builder, debug):
-        with self._lock:
-            self._libdd.ddog_builder_with_bool_config_telemetry_debug_logging_enabled(builder, c_bool(debug))
+        self._libdd.ddog_builder_with_bool_config_telemetry_debug_logging_enabled(builder, c_bool(debug))
 
     def ddog_builder_with_path_config_mock_client_file(self, builder, filename):
         # send telemetry events to file
-        with self._lock:
-            return self._libdd.ddog_builder_with_path_config_mock_client_file(builder, str_to_charslice(filename))
+        return self._libdd.ddog_builder_with_path_config_mock_client_file(builder, str_to_charslice(filename))
 
     # ddog_MaybeError ddog_builder_with_native_deps(struct ddog_TelemetryWorkerBuilder *builder,
     #                                               bool include_native_deps)
     def ddog_builder_with_native_deps(self, builder, use_native_deps):
-        with self._lock:
-            self._libdd.ddog_builder_with_native_deps.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_with_native_deps(builder, c_bool(use_native_deps))
+        self._libdd.ddog_builder_with_native_deps.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_with_native_deps(builder, c_bool(use_native_deps))
 
     # ddog_MaybeError ddog_builder_with_rust_shared_lib_deps(struct ddog_TelemetryWorkerBuilder *builder,
     #                                                    bool include_rust_shared_lib_deps);
     def ddog_builder_with_rust_shared_lib_deps(self, builder, use_native_deps):
         # Do not include rust shared library deps
-        with self._lock:
-            self._libdd.ddog_builder_with_rust_shared_lib_deps.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_with_rust_shared_lib_deps(builder, c_bool(use_native_deps))
+        self._libdd.ddog_builder_with_rust_shared_lib_deps.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_with_rust_shared_lib_deps(builder, c_bool(use_native_deps))
 
     def ddog_builder_with_str_named_property(self, builder, prop, value):
-        with self._lock:
-            self._libdd.ddog_builder_with_str_named_property.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_with_str_named_property(
-                builder, str_to_charslice(prop), str_to_charslice(value)
-            )
+        self._libdd.ddog_builder_with_str_named_property.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_with_str_named_property(
+            builder, str_to_charslice(prop), str_to_charslice(value)
+        )
 
     # ddog_MaybeError ddog_builder_run(struct ddog_TelemetryWorkerBuilder *builder,
     #                                  struct ddog_TelemetryWorkerHandle **handle);
     # starts worker
     def ddog_builder_run(self, builder, handler):
-        with self._lock:
-            self._libdd.ddog_builder_run.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_run(builder, byref(handler))
+        self._libdd.ddog_builder_run.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_run(builder, byref(handler))
 
     # ddog_MaybeError ddog_handle_start(const struct ddog_TelemetryWorkerHandle *handle);
     def ddog_handle_start(self, handler):
-        with self._lock:
-            self._libdd.ddog_handle_start.restype = ddog_MaybeError
-            # sends app started
-            return self._libdd.ddog_handle_start(handler)
+        self._libdd.ddog_handle_start.restype = ddog_MaybeError
+        # sends app started
+        return self._libdd.ddog_handle_start(handler)
 
     # ddog_MaybeError ddog_handle_stop(const struct ddog_TelemetryWorkerHandle *handle);
     def ddog_handle_stop(self, handler):
-        with self._lock:
-            self._libdd.ddog_handle_stop.restype = ddog_MaybeError
-            return self._libdd.ddog_handle_stop(handler)
+        self._libdd.ddog_handle_stop.restype = ddog_MaybeError
+        return self._libdd.ddog_handle_stop(handler)
 
     # ddog_handle_wait_for_shutdown
     def ddog_handle_wait_for_shutdown(self, handler):
-        with self._lock:
-            self._libdd.ddog_handle_wait_for_shutdown.restype = ddog_MaybeError
-            return self._libdd.ddog_handle_wait_for_shutdown(handler)
+        self._libdd.ddog_handle_wait_for_shutdown.restype = ddog_MaybeError
+        return self._libdd.ddog_handle_wait_for_shutdown(handler)
 
     # ddog_MaybeError ddog_handle_add_dependency(const struct ddog_TelemetryWorkerHandle *handle,
     #                                            ddog_CharSlice dependency_name,
     #                                            ddog_CharSlice dependency_version);
     def ddog_handle_add_dependency(self, handler, name, version):
-        with self._lock:
-            self._libdd.ddog_handle_add_dependency.restype = ddog_MaybeError
-            return self._libdd.ddog_handle_add_dependency(
-                handler,
-                str_to_charslice(name),
-                str_to_charslice(version),
-            )
+        self._libdd.ddog_handle_add_dependency.restype = ddog_MaybeError
+        return self._libdd.ddog_handle_add_dependency(
+            handler,
+            str_to_charslice(name),
+            str_to_charslice(version),
+        )
 
     # ddog_MaybeError ddog_handle_add_integration(const struct ddog_TelemetryWorkerHandle *handle,
     #                                             ddog_CharSlice dependency_name,
@@ -136,16 +125,15 @@ class LibddAPI:
     #                                             struct ddog_Option_Bool enabled,
     #                                             struct ddog_Option_Bool auto_enabled);
     def ddog_handle_add_integration(self, handler, name, version, compatible, enabled, auto_enabled):
-        with self._lock:
-            self._libdd.ddog_handle_add_integration.restype = ddog_MaybeError
-            return self._libdd.ddog_handle_add_integration(
-                handler,
-                str_to_charslice(name),
-                str_to_charslice(version),
-                bool_to_optionbool(compatible),
-                bool_to_optionbool(enabled),
-                bool_to_optionbool(auto_enabled),
-            )
+        self._libdd.ddog_handle_add_integration.restype = ddog_MaybeError
+        return self._libdd.ddog_handle_add_integration(
+            handler,
+            str_to_charslice(name),
+            str_to_charslice(version),
+            bool_to_optionbool(compatible),
+            bool_to_optionbool(enabled),
+            bool_to_optionbool(auto_enabled),
+        )
 
     # ddog_MaybeError ddog_handle_add_log(const struct ddog_TelemetryWorkerHandle *handle,
     #                                     ddog_CharSlice identifier,
@@ -153,27 +141,25 @@ class LibddAPI:
     #                                     enum ddog_LogLevel level,
     #                                     ddog_CharSlice stack_trace);
     def ddog_handle_add_log(self, handler, identifier, message, level, stack_trace):
-        with self._lock:
-            self._libdd.ddog_handle_add_log.restype = ddog_MaybeError
-            return self._libdd.ddog_handle_add_log(
-                handler,
-                str_to_charslice(identifier),
-                str_to_charslice(message),
-                ddog_LogLevel(level),
-                str_to_charslice(stack_trace),
-            )
+        self._libdd.ddog_handle_add_log.restype = ddog_MaybeError
+        return self._libdd.ddog_handle_add_log(
+            handler,
+            str_to_charslice(identifier),
+            str_to_charslice(message),
+            ddog_LogLevel(level),
+            str_to_charslice(stack_trace),
+        )
 
     # ddog_MaybeError ddog_builder_with_config(struct ddog_TelemetryWorkerBuilder *builder,
     #                                      ddog_CharSlice name,
     #                                      ddog_CharSlice value);
     def ddog_builder_with_config(self, builder, name, value):
-        with self._lock:
-            self._libdd.ddog_builder_with_config.restype = ddog_MaybeError
-            return self._libdd.ddog_builder_with_config(
-                builder,
-                str_to_charslice(name),
-                str_to_charslice(value),
-            )
+        self._libdd.ddog_builder_with_config.restype = ddog_MaybeError
+        return self._libdd.ddog_builder_with_config(
+            builder,
+            str_to_charslice(name),
+            str_to_charslice(value),
+        )
 
 
 class LibDDTelemetry:
@@ -203,8 +189,9 @@ class LibDDTelemetry:
         if os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "t", "1"):
             # enable debug logging
             self.libddapi.ddog_builder_with_bool_config_telemetry_debug_logging_enabled(builder, True)
-            # send telemetry events to file
-            self.libddapi.ddog_builder_with_path_config_mock_client_file(builder, self.FILENAME)
+
+        # send telemetry events to file
+        self.libddapi.ddog_builder_with_path_config_mock_client_file(builder, self.FILENAME)
 
         # Do not include native deps
         err = self.libddapi.ddog_builder_with_native_deps(builder, False)
