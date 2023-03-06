@@ -755,13 +755,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
+                "django-pylibmc": ">=0.6,<0.7",
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
-                "python-memcached": latest,
                 "pylibmc": latest,
+                "python-memcached": latest,
             },
             venvs=[
                 Venv(
