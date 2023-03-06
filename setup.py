@@ -11,6 +11,7 @@ from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
+from distutils.command.clean import clean as CleanCommand
 
 try:
     # ORDER MATTERS
@@ -122,6 +123,16 @@ def is_64_bit_python():
     return sys.maxsize > 2 ** 32
 
 
+class CleanLibraries(CleanCommand):
+    @staticmethod
+    def remove_dynamic_library():
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+
+    def run(self):
+        CleanLibraries.remove_dynamic_library()
+        CleanCommand.run(self)
+
+
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
@@ -198,7 +209,7 @@ class LibDDWaf_Download(BuildPyCommand):
             os.remove(filename)
 
     def run(self):
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        CleanLibraries.remove_dynamic_library()
         LibDDWaf_Download.download_dynamic_library()
         BuildPyCommand.run(self)
 
@@ -382,6 +393,7 @@ setup(
         "test": Tox,
         "build_ext": BuildExtCommand,
         "build_py": LibDDWaf_Download,
+        "clean": CleanLibraries,
     },
     entry_points={
         "console_scripts": [
