@@ -8,6 +8,7 @@ import pytest
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
+from ddtrace.ext.http import STATUS_CODE
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import six
@@ -482,5 +483,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             else:
                 assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
             root_span = self.pop_spans()[0]
+            assert root_span.get_tag(STATUS_CODE) == "403"
             loaded = json.loads(root_span.get_tag(APPSEC_JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]

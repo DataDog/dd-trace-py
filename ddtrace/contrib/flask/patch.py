@@ -125,7 +125,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             _asm_request_context.call_waf_callback()
             if _context.get_item("http.request.blocked", span=req_span):
                 # response code must be set here or it will be too late
-                result = start_response("403 FORBIDDEN", [])
+                response_headers = [("content-type", _asm_request_context.get_headers().get("Accept"))]
+                result = start_response("403 FORBIDDEN", response_headers)
+                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
             else:
                 result = start_response(status_code, headers)
         else:
