@@ -126,6 +126,7 @@ jobs:
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
+          CIBW_BUILD_VERBOSITY_WINDOWS: 3
 
       - uses: actions/upload-artifact@v3
         with:
