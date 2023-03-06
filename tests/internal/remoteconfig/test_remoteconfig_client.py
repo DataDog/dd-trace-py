@@ -48,7 +48,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
         def __call__(self, payload, target, config):
             self.counter += 1
-            result = {"test{}".format(self.counter): target}
+            result = {"test{}".format(self.counter): [target]}
             expected_results.update(result)
             return result
 
