@@ -57,6 +57,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["cherrypy"]
+_spec = {
+    "required_packages": [
+        "cherrypy >= 11.2.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

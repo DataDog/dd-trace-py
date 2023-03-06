@@ -81,6 +81,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["httpx"]
+_spec = {"required_packages": ["httpx>=0.9.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

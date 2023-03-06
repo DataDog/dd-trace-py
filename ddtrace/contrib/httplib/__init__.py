@@ -62,4 +62,5 @@ from .patch import patch
 from .patch import unpatch
 
 
+_spec = {"required_packages": []}
 __all__ = ["patch", "unpatch"]

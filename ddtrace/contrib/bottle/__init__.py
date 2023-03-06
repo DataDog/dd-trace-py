@@ -37,6 +37,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["bottle"]
+_spec = {"required_packages": ["bottle >= 0.11.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

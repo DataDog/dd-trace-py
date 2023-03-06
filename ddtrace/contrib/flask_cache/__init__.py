@@ -48,6 +48,12 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["flask_cache", "flask_caching"]
+_spec = {
+    "required_packages": [
+        "flask-cache>=0.12.0",
+        "flask-caching>=1.10.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if len(missing_modules) < len(required_modules):

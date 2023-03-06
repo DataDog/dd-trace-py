@@ -47,6 +47,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncpg"]
+_spec = {
+    "required_packages": [
+        "asyncpg >= 0.18.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

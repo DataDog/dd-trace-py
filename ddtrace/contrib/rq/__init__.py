@@ -96,6 +96,7 @@ __all__ = [
     "unpatch",
 ]
 
+_spec = {"required_packages": ["rq>=1.0.0"]}
 
 config._add(
     "rq",

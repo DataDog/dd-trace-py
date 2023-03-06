@@ -31,6 +31,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["rediscluster", "rediscluster.client"]
+_spec = {"required_packages": ["rediscluster>=1.3.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

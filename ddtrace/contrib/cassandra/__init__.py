@@ -25,6 +25,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["cassandra.cluster"]
+_spec = {
+    "required_packages": [
+        "cassandra-driver>=3.5.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

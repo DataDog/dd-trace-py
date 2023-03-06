@@ -67,6 +67,7 @@ from ...internal.utils.importlib import require_modules
 
 # check `mysql-connector` availability
 required_modules = ["mysql.connector"]
+_spec = {"required_packages": ["mysql>=8.0.5"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

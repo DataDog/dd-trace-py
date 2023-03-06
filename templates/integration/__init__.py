@@ -44,6 +44,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["foo"]
+_spec = {"required_packages": ["pkg>= 0.0.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

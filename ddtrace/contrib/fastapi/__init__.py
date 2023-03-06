@@ -57,6 +57,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["fastapi"]
+_spec = {"required_packages": ["fastapi>=0.51.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -52,6 +52,8 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["logging"]
+_spec = {"required_packages": []}
+
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

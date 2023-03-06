@@ -66,6 +66,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["sanic"]
+_spec = {"required_packages": ["sanic>=19.12"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

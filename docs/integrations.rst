@@ -140,7 +140,7 @@ Django
 .. automodule:: ddtrace.contrib.django
 
 
-.. _dogpile.cache:
+.. _dogpile_cache:
 
 dogpile.cache
 ^^^^^^^^^^^^^
@@ -272,7 +272,7 @@ Mongoengine
 .. automodule:: ddtrace.contrib.mongoengine
 
 
-.. _mysql-connector:
+.. _mysql:
 
 mysql-connector
 ^^^^^^^^^^^^^^^
@@ -356,7 +356,7 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib.pytest_bdd
 
-.. _psycopg2:
+.. _psycopg:
 
 psycopg
 ^^^^^^^
@@ -419,7 +419,7 @@ SQLAlchemy
 .. automodule:: ddtrace.contrib.sqlalchemy
 
 
-.. _sqlite:
+.. _sqlite3:
 
 SQLite
 ^^^^^^

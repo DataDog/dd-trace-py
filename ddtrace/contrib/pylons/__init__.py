@@ -57,6 +57,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pylons.wsgiapp"]
+_spec = {"required_packages": ["pylons>=0.9.6"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

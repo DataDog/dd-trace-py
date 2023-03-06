@@ -44,6 +44,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncio"]
+_spec = {
+    "required_packages": [
+        "asyncio>=0.0.0; python_version>=3.5",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

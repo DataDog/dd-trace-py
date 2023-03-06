@@ -23,6 +23,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["consul"]
+_spec = {
+    "required_packages": [
+        "python-consul >= 0.7.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

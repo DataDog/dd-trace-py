@@ -62,6 +62,8 @@ import os
 from ddtrace import config
 
 
+_spec = {"required_packages": ["pytest>=4.0.0"]}
+
 # pytest default settings
 config._add(
     "pytest",

@@ -39,6 +39,7 @@ Global Configuration
 from .wsgi import DDWSGIMiddleware
 
 
+_spec = {"required_packages": []}
 __all__ = [
     "DDWSGIMiddleware",
 ]

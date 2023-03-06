@@ -11,23 +11,22 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-
 from datetime import datetime
+import importlib
 import os.path
 import re
 from typing import Any
+from typing import List
 from typing import Optional
 
 from docutils import nodes
 from docutils import statemachine
 from docutils.parsers import rst
+from docutils.utils import new_document
 import dulwich.repo
-from enchant.tokenize import Filter
+
+# from enchant.tokenize import Filter
+from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from reno import config
 from reno import formatter
@@ -37,17 +36,23 @@ from sphinx.util.nodes import nested_parse_with_titles
 import yaml
 
 
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+#
+
+
 # from setuptools-scm
 # https://github.com/pypa/setuptools_scm/blob/69b88a20c5cd4632ef0c97b3ddd2bd0d3f8f7df8/src/setuptools_scm/config.py#L9
 VERSION_TAG_REGEX_STRING = r"^(?:[\w-]+-)?(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+]*)(?:\+.*)?$"
 VERSION_TAG_REGEX = re.compile(VERSION_TAG_REGEX_STRING)
 
 
-class VersionTagFilter(Filter):
-    """If a word matches a version tag used for the repository"""
-
-    def _skip(self, word):
-        return VERSION_TAG_REGEX.match(word)
+# class VersionTagFilter(Filter):
+#     """If a word matches a version tag used for the repository"""
+#
+#     def _skip(self, word):
+#         return VERSION_TAG_REGEX.match(word)
 
 
 # append the ddtrace path to syspath
@@ -68,14 +73,14 @@ class VersionTagFilter(Filter):
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
-    "reno.sphinxext",
-    "sphinxcontrib.spelling",
+    # "reno.sphinxext",
+    # "sphinxcontrib.spelling",
     "envier.sphinx",
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
 
 # Add filters for sphinxcontrib.spelling
-spelling_filters = [VersionTagFilter]
+# spelling_filters = [VersionTagFilter]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -117,7 +122,7 @@ autodoc_member_order = "bysource"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -396,6 +401,93 @@ texinfo_documents = [
 
 
 LOG = logging.getLogger(__name__)
+
+
+class DDTraceIntegrationVersionSupport(rst.Directive):
+    has_content = True
+
+    def __init__(self, *args, **kwargs):
+        super(DDTraceIntegrationVersionSupport, self).__init__(*args, **kwargs)
+
+    def _parse(self, cell):
+        RST_PARSER = rst.Parser()
+        doc = new_document("", self.state.document.settings)
+        RST_PARSER.parse(cell, doc)
+        return doc.children
+
+    def _row_fmt(self, cells):
+        row = nodes.row()
+        for c, fmt in cells:
+            entry = nodes.entry()
+            row += entry
+            if fmt == "txt":
+                el = nodes.paragraph("", c)
+            else:
+                el = self._parse(c)
+            entry += el
+        return row
+
+    def run(self):
+        # type: () -> List[nodes.Node]
+        options = yaml.load("\n".join(self.content), Loader=yaml.CLoader) if self.has_content else {}
+        ignored = options.get("ignore")
+
+        table = nodes.table()
+        tgroup = nodes.tgroup(cols=3)
+        table += tgroup
+        for col_width in (6, 2, 6):
+            tgroup += nodes.colspec(colwidth=col_width)
+        thead = nodes.thead()
+        tgroup += thead
+        thead += self._row_fmt(
+            (
+                ("Integration", "txt"),
+                ("Supported Version", "txt"),
+                (":ref:`Automatically Instrumented<ddtracerun>`", "rst"),
+            )
+        )
+        tbody = nodes.tbody()
+        tgroup += tbody
+
+        monkey = importlib.import_module("ddtrace._monkey")
+        integrations = [
+            f
+            for f in os.listdir(os.path.join("ddtrace", "contrib"))
+            if os.path.isdir(os.path.join("ddtrace", "contrib", f)) and not f.startswith("_")
+        ]
+        for i in sorted(integrations):
+            if i in ignored:
+                LOG.debug("ignored integration %s", i)
+                continue
+            try:
+                mod = importlib.import_module("ddtrace.contrib.%s" % i)
+            except ImportError:
+                LOG.warning("failed to import integration %s" % i)
+            else:
+                spec = getattr(mod, "_spec", None)
+                if spec is None:
+                    LOG.warning("integration %r does not have _spec", i)
+                    continue
+                int_ref = ":ref:`%s`" % i
+
+                # Assume there is just one package required for the integration
+                # (currently this assumption holds).
+                pkgs = spec.get("required_packages")
+                if pkgs is None:
+                    LOG.warning("integration %r does not specify required_packages", i)
+                # assert len(pkgs) == 1
+                from pkg_resources import Requirement
+
+                if pkgs:
+                    pkg = pkgs[0]
+                    req = Requirement.parse(pkg)
+                    version = ",".join(["".join(s) for s in req.specs])
+                else:
+                    version = "*"
+                auto_inst_support = monkey.PATCH_MODULES.get(i, False)
+                auto_inst_support = "Yes" if auto_inst_support else "No"
+                tbody += self._row_fmt(((int_ref, "rst"), (version, "txt"), (auto_inst_support, "txt")))
+        return [table]
 
 
 class DDTraceReleaseNotesDirective(rst.Directive):
@@ -740,5 +832,6 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
     app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
+    app.add_directive("ddtrace-integration-version-support", DDTraceIntegrationVersionSupport)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
     return metadata_dict

@@ -93,6 +93,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["botocore.client"]
+_spec = {
+    "required_packages": [
+        "botocore>=1.4.51",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

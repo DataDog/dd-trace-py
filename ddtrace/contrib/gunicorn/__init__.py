@@ -7,6 +7,8 @@ ddtrace works with Gunicorn.
     possible in your application's lifecycle.
 """
 
+_spec = {"required_packages": ["gunicorn>=19.10.0"]}
+
 
 def patch():
     pass

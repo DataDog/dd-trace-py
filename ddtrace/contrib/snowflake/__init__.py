@@ -62,6 +62,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["snowflake.connector"]
+_spec = {"required_packages": ["snowflake>=2.0.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -54,6 +54,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["gevent"]
+_spec = {
+    "required_packages": [
+            "gevent>=1.1.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

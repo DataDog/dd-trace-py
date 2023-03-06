@@ -19,6 +19,9 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["aiopg"]
+_spec = {
+    "required_packages": ["aiomysql>= 0.12.0, <= 0.16.0"],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

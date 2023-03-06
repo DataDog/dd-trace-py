@@ -52,4 +52,9 @@ Example::
 from .patch import patch
 
 
+_spec = {
+    "required_packages": [
+        "elasticsearch>=1.6.0",
+    ],
+}
 __all__ = ["patch"]

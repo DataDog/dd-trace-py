@@ -56,4 +56,5 @@ To configure the integration on an per-connection basis use the
 from .patch import patch
 
 
+_spec = {"required_packages": ["starlette>=0.13"]}
 __all__ = ["patch"]

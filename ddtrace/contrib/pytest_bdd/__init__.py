@@ -25,6 +25,8 @@ Please follow the instructions for enabling `pytest` integration.
 from ddtrace import config
 
 
+_spec = {"required_packages": ["pytest-bdd>=3.0.0"]}
+
 # pytest-bdd default settings
 config._add(
     "pytest_bdd",

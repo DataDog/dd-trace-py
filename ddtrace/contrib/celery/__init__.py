@@ -46,6 +46,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["celery"]
+_spec = {
+    "required_packages": [
+        "celery>=3.1.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

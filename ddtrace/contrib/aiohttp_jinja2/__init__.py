@@ -17,6 +17,11 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["aiohttp_jinja2"]
+_spec = {
+    "required_packages": [
+        "aiohttp_jinja2 >= 1.3.0",
+    ],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

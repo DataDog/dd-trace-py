@@ -57,6 +57,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pyodbc"]
+_spec = {"required_packages": ["pyodbc>=3.0.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -14,6 +14,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["mako"]
+_spec = {"required_packages": ["mako>=0.1.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

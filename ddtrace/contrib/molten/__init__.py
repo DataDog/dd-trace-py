@@ -38,6 +38,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["molten"]
+_spec = {"required_packages": ["molten>=0.6.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

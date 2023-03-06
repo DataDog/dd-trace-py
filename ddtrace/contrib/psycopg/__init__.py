@@ -64,6 +64,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["psycopg2"]
+_spec = {"required_packages": ["psycopg2>=2.7.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

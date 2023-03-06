@@ -28,6 +28,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pymemcache"]
+_spec = {"required_packages": ["pymemcache>=1.4.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

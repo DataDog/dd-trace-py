@@ -27,6 +27,9 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["algoliasearch", "algoliasearch.version"]
+_spec = {
+    "required_packages": ["algoliasearch >= 1.20.0"],
+}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

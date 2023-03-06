@@ -24,6 +24,8 @@ from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
 
 
+_spec = {"required_packages": []}
+
 log = get_logger(__name__)
 
 

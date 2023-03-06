@@ -77,6 +77,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["starlette"]
+_spec = {"required_packages": ["starlette>=0.13.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -56,6 +56,7 @@ from .patch import unpatch
 
 
 required_modules = ["urllib3"]
+_spec = {"required_packages": ["urllib3>=1.22.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -31,6 +31,8 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["jinja2"]
+_spec = {"required_packages": ["jinja2>=2.9.0"]}
+
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

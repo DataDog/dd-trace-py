@@ -79,6 +79,7 @@ from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["MySQLdb"]
+_spec = {"required_packages": ["mysqlclient>=1.3.0"]}
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
