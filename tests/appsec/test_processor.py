@@ -493,7 +493,7 @@ def test_ddwaf_info():
         assert info.loaded == 5
         assert info.failed == 0
         assert info.errors == {}
-        assert info.version == "1.5.1"
+        assert info.version == "rules_good"
 
 
 def test_ddwaf_info_with_2_errors():
