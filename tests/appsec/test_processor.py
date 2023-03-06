@@ -476,7 +476,8 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res = _ddwaf.run(data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        ctx = _ddwaf._at_request_start()
+        res = _ddwaf.run(ctx, data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0
@@ -492,7 +493,7 @@ def test_ddwaf_info():
         assert info.loaded == 5
         assert info.failed == 0
         assert info.errors == {}
-        assert info.version == "1.5.1"
+        assert info.version == "rules_good"
 
 
 def test_ddwaf_info_with_2_errors():

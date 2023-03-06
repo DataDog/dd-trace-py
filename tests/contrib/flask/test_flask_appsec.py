@@ -140,7 +140,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def test_flask_client_ip_header_set_by_env_var_valid(self):
         with override_global_config(dict(_appsec_enabled=True, client_ip_header="X-Use-This")):
-            self.client.get("/?a=1&b&c=d", headers={"HTTP_CLIENT_IP": "8.8.8.8", "X-Use-This": "4.4.4.4"})
+            self.client.get("/?a=1&b&c=d", headers={"HTTP_X_CLIENT_IP": "8.8.8.8", "X-Use-This": "4.4.4.4"})
             spans = self.pop_spans()
             root_span = spans[0]
             assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
@@ -268,7 +268,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"Via": _BLOCKED_IP})
+            resp = self.client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
