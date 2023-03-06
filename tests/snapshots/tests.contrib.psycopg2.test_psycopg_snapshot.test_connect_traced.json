@@ -13,7 +13,8 @@
       "component": "psycopg2",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "4165259776d24f23aae066cf1adfca38"
+      "runtime-id": "4165259776d24f23aae066cf1adfca38",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

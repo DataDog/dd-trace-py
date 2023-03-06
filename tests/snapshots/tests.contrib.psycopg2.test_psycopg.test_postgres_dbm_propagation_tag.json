@@ -18,7 +18,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d"
+      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -54,6 +55,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -89,7 +91,8 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d"
+      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -125,6 +128,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {

@@ -1,9 +1,11 @@
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -196,6 +198,7 @@ def patched_connect(connect_func, _, args, kwargs):
             service=ext_service(pin, pin._config),
             span_type=SpanTypes.SQL,
         ) as span:
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
             span.set_tag_str(COMPONENT, pin._config.integration_name)
             if span.get_tag(db.SYSTEM) is None:
                 span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
@@ -223,6 +226,7 @@ async def patched_connect_async(connect_func, _, args, kwargs):
             service=ext_service(pin, pin._config),
             span_type=SpanTypes.SQL,
         ) as span:
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
             span.set_tag_str(COMPONENT, pin._config.integration_name)
             if span.get_tag(db.SYSTEM) is None:
                 span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
