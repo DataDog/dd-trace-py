@@ -29,7 +29,7 @@ Configuration
 .. py:data:: DD_APM_FLUSH_DEADLINE_MILLISECONDS
 
    Used to determine when to submit spans before a timeout occurs.
-   When the time remaining in an AWS Lambda function is less than `DD_APM_FLUSH_DEADLINE_MILLISECONDS`,
+   When the remaining time in an AWS Lambda invocation is less than `DD_APM_FLUSH_DEADLINE_MILLISECONDS`,
    the tracer will attempt to submit the current active spans and all finished spans.
 
    Default: 100
