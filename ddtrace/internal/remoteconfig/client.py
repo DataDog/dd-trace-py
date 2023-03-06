@@ -155,8 +155,7 @@ class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
 
 
 class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
-    def __init__(self):
-        self.configs = {}
+    configs = {}  # type: Dict[str, Any]
 
     @abc.abstractmethod
     def __call__(self, target, config):
@@ -172,20 +171,17 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
             self.configs[target].update(config)
 
     def dispatch(self):
-        try:
-            config_result = {}
-            for target, config in self.configs.items():
-                for key, value in config.items():
-                    if config_result.get(key):
-                        if isinstance(value, list):
-                            config_result[key] = config_result[key] + value
-                        else:
-                            raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
+        config_result = {}
+        for target, config in self.configs.items():
+            for key, value in config.items():
+                if config_result.get(key):
+                    if isinstance(value, list):
+                        config_result[key] = config_result[key] + value
                     else:
-                        config_result[key] = value
-            self.__call__("", config_result)
-        finally:
-            self.configs = {}
+                        raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
+                else:
+                    config_result[key] = value
+        self.__call__("", config_result)
 
 
 class RemoteConfigClient(object):
@@ -413,24 +409,14 @@ class RemoteConfigClient(object):
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
         list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
-        print("_applied_configs")
-        print(self._applied_configs)
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
                 applied_config = self._applied_configs.get(target)
-                print("applied_config!!!!!")
-                print(applied_config)
-                print("config!!!!!")
-                print(config)
-                print("applied_config == config!!!!!!!!!!!!!1")
-                print(applied_config == config)
                 if applied_config == config:
                     continue
 
                 config_content = self._extract_target_file(payload, target, config)
-                print("config_content!!!!!!!!!!!!!1")
-                print(config_content)
                 if config_content is None:
                     continue
 

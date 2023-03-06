@@ -336,6 +336,7 @@ def test_remove_targets_file_same_product(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+        RCAppSecCallBack.configs = {}
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
@@ -413,8 +414,8 @@ def test_load_new_config_and_remove_targets_file_same_product(
 ):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
+        applied_configs = {}
         enable_appsec_rc(tracer)
-        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'
@@ -475,10 +476,11 @@ def test_load_new_config_and_remove_targets_file_same_product(
                 tuf_version=5,
             )
         }
-
         RemoteConfig._worker._client._remove_previously_applied_configurations({}, first_config, {})
 
-        RemoteConfig._worker._client._load_new_configurations({}, first_config, payload=payload)
+        RemoteConfig._worker._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        RemoteConfig._worker._client._applied_configs = applied_configs
+
         mock_appsec_rules_data.assert_called_with(ANY, {"data": [{"a": 1}, {"b": 2}]})
         mock_appsec_rules_data.reset_mock()
 
