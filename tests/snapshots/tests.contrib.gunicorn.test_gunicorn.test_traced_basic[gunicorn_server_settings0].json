@@ -16,7 +16,8 @@
       "http.status_msg": "OK",
       "http.url": "http://0.0.0.0:8080/",
       "language": "python",
-      "runtime-id": "b73097ce1a54484f872936703dc77f48"
+      "runtime-id": "b73097ce1a54484f872936703dc77f48",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -53,7 +54,8 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "component": "wsgi"
+            "component": "wsgi",
+            "span.kind": "server"
           },
           "duration": 14000,
           "start": 1670886340849902000
