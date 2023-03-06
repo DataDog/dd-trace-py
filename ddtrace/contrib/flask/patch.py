@@ -124,13 +124,18 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        result = start_response(status_code, headers)
         if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
             if _context.get_item("http.request.blocked", span=req_span):
                 # response code must be set here or it will be too late
-                result = start_response("403 FORBIDDEN", [])
+                response_headers = [("content-type", _asm_request_context.get_headers().get("Accept", "text/json"))]
+                result = start_response("403 FORBIDDEN", response_headers)
+                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
+            else:
+                result = start_response(status_code, headers)
+        else:
+            result = start_response(status_code, headers)
         return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
@@ -587,7 +592,7 @@ def _block_request_callable(span):
     request = flask.request
     _context.set_item("http.request.blocked", True, span=span)
     _set_block_tags(span)
-    ctype = request.headers.get("Accept") or "text/json"
+    ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 

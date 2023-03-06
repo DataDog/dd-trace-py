@@ -24,26 +24,28 @@
       "http.request.headers.host": "0.0.0.0:8000",
       "http.request.headers.user-agent": "python-requests/2.28.1",
       "http.request.headers.x-real-ip": "8.8.4.4",
+      "http.response.headers.content-length": "1564",
+      "http.response.headers.content-type": "text/html",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "ce07be9554534792a2f680989fd4ac87"
+      "runtime-id": "46402a336a47431c9b206265bc3ff847"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 29.599,
-      "_dd.appsec.waf.duration_ext": 66.7572021484375,
+      "_dd.appsec.waf.duration": 90.736,
+      "_dd.appsec.waf.duration_ext": 145.6737518310547,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 2174341
+      "process_id": 3123386
     },
-    "duration": 558153,
-    "start": 1677851448798796859
+    "duration": 1088843,
+    "start": 1678121238817036961
   },
      {
        "name": "flask.response",
@@ -57,6 +59,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 200605,
-       "start": 1677851448799141606
+       "duration": 448096,
+       "start": 1678121238817653006
      }]]

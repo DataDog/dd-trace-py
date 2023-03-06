@@ -30,14 +30,14 @@
       "http.request.headers.host": "0.0.0.0:8000",
       "http.request.headers.user-agent": "python-requests/2.28.1",
       "http.response.headers.content-length": "169",
-      "http.response.headers.content-type": "*/*",
+      "http.response.headers.content-type": "text/json",
       "http.route": "/checkuser/<user_id>",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/checkuser/123456",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "9d84e5b34a6149c6b013e9b451664b8a",
+      "runtime-id": "92bc40b528e340769fe85abe626f5ec2",
       "usr.id": "123456"
     },
     "metrics": {
@@ -45,16 +45,16 @@
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 31.207,
-      "_dd.appsec.waf.duration_ext": 85.35385131835938,
+      "_dd.appsec.waf.duration": 39.054,
+      "_dd.appsec.waf.duration_ext": 226.02081298828125,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 2172855
+      "process_id": 3126123
     },
-    "duration": 2109597,
-    "start": 1677851425156214409
+    "duration": 3053746,
+    "start": 1678121299720601923
   },
      {
        "name": "flask.application",
@@ -74,8 +74,8 @@
          "http.status_code": "403",
          "http.useragent": "python-requests/2.28.1"
        },
-       "duration": 1571745,
-       "start": 1677851425156562558
+       "duration": 2120444,
+       "start": 1678121299721221548
      },
         {
           "name": "flask.try_trigger_before_first_request_functions",
@@ -89,8 +89,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 9377,
-          "start": 1677851425156699016
+          "duration": 12724,
+          "start": 1678121299721452915
         },
         {
           "name": "flask.preprocess_request",
@@ -104,8 +104,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 15515,
-          "start": 1677851425156752816
+          "duration": 19665,
+          "start": 1678121299721522527
         },
         {
           "name": "flask.dispatch_request",
@@ -122,8 +122,8 @@
             "error.stack": "Traceback (most recent call last):\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 621, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/flask/app.py\", line 1503, in dispatch_request\n    return self.ensure_sync(self.view_functions[rule.endpoint])(**req.view_args)\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/wrappers.py\", line 28, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/home/juanjux/go/src/github.com/DataDog/system-tests/binaries/dd-trace-py/tests/contrib/flask/app.py\", line 67, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/trace_utils.py\", line 184, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/_asm_request_context.py\", line 93, in block_request\n    _callable()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 591, in _block_request_callable\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 881, in abort\n    _aborter(status, *args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 859, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
             "error.type": "werkzeug.exceptions.HTTPException"
           },
-          "duration": 1078759,
-          "start": 1677851425156799702
+          "duration": 1417157,
+          "start": 1678121299721571721
         },
            {
              "name": "tests.contrib.flask.app.checkuser",
@@ -140,8 +140,8 @@
                "error.stack": "Traceback (most recent call last):\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/wrappers.py\", line 28, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/home/juanjux/go/src/github.com/DataDog/system-tests/binaries/dd-trace-py/tests/contrib/flask/app.py\", line 67, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/trace_utils.py\", line 184, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/appsec/_asm_request_context.py\", line 93, in block_request\n    _callable()\n  File \"/home/juanjux/dd/system-tests/binaries/dd-trace-py/ddtrace/contrib/flask/patch.py\", line 591, in _block_request_callable\n    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 881, in abort\n    _aborter(status, *args, **kwargs)\n  File \"/home/juanjux/.pyenv/versions/ipblock/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 859, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
                "error.type": "werkzeug.exceptions.HTTPException"
              },
-             "duration": 764569,
-             "start": 1677851425156824345
+             "duration": 990480,
+             "start": 1678121299721603995
            },
         {
           "name": "flask.handle_user_exception",
@@ -155,8 +155,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 36395,
-          "start": 1677851425157905019
+          "duration": 49923,
+          "start": 1678121299723033317
         },
            {
              "name": "flask.handle_http_exception",
@@ -170,8 +170,8 @@
              "meta": {
                "component": "flask"
              },
-             "duration": 6966,
-             "start": 1677851425157926744
+             "duration": 12572,
+             "start": 1678121299723059533
            },
         {
           "name": "flask.process_response",
@@ -185,8 +185,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 14395,
-          "start": 1677851425158008534
+          "duration": 17015,
+          "start": 1678121299723177360
         },
         {
           "name": "flask.do_teardown_request",
@@ -200,8 +200,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 11032,
-          "start": 1677851425158091778
+          "duration": 17019,
+          "start": 1678121299723287154
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -215,8 +215,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 6876,
-          "start": 1677851425158120328
+          "duration": 8703,
+          "start": 1678121299723324989
         },
      {
        "name": "flask.response",
@@ -230,6 +230,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 150582,
-       "start": 1677851425158163929
+       "duration": 253426,
+       "start": 1678121299723390931
      }]]

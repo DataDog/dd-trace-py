@@ -371,6 +371,8 @@ def _set_block_tags(request, request_headers, span):
 
 
 def _block_request_callable(request, request_headers, span):
+    # This is used by user-id blocking to block responses. It could be called
+    # at any point so it's a callable stored in the ASM context.
     _context.set_item("http.request.blocked", True, span=span)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
@@ -415,11 +417,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
-                _set_block_tags(request, request_headers, span)
-                response = HttpResponseForbidden(
-                    appsec_utils._get_blocked_template(request_headers.get("Accept")), content_type="text/plain"
-                )
-                response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                content = appsec_utils._get_blocked_template(ctype)
+                response = HttpResponseForbidden(content, content_type=ctype)
+                response.content = content
+                utils._after_request_tags(pin, span, request, response)
                 return response
 
             try:
@@ -477,7 +479,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if _context.get_item("http.request.blocked", span=span):
                         response = blocked_response()
-                        utils._after_request_tags(pin, span, request, response)
                         return response
 
 

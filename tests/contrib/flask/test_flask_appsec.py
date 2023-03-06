@@ -5,6 +5,7 @@ from flask import Response
 from flask import request
 import pytest
 
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
@@ -279,6 +280,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/foobar"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
@@ -303,6 +305,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/block"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
     def test_flask_userblock_json(self):
         @self.app.route("/checkuser/<user_id>")
@@ -325,6 +328,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
@@ -356,6 +360,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=xtrace"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
     def test_request_suspicious_request_block_match_uri(self):
         @self.app.route("/")
@@ -378,6 +383,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.URL) == "http://localhost/.git"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
     def test_request_suspicious_request_block_match_body(self):
         @self.app.route("/")

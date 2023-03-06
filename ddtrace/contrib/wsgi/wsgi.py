@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
 
+from ...appsec._constants import SPAN_DATA_NAMES
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 
@@ -120,8 +121,12 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def _set_block_tags(self, environ, headers, span):
+    def _make_block_content(self, environ, headers, span):
+        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+        content = utils._get_blocked_template(ctype).encode("UTF-8")
         try:
+            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
+            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
             span.set_tag_str(http.STATUS_CODE, "403")
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")
@@ -136,6 +141,8 @@ class _DDWSGIMiddlewareBase(object):
                 span.set_tag_str(http.USER_AGENT, user_agent)
         except Exception as e:
             log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+        return ctype, content
 
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> _TracedIterable
@@ -156,9 +163,9 @@ class _DDWSGIMiddlewareBase(object):
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
                 if _context.get_item("http.request.blocked", span=req_span):
-                    self._set_block_tags(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
-                    closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                    ctype, content = self._make_block_content(environ, headers, req_span)
+                    start_response("403 FORBIDDEN", [("content-type", ctype)])
+                    closing_iterator = [content]
                     not_blocked = False
 
             if not_blocked:
@@ -167,9 +174,9 @@ class _DDWSGIMiddlewareBase(object):
                 if self.tracer._appsec_enabled:
                     # [Suspicious Request Blocking on request]
                     if _context.get_item("http.request.blocked", span=req_span):
-                        self._set_block_tags(environ, headers, req_span)
-                        start_response("403 FORBIDDEN", [("content-type", headers.get("Accept"))])
-                        closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                        ctype, content = self._make_block_content(environ, headers, req_span)
+                        start_response("403 FORBIDDEN", [("content-type", ctype)])
+                        closing_iterator = [content]
                         not_blocked = False
 
             if not_blocked:
@@ -192,8 +199,8 @@ class _DDWSGIMiddlewareBase(object):
                     raise
                 if self.tracer._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
                     # [Suspicious Request Blocking on response]
-                    self._set_block_tags(environ, headers, req_span)
-                    closing_iterator = [utils._get_blocked_template(headers.get("Accept")).encode("UTF-8")]
+                    _, content = self._make_block_content(environ, headers, req_span)
+                    closing_iterator = [content]
 
             # start flask.response span. This span will be finished after iter(result) is closed.
             # start_span(child_of=...) is used to ensure correct parenting.
