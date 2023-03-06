@@ -166,9 +166,20 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
         if not self.configs.get(target):
             self.configs[target] = {}
         if config is False:
+            # Remove old config from the configs dict. _remove_previously_applied_configurations function should
+            # call to this method
             del self.configs[target]
         elif config is not None:
-            self.configs[target].update(config)
+            # Append the new config to the configs dict. _load_new_configurations function should
+            # call to this method
+            if isinstance(config, dict):
+                if not any(v for k, v in config.items()):
+                    # Ups, no, if new config is empty, it's the same behavior of remove config
+                    del self.configs[target]
+                else:
+                    self.configs[target].update(config)
+            else:
+                raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
 
     def dispatch(self):
         config_result = {}
@@ -181,6 +192,7 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
                         raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
                 else:
                     config_result[key] = value
+        print("DISPATCH CONTENT {}".format(config_result))
         self.__call__("", config_result)
 
 
