@@ -160,6 +160,38 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(trac
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_FEATURES)
 
 
+def test_load_new_configurations_invalid_content(remote_config_worker, tracer):
+    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        enable_appsec_rc(tracer)
+        asm_features_data = b'{"asm":{"enabled":true}}'
+        asm_data_data = b'{"data": "data"}'
+        payload = AgentPayload(
+            target_files=[
+                TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
+                TargetFile(path="mock/ASM_DATA", raw=base64.b64encode(asm_data_data)),
+            ]
+        )
+        client_configs = {
+            "mock/ASM_FEATURES": ConfigMetadata(
+                id="",
+                product_name="ASM_FEATURES",
+                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+            "mock/ASM_DATA": ConfigMetadata(
+                id="",
+                product_name="ASM_DATA",
+                sha256_hash=hashlib.sha256(asm_data_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+        }
+        with pytest.raises(ValueError):
+            RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
+
+
 @mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_dispatch_applied_configs(
@@ -169,7 +201,7 @@ def test_load_new_configurations_dispatch_applied_configs(
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
-        asm_data_data = b'{"data":{}}'
+        asm_data_data = b'{"data": [{"test": "data"}]}'
         payload = AgentPayload(
             target_files=[
                 TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
@@ -194,7 +226,45 @@ def test_load_new_configurations_dispatch_applied_configs(
         }
 
         RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
-        mock_appsec_rules_data.assert_called_with(ANY, {"data": {}})
+        mock_appsec_rules_data.assert_called_with(ANY, {"data": [{"test": "data"}]})
+        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}})
+
+
+@mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
+@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+def test_load_new_configurations_empty_config(
+    mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
+):
+    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        enable_appsec_rc(tracer)
+        asm_features_data = b'{"asm":{"enabled":true}}'
+        asm_data_data = b'{"data": []}'
+        payload = AgentPayload(
+            target_files=[
+                TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
+                TargetFile(path="mock/ASM_DATA", raw=base64.b64encode(asm_data_data)),
+            ]
+        )
+        client_configs = {
+            "mock/ASM_FEATURES": ConfigMetadata(
+                id="",
+                product_name="ASM_FEATURES",
+                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+            "mock/ASM_DATA": ConfigMetadata(
+                id="",
+                product_name="ASM_DATA",
+                sha256_hash=hashlib.sha256(asm_data_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+        }
+
+        RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
+        mock_appsec_rules_data.assert_not_called()
         mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}})
 
 
@@ -331,33 +401,21 @@ def test_load_multiple_targets_file_same_product(
         mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}})
 
 
-@mock.patch.object(RCAppSecFeaturesCallBack, "_appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
-def test_remove_targets_file_same_product(
-    mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
-):
+def test_remove_targets_file_with_previous_configuration(mock_appsec_rules_data, remote_config_worker, tracer):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         RCAppSecCallBack.configs = {}
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
-        asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'
         payload = AgentPayload(
             target_files=[
-                TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
                 TargetFile(path="mock/ASM_DATA/1", raw=base64.b64encode(asm_data_data1)),
                 TargetFile(path="mock/ASM_DATA/2", raw=base64.b64encode(asm_data_data2)),
             ]
         )
         applied_configs = {
-            "mock/ASM_FEATURES": ConfigMetadata(
-                id="",
-                product_name="ASM_FEATURES",
-                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
-                length=5,
-                tuf_version=5,
-            ),
             "mock/ASM_DATA/1": ConfigMetadata(
                 id="",
                 product_name="ASM_DATA",
@@ -375,13 +433,6 @@ def test_remove_targets_file_same_product(
         }
 
         client_configs = {
-            "mock/ASM_FEATURES": ConfigMetadata(
-                id="",
-                product_name="ASM_FEATURES",
-                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
-                length=5,
-                tuf_version=5,
-            ),
             "mock/ASM_DATA/1": ConfigMetadata(
                 id="",
                 product_name="ASM_DATA",
@@ -405,7 +456,7 @@ def test_remove_targets_file_same_product(
         RemoteConfig._worker._client._remove_previously_applied_configurations({}, client_configs, target_file)
 
         RemoteConfig._worker._client._load_new_configurations({}, client_configs, payload=payload)
-        mock_appsec_rules_data.assert_called_with(ANY, {})
+        mock_appsec_rules_data.assert_not_called()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")

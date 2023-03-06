@@ -185,15 +185,13 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
         config_result = {}
         for target, config in self.configs.items():
             for key, value in config.items():
-                if config_result.get(key):
+                if value:
                     if isinstance(value, list):
-                        config_result[key] = config_result[key] + value
+                        config_result[key] = config_result.get(key, []) + value
                     else:
                         raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
-                else:
-                    config_result[key] = value
-        print("DISPATCH CONTENT {}".format(config_result))
-        self.__call__("", config_result)
+        if config_result:
+            self.__call__("", config_result)
 
 
 class RemoteConfigClient(object):
