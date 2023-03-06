@@ -29,15 +29,24 @@ def release_it():
     if last_version is None:
         raise ValueError("need to specify the last_version branch with envar e.g. LAST_VERSION=1.9")
 
+    # get release notes
+    rn_raw = subprocess.check_output(
+        "reno report --no-show-source | \
+    pandoc -f rst -t gfm --wrap=none",
+        shell=True,
+        cwd=os.pardir,
+    )
+    rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+
     # Create our git release https://pygithub.readthedocs.io/en/latest/github_objects/Repository.html?highlight=release#github.Repository.Repository.create_git_release
     g = Github(gh_token)
     dd_repo = g.get_repo(full_name_or_id="DataDog/dd-trace-py")
     main_branch = dd_repo.get_branch(branch="1.x")
-    # dd_repo = g.get_repo(full_name_or_id="Kyle-Verhoog/dd-trace-py-test")
-    # main_branch = dd_repo.get_branch(branch="master")
 
     commit_id = main_branch.commit
-    # dd_repo.create_git_release(name=version, tag=version, prerelease=True, draft=True, target_commitish=main_branch, message=rn)
+    dd_repo.create_git_release(
+        name=version, tag=version, prerelease=True, draft=True, target_commitish=main_branch, message=rn
+    )
 
     # compare 1.x to the latest release to get the commits, release notes, PRs and authors.
     diff_raw = subprocess.check_output(
@@ -90,15 +99,6 @@ def release_it():
                 pr_num = re.findall("\(#(\d{4})\)", commit.commit.message)[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
                 prs_details.append({"author_dd": author_dd, "url": url, "rn_piece": rn_piece})
-
-    # get release notes
-    rn_raw = subprocess.check_output(
-        "reno report --no-show-source | \
-    pandoc -f rst -t gfm --wrap=none",
-        shell=True,
-        cwd=os.pardir,
-    )
-    rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
     # edit release notes to be put inside notebook
     rn = rn.replace("\n-", "\n- [ ]")
@@ -170,11 +170,12 @@ def release_it():
 
     id = response._data_store["data"][0]["id"]
     nb_url = "https://ddstaging.datadoghq.com/notebook/%s" % (id)
-    
-    print("Notebook created at %s" % url)
-    
+
+    print("Notebook created at %s\n" % url)
+
     author_slack_handles = " ".join(author_slack_handles)
-    
+    print("Release note draft created at: https://github.com/DataDog/dd-trace-py/releases\n")
+
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
         """It's time to test the {version} release candidate! The owners of pull requests with release notes in version are {author_slack_handles}. 
