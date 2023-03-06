@@ -2,6 +2,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -37,7 +38,7 @@ class PsycopgTracedCursor(dbapi.TracedCursor):
         )
 
 
-class PsycopgTracedAsyncCursor(dbapi.TracedAsyncCursor):
+class PsycopgTracedAsyncCursor(dbapi_async.TracedAsyncCursor):
     def __init__(self, cursor, pin, cfg, *args, **kwargs):
         super(PsycopgTracedAsyncCursor, self).__init__(cursor, pin, cfg)
 
@@ -64,7 +65,7 @@ class PsycopgFetchTracedCursor(PsycopgTracedCursor, dbapi.FetchTracedCursor):
     """PsycopgFetchTracedCursor for psycopg"""
 
 
-class PsycopgFetchTracedAsyncCursor(PsycopgTracedAsyncCursor, dbapi.FetchTracedAsyncCursor):
+class PsycopgFetchTracedAsyncCursor(PsycopgTracedAsyncCursor, dbapi_async.FetchTracedAsyncCursor):
     """PsycopgFetchTracedAsyncCursor for psycopg"""
 
 
@@ -97,7 +98,7 @@ class PsycopgTracedConnection(dbapi.TracedConnection):
         return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
 
 
-class PsycopgTracedAsyncConnection(dbapi.TracedAsyncConnection):
+class PsycopgTracedAsyncConnection(dbapi_async.TracedAsyncConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
         package = conn.__class__.__module__.split(".")[0]
         if not cursor_cls:
