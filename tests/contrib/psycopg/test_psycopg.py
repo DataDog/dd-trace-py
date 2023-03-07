@@ -77,7 +77,7 @@ class PsycopgCore(TracerTestCase):
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
         try:
-            db.execute("""select 'foobar'""")
+            db.executemany("select %s", (("str_foo",), ("str_bar",)))
         except AttributeError:
             pass
 
