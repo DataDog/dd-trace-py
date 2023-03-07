@@ -30,22 +30,22 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "7647648913ce45829739a0c050c11e9e"
+      "runtime-id": "a47838f7f4d94fe695729535c7d5bb31"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 72.017,
-      "_dd.appsec.waf.duration_ext": 143.0511474609375,
+      "_dd.appsec.waf.duration": 32.777,
+      "_dd.appsec.waf.duration_ext": 56.98204040527344,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 3125969
+      "process_id": 3222892
     },
-    "duration": 1971070,
-    "start": 1678121298384296450
+    "duration": 503731,
+    "start": 1678179754950821299
   },
      {
        "name": "flask.response",
@@ -59,6 +59,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 1205499,
-       "start": 1678121298385023872
+       "duration": 183540,
+       "start": 1678179754951129432
      }]]

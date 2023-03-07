@@ -135,6 +135,7 @@ class CassandraBase(object):
         assert query.get_tag(cassx.PAGINATED) == "False"
         assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
         assert query.get_tag("component") == "cassandra"
+        assert query.get_tag("span.kind") == "client"
         assert query.get_tag("db.system") == "cassandra"
 
         # confirm no analytics sample rate set by default
@@ -210,6 +211,7 @@ class CassandraBase(object):
         assert dd_span.get_tag(cassx.PAGINATED) == "False"
         assert dd_span.get_tag(net.TARGET_HOST) == "127.0.0.1"
         assert dd_span.get_tag("component") == "cassandra"
+        assert dd_span.get_tag("span.kind") == "client"
         assert dd_span.get_tag("db.system") == "cassandra"
 
     def test_query_async(self):

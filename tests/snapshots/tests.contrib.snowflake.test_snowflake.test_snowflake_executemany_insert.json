@@ -19,8 +19,9 @@
       "db.warehouse": "mock-warehouse-name",
       "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
+      "runtime-id": "f82097569d3141b8ba61409269818dec",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -33,6 +34,6 @@
       "network.destination.port": 443,
       "process_id": 88705
     },
-    "duration": 3940000,
-    "start": 1660069793185098000
+    "duration": 1311000,
+    "start": 1667243941882777000
   }]]
