@@ -12,10 +12,11 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "a2447249-c861-49aa-8526-d3e16b3f33cb",
+      "job.id": "d99c66b9-b664-4c42-a33d-541a7518cfa3",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 67067
     },
-    "duration": 2394000,
-    "start": 1666807176715034000
+    "duration": 2164000,
+    "start": 1667319043880113000
   },
      {
        "name": "rq.worker.perform_job",
@@ -39,11 +40,12 @@
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "a2447249-c861-49aa-8526-d3e16b3f33cb",
+         "job.id": "d99c66b9-b664-4c42-a33d-541a7518cfa3",
          "job.origin": "q",
          "job.status": "finished",
          "language": "python",
-         "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+         "span.kind": "consumer"
        },
        "metrics": {
          "_dd.top_level": 1,
@@ -51,8 +53,8 @@
          "_sampling_priority_v1": 1,
          "process_id": 67067
        },
-       "duration": 6518000,
-       "start": 1666807176730031000
+       "duration": 6290000,
+       "start": 1667319043895995000
      },
         {
           "name": "rq.job.perform",
@@ -65,8 +67,8 @@
           "error": 0,
           "meta": {
             "component": "rq",
-            "job.id": "a2447249-c861-49aa-8526-d3e16b3f33cb"
+            "job.id": "d99c66b9-b664-4c42-a33d-541a7518cfa3"
           },
-          "duration": 1003000,
-          "start": 1666807176731426000
+          "duration": 900000,
+          "start": 1667319043897216000
         }]]

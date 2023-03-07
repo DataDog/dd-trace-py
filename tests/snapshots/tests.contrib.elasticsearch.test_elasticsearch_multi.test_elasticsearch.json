@@ -16,7 +16,8 @@
       "elasticsearch.url": "/ddtrace_index",
       "http.status_code": "200",
       "language": "python",
-      "runtime-id": "48d5633e5196471c87a429e6e232c9da"
+      "runtime-id": "48d5633e5196471c87a429e6e232c9da",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -47,7 +48,8 @@
       "elasticsearch.url": "/ddtrace_index",
       "http.status_code": "200",
       "language": "python",
-      "runtime-id": "48d5633e5196471c87a429e6e232c9da"
+      "runtime-id": "48d5633e5196471c87a429e6e232c9da",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
