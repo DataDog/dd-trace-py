@@ -60,8 +60,8 @@ class ConfigMetadata(object):
     sha256_hash = attr.ib(type=Optional[str])
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
-    apply_state = attr.ib(type=Optional[int], default=0)
-    apply_error = attr.ib(type=Optional[str], default="")
+    apply_state = attr.ib(type=Optional[int], default=0, eq=False)
+    apply_error = attr.ib(type=Optional[str], default="", eq=False)
 
 
 @attr.s
