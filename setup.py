@@ -152,15 +152,17 @@ class LibDDWaf_Download(BuildPyCommand):
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
             os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
-        build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
-            if CURRENT_OS == "Linux" and not build_platform.endswith(arch):
+            if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
-            elif CURRENT_OS == "Darwin" and build_platform == "x86_64" and not build_platform.endswith(arch):
+            elif CURRENT_OS == "Darwin":
+                # Detect build type for macos:
+                # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
+                target_platform = os.getenv("_PYTHON_HOST_PLATFORM")
                 # Darwin Universal2 should bundle both architectures
-                print("build_platform: %s", build_platform)
-                continue
+                if not target_platform.endswith("universal2") or not target_platform.endswith(arch):
+                    continue
             elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
