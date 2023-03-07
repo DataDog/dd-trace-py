@@ -6,7 +6,7 @@
 #
 attrs==22.1.0
 beautifulsoup4==4.10.0
-bottle==0.12.24
+bottle==0.12.25
 coverage==5.5
 hypothesis==5.33.2
 importlib-metadata==2.1.3

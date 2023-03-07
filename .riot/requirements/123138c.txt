@@ -11,7 +11,7 @@ automat==22.10.0
 certifi==2022.12.7
 cffi==1.15.1
 channels==4.0.0
-charset-normalizer==3.0.1
+charset-normalizer==3.1.0
 constantly==15.1.0
 coverage[toml]==7.2.1
 cryptography==39.0.2
@@ -36,7 +36,7 @@ pyasn1-modules==0.2.8
 pycparser==2.21
 pylibmc==1.6.3
 pyopenssl==23.0.0
-pytest==7.2.1
+pytest==7.2.2
 pytest-cov==4.0.0
 pytest-django==3.10.0
 pytest-mock==3.10.0

@@ -8,7 +8,7 @@ atomicwrites==1.4.1
 attrs==21.4.0
 backports.functools-lru-cache==1.6.4
 beautifulsoup4==4.9.3
-bottle==0.12.24
+bottle==0.12.25
 configparser==4.0.2
 contextlib2==0.6.0.post1
 coverage==5.5
