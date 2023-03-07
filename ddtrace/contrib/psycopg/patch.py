@@ -11,13 +11,13 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
-from ..utils import PsycopgTracedAsyncConnection
-from ..utils import PsycopgTracedAsyncCursor
 from ..utils import PsycopgTracedConnection
 from ..utils import PsycopgTracedCursor
 from ..utils import patched_connect
-from ..utils import patched_connect_async
 from ..utils import psycopg_sql_injector_factory
+from ..utils_async import PsycopgTracedAsyncConnection
+from ..utils_async import PsycopgTracedAsyncCursor
+from ..utils_async import patched_connect_async
 
 
 config._add(
