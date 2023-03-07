@@ -173,11 +173,7 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method
             if isinstance(config, dict):
-                if not any(v for k, v in config.items()):
-                    # Ups, no, if new config is empty, it's the same behavior of remove config
-                    del self.configs[target]
-                else:
-                    self.configs[target].update(config)
+                self.configs[target].update(config)
             else:
                 raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
 
@@ -185,11 +181,10 @@ class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
         config_result = {}
         for target, config in self.configs.items():
             for key, value in config.items():
-                if value:
-                    if isinstance(value, list):
-                        config_result[key] = config_result.get(key, []) + value
-                    else:
-                        raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
+                if isinstance(value, list):
+                    config_result[key] = config_result.get(key, []) + value
+                else:
+                    raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
         if config_result:
             self.__call__("", config_result)
 

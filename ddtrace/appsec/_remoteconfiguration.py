@@ -20,6 +20,7 @@ except ImportError:
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import Dict
 
     try:
         from typing import Literal
@@ -61,12 +62,14 @@ def enable_appsec_rc(test_tracer=None):
         RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
 
 
-def _add_rules_to_list(features, feature, message, rule_list):
-    # type: (Mapping[str, Any], str, str, list[Any]) -> None
-    rules = features.get(feature, [])
-    if rules:
+def _add_rules_to_list(features, feature, message, ruleset):
+    # type: (Mapping[str, Any], str, str, Dict[str, Any]) -> None
+    rules = features.get(feature, None)
+    if rules is not None:
         try:
-            rule_list += rules
+            if ruleset.get(feature) is None:
+                ruleset[feature] = []
+            ruleset[feature] += rules
             log.debug("Reloading Appsec %s: %s", message, rules)
         except JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
@@ -75,14 +78,18 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
-        ruleset = {"rules": [], "rules_data": [], "exclusions": [], "rules_override": []}  # type: dict[str, list[Any]]
-        _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
-        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
-        _add_rules_to_list(features, "rules", "Datadog rules", ruleset["rules"])
-        _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset["exclusions"])
-        _add_rules_to_list(features, "rules_override", "rules override", ruleset["rules_override"])
-        if any(ruleset.values()):
-            return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+        ruleset = {
+            "rules": None,
+            "rules_data": None,
+            "exclusions": None,
+            "rules_override": None,
+        }  # type: dict[str, Optional[list[Any]]]
+        _add_rules_to_list(features, "rules_data", "rules data", ruleset)
+        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset)
+        _add_rules_to_list(features, "rules", "Datadog rules", ruleset)
+        _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
+        _add_rules_to_list(features, "rules_override", "rules override", ruleset)
+        return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
     return False
 
