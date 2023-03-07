@@ -30,12 +30,12 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
+         # - os: ubuntu-latest
+         #   archs: x86_64 i686
+         # - os: ubuntu-latest
+         #   archs: aarch64
+         # - os: windows-latest
+         #   archs: AMD64 x86
          - os: macos-latest
            # universal2 and arm64 builds require CPython 3.8 or newer:
            # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
@@ -86,12 +86,12 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
+         # - os: ubuntu-latest
+         #   archs: x86_64 i686
+         # - os: ubuntu-latest
+         #   archs: aarch64
+         # - os: windows-latest
+         #   archs: AMD64 x86
          - os: macos-latest
            archs: x86_64 universal2
     steps:
@@ -126,6 +126,7 @@ jobs:
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
+          CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - uses: actions/upload-artifact@v3
         with:
