@@ -49,7 +49,7 @@ class RemoteConfigError(Exception):
     """
 
 
-@attr.s(frozen=True)
+@attr.s
 class ConfigMetadata(object):
     """
     Configuration TUF target metadata
