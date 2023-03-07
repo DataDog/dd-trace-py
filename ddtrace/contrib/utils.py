@@ -84,21 +84,6 @@ class PsycopgTracedConnection(dbapi.TracedConnection):
 
         super(PsycopgTracedConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
 
-    def execute(self, *args, **kwargs):
-        """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
-
-        def patched_execute(*args, **kwargs):
-            try:
-                cur = self.cursor()
-                if kwargs.get("binary", None):
-                    cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
-            except Exception as ex:
-                raise ex.with_traceback(None)
-
-        return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
-
 
 class PsycopgTracedAsyncConnection(dbapi_async.TracedAsyncConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
@@ -112,21 +97,6 @@ class PsycopgTracedAsyncConnection(dbapi_async.TracedAsyncConnection):
             )
 
         super(PsycopgTracedAsyncConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
-
-    async def execute(self, *args, **kwargs):  # noqa
-        """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
-
-        async def patched_execute(*args, **kwargs):
-            try:
-                cur = await self.cursor()
-                if kwargs.get("binary", None):
-                    cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
-            except Exception as ex:
-                raise ex.with_traceback(None)
-
-        return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
 
 
 def patch_conn(conn, traced_conn_cls=PsycopgTracedConnection, pin=None):
@@ -182,6 +152,12 @@ def _unpatch_extensions(_extensions):
 
 
 def patched_connect(connect_func, _, args, kwargs):
+    if kwargs.get("traced_conn_cls", None):
+        traced_conn_cls = kwargs.get("traced_conn_cls")
+        kwargs.pop("traced_conn_cls")
+    else:
+        traced_conn_cls = PsycopgTracedConnection
+
     _config = globals()["config"]._config
     module_name = (
         connect_func.__module__
@@ -206,10 +182,16 @@ def patched_connect(connect_func, _, args, kwargs):
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)
 
-    return patch_conn(conn, pin=pin)
+    return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
 
 
 async def patched_connect_async(connect_func, _, args, kwargs):
+    if kwargs.get("traced_conn_cls", None):
+        traced_conn_cls = kwargs.get("traced_conn_cls")
+        kwargs.pop("traced_conn_cls")
+    else:
+        traced_conn_cls = PsycopgTracedAsyncConnection
+
     _config = globals()["config"]._config
     module_name = (
         connect_func.__module__
@@ -234,4 +216,4 @@ async def patched_connect_async(connect_func, _, args, kwargs):
             span.set_tag(SPAN_MEASURED_KEY)
             conn = await connect_func(*args, **kwargs)
 
-    return patch_conn(conn, pin=pin)
+    return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)

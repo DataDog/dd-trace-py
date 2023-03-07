@@ -11,7 +11,9 @@ from ddtrace.vendor import wrapt
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..utils import PsycopgTracedAsyncConnection
 from ..utils import PsycopgTracedAsyncCursor
+from ..utils import PsycopgTracedConnection
 from ..utils import PsycopgTracedCursor
 from ..utils import patched_connect
 from ..utils import patched_connect_async
@@ -50,11 +52,11 @@ def patch():
     Pin(_config=config.psycopg).onto(psycopg)
     config.psycopg.base_module = psycopg
 
-    wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect)
-    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect_psycopg3)
+    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect_psycopg3)
     wrapt.wrap_function_wrapper(psycopg, "Cursor", PsycopgTracedCursor._init_from_connection)
 
-    wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async)
+    wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async_psycopg3)
     wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", PsycopgTracedAsyncCursor._init_from_connection)
     # _patch_extensions(_psycopg_extensions)  # do this early just in case
 
@@ -68,3 +70,53 @@ def unpatch():
         pin = Pin.get_from(psycopg)
         if pin:
             pin.remove_from(psycopg)
+
+
+class Psycopg3TracedConnection(PsycopgTracedConnection):
+    def __init__(self, *args, **kwargs):
+        PsycopgTracedConnection.__init__(self, conn=args[0])
+
+    def execute(self, *args, **kwargs):
+        """Execute a query and return a cursor to read its results."""
+        span_name = "{}.{}".format(self._self_datadog_name, "execute")
+
+        def patched_execute(*args, **kwargs):
+            try:
+                cur = self.cursor()
+                if kwargs.get("binary", None):
+                    cur.format = 1  # set to 1 for binary or 0 if not
+                return cur.execute(*args, **kwargs)
+            except Exception as ex:
+                raise ex.with_traceback(None)
+
+        return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+
+
+class Psycopg3TracedAsyncConnection(PsycopgTracedAsyncConnection):
+    def __init__(self, *args, **kwargs):
+        super(Psycopg3TracedAsyncConnection, self).__init__(*args, **kwargs)
+
+    async def execute(self, *args, **kwargs):  # noqa
+        """Execute a query and return a cursor to read its results."""
+        span_name = "{}.{}".format(self._self_datadog_name, "execute")
+
+        async def patched_execute(*args, **kwargs):
+            try:
+                cur = await self.cursor()
+                if kwargs.get("binary", None):
+                    cur.format = 1  # set to 1 for binary or 0 if not
+                return cur.execute(*args, **kwargs)
+            except Exception as ex:
+                raise ex.with_traceback(None)
+
+        return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+
+
+def patched_connect_psycopg3(connect_func, _, args, kwargs):
+    kwargs["traced_conn_cls"] = Psycopg3TracedConnection
+    return patched_connect(connect_func, _, args, kwargs)
+
+
+def patched_connect_async_psycopg3(connect_func, _, args, kwargs):
+    kwargs["traced_conn_cls"] = Psycopg3TracedAsyncConnection
+    return patched_connect_async(connect_func, _, args, kwargs)
