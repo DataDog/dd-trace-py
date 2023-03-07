@@ -21,6 +21,7 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
@@ -31,6 +32,7 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...appsec import utils
+from ...constants import SPAN_KIND
 from ...internal import _context
 
 
@@ -142,6 +144,8 @@ class _DDWSGIMiddlewareBase(object):
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
+                # set span.kind to the type of operation being performed
+                req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
                 self._request_span_modifier(req_span, environ)
                 if self.tracer._appsec_enabled:
                     # [Suspicious Request Blocking on request]
@@ -274,6 +278,9 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             activate=True,
         ) as span:
             span.set_tag_str(COMPONENT, self._config.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             return start_response(status, environ, exc_info)
 

@@ -27,6 +27,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert_span_http_status_code(sp, 500)
     assert sp.get_tag("http.method") == "GET"
     assert sp.get_tag("component") == "django"
+    assert sp.get_tag("span.kind") == "server"
 
     # the DRF integration should set the traceback on the django.view.dispatch span
     # (as it's the current span when the exception info is set)
@@ -52,4 +53,5 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
 
         assert root_span.get_tag("_dd.appsec.json") is None
         assert root_span.get_tag("component") == "django"
+        assert root_span.get_tag("span.kind") == "server"
         assert query == {"mytestingbody_key": "mytestingbody_value"}
