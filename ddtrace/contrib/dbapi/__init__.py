@@ -68,12 +68,14 @@ class TracedCursor(wrapt.ObjectProxy):
 
     @classmethod
     def _init_from_connection(traced_cursor_cls, wrapped_cursor_cls, _, args, kwargs):
-        connection = kwargs.get("connection", None)
-        if connection:
-            pin = Pin.get_from(connection)
-            cfg = pin._config
-            cursor = wrapped_cursor_cls(connection)
-            return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
+        connection = kwargs.pop("connection", None)
+        if not connection:
+            args = list(args)
+            connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, TracedConnection)), None))
+        pin = Pin.get_from(connection)
+        cfg = pin._config
+        cursor = wrapped_cursor_cls(connection, *args, **kwargs)
+        return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
         """

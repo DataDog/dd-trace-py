@@ -202,47 +202,6 @@ class PsycopgCore(TracerTestCase):
         conn.cursor().execute("""select 'blah'""")
         self.assert_has_no_spans()
 
-    # @skipIf(psycopg_VERSION < (2, 5), "_json is not available in psycopg==2.4")
-    # def test_manual_wrap_extension_types(self):
-    #     conn = self._get_conn()
-    #     # NOTE: this will crash if it doesn't work.
-    #     #   _ext.register_type(_ext.UUID, conn_or_curs)
-    #     #   TypeError: argument 2 must be a connection, cursor or None
-    #     extras.register_uuid(conn_or_curs=conn)
-
-    #     # NOTE: this will crash if it doesn't work.
-    #     #   _ext.register_default_json(conn)
-    #     #   TypeError: argument 2 must be a connection, cursor or None
-    #     extras.register_default_json(conn)
-
-    # def test_manual_wrap_extension_adapt(self):
-    #     conn = self._get_conn()
-    #     # NOTE: this will crash if it doesn't work.
-    #     #   items = _ext.adapt([1, 2, 3])
-    #     #   items.prepare(conn)
-    #     #   TypeError: argument 2 must be a connection, cursor or None
-    #     items = extensions.adapt([1, 2, 3])
-    #     items.prepare(conn)
-
-    #     # NOTE: this will crash if it doesn't work.
-    #     #   binary = _ext.adapt(b'12345)
-    #     #   binary.prepare(conn)
-    #     #   TypeError: argument 2 must be a connection, cursor or None
-    #     binary = extensions.adapt(b"12345")
-    #     binary.prepare(conn)
-
-    # @skipIf(psycopg_VERSION < (2, 7), "quote_ident not available in psycopg<2.7")
-    # def test_manual_wrap_extension_quote_ident(self):
-    #     from ddtrace import patch_all
-
-    #     patch_all()
-    #     from psycopg.extensions import quote_ident
-
-    #     # NOTE: this will crash if it doesn't work.
-    #     #   TypeError: argument 2 must be a connection or a cursor
-    #     conn = psycopg.connect(**POSTGRES_CONFIG)
-    #     quote_ident("foo", conn)
-
     def test_connect_factory(self):
         services = ["db", "another"]
         for service in services:
@@ -444,6 +403,29 @@ class PsycopgCore(TracerTestCase):
             ),
             (("foo",), ("bar",)),
         )
+
+    def test_connection_execute(self):
+        """Checks whether connection execute shortcute method works as normal"""
+
+        query = SQL("""select 'one' as x""")
+        cur = psycopg.connect(**POSTGRES_CONFIG).execute(query)
+
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
+
+    def test_cursor_from_connection_shortcut(self):
+        """Checks whether connection execute shortcute method works as normal"""
+
+        query = SQL("""select 'one' as x""")
+        conn = psycopg.connect(**POSTGRES_CONFIG)
+
+        cur = psycopg.Cursor(connection=conn)
+        cur.execute(query)
+
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
 
 
 # @skipIf(psycopg_VERSION < (2, 7), "quote_ident not available in psycopg<2.7")
