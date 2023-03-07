@@ -8,7 +8,9 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import mongo
@@ -72,6 +74,9 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
         span.set_tag_str(db.SYSTEM, mongo.SERVICE)
+
+        # set span.kind tag equal to type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
