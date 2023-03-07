@@ -266,7 +266,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
 
-
     def test_flask_ipblock_nomatch_200_json(self):
         @self.app.route("/")
         def route():
@@ -278,7 +277,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert resp.status_code == 200
             assert not _context.get_item("http.request.blocked", span=root_span)
-
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
