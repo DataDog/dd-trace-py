@@ -251,7 +251,7 @@ class Debugger(Service):
         if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
             os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
             log.info(
-                "Dynamic Instrumentation feature is enabled but Remote Config is explicit disabled."
+                "Disabled Remote Configuration enabled by Dynamic Instrumentation."
                 "Dynamic Instrumentation needs Remote Config to work, so ddtrace HAS ENABLED Remote Config."
             )
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
