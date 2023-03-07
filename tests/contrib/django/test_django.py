@@ -1377,7 +1377,7 @@ def test_django_request_distributed(client, test_spans):
             SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
-
+    assert root.get_tag("span.kind") == "server"
     first_child_span = test_spans.find_span(parent_id=root.span_id)
     assert first_child_span
 
@@ -1401,6 +1401,7 @@ def test_django_request_distributed_disabled(client, test_spans):
 
     # Assert the trace doesn't inherit from the distributed trace
     root = test_spans.find_span(name="django.request")
+    assert root.get_tag("span.kind") == "server"
     assert root.trace_id != 12345
     assert root.parent_id is None
 
@@ -1416,6 +1417,7 @@ def test_analytics_global_off_integration_default(client, test_spans):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
+    assert req_span.get_tag("span.kind") == "server"
     assert req_span.name == "django.request"
     assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -1431,6 +1433,7 @@ def test_analytics_global_on_integration_default(client, test_spans):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
+    assert req_span.get_tag("span.kind") == "server"
     assert req_span.name == "django.request"
     assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -1447,6 +1450,7 @@ def test_analytics_global_off_integration_on(client, test_spans):
             assert client.get("/users/").status_code == 200
 
     sp_request = test_spans.get_root_span()
+    assert sp_request.get_tag("span.kind") == "server"
     assert sp_request.name == "django.request"
     assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -1474,6 +1478,7 @@ def test_trace_query_string_integration_enabled(client, test_spans):
         assert client.get("/?key1=value1&key2=value2").status_code == 200
 
     sp_request = test_spans.get_root_span()
+    assert sp_request.get_tag("span.kind") == "server"
     assert sp_request.name == "django.request"
     assert sp_request.get_tag(http.QUERY_STRING) == "key1=value1&key2=value2"
 
@@ -1991,6 +1996,7 @@ class TestWSGI:
             "http.method": "GET",
             "http.status_code": "200",
             "http.url": "http://testserver/",
+            "span.kind": "server",
         }
         if django.VERSION >= (2, 2, 0):
             meta["http.route"] = "^$"
