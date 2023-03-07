@@ -17,7 +17,8 @@
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
       "pyramid.route.name": "hello",
-      "runtime-id": "e2934ab18ce745269d2f621e7720fc04"
+      "runtime-id": "08abee7146de476093e7dda93af60a9b",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,6 +28,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 656017
     },
-    "duration": 133000,
-    "start": 1666809831703988000
+    "duration": 122000,
+    "start": 1667243302987504000
   }]]

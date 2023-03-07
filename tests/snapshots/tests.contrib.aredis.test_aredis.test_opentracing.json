@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"
+      "runtime-id": "b160e3d7c2ad48acb38c5da8ebc038b6"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,8 +20,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 572
     },
-    "duration": 3533096,
-    "start": 1666795795685947904
+    "duration": 2842976,
+    "start": 1667241319524673024
   },
      {
        "name": "redis.command",
@@ -36,7 +36,8 @@
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
-         "redis.raw_command": "GET cheese"
+         "redis.raw_command": "GET cheese",
+         "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -45,6 +46,6 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 3351000,
-       "start": 1666795795686085000
+       "duration": 2700000,
+       "start": 1667241319524782000
      }]]

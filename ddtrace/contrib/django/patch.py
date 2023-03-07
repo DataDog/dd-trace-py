@@ -20,10 +20,12 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.contrib.django.compat import get_resolver
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
@@ -387,6 +389,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         ) as span:
             _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             span.set_tag_str(COMPONENT, config.django.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             utils._before_request_tags(pin, span, request)
             span._metrics[SPAN_MEASURED_KEY] = 1
