@@ -439,8 +439,9 @@ class RemoteConfigClient(object):
                 except Exception:
                     error_message = "Failed to load configuration %s for product %r" % (config, config.product_name)
                     log.debug(error_message, exc_info=True)
-                    applied_config.apply_state = 3  # Error state
-                    applied_config.apply_error = error_message
+                    if applied_config:
+                        applied_config.apply_state = 3  # Error state
+                        applied_config.apply_error = error_message
                     continue
                 else:
                     config.apply_state = 2  # Acknowledged (applied)
