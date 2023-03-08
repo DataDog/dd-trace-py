@@ -5,6 +5,7 @@ import functools
 
 from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
+from psycopg2.extensions import parse_dsn
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -13,7 +14,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
-from ...ext import sql
 
 
 class TracedCursor(cursor):
@@ -60,7 +60,7 @@ class TracedConnection(connection):
         super(TracedConnection, self).__init__(*args, **kwargs)
 
         # add metadata (from the connection, string, etc)
-        dsn = sql.parse_pg_dsn(self.dsn)
+        dsn = parse_dsn(self.dsn)
         self._datadog_tags = {
             net.TARGET_HOST: dsn.get("host"),
             net.TARGET_PORT: dsn.get("port"),
