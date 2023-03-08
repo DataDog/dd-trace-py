@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import Optional
 
 from ddtrace.internal import agent
@@ -6,6 +8,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -24,13 +27,19 @@ class RemoteConfig(object):
                 "/" + REMOTE_CONFIG_AGENT_ENDPOINT
             ) in data.get("endpoints", []):
                 return True
-        log.warning(
+
+        if asbool(os.environ.get("DD_TRACE_DEBUG")) or "DD_REMOTE_CONFIGURATION_ENABLED" in os.environ:
+            LOG_LEVEL = logging.WARNING
+        else:
+            LOG_LEVEL = logging.DEBUG
+
+        log.log(
+            LOG_LEVEL,
             "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
             "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
-            "DD_REMOTE_CONFIGURATION_KEY=<YOUR-KEY>\n"
-            "See: https://app.datadoghq.com/organization-settings/remote-config"
+            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/",
         )
         return False
 
