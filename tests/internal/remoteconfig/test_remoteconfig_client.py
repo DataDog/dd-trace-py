@@ -140,7 +140,9 @@ def test_load_new_configurations_error_callback(mock_extract_target_file):
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    assert applied_configs != client_configs
+
+    # An exception prevents the configuration from being applied
+    assert applied_configs["mock/ASM_FEATURES"].apply_state in (1, 3)
 
 
 @pytest.mark.parametrize(
