@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    psycopg2: Fixes a bug with DSN parsing integration.

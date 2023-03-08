@@ -20,6 +20,7 @@ except ImportError:
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import Dict
 
     try:
         from typing import Literal
@@ -31,7 +32,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Union
 
     from ddtrace import Tracer
-    from ddtrace.internal.remoteconfig.client import ConfigMetadata
 
 log = get_logger(__name__)
 
@@ -45,28 +45,31 @@ def enable_appsec_rc(test_tracer=None):
     else:
         tracer = test_tracer
 
-    appsec_features_callback = RCAppSecFeaturesCallBack(tracer)
-    appsec_callback = RCAppSecCallBack(tracer)
+    asm_features_callback = RCAppSecFeaturesCallBack(tracer)
+    asm_dd_callback = RCASMDDCallBack(tracer)
+    asm_callback = RCAppSecCallBack(tracer)
 
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
-        RemoteConfig.register(PRODUCTS.ASM_FEATURES, appsec_features_callback)
+        RemoteConfig.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
 
     if tracer._appsec_enabled:
         from ddtrace.internal.remoteconfig import RemoteConfig
 
-        RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
-        RemoteConfig.register(PRODUCTS.ASM, appsec_callback)  # Exclusion Filters & Custom Rules
-        RemoteConfig.register(PRODUCTS.ASM_DD, appsec_callback)  # DD Rules
+        RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+        RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+        RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
 
 
-def _add_rules_to_list(features, feature, message, rule_list):
-    # type: (Mapping[str, Any], str, str, list[Any]) -> None
-    rules = features.get(feature, [])
-    if rules:
+def _add_rules_to_list(features, feature, message, ruleset):
+    # type: (Mapping[str, Any], str, str, Dict[str, Any]) -> None
+    rules = features.get(feature, None)
+    if rules is not None:
         try:
-            rule_list += rules
+            if ruleset.get(feature) is None:
+                ruleset[feature] = []
+            ruleset[feature] += rules
             log.debug("Reloading Appsec %s: %s", message, rules)
         except JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
@@ -75,16 +78,30 @@ def _add_rules_to_list(features, feature, message, rule_list):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
-        ruleset = {"rules": [], "rules_data": [], "exclusions": [], "rules_override": []}  # type: dict[str, list[Any]]
-        _add_rules_to_list(features, "rules_data", "rules data", ruleset["rules_data"])
-        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset["rules"])
-        _add_rules_to_list(features, "rules", "Datadog rules", ruleset["rules"])
-        _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset["exclusions"])
-        _add_rules_to_list(features, "rules_override", "rules override", ruleset["rules_override"])
-        if any(ruleset.values()):
-            return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v})
+        ruleset = {
+            "rules": None,
+            "rules_data": None,
+            "exclusions": None,
+            "rules_override": None,
+        }  # type: dict[str, Optional[list[Any]]]
+        _add_rules_to_list(features, "rules_data", "rules data", ruleset)
+        _add_rules_to_list(features, "custom_rules", "custom rules", ruleset)
+        _add_rules_to_list(features, "rules", "Datadog rules", ruleset)
+        _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
+        _add_rules_to_list(features, "rules_override", "rules override", ruleset)
+        return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
     return False
+
+
+class RCASMDDCallBack(RemoteConfigCallBack):
+    def __init__(self, tracer):
+        # type: (Tracer) -> None
+        self.tracer = tracer
+
+    def __call__(self, metadata, features):
+        if features is not None:
+            _appsec_rules_data(self.tracer, features)
 
 
 class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
@@ -126,10 +143,11 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
             log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
-                appsec_callback = RCAppSecCallBack(self.tracer)
-                RemoteConfig.register(PRODUCTS.ASM_DATA, appsec_callback)  # IP Blocking
-                RemoteConfig.register(PRODUCTS.ASM, appsec_callback)  # Exclusion Filters & Custom Rules
-                RemoteConfig.register(PRODUCTS.ASM_DD, appsec_callback)  # DD Rules
+                asm_dd_callback = RCASMDDCallBack(self.tracer)
+                asm_callback = RCAppSecCallBack(self.tracer)
+                RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+                RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+                RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
                 if not self.tracer._appsec_enabled:
                     self.tracer.configure(appsec_enabled=True)
                 else:
@@ -146,13 +164,12 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
 
 
 class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
-    configs = {}
-
     def __init__(self, tracer):
         # type: (Tracer) -> None
+        super(RCAppSecCallBack, self).__init__()
         self.tracer = tracer
 
-    def __call__(self, metadata, features):
-        # type: (Optional[ConfigMetadata], Any) -> None
+    def __call__(self, target, features):
+        # type: (str, Any) -> None
         if features is not None:
             _appsec_rules_data(self.tracer, features)
