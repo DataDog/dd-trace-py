@@ -60,7 +60,7 @@ class ConfigMetadata(object):
     sha256_hash = attr.ib(type=Optional[str])
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
-    apply_state = attr.ib(type=Optional[int], default=0, eq=False)
+    apply_state = attr.ib(type=Optional[int], default=1, eq=False)
     apply_error = attr.ib(type=Optional[str], default=None, eq=False)
 
 
@@ -430,8 +430,6 @@ class RemoteConfigClient(object):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
         list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
         for target, config in client_configs.items():
-            if config.apply_state == 0:
-                config.apply_state = 1  # Unacknowledged (not applied yet)
             callback = self._products.get(config.product_name)
             if callback:
                 applied_config = self._applied_configs.get(target)
