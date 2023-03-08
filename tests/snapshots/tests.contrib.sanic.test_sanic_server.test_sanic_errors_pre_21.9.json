@@ -16,7 +16,8 @@
       "http.url": "http://0.0.0.0:8000/not_found",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "678d2112847d41bcaf9af81379c483e4"
+      "runtime-id": "a26bd9e1b9d84f2cba5eed44ff8059a2",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90728
     },
-    "duration": 641000,
-    "start": 1666809909845972000
+    "duration": 683000,
+    "start": 1667243750284681000
   }],
 [
   {
@@ -46,7 +47,8 @@
       "http.url": "http://0.0.0.0:8000/internal_error",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "678d2112847d41bcaf9af81379c483e4"
+      "runtime-id": "a26bd9e1b9d84f2cba5eed44ff8059a2",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -55,6 +57,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 90728
     },
-    "duration": 481000,
-    "start": 1666809909879748000
+    "duration": 617000,
+    "start": 1667243750322938000
   }]]

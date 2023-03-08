@@ -7,7 +7,9 @@ from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
@@ -95,6 +97,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
     with pin.tracer.trace(
         redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
     ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag_str(COMPONENT, config_integration.integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
@@ -121,6 +124,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
     ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag_str(COMPONENT, config_integration.integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)

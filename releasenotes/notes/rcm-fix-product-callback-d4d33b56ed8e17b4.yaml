@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix for KeyError exceptions when when `ASM_FEATURES` (1-click activation) disabled all ASM products. This could
+    cause 1-click activation to work incorrectly in some cases.
