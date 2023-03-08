@@ -1995,12 +1995,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-<<<<<<< HEAD
                     # redis added support for Python 3.11 in 4.3
                     pys="3.11",
-=======
-                    pys=select_pys(min_version="3.6"),
->>>>>>> a9dac11d4 (add support for ClusterPipeline)
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "pytest-asyncio": latest,
