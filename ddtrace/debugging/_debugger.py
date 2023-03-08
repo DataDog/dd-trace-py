@@ -247,13 +247,16 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
-        # Register the debugger with the RCM client.
+        # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
+        #  has been removed
         if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
             os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
             log.info(
                 "Disabled Remote Configuration enabled by Dynamic Instrumentation."
                 "Dynamic Instrumentation needs Remote Config to work, so ddtrace HAS ENABLED Remote Config."
             )
+
+        # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)

@@ -17,6 +17,7 @@ class RemoteConfig(object):
     @classmethod
     def enable(cls):
         # type: () -> bool
+        # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
         rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
         if rc_env_enabled:
             with cls._worker_lock:
