@@ -119,6 +119,20 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
+def is_64_bit_python():
+    return sys.maxsize > (1 << 32)
+
+
+class CleanLibraries(CleanCommand):
+    @staticmethod
+    def remove_dynamic_library():
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+
+    def run(self):
+        CleanLibraries.remove_dynamic_library()
+        CleanCommand.run(self)
+
+
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
@@ -138,10 +152,19 @@ class LibDDWaf_Download(BuildPyCommand):
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
             os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
-        build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
-            if CURRENT_OS == "Darwin" and not build_platform.endswith(arch):
+            if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
+                continue
+            elif CURRENT_OS == "Darwin":
+                # Detect build type for macos:
+                # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
+                target_platform = os.getenv("PLAT")
+                # Darwin Universal2 should bundle both architectures
+                if not target_platform.endswith(("universal2", arch)):
+                    continue
+            elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
+                # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
 
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
@@ -189,18 +212,9 @@ class LibDDWaf_Download(BuildPyCommand):
             os.remove(filename)
 
     def run(self):
+        CleanLibraries.remove_dynamic_library()
         LibDDWaf_Download.download_dynamic_library()
         BuildPyCommand.run(self)
-
-
-class CleanLibraries(CleanCommand):
-    @staticmethod
-    def remove_dynamic_library():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-
-    def run(self):
-        CleanLibraries.remove_dynamic_library()
-        CleanCommand.run(self)
 
 
 long_description = """
