@@ -29,15 +29,22 @@ def generate_patch_test_source(contrib):
     # Parse the contrib module to get the ``required_modules`` list
     # DEV: Parsing the module is much lighter and safer than importing it
     module_ast = ast.parse((CONTRIB_PATH / contrib / "__init__.py").read_text())
+    # require modules must be defined as module level array
     required_modules_node = [
         _ for _ in module_ast.body if isinstance(_, ast.Assign) and _.targets[0].id == "required_modules"
     ]
     if not required_modules_node:
+        print(
+            f"FAILED to generate patch test for {contrib}, required_modules not found in ddtrace.contrib.{contrib}.__init__"
+        )
         return
 
     required_modules = [_.value for _ in required_modules_node[0].value.elts]
 
     if not required_modules:
+        print(
+            f"FAILED to generate patch test for {contrib}, failed to parse ddtrace.contrib.{contrib}.required_modules"
+        )
         return
 
     # We use the first entry in the ``required_modules`` for the module name.
