@@ -118,6 +118,8 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    # patch httplib for PY2, http.client for PY3
+    "httplib": ("httplib", "http.client"),
 }
 
 IAST_PATCH = {

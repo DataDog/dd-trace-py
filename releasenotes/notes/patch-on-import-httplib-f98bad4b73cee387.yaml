@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    httplib: Resolves an issue where tracing for http client could not be enabled using `DD_TRACE_HTTPLIB_ENABLED=true` and `ddtrace.patch(httplib=True)`
