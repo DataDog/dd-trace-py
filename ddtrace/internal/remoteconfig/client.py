@@ -444,10 +444,11 @@ class RemoteConfigClient(object):
                     log.debug("Load new configuration: %s. content ", target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
-                    error_message = "Failed to load configuration %s for product %r" % (config, config.product_name)
+                    error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
                     log.debug(error_message, exc_info=True)
                     config.apply_state = 3  # Error state
                     config.apply_error = error_message
+                    applied_configs[target] = config
                     continue
                 else:
                     config.apply_state = 2  # Acknowledged (applied)
