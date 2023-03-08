@@ -114,7 +114,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         expected_response = _expected_payload(
             rc_client,
             targets_version=2,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"}],
+            config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2}],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
                 {
@@ -142,7 +142,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         expected_response = _expected_payload(
             rc_client,
             targets_version=3,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"}],
+            config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2}],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
                 {
@@ -188,8 +188,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=5,
             config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -229,8 +229,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=6,
             config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -270,9 +270,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=7,
             config_states=[
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -322,8 +322,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=8,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -365,8 +365,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=9,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -407,8 +407,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=10,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -449,9 +449,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=11,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -503,9 +503,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=12,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -560,9 +560,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             has_errors=True,
             error_msg="Not all client configurations have target files",
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -620,9 +620,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 "not exists in client_config and signed targets"
             ),
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[

@@ -61,7 +61,7 @@ class ConfigMetadata(object):
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
     apply_state = attr.ib(type=Optional[int], default=0, eq=False)
-    apply_error = attr.ib(type=Optional[str], default="", eq=False)
+    apply_error = attr.ib(type=Optional[str], default=None, eq=False)
 
 
 @attr.s
@@ -347,7 +347,20 @@ class RemoteConfigClient(object):
             root_version=1,
             targets_version=self._last_targets_version,
             config_states=[
-                dict(id=config.id, version=config.tuf_version, product=config.product_name)
+                dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                    apply_error=config.apply_error,
+                )
+                if config.apply_error
+                else dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                )
                 for config in self._applied_configs.values()
             ],
             has_error=has_error,
@@ -417,6 +430,8 @@ class RemoteConfigClient(object):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
         list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
         for target, config in client_configs.items():
+            if config.apply_state == 0:
+                config.apply_state = 1  # Unacknowledged (not applied yet)
             callback = self._products.get(config.product_name)
             if callback:
                 applied_config = self._applied_configs.get(target)
@@ -430,13 +445,11 @@ class RemoteConfigClient(object):
                 try:
                     log.debug("Load new configuration: %s. content ", target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
-                    config.apply_state = 1  # Unacknowledged (not applied yet)
                 except Exception:
                     error_message = "Failed to load configuration %s for product %r" % (config, config.product_name)
                     log.debug(error_message, exc_info=True)
-                    if applied_config:
-                        applied_config.apply_state = 3  # Error state
-                        applied_config.apply_error = error_message
+                    config.apply_state = 3  # Error state
+                    config.apply_error = error_message
                     continue
                 else:
                     config.apply_state = 2  # Acknowledged (applied)
