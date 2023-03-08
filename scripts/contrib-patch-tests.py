@@ -35,7 +35,7 @@ def generate_patch_test_source(contrib):
     ]
     if not required_modules_node:
         print(
-            f"FAILED to generate patch test for {contrib}, required_modules not found in ddtrace.contrib.{contrib}.__init__"
+            f"WARNING: failed to generate patch test for {contrib}, required_modules not found in ddtrace.contrib.{contrib}.__init__"
         )
         return
 
@@ -43,7 +43,7 @@ def generate_patch_test_source(contrib):
 
     if not required_modules:
         print(
-            f"FAILED to generate patch test for {contrib}, failed to parse ddtrace.contrib.{contrib}.required_modules"
+            f"WARNING: failed to generate patch test for {contrib}, ddtrace.contrib.{contrib}.required_modules could not be parsed"
         )
         return
 
