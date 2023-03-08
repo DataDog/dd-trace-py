@@ -45,6 +45,7 @@
          "http.useragent": "python-requests/2.28.1",
          "language": "python",
          "runtime-id": "61121a8ca225435796d8141e7eb132e4",
+         "span.kind": "server",
          "traceparent": "00-00000000000000000706cbca06098267-9cbfc826a1a6700f-01",
          "tracestate": "dd=s:1;t.dm:-0"
        },
