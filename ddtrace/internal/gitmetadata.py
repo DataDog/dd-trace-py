@@ -2,15 +2,9 @@ import os
 import typing
 
 from ddtrace.internal.utils import formats
-
+from envier import Env
 
 _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Dict[str, str]]
-
-ENV_ENABLED_FLAG = "DD_TRACE_GIT_METADATA_ENABLED"
-ENV_REPOSITORY_URL = "DD_GIT_REPOSITORY_URL"
-ENV_COMMIT_SHA = "DD_GIT_COMMIT_SHA"
-ENV_MAIN_PACKAGE = "DD_MAIN_PACKAGE"
-ENV_GLOBAL_TAGS = "DD_TAGS"
 
 TAG_REPOSITORY_URL = "git.repository_url"
 TAG_COMMIT_SHA = "git.commit.sha"
@@ -19,16 +13,35 @@ TRACE_TAG_REPOSITORY_URL = "_dd.git.repository_url"
 TRACE_TAG_COMMIT_SHA = "_dd.git.commit.sha"
 
 
-def __get_tags_from_env():
+class GitMetadataConfig(Env):
+    __prefix__ = "dd"
+
+    # DD_TRACE_GIT_METADATA_ENABLED
+    enabled = Env.var(bool, "trace_git_metadata_enable", default=True)
+
+    # DD_GIT_REPOSITORY_URL
+    repository_url = Env.var(str, "git.repository_url", default="")
+
+    # DD_GIT_COMMIT_SHA
+    commit_sha = Env.var(str, "git.commit.sha", default="")
+
+    # DD_MAIN_PACKAGE
+    main_package = Env.var(str, "main_package", default="")
+
+    # DD_TAGS
+    tags = Env.var(str, "tags", default="")
+
+
+def __get_tags_from_env(config):
     # type: () -> typing.Optional[typing.Dict[str, str]]
     """
     Get git metadata from environment variables
     """
-    repository_url = os.getenv(ENV_REPOSITORY_URL)
-    commit_sha = os.getenv(ENV_COMMIT_SHA)
+    repository_url = config.repository_url
+    commit_sha = config.commit_sha
 
     if not (repository_url and commit_sha):
-        tags = formats.parse_tags_str(os.getenv(ENV_GLOBAL_TAGS, ""))
+        tags = formats.parse_tags_str(config.tags)
         repository_url = tags.get(TAG_REPOSITORY_URL)
         commit_sha = tags.get(TAG_COMMIT_SHA)
 
@@ -38,14 +51,13 @@ def __get_tags_from_env():
     return {TRACE_TAG_REPOSITORY_URL: repository_url, TRACE_TAG_COMMIT_SHA: commit_sha}
 
 
-def __get_tags_from_package():
+def __get_tags_from_package(config):
     # type: () -> typing.Dict[str, str]
     """
     Extracts git metadata from python package's medatada field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     """
-    package = os.getenv(ENV_MAIN_PACKAGE, "")
-    if package == "":
+    if config.main_package == "":
         return {}
     try:
         try:
@@ -54,7 +66,7 @@ def __get_tags_from_package():
             import importlib_metadata  # type: ignore[no-redef]
 
         source_code_link = ""
-        for val in importlib_metadata.metadata(package).get_all("Project-URL"):
+        for val in importlib_metadata.metadata(config.main_package).get_all("Project-URL"):
             capt_val = val.split(", ")
             if capt_val[0] == "source_code_link":
                 source_code_link = capt_val[1].strip()
@@ -78,10 +90,12 @@ def get_tracer_tags():
     if _GITMETADATA_TAGS is not None:
         return _GITMETADATA_TAGS
 
-    if formats.asbool(os.getenv(ENV_ENABLED_FLAG, "True")):
-        tags = __get_tags_from_env()
+    config = GitMetadataConfig()
+
+    if config.enabled:
+        tags = __get_tags_from_env(config)
         if tags is None:
-            tags = __get_tags_from_package()
+            tags = __get_tags_from_package(config)
         _GITMETADATA_TAGS = tags
     else:
         _GITMETADATA_TAGS = {}
