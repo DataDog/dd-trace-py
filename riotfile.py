@@ -1967,6 +1967,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={
+                # deprecated package
                 "redis-py-cluster": [">=2.0,<2.1", latest],
             },
         ),
