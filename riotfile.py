@@ -2493,8 +2493,9 @@ venv = Venv(
                 Venv(
                     command="pytest {cmdargs} tests/contrib/kafka",
                     venvs=[
-                        Venv(pys=select_pys(max_version="3.5"), pkgs={"confluent-kafka": "~=0.11.0"}),
-                        Venv(pys=select_pys(min_version="3.6"), pkgs={"confluent-kafka": latest})
+                        Venv(pys="2.7", pkgs={"confluent-kafka": "==1.7.0"}),
+                        Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
+                        Venv(pys=select_pys(min_version="3.6"), pkgs={"confluent-kafka": ["~=1.9.0", latest]})
                     ]
                 ),
             ],
