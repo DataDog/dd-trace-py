@@ -49,7 +49,7 @@ class RemoteConfigError(Exception):
     """
 
 
-@attr.s(frozen=True)
+@attr.s
 class ConfigMetadata(object):
     """
     Configuration TUF target metadata
@@ -60,6 +60,8 @@ class ConfigMetadata(object):
     sha256_hash = attr.ib(type=Optional[str])
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
+    apply_state = attr.ib(type=Optional[int], default=1, eq=False)
+    apply_error = attr.ib(type=Optional[str], default=None, eq=False)
 
 
 @attr.s
@@ -345,7 +347,20 @@ class RemoteConfigClient(object):
             root_version=1,
             targets_version=self._last_targets_version,
             config_states=[
-                dict(id=config.id, version=config.tuf_version, product=config.product_name)
+                dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                    apply_error=config.apply_error,
+                )
+                if config.apply_error
+                else dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                )
                 for config in self._applied_configs.values()
             ],
             has_error=has_error,
@@ -428,11 +443,14 @@ class RemoteConfigClient(object):
                     log.debug("Load new configuration: %s. content ", target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
-                    log.debug(
-                        "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
-                    )
+                    error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
+                    log.debug(error_message, exc_info=True)
+                    config.apply_state = 3  # Error state
+                    config.apply_error = error_message
+                    applied_configs[target] = config
                     continue
                 else:
+                    config.apply_state = 2  # Acknowledged (applied)
                     applied_configs[target] = config
 
         for callback_to_dispach in list_callbacks:
