@@ -1,5 +1,5 @@
+from collections import Counter
 import os
-import sys
 
 import pytest
 import six
@@ -288,61 +288,72 @@ def test_double_fork():
     assert exit_code == 42
 
 
-# FIXME: subprocess marks do not respect pytest.mark.skips
-if sys.version_info < (3, 11, 0):
+@pytest.mark.subprocess(
+    out=lambda _: Counter(_) == {"C": 3, "T": 4},
+    err=None,
+    ddtrace_run=True,
+)
+def test_gevent_gunicorn_behaviour():
+    # emulate how sitecustomize.py cleans up imported modules
+    # to avoid problems with threads/forks that we saw previously
+    # when running gunicorn with gevent workers
 
-    @pytest.mark.subprocess(
-        out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"),
-        err=None,
-        env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
-    )
-    def test_gevent_reinit_patch():
-        import os
-        import sys
+    import sys
 
-        from ddtrace.internal import forksafe
-        from ddtrace.internal.periodic import PeriodicService
+    assert "gevent" not in sys.modules
 
-        class TestService(PeriodicService):
-            def __init__(self):
-                super(TestService, self).__init__(interval=1.0)
+    assert "ddtrace.internal" in sys.modules
+    assert "ddtrace.internal.periodic" in sys.modules
 
-            def periodic(self):
-                sys.stdout.write("T")
+    import atexit
 
+    from ddtrace.internal import forksafe
+    from ddtrace.internal.periodic import PeriodicService
+
+    class TestService(PeriodicService):
+        def __init__(self):
+            super(TestService, self).__init__(interval=1.0)
+
+        def periodic(self):
+            sys.stdout.write("T")
+            self.stop()
+
+    service = TestService()
+    service.start()
+    atexit.register(service.stop)
+
+    def restart_service():
+        global service
+        service.stop()
         service = TestService()
         service.start()
 
-        def restart_service():
-            global service
+    forksafe.register(restart_service)
+    atexit.register(lambda: service.join(1))
 
-            service.stop()
-            service = TestService()
-            service.start()
+    # ---- Application code ----
 
-        forksafe.register(restart_service)
+    import os  # noqa
+    import sys  # noqa
 
-        import gevent  # noqa
+    import gevent.hub  # noqa
+    import gevent.monkey  # noqa
 
-        def run_child():
-            global service
+    def run_child():
+        # We mimic what gunicorn does in child processes
+        gevent.monkey.patch_all()
+        gevent.hub.reinit()
 
-            # We mimic what gunicorn does in child processes
-            gevent.monkey.patch_all()
-            gevent.hub.reinit()
+        sys.stdout.write("C")
 
-            sys.stdout.write("C")
+        gevent.sleep(1.5)
 
-            gevent.sleep(1.5)
+    def fork_workers(num):
+        for _ in range(num):
+            if os.fork() == 0:
+                run_child()
+                sys.exit(0)
 
-            service.stop()
+    fork_workers(3)
 
-        def fork_workers(num):
-            for _ in range(num):
-                if os.fork() == 0:
-                    run_child()
-                    sys.exit(0)
-
-        fork_workers(3)
-
-        service.stop()
+    exit()
