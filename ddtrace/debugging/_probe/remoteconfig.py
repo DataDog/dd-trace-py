@@ -258,7 +258,7 @@ class ProbeRCAdapter(RemoteConfigCallBack):
             self._next_status_update_timestamp()
 
         if metadata is None:
-            log.warning("no metadata was provided")
+            log.debug("no RCM metadata")
             return
 
         self._update_probes_for_config(metadata.id, config)
