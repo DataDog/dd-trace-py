@@ -251,9 +251,7 @@ class Debugger(Service):
         #  has been removed
         if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
             os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-            log.info(
-                "Disabled Remote Configuration enabled by Dynamic Instrumentation."
-            )
+            log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
