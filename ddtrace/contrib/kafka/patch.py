@@ -89,7 +89,6 @@ def wrap_produce(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
         "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
     ) as span:
-        span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str("topic", "banana_topic")
@@ -103,7 +102,6 @@ def wrap_poll(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
         "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
     ) as span:
-        span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str("topic", "banana_topic")
