@@ -253,7 +253,6 @@ class Debugger(Service):
             os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
             log.info(
                 "Disabled Remote Configuration enabled by Dynamic Instrumentation."
-                "Dynamic Instrumentation needs Remote Config to work, so ddtrace HAS ENABLED Remote Config."
             )
 
         # Register the debugger with the RCM client.
