@@ -54,8 +54,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
+                "span.kind": u"client",
             },
         )
 
@@ -81,8 +83,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
 
@@ -100,6 +104,7 @@ class MySQLCore(object):
         span = spans[0]
         assert span.get_tag("sql.query") is None
         assert span.get_tag("component") == "mysql"
+        assert span.get_tag("span.kind") == "client"
 
     def test_query_with_several_rows_fetchall(self):
         with self.override_config("mysql", dict(trace_fetch_methods=True)):
@@ -115,6 +120,7 @@ class MySQLCore(object):
             assert span.get_tag("sql.query") is None
             assert spans[1].name == "mysql.query.fetchall"
             assert span.get_tag("component") == "mysql"
+            assert span.get_tag("span.kind") == "client"
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -150,6 +156,7 @@ class MySQLCore(object):
         span = spans[-1]
         assert span.get_tag("sql.query") is None
         assert span.get_tag("component") == "mysql"
+        assert span.get_tag("span.kind") == "client"
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
@@ -187,6 +194,7 @@ class MySQLCore(object):
             span = spans[-1]
             assert span.get_tag("sql.query") is None
             assert span.get_tag("component") == "mysql"
+            assert span.get_tag("span.kind") == "client"
             cursor.execute("drop table if exists dummy")
 
             assert spans[2].name == "mysql.query.fetchall"
@@ -231,8 +239,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
+                "span.kind": u"client",
             },
         )
         assert span.get_tag("sql.query") is None
@@ -272,8 +282,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysql",
+                "span.kind": u"client",
             },
         )
 
@@ -313,8 +325,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
 
@@ -453,8 +467,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
             assert span.get_tag("sql.query") is None

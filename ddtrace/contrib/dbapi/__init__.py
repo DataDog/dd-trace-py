@@ -8,7 +8,9 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
@@ -93,6 +95,9 @@ class TracedCursor(wrapt.ObjectProxy):
 
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
 
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
@@ -149,7 +154,11 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _set_post_execute_tags(self, span):
-        row_count = self.__wrapped__.rowcount
+        # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
+        # but some database drivers (cassandra-driver specifically) don't implement it.
+        row_count = getattr(self.__wrapped__, "rowcount", None)
+        if row_count is None:
+            return
         span.set_metric(db.ROWCOUNT, row_count)
         # Necessary for django integration backward compatibility. Django integration used to provide its own
         # implementation of the TracedCursor, which used to store the row count into a tag instead of
@@ -278,6 +287,9 @@ class TracedConnection(wrapt.ObjectProxy):
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

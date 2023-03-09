@@ -12,10 +12,11 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
-      "job.id": "1a233305-fe5e-4fc6-9750-ed92067a1e57",
+      "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1",
       "language": "python",
       "queue.name": "sync-q",
-      "runtime-id": "6cd7389b7d314440a4f7f3c7477cdb35"
+      "runtime-id": "44e88e609a8b47a08690eb02db5b1ed5",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4083
     },
-    "duration": 38982000,
-    "start": 1666807274869308000
+    "duration": 14950000,
+    "start": 1667319137860751000
   },
      {
        "name": "rq.job.perform",
@@ -41,8 +42,8 @@
          "error.message": "error",
          "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 206, in traced_job_perform\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~1100_click712/lib/python3.8/site-packages/rq/job.py\", line 821, in perform\n    self._result = self._execute()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~1100_click712/lib/python3.8/site-packages/rq/job.py\", line 844, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\ntests.contrib.rq.jobs.MyException: error\n",
          "error.type": "tests.contrib.rq.jobs.MyException",
-         "job.id": "1a233305-fe5e-4fc6-9750-ed92067a1e57"
+         "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1"
        },
-       "duration": 2574000,
-       "start": 1666807274903462000
+       "duration": 4677000,
+       "start": 1667319137868920000
      }]]
