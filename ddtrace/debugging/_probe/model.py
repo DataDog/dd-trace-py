@@ -70,7 +70,6 @@ class CaptureLimits(object):
 class Probe(six.with_metaclass(abc.ABCMeta)):
     probe_id = attr.ib(type=str)
     tags = attr.ib(type=dict, eq=False)
-    active = attr.ib(type=bool, eq=False)
     rate = attr.ib(type=float, eq=False)
     limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
 
@@ -83,16 +82,6 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
             call_once=True,
             raise_on_exceed=False,
         )
-
-    def activate(self):
-        # type: () -> None
-        """Activate the probe."""
-        self.active = True
-
-    def deactivate(self):
-        # type: () -> None
-        """Deactivate the probe."""
-        self.active = False
 
 
 @attr.s
@@ -225,3 +214,8 @@ class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditi
 
 LineProbe = Union[LogLineProbe, MetricLineProbe]
 FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe]
+
+
+class ProbeType(object):
+    LOG_PROBE = "LOG_PROBE"
+    METRIC_PROBE = "METRIC_PROBE"

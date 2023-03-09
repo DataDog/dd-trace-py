@@ -22,6 +22,7 @@ from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.internal.remoteconfig import rcm_endpoint
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import call_program
@@ -684,10 +685,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-@mock.patch.object(RemoteConfig, "_check_remote_config_enable_in_agent")
-def test_probe_status_logging(mock_check_remote_config_enable_in_agent, monkeypatch):
-    mock_check_remote_config_enable_in_agent.return_value = True
-
+def test_probe_status_logging(monkeypatch):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
     RemoteConfig.disable()
 
@@ -702,7 +700,7 @@ def test_probe_status_logging(mock_check_remote_config_enable_in_agent, monkeypa
     RemoteConfigClient.request = request
 
     try:
-        with debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     probe_id="line-probe-ok",

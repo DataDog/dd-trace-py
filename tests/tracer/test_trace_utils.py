@@ -556,11 +556,11 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             "192.168.1.14",
         ),
         ("", {"x-forwarded-for": "foobar"}, ""),
-        ("via", {"x-forwarded-for": "4.4.8.8"}, ""),
-        ("via", {"via": "8.8.8.8"}, "8.8.8.8"),
+        ("x-real-ip", {"x-forwarded-for": "4.4.8.8"}, ""),
+        ("x-real-ip", {"x-real-ip": "8.8.8.8"}, "8.8.8.8"),
         (
-            "via",
-            {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},
+            "x-real-ip",
+            {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
             "8.8.4.4",
         ),
     ],
@@ -666,7 +666,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
         trace_utils.set_http_meta(
             span,
             int_config.myint,
-            request_headers={"via": "8.8.8.8"},
+            request_headers={"x-real-ip": "8.8.8.8"},
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
@@ -680,7 +680,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
         trace_utils.set_http_meta(
             span,
             int_config.myint,
-            request_headers={"via": "8.8.8.8"},
+            request_headers={"x-real-ip": "8.8.8.8"},
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
@@ -694,7 +694,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
         trace_utils.set_http_meta(
             span,
             int_config.myint,
-            request_headers={"via": "8.8.8.8"},
+            request_headers={"x-real-ip": "8.8.8.8"},
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)

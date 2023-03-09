@@ -213,6 +213,7 @@ def _check_client_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.host") == "localhost"
     assert span.get_tag("network.destination.port") == "50531"
     assert span.get_tag("component") == "grpc_aio_client"
+    assert span.get_tag("span.kind") == "client"
 
 
 def _check_server_span(span, service, method_name, method_kind):
@@ -228,6 +229,7 @@ def _check_server_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.method.name") == method_name
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("component") == "grpc_aio_server"
+    assert span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -281,6 +283,7 @@ async def test_invalid_target(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -321,9 +324,11 @@ async def test_pin_tags_put_in_span(servicer, tracer):
     _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
     assert client_span.get_tag("tag2") == "client"
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
     _check_server_span(server_span, "server1", "SayHello", "unary")
     assert server_span.get_tag("tag1") == "server"
     assert server_span.get_tag("component") == "grpc_aio_server"
+    assert server_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -453,6 +458,7 @@ async def test_unary_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHello"
     if server_info.abort_supported:
@@ -467,6 +473,7 @@ async def test_unary_exception(server_info, tracer):
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag("component") == "grpc_aio_server"
+        assert server_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.skipif(
@@ -539,6 +546,7 @@ async def test_server_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert server_span.error == 1
@@ -552,6 +560,7 @@ async def test_server_streaming_exception(server_info, tracer):
     assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
     assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
     assert server_span.get_tag("component") == "grpc_aio_server"
+    assert server_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -603,6 +612,7 @@ async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     # No error on server end
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
@@ -675,6 +685,7 @@ async def test_client_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if server_info.abort_supported:
@@ -689,6 +700,7 @@ async def test_client_streaming_exception(server_info, tracer):
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag("component") == "grpc_aio_server"
+        assert server_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -779,6 +791,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     if server_info.abort_supported:
@@ -793,6 +806,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag("component") == "grpc_aio_server"
+        assert server_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -852,6 +866,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
+    assert client_span.get_tag("span.kind") == "client"
 
     # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
     # in old versions of Python, but it's not always so. Thus not checked.
