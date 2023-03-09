@@ -8,7 +8,6 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
-from ddtrace.internal.utils.formats import asbool
 
 
 try:
@@ -130,7 +129,7 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
         """
         if APPSEC_ENV in os.environ:
             # no one click activation if var env is set
-            rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+            rc_appsec_enabled = config._appsec_enabled
         elif features is False:
             rc_appsec_enabled = False
         else:

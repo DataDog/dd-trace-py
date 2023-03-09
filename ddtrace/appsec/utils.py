@@ -3,6 +3,7 @@ import os
 import sys
 from typing import Optional
 
+from ddtrace import config
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
@@ -40,7 +41,7 @@ def _appsec_rc_capabilities():
     """
     value = 0b0
     result = ""
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")) or asbool(os.environ.get(APPSEC_ENV)):
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")) or config._appsec_enabled:
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
         value |= 1 << 2  # Enable ASM_IP_BLOCKING
