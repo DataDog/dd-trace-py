@@ -24,6 +24,7 @@ ddtrace/**/*.html
 
 # Dynamic binary libraries
 ddtrace/appsec/ddwaf/libddwaf/
+libddwaf*.sha256
 
 # Distribution / packaging
 .Python
@@ -85,6 +86,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+_readthedocs/
 
 # PyBuilder
 target/

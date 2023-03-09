@@ -55,7 +55,7 @@ class WsgiCustomMiddleware(wsgi._DDWSGIMiddlewareBase):
     _application_span_name = "test_wsgi.application"
     _response_span_name = "test_wsgi.response"
 
-    def _request_span_modifier(self, req_span, environ):
+    def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         req_span.set_tag("request_tag", "req test tag set")
         req_span.set_metric("request_metric", 1)
         req_span.resource = "request resource was modified"
@@ -137,6 +137,7 @@ def test_query_string_tracing(tracer, test_spans):
         assert request_span.get_tag("http.status_code") == "200"
         assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
         assert request_span.get_tag("component") == "wsgi"
+        assert request_span.get_tag("span.kind") == "server"
 
         assert spans[0][1].name == "wsgi.application"
         assert spans[0][2].name == "wsgi.start_response"

@@ -2,6 +2,7 @@ import grpc
 
 from ddtrace import config
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -9,7 +10,9 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from .utils import set_grpc_method_meta
 
@@ -73,8 +76,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             resource=self._handler_call_details.method,
         )
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.grpc_server.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+
+        # set span.kind tag equal to type of span
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

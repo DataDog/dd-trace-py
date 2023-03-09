@@ -62,15 +62,17 @@ def test_simple_query(connection, tracer):
     assert span.name == "mariadb.query"
     assert span.span_type == "sql"
     assert span.error == 0
-    assert span.get_metric("out.port") == 3306
+    assert span.get_metric("network.destination.port") == 3306
 
     assert_dict_issuperset(
         span.get_tags(),
         {
             "out.host": u"127.0.0.1",
             "db.name": u"test",
+            "db.system": u"mariadb",
             "db.user": u"test",
             "component": u"mariadb",
+            "span.kind": "client",
         },
     )
 

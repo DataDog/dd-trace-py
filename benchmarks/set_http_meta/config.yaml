@@ -4,7 +4,7 @@ all-enabled: &all-enabled
   send_querystring_enabled: false
   obfuscation_disabled: false
   ip_header: ""
-  ip_disabled: true
+  ip_enabled: false
   querystring: ''
   url: 'http://localhost:8888/index'
 no-useragentvariant:
@@ -13,7 +13,7 @@ no-useragentvariant:
 all-disabled:
   <<: *all-enabled
   allenabled: false
-  ip_disabled: true
+  ip_enabled: false
 useragentvariant_exists_1:
   <<: *all-enabled
   useragentvariant: "HTTP_USER_AGENT"
@@ -32,10 +32,10 @@ useragentvariant_not_exists_2:
 no-collectipvariant:
   <<: *all-enabled
   ip_header: ""
-  ip_disabled: true
+  ip_enabled: false
 collectipvariant_exists:
   <<: *all-enabled
-  ip_disabled: false
+  ip_enabled: true
   ip_header: "x-forwarded-for"
 obfuscation-worst-case-implicit-query:
   <<: *all-enabled

@@ -1,4 +1,5 @@
 import sys
+from typing import Iterable
 
 import pymemcache
 from pymemcache.client.base import Client
@@ -10,12 +11,16 @@ from pymemcache.exceptions import MemcacheUnknownError
 
 # 3p
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.compat import reraise
@@ -146,9 +151,11 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
+            span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+            span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
 
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.pymemcache.integration_name)
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate
@@ -165,7 +172,21 @@ class WrappedClient(wrapt.ObjectProxy):
                 log.debug("Error setting relevant pymemcache tags")
 
             try:
-                return method(*args, **kwargs)
+                result = method(*args, **kwargs)
+
+                if method_name == "get_many" or method_name == "gets_many":
+                    # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
+                    # get many returns a map with values, else an empty map if no matches
+                    span.set_metric(
+                        db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+                    )
+                elif method_name == "get":
+                    # get returns key or None
+                    span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                elif method_name == "gets":
+                    # gets returns a tuple of (None, None) if key not found, else tuple of (key, index)
+                    span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
+                return result
             except (
                 MemcacheClientError,
                 MemcacheServerError,

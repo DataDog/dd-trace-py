@@ -15,13 +15,16 @@ from grpc.aio._typing import ResponseType
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
 from ..grpc import constants
@@ -171,8 +174,10 @@ def _create_span(pin, handler_call_details, method_kind):
         resource=handler_call_details.method,
     )
 
-    # set component tag equal to name of integration
-    span.set_tag_str("component", config.grpc_aio_server.integration_name)
+    span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
+
+    # set span.kind to the type of operation being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
     span.set_tag(SPAN_MEASURED_KEY)
 

@@ -11,7 +11,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-class TestRedisPatch(TracerTestCase):
+class TestGrokzenRedisClusterPatch(TracerTestCase):
 
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
@@ -24,7 +24,7 @@ class TestRedisPatch(TracerTestCase):
             return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super(TestGrokzenRedisClusterPatch, self).setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
@@ -33,7 +33,7 @@ class TestRedisPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super(TestGrokzenRedisClusterPatch, self).tearDown()
 
     def test_basics(self):
         us = self.r.get("cheese")
@@ -48,6 +48,8 @@ class TestRedisPatch(TracerTestCase):
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET cheese"
         assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
 
@@ -64,6 +66,8 @@ class TestRedisPatch(TracerTestCase):
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET 😐"
         assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == u"GET 😐"
 
@@ -85,6 +89,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):

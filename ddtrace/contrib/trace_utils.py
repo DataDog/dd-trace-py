@@ -61,13 +61,14 @@ USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 IP_PATTERNS = (
     "x-forwarded-for",
     "x-real-ip",
-    "client-ip",
-    "x-forwarded",
-    "x-cluster-client-ip",
-    "forwarded-for",
-    "forwarded",
-    "via",
     "true-client-ip",
+    "x-client-ip",
+    "x-forwarded",
+    "forwarded-for",
+    "x-cluster-client-ip",
+    "fastly-client-ip",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
 )
 
 
@@ -403,6 +404,18 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+def _set_url_tag(integration_config, span, url, query):
+    # type: (IntegrationConfig, Span, str, str) -> None
+
+    if integration_config.http_tag_query_string:  # Tagging query string in http.url
+        if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
+            span.set_tag_str(http.URL, url)
+        else:  # Redact query strings
+            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+    else:  # Not tagging query string in http.url
+        span.set_tag_str(http.URL, strip_query_string(url))
+
+
 def set_http_meta(
     span,  # type: Span
     integration_config,  # type: IntegrationConfig
@@ -445,14 +458,7 @@ def set_http_meta(
 
     if url is not None:
         url = _sanitized_url(url)
-
-        if integration_config.http_tag_query_string:  # Tagging query string in http.url
-            if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
-                span.set_tag_str(http.URL, url)
-            else:  # Redact query strings
-                span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-        else:  # Not tagging query string in http.url
-            span.set_tag_str(http.URL, strip_query_string(url))
+        _set_url_tag(integration_config, span, url, query)
 
     if status_code is not None:
         try:
@@ -470,7 +476,7 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    ip = None
+    request_ip = peer_ip
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -479,10 +485,15 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
-            ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
-            if ip:
-                span.set_tag_str(http.CLIENT_IP, ip)
-                span.set_tag_str("network.client.ip", ip)
+            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+            request_ip = _context.get_item("http.request.remote_ip", span=span)
+
+            if not request_ip:
+                # Not calculated: framework does not support IP blocking or testing env
+                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+
+            span.set_tag_str(http.CLIENT_IP, request_ip)
+            span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -512,7 +523,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", ip),
+                    ("http.request.remote_ip", request_ip),
                 ]
                 if v is not None
             },
@@ -600,6 +611,12 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
+
+    if config._appsec_enabled:
+        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+        block_request_if_user_blocked(tracer, user_id)
+
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user

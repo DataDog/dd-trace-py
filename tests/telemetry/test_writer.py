@@ -11,19 +11,13 @@ from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
+from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 
 from .conftest import TelemetryTestSession
 
 
-@pytest.fixture(autouse=True)
-def mock_time():
-    with mock.patch("time.time") as mt:
-        mt.return_value = 1642544540
-        yield mt
-
-
-def test_add_event(telemetry_writer, test_agent_session):
+def test_add_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_event queues a telemetry request with valid headers and payload"""
     payload = {"test": "123"}
     payload_type = "test-event"
@@ -35,8 +29,12 @@ def test_add_event(telemetry_writer, test_agent_session):
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
+    assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
+    assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v1"
+    assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
+    assert requests[0]["headers"]["DD-Agent-Hostname"] == get_host_info()["hostname"]
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
@@ -54,13 +52,13 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-def test_app_started_event(telemetry_writer, test_agent_session):
-    """asserts that app_started_event() queues a valid telemetry request which is then sent by periodic()"""
+def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
+    """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     # queue integrations
     telemetry_writer.add_integration("integration-t", True)
     telemetry_writer.add_integration("integration-f", False)
     # queue an app started event
-    telemetry_writer.app_started_event()
+    telemetry_writer._app_started_event()
     # force a flush
     telemetry_writer.periodic()
 
@@ -97,7 +95,7 @@ def test_app_started_event(telemetry_writer, test_agent_session):
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_closing_event(telemetry_writer, test_agent_session):
+def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that on_shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
     telemetry_writer.on_shutdown()
@@ -109,7 +107,7 @@ def test_app_closing_event(telemetry_writer, test_agent_session):
     assert requests[0]["body"] == _get_request_body({}, "app-closing")
 
 
-def test_add_integration(telemetry_writer, test_agent_session):
+def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
     telemetry_writer.add_integration("integration-t", True)
@@ -161,22 +159,21 @@ def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
 
     with httpretty.enabled():
-        httpretty.register_uri(httpretty.POST, telemetry_writer.url, status=mock_status)
+        httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
         with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
             # sends failing app-closing event
             telemetry_writer.on_shutdown()
             # asserts unsuccessful status code was logged
             log.debug.assert_called_with(
-                "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
-                telemetry_writer._agent_url,
-                telemetry_writer.ENDPOINT,
+                "failed to send telemetry to the Datadog Agent at %s. response: %s",
+                telemetry_writer._client.url,
                 mock_status,
             )
         # ensure one failing request was sent
         assert len(httpretty.latest_requests()) == 1
 
 
-def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
+def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.start()
     telemetry_writer.stop()
 
@@ -209,7 +206,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     assert len(events) == 0
 
     # Assert a maximum of one heartbeat is queued per flush
-    telemetry_writer.app_heartbeat_event()
+    telemetry_writer._app_heartbeat_event()
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
@@ -234,6 +231,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
         "api_version": "v1",
+        "debug": False,
         "seq_id": seq_id,
         "application": get_application(config.service, config.version, config.env),
         "host": get_host_info(),

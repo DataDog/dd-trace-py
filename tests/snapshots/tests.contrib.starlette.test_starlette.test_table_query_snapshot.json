@@ -12,12 +12,14 @@
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "POST",
+      "http.route": "/notes",
       "http.status_code": "200",
       "http.url": "http://testserver/notes",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,8 +28,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4441
     },
-    "duration": 2153000,
-    "start": 1666810088262789000
+    "duration": 1571000,
+    "start": 1667244145007862000
   },
      {
        "name": "sqlite.query",
@@ -40,15 +42,16 @@
        "error": 0,
        "meta": {
          "component": "sqlalchemy",
+         "span.kind": "client",
          "sql.db": "test.db"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "sql.rows": 1
+         "db.row_count": 1
        },
-       "duration": 512000,
-       "start": 1666810088263652000
+       "duration": 344000,
+       "start": 1667244145008486000
      }],
 [
   {
@@ -64,12 +67,14 @@
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "GET",
+      "http.route": "/notes",
       "http.status_code": "200",
       "http.url": "http://testserver/notes",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -78,8 +83,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4441
     },
-    "duration": 586000,
-    "start": 1666810088266147000
+    "duration": 551000,
+    "start": 1667244145010462000
   },
      {
        "name": "sqlite.query",
@@ -92,12 +97,13 @@
        "error": 0,
        "meta": {
          "component": "sqlalchemy",
+         "span.kind": "client",
          "sql.db": "test.db"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 150000,
-       "start": 1666810088266421000
+       "duration": 136000,
+       "start": 1667244145010704000
      }]]

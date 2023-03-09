@@ -1,13 +1,16 @@
+import sys
 import unittest
 
 from tornado import version_info
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from .utils import TornadoTestCase
+
+
+futures_available = "concurrent.futures" in sys.modules
 
 
 class TestTornadoExecutor(TornadoTestCase):
@@ -37,6 +40,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -68,6 +72,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -99,6 +104,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -135,6 +141,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -170,6 +177,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "cannot combine positional and keyword args" == request_span.get_tag(ERROR_MSG)
         assert "ValueError" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
 
     @unittest.skipUnless(futures_available, "Futures must be available to test direct submit")
     def test_futures_double_instrumentation(self):

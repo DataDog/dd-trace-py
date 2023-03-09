@@ -21,10 +21,13 @@ from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -324,8 +327,10 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.botocore.integration_name)
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None

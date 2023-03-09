@@ -1,21 +1,33 @@
 import os
 
 import psycopg2
+from psycopg2.extensions import parse_dsn
 from psycopg2.sql import Composable
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
-from ddtrace.ext import sql
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
+from ...propagation._database_monitoring import _DBM_Propagator
+from ...propagation._database_monitoring import default_sql_injector as _default_sql_injector
+
+
+def _psycopg2_sql_injector(dbm_comment, sql_statement):
+    # type: (str, Composable) -> Composable
+    if isinstance(sql_statement, Composable):
+        return psycopg2.sql.SQL(dbm_comment) + sql_statement
+    return _default_sql_injector(dbm_comment, sql_statement)
 
 
 config._add(
@@ -25,7 +37,8 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
-        _dbm_propagation_supported=True,
+        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg2_sql_injector),
+        dbms_name="postgresql",
     ),
 )
 
@@ -62,20 +75,13 @@ def unpatch():
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg2"""
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_operation, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
         if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
-
         return super(Psycopg2TracedCursor, self)._trace_method(
-            method, name, resource, extra_tags, dbm_operation, *args, **kwargs
+            method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
         )
-
-    def _dbm_sql_injector(self, dbm_comment, sql_statement):
-        if isinstance(sql_statement, Composable):
-            composable_dbm_comment = psycopg2.sql.SQL(dbm_comment)
-            return composable_dbm_comment + sql_statement
-        return super(Psycopg2TracedCursor, self)._dbm_sql_injector(dbm_comment, sql_statement)
 
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
@@ -102,12 +108,13 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     c = traced_conn_cls(conn)
 
     # fetch tags from the dsn
-    dsn = sql.parse_pg_dsn(conn.dsn)
+    dsn = parse_dsn(conn.dsn)
     tags = {
         net.TARGET_HOST: dsn.get("host"),
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
+        db.SYSTEM: config.psycopg.dbms_name,
         "db.application": dsn.get("application_name"),
     }
 
@@ -146,8 +153,12 @@ def patched_connect(connect_func, _, args, kwargs):
         with pin.tracer.trace(
             "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
         ) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.psycopg.integration_name)
+            span.set_tag_str(COMPONENT, config.psycopg.integration_name)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

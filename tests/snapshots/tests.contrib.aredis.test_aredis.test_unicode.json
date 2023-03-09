@@ -11,10 +11,12 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aredis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
-      "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"
+      "runtime-id": "b160e3d7c2ad48acb38c5da8ebc038b6",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,11 +24,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
+      "network.destination.port": 6379,
       "out.redis_db": 0,
       "process_id": 65274,
       "redis.args_length": 2
     },
-    "duration": 3675000,
-    "start": 1666795795412258000
+    "duration": 2518000,
+    "start": 1667241319331201000
   }]]

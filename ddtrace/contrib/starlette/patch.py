@@ -9,6 +9,7 @@ from starlette.routing import Match
 
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -138,13 +139,17 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = "{} {}".format(scope["method"], path)
             else:
                 span.resource = path
+            # route should only be in the root span
+            if index == 0:
+                span.set_tag_str(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
+        route = "".join(resource_paths)
         if scope.get("method"):
-            request_spans[0].resource = "{} {}".format(scope["method"], "".join(resource_paths))
+            request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
-            request_spans[0].resource = "".join(resource_paths)
-
+            request_spans[0].resource = route
+        request_spans[0].set_tag_str(http.ROUTE, route)
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",

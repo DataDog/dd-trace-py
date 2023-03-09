@@ -234,7 +234,7 @@ cdef class MsgpackStringTable(StringTable):
         self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
-        assert self.index(ORIGIN_KEY) == 1
+        self.index(ORIGIN_KEY)
         self._reset_size = self.pk.length
 
     def __dealloc__(self):
@@ -293,7 +293,12 @@ cdef class MsgpackStringTable(StringTable):
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
         with self._lock:
-            assert self.size + size <= self.max_size
+            if self.size + size > self.max_size:
+                raise BufferFull(
+                    "Cannot append raw bytes: string table is full (current size: %d, max size: %d)." % (
+                        self.size, self.max_size
+                    )
+                )
             res = msgpack_pack_raw_body(&self.pk, <char *>PyLong_AsLong(src), size)
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")

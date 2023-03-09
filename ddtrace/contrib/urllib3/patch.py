@@ -3,11 +3,14 @@ import os
 import urllib3
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
 from ...internal.utils import ArgumentError
@@ -96,8 +99,10 @@ def _wrap_urlopen(func, instance, args, kwargs):
     with pin.tracer.trace(
         "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.urllib3.integration_name)
+        span.set_tag_str(COMPONENT, config.urllib3.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         if config.urllib3.split_by_domain:
             span.service = hostname

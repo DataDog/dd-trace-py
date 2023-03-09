@@ -175,11 +175,12 @@ def test_payload_too_large(encoding, monkeypatch):
         t.shutdown()
         calls = [
             mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
                 AnyInt(),
+                AnyStr(),
             )
         ]
         log.warning.assert_has_calls(calls)
@@ -229,7 +230,6 @@ def test_metrics(encoding, monkeypatch):
         assert t._partial_flush_min_spans == 500
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -269,7 +269,6 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
         )
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -310,11 +309,12 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
         log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
             AnyInt(),
             AnyInt(),
             AnyInt(),
             AnyInt(),
+            AnyStr(),
         )
         log.error.assert_not_called()
 
@@ -849,25 +849,6 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
-
-
-def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
-        dict(
-            DD_TRACE_DEBUG="1",
-        )
-    )
-    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-from ddtrace import patch_all
-logging.basicConfig(level=logging.DEBUG)
-patch_all()
-        """,
-        env=env,
-    )
-    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
 
 
 def test_no_warnings():

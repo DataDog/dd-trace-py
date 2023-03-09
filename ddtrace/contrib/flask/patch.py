@@ -1,10 +1,20 @@
+import functools
 import json
 
 import flask
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import abort
 import xmltodict
+
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
+from ddtrace.internal.constants import COMPONENT
+
+from ...appsec import _asm_request_context
+from ...appsec import utils
+from ...internal import _context
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -24,10 +34,13 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
+from ...ext import http
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
+from ..trace_utils import _get_request_header_user_agent
+from ..trace_utils import _set_url_tag
 from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
@@ -107,15 +120,32 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         #      we still want `GET /product/<int:product_id>` grouped together,
         #      even if it is a 404
         if not req_span.get_tag(FLASK_ENDPOINT) and not req_span.get_tag(FLASK_URL_RULE):
-            req_span.resource = u" ".join((flask.request.method, code))
+            req_span.resource = " ".join((flask.request.method, code))
 
         trace_utils.set_http_meta(
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        return start_response(status_code, headers)
+        if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
+            log.debug("Flask WAF call for Suspicious Request Blocking on response")
+            _asm_request_context.call_waf_callback()
+            if _context.get_item("http.request.blocked", span=req_span):
+                # response code must be set here, or it will be too late
+                ctype = (
+                    "text/html"
+                    if "text/html" in _asm_request_context.get_headers().get("Accept", "").lower()
+                    else "text/json"
+                )
+                response_headers = [("content-type", ctype)]
+                result = start_response("403 FORBIDDEN", response_headers)
+                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
+            else:
+                result = start_response(status_code, headers)
+        else:
+            result = start_response(status_code, headers)
+        return result
 
-    def _request_span_modifier(self, span, environ):
+    def _request_span_modifier(self, span, environ, parsed_headers=None):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
@@ -125,7 +155,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         #   POST /save
         # We will override this below in `traced_dispatch_request` when we have a `
         # RequestContext` and possibly a url rule
-        span.resource = u" ".join((request.method, request.path))
+        span.resource = " ".join((request.method, request.path))
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
@@ -166,7 +196,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
                 else:
-                    req_body = request.get_data()
+                    # no raw body
+                    req_body = None
             except (
                 AttributeError,
                 RuntimeError,
@@ -199,6 +230,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
+        if config._appsec_enabled:
+            log.debug("Flask WAF call for Suspicious Request Blocking on request")
+            _asm_request_context.call_waf_callback()
 
 
 def patch():
@@ -483,8 +517,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -496,8 +529,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -544,6 +576,33 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
+def _set_block_tags(span):
+    span.set_tag_str(http.STATUS_CODE, "403")
+    request = flask.request
+    try:
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        if base_url and query_string:
+            _set_url_tag(config.flask, span, base_url, query_string)
+        if query_string and config.flask.trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        if request.method is not None:
+            span.set_tag_str(http.METHOD, request.method)
+        user_agent = _get_request_header_user_agent(request.headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
+def _block_request_callable(span):
+    request = flask.request
+    _context.set_item("http.request.blocked", True, span=span)
+    _set_block_tags(span)
+    ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
+    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
+
+
 def request_tracer(name):
     @with_instance_pin
     def _traced_request(pin, wrapped, instance, args, kwargs):
@@ -562,12 +621,15 @@ def request_tracer(name):
         _set_request_tags(span)
 
         with pin.tracer.trace(
-            ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
+            ".".join(("flask", name)),
+            service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            # set component tag equal to name of integration
-            request_span.set_tag_str("component", config.flask.integration_name)
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
+            request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
+            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+                _asm_request_context.block_request()
             return wrapped(*args, **kwargs)
 
     return _traced_request
@@ -594,8 +656,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with pin.tracer.trace("flask.jsonify") as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
 
@@ -606,23 +667,25 @@ def _set_request_tags(span):
         # https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
         request = flask.request
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.flask.integration_name)
+        span.set_tag_str(COMPONENT, config.flask.integration_name)
+
+        if span.name.split(".")[-1] == "request":
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = u" ".join((request.method, request.endpoint))
+            span.resource = " ".join((request.method, request.endpoint))
             span.set_tag_str(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = u" ".join((request.method, request.url_rule.rule))
+            span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
                 # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
                 #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
             trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
