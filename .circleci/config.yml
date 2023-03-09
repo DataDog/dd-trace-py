@@ -15,7 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-kafka_image: &kafka_image bitnami/kafka:3.3.2-debian-11-r2
+kafka_image: &kafka_image confluentinc/cp-kafka:7.3.2
 
 orbs:
   win: circleci/windows@5.0
