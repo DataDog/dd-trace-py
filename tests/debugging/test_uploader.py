@@ -6,15 +6,16 @@ import pytest
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.internal.compat import Queue
 
 
 class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
     def __init__(self, *args, **kwargs):
         super(MockLogsIntakeUploaderV1, self).__init__(*args, **kwargs)
-        self.queue = []
+        self.queue = Queue()
 
     def _write(self, payload):
-        self.queue.append(payload.decode())
+        self.queue.put(payload.decode())
 
     @property
     def payloads(self):
@@ -37,7 +38,9 @@ def test_uploader_batching():
             uploader._encoder.put("hello")
             uploader._encoder.put("world")
             sleep(0.15)
-        assert uploader.queue == ["[hello,world]"] * 5
+
+        for _ in range(5):
+            assert uploader.queue.get(timeout=1) == "[hello,world]", "iteration %d" % _
 
 
 def test_uploader_full_buffer():
@@ -52,9 +55,9 @@ def test_uploader_full_buffer():
                 uploader._encoder.put(item)
 
         # The full buffer forces a flush
-        sleep(0.01)
-        assert len(uploader.queue) == 1
+        uploader.queue.get(timeout=1)
+        assert uploader.queue.qsize() == 0
 
-        # wakeup to mimik next interval
+        # wakeup to mimic next interval
         uploader.awake()
-        assert len(uploader.queue) == 1
+        assert uploader.queue.qsize() == 0

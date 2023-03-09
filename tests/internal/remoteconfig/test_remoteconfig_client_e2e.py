@@ -4,8 +4,8 @@ import os
 
 import mock
 
+from ddtrace.appsec._remoteconfiguration import RCASMDDCallBack
 from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
@@ -70,14 +70,20 @@ def _assert_response(mock_send_request, expected_response):
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
-    RemoteConfig.disable()
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
+    class RCAppSecMockCallBack(RCASMDDCallBack):
+        def __call__(self, metadata, features):
+            mock_callback(metadata, features)
+
     mock_appsec_rc_capabilities.return_value = "Ag=="
+
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    rc_client.register_product("ASM_FEATURES", mock_callback)
+    callback = RCAppSecMockCallBack(mock.mock.MagicMock())
+
+    rc_client.register_product("ASM_FEATURES", callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]

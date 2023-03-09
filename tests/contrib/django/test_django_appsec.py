@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from ddtrace._monkey import patch_iast
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
@@ -12,6 +13,7 @@ from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
+from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
@@ -349,7 +351,7 @@ def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer
             test_spans,
             tracer,
             url="/?a=1&b&c=d",
-            headers={"HTTP_CLIENT_IP": "8.8.8.8", "HTTP_X_USE_THIS": "4.4.4.4"},
+            headers={"HTTP_X_CLIENT_IP": "8.8.8.8", "HTTP_X_USE_THIS": "4.4.4.4"},
         )
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
 
@@ -364,10 +366,10 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
 @pytest.mark.parametrize(
     "kwargs,expected",
     [
-        ({"HTTP_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
-        ({"HTTP_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
+        ({"HTTP_X_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
+        ({"HTTP_X_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
     ],
 )
 def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
@@ -406,7 +408,11 @@ def test_request_ipblock_403(client, test_spans, tracer):
     """
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP}
+            client,
+            test_spans,
+            tracer,
+            url="/foobar",
+            headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
         as_bytes = (
@@ -414,21 +420,53 @@ def test_request_ipblock_403(client, test_spans, tracer):
         )
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/foobar"
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(http.USER_AGENT) == "fooagent"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        if hasattr(result, "headers"):
+            assert result.headers["content-type"] == "text/json"
+
+
+def test_request_ipblock_403_html(client, test_spans, tracer):
+    """
+    Most blocking tests are done in test_django_snapshots but
+    since those go through ASGI, this tests the blocking
+    using the "normal" path for these Django tests.
+    (They're also a lot less cumbersome to use for experimentation/debugging)
+    """
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        root, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_ACCEPT": "text/html"}
+        )
+        assert result.status_code == 403
+        as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_HTML
+        assert result.content == as_bytes
+        assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
+        if hasattr(result, "headers"):
+            assert result.headers["content-type"] == "text/html"
 
 
 def test_request_ipblock_nomatch_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        _, result = _aux_appsec_get_root_span(
+        root, result = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
         )
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
+        assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_block_request_callable(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        _, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/block/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+        root, result = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/block/",
+            headers={"HTTP_X_REAL_IP": _ALLOWED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
@@ -436,6 +474,13 @@ def test_request_block_request_callable(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/block/"
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(http.USER_AGENT) == "fooagent"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        if hasattr(result, "headers"):
+            assert result.headers["content-type"] == "text/json"
 
 
 _BLOCKED_USER = "123456"
@@ -446,6 +491,7 @@ def test_request_userblock_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER)
         assert result.status_code == 200
+        assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_userblock_403(client, test_spans, tracer):
@@ -456,6 +502,12 @@ def test_request_userblock_403(client, test_spans, tracer):
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
+        assert root.get_tag(http.STATUS_CODE) == "403"
+        assert root.get_tag(http.URL) == "http://testserver/checkuser/%s/" % _BLOCKED_USER
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        if hasattr(result, "headers"):
+            assert result.headers["content-type"] == "text/json"
 
 
 def test_request_suspicious_request_block_match_method(client, test_spans, tracer):
@@ -470,6 +522,12 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+        assert root_span.get_tag(http.STATUS_CODE) == "403"
+        assert root_span.get_tag(http.URL) == "http://testserver/"
+        assert root_span.get_tag(http.METHOD) == "GET"
+        assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        if hasattr(response, "headers"):
+            assert response.headers["content-type"] == "text/json"
     # POST must pass
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
         tracer._appsec_enabled = True

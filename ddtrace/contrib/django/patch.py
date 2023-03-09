@@ -20,14 +20,18 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.contrib.django.compat import get_resolver
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import _context
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -38,6 +42,8 @@ from ddtrace.vendor import wrapt
 from . import utils
 from .. import trace_utils
 from ...internal.utils import get_argument_value
+from ..trace_utils import _get_request_header_user_agent
+from ..trace_utils import _set_url_tag
 
 
 log = get_logger(__name__)
@@ -162,7 +168,20 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             keys = utils.quantize_key_values(args[0])
             span.set_tag_str("django.cache.key", keys)
 
-        return func(*args, **kwargs)
+        result = func(*args, **kwargs)
+        command_name = func.__name__
+        if command_name == "get_many":
+            span.set_metric(
+                db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+            )
+        elif command_name == "get":
+            # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
+            # missing key
+            if result and result != getattr(instance, "_missing_key", None):
+                span.set_metric(db.ROWCOUNT, 1)
+            else:
+                span.set_metric(db.ROWCOUNT, 0)
+        return result
 
 
 def instrument_caches(django):
@@ -337,8 +356,27 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _block_request_callable(span):
+def _set_block_tags(request, request_headers, span):
+    try:
+        span.set_tag_str(http.STATUS_CODE, "403")
+        span.set_tag_str(http.METHOD, request.method)
+        url = utils.get_request_uri(request)
+        query = request.META.get("QUERY_STRING", "")
+        _set_url_tag(config.django, span, url, query)
+        if query and config.django.trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query)
+        user_agent = _get_request_header_user_agent(request_headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
+def _block_request_callable(request, request_headers, span):
+    # This is used by user-id blocking to block responses. It could be called
+    # at any point so it's a callable stored in the ASM context.
     _context.set_item("http.request.blocked", True, span=span)
+    _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
 
@@ -370,8 +408,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
-            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
+            _asm_request_context.set_block_request_callable(
+                functools.partial(_block_request_callable, request, request_headers, span)
+            )
             span.set_tag_str(COMPONENT, config.django.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
             utils._before_request_tags(pin, span, request)
             span._metrics[SPAN_MEASURED_KEY] = 1
@@ -379,10 +422,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
-                response = HttpResponseForbidden(
-                    appsec_utils._get_blocked_template(request_headers.get("Accept")), content_type="text/plain"
-                )
-                response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
+                ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                content = appsec_utils._get_blocked_template(ctype)
+                response = HttpResponseForbidden(content, content_type=ctype)
+                response.content = content
+                utils._after_request_tags(pin, span, request, response)
                 return response
 
             try:
@@ -440,7 +484,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if _context.get_item("http.request.blocked", span=span):
                         response = blocked_response()
-                        utils._after_request_tags(pin, span, request, response)
                         return response
 
 
