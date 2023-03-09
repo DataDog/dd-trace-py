@@ -19,15 +19,15 @@ class TracedProducer(confluent_kafka.Producer):
     def produce(
         self, topic, value=None, *args, **kwargs
     ):
-        super().produce(topic, value, *args, **kwargs)
+        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
 
 class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config):
-        super().__init__(config)
+        super(TracedConsumer, self).__init__(config)
 
     def poll(self, timeout=-1):
-        return super().poll(timeout)
+        return super(TracedConsumer, self).poll(timeout)
 
 
 def patch():

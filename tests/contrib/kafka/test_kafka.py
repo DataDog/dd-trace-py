@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import confluent_kafka
+import six
 
 from ddtrace import Pin
 from ddtrace.contrib.kafka.patch import patch
@@ -17,6 +18,10 @@ class TestKafkaPatch(TracerTestCase):
         self.topic_name = "test_topic"
         self.group_id = "test_group"
         self.bootstrap_servers = "localhost:{}".format(self.TEST_PORT)
+        if six.PY3:
+            self.payload = bytes("hueh hueh hueh", encoding="utf-8")
+        else:
+            self.payload = bytes("hueh hueh hueh")
 
         super(TestKafkaPatch, self).setUp()
         patch()
@@ -38,9 +43,7 @@ class TestKafkaPatch(TracerTestCase):
         super(TestKafkaPatch, self).tearDown()
 
     def test_produce(self):
-        payload = bytes("hueh hueh hueh", encoding="utf-8")
-
-        self.producer.produce(self.topic_name, payload)
+        self.producer.produce(self.topic_name, self.payload)
         self.producer.flush()
 
         spans = self.get_spans()
@@ -60,14 +63,12 @@ class TestKafkaPatch(TracerTestCase):
             assert span.get_tag(k) == v
 
     def test_consume(self):
-        payload = bytes("hueh hueh hueh", encoding="utf-8")
-
-        self.producer.produce(self.topic_name, payload)
+        self.producer.produce(self.topic_name, self.payload)
         self.producer.flush()
         message = None
         while message is None:
             message = self.consumer.poll(1.0)
-        assert message.value() == payload
+        assert message.value() == self.payload
 
         spans = self.get_spans()
         assert len(spans) > 1
