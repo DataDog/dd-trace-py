@@ -13,13 +13,17 @@ class TestKafkaPatch(TracerTestCase):
     TEST_PORT = KAFKA_CONFIG["port"]
 
     def setUp(self):
+        self.topic_name = "test_topic"
+        self.group_id = "test_group"
+        self.bootstrap_servers = "localhost:{}".format(self.TEST_PORT)
+
         super(TestKafkaPatch, self).setUp()
         patch()
-        self.producer = confluent_kafka.Producer({"bootstrap.servers": "localhost:{}".format(self.TEST_PORT)})
+        self.producer = confluent_kafka.Producer({"bootstrap.servers": self.bootstrap_servers})
         self.consumer = confluent_kafka.Consumer(
             {
-                "bootstrap.servers": "localhost:{}".format(self.TEST_PORT),
-                "group.id": "test_group",
+                "bootstrap.servers": self.bootstrap_servers,
+                "group.id": self.group_id,
                 "auto.offset.reset": "earliest",
             }
         )
@@ -31,35 +35,50 @@ class TestKafkaPatch(TracerTestCase):
         super(TestKafkaPatch, self).tearDown()
 
     def test_produce(self):
-        self.producer.produce("test_topic", bytes("hueh hueh hueh", encoding="utf-8"))
+        payload = bytes("hueh hueh hueh", encoding="utf-8")
+
+        self.producer.produce(self.topic_name, payload)
         self.producer.flush()
-        message = None
-        while message is None:
-            message = self.consumer.poll(1.0)
-        print(message)
-        assert message is not None
 
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
 
         self.assert_is_measured(span)
-        assert span.service == "redis"
-        assert span.name == "redis.command"
-        assert span.span_type == "redis"
+        assert span.service == "kafka"
+        assert span.name == "kafka.producer.produce"
+        assert span.span_type == "kafka"
         assert span.error == 0
         meta = {
-            "out.host": u"localhost",
-        }
-        metrics = {
-            "out.port": self.TEST_PORT,
-            "out.redis_db": 0,
+            "out.topic": self.topic_name,
+            "out.bootstrap_servers": self.boostrap_servers,
         }
         for k, v in meta.items():
             assert span.get_tag(k) == v
-        for k, v in metrics.items():
-            assert span.get_metric(k) == v
 
-        assert span.get_tag("redis.raw_command").startswith(u"MGET 0 1 2 3")
-        assert span.get_tag("redis.raw_command").endswith(u"...")
-        assert span.get_tag("component") == "redis"
+    def test_consume(self):
+        payload = bytes("hueh hueh hueh", encoding="utf-8")
+
+        self.producer.produce(self.topic_name, payload)
+        self.producer.flush()
+        message = None
+        while message is None:
+            message = self.consumer.poll(1.0)
+        assert message.value() == payload
+
+        spans = self.get_spans()
+        assert len(spans) > 1
+
+        for span in spans[1:]:
+            self.assert_is_measured(span)
+            assert span.service == "kafka"
+            assert span.name == "kafka.consumer.poll"
+            assert span.span_type == "kafka"
+            assert span.error == 0
+            meta = {
+                "out.bootstrap_servers": self.boostrap_servers,
+                "out.topic": self.topic_name,
+                "out.group_id": self.group_id,
+            }
+            for k, v in meta.items():
+                assert span.get_tag(k) == v

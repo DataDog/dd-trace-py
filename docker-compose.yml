@@ -64,7 +64,7 @@ services:
       ports:
         - "127.0.0.1:22181:2181"
     kafka:
-      image: confluentinc/cp-kafka:7.3.1
+      image: confluentinc/cp-kafka:7.3.2
       ports:
         - "127.0.0.1:29092:29092"
       environment:
