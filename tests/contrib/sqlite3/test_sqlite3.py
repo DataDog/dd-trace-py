@@ -74,6 +74,7 @@ class TestSQLite(TracerTestCase):
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
             self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
             self.assertEqual(root.get_tag("db.system"), "sqlite")
             assert start <= root.start <= end
             assert root.duration <= end - start
@@ -91,6 +92,7 @@ class TestSQLite(TracerTestCase):
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
             self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
             self.assertEqual(root.get_tag("db.system"), "sqlite")
             self.assertIsNotNone(root.get_tag(ERROR_STACK))
             self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))

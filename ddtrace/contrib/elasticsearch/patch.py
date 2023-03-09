@@ -7,7 +7,9 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
@@ -77,6 +79,9 @@ def _get_perform_request(elasticsearch):
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
 

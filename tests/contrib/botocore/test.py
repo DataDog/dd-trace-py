@@ -94,6 +94,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "DescribeInstances"
         assert span.get_tag("aws.requestid") == "fdcdcab1-ae5c-489e-9c33-4637c5dda355"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
         assert span.get_metric("retry_attempts") == 0
         assert span.service == "test-botocore-tracing.ec2"
@@ -129,6 +130,7 @@ class BotocoreTest(TracerTestCase):
         assert_is_measured(span)
         assert span.get_tag("aws.operation") == "ListBuckets"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.s3"
         assert span.resource == "s3.listbuckets"
@@ -224,12 +226,14 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 2
         assert span.get_tag("aws.operation") == "CreateBucket"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.s3"
         assert span.resource == "s3.createbucket"
         assert spans[1].get_tag("aws.operation") == "PutObject"
         assert spans[1].get_tag("component") == "botocore"
+        assert spans[1].get_tag("span.kind"), "client"
         assert spans[1].resource == "s3.putobject"
         return spans[1]
 
@@ -325,6 +329,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -358,6 +363,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -397,6 +403,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -441,6 +448,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessage"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -475,6 +483,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessageBatch"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -521,6 +530,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "SendMessageBatch"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
@@ -566,6 +576,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "SendMessageBatch"
         assert span.get_tag("params.MessageBody") is None
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.sqs"
@@ -596,6 +607,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecords"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
@@ -662,6 +674,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("aws.operation") == "ListFunctions"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.lambda"
@@ -701,6 +714,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.lambda"
@@ -747,6 +761,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.lambda"
@@ -793,6 +808,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.lambda"
@@ -835,6 +851,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.lambda"
@@ -880,6 +897,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("aws.operation") == "Invoke"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         lamb.delete_function(FunctionName="black-sabbath")
 
@@ -1031,6 +1049,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("aws.operation") == "ListKeys"
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.kms"
@@ -1066,6 +1085,7 @@ class BotocoreTest(TracerTestCase):
         assert dd_span.get_tag("aws.region") == "us-west-2"
         assert dd_span.get_tag("aws.operation") == "DescribeInstances"
         assert dd_span.get_tag("component") == "botocore"
+        assert dd_span.get_tag("span.kind"), "client"
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_metric("retry_attempts") == 0
         assert dd_span.service == "test-botocore-tracing.ec2"
@@ -1230,6 +1250,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "Publish"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sns"
@@ -1302,6 +1323,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "Publish"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sns"
@@ -1374,6 +1396,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "Publish"
             assert span.get_tag("params.MessageBody") is None
             assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sns"
@@ -1609,6 +1632,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecord"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
@@ -1657,6 +1681,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecord"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
@@ -1706,6 +1731,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "PutRecord"
         assert span.get_tag("params.MessageBody") is None
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
@@ -1751,6 +1777,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "PutRecords"
         assert span.get_tag("params.MessageBody") is None
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
@@ -1805,6 +1832,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecords"
         assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
