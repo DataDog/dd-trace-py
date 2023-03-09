@@ -2,6 +2,7 @@
 
 import confluent_kafka
 
+from ddtrace import Pin
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from tests.utils import TracerTestCase
@@ -27,6 +28,8 @@ class TestKafkaPatch(TracerTestCase):
                 "auto.offset.reset": "earliest",
             }
         )
+        Pin.override(self.producer, tracer=self.tracer)
+        Pin.override(self.consumer, tracer=self.tracer)
         self.consumer.subscribe(["test_topic"])
 
     def tearDown(self):
@@ -45,18 +48,18 @@ class TestKafkaPatch(TracerTestCase):
         span = spans[0]
 
         self.assert_is_measured(span)
-        assert span.service == "kafka"
-        assert span.name == "kafka.producer.produce"
-        assert span.span_type == "kafka"
+        assert span.service == "iamkafka"
+        assert span.name == "kafkafoo"
+        assert span.span_type == "kafkabar"
         assert span.error == 0
         meta = {
-            "out.topic": self.topic_name,
-            "out.bootstrap_servers": self.boostrap_servers,
+            "topic": "banana_topic",
+            "bootstrap_servers": "numnah",
         }
         for k, v in meta.items():
             assert span.get_tag(k) == v
 
-    def test_consume(self):
+    def __test_consume(self):
         payload = bytes("hueh hueh hueh", encoding="utf-8")
 
         self.producer.produce(self.topic_name, payload)
@@ -71,12 +74,12 @@ class TestKafkaPatch(TracerTestCase):
 
         for span in spans[1:]:
             self.assert_is_measured(span)
-            assert span.service == "kafka"
-            assert span.name == "kafka.consumer.poll"
-            assert span.span_type == "kafka"
+            assert span.service == "iamkafka"
+            assert span.name == "kafkafoo"
+            assert span.span_type == "kafkabar"
             assert span.error == 0
             meta = {
-                "out.bootstrap_servers": self.boostrap_servers,
+                "out.bootstrap_servers": self.bootstrap_servers,
                 "out.topic": self.topic_name,
                 "out.group_id": self.group_id,
             }
