@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .constants import IAST_ENV
+from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
@@ -118,6 +119,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "httplib": ("httplib" if PY2 else "http.client",),
 }
 
 IAST_PATCH = {

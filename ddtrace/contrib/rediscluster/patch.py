@@ -4,9 +4,11 @@ import rediscluster
 # project
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.redis.patch import traced_execute_command
 from ddtrace.contrib.redis.patch import traced_pipeline
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import redis as redisx
@@ -78,6 +80,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
         span_type=SpanTypes.REDIS,
     ) as s:
+        s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
         s.set_tag_str(db.SYSTEM, redisx.APP)
         s.set_tag(SPAN_MEASURED_KEY)

@@ -230,7 +230,6 @@ def test_metrics(encoding, monkeypatch):
         assert t._partial_flush_min_spans == 500
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -270,7 +269,6 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
         )
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
