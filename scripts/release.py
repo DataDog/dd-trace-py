@@ -63,32 +63,18 @@ def create_release_draft():
             )
             rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
             
-            # base_branch = dd_repo.get_branch(branch=base)
-            # dd_repo.create_git_release(
-            #     name=tag, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
-            # )
-            # exit()
+            base_branch = dd_repo.get_branch(branch=base)
+            dd_repo.create_git_release(
+                name=tag, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
+            )
+            exit()
         
         # patch release
         elif patch:
             pass
         # final draft
         else:
-            # switch to 1.x and get latest
-            rn_raw = subprocess.check_output(
-                "git checkout 1.x && \
-            git pull && \
-            reno report --no-show-source | \
-            pandoc -f rst -t gfm --wrap=none",
-                shell=True,
-                cwd=os.pardir,
-            )
-            rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
-            
-            main_branch = dd_repo.get_branch(branch="1.x")
-            # dd_repo.create_git_release(
-            #     name=version, tag=version, prerelease=True, draft=True, target_commitish=main_branch, message=rn
-            # )
+            pass
     # first rc
     elif rc:
         tag = base + ".0rc1"
@@ -103,9 +89,9 @@ def create_release_draft():
         rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
         
         main_branch = dd_repo.get_branch(branch="1.x")
-        dd_repo.create_git_release(
-            name=tag, tag=tag, prerelease=True, draft=True, target_commitish=main_branch, message=rn
-        )
+        # dd_repo.create_git_release(
+        #     name=tag, tag=tag, prerelease=True, draft=True, target_commitish=main_branch, message=rn
+        # )
     
     else:
         print("It looks like you didn't specify the release script params properly. Please take a look at how to use it and try again")
