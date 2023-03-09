@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: Fix compilation issues for Windows or unknown platforms.
+    ASM: Resolves installation issues with compiling native code on Windows and unknown platforms.
