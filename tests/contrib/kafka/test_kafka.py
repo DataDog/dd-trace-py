@@ -59,7 +59,7 @@ class TestKafkaPatch(TracerTestCase):
         for k, v in meta.items():
             assert span.get_tag(k) == v
 
-    def __test_consume(self):
+    def test_consume(self):
         payload = bytes("hueh hueh hueh", encoding="utf-8")
 
         self.producer.produce(self.topic_name, payload)
@@ -79,9 +79,9 @@ class TestKafkaPatch(TracerTestCase):
             assert span.span_type == "kafkabar"
             assert span.error == 0
             meta = {
-                "out.bootstrap_servers": self.bootstrap_servers,
-                "out.topic": self.topic_name,
-                "out.group_id": self.group_id,
+                "topic": "banana_topic",
+                "bootstrap_servers": "numnah",
+                "group_id": "Fhqwhgads",
             }
             for k, v in meta.items():
                 assert span.get_tag(k) == v

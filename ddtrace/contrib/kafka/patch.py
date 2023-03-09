@@ -65,11 +65,11 @@ def patch():
         _inner_wrap_produce,
     )
 
-    #wrapt.wrap_function_wrapper(
-    #    TracedConsumer,
-    #    "poll",
-    #    _inner_wrap_poll,
-    #)
+    wrapt.wrap_function_wrapper(
+        TracedConsumer,
+        "poll",
+        _inner_wrap_poll,
+    )
     Pin(service="iamkafka").onto(confluent_kafka.Producer)
     Pin(service="iamkafka").onto(confluent_kafka.Consumer)
 
@@ -79,17 +79,13 @@ def unpatch():
         setattr(confluent_kafka, "_datadog_patch", False)
 
     trace_utils.unwrap(TracedProducer, "produce")
-    #trace_utils.unwrap(TracedConsumer, "consume")
+    trace_utils.unwrap(TracedConsumer, "poll")
 
     confluent_kafka.Producer = _original_kafka_producer
     confluent_kafka.Consumer = _original_kafka_consumer
 
 
 def wrap_produce(func, instance, pin, integration_config, args, kwargs):
-    topic = kwargs.get("topic")
-    if not topic:
-        topic = args[0]
-
     with pin.tracer.trace(
         "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
     ) as span:
@@ -104,44 +100,15 @@ def wrap_produce(func, instance, pin, integration_config, args, kwargs):
 
 
 def wrap_poll(func, instance, pin, integration_config, args, kwargs):
-    pass
-
-
-"""
-    if instance._current_consume_span:
-        context.detach(instance._current_context_token)
-        instance._current_context_token = None
-        instance._current_consume_span.end()
-        instance._current_consume_span = None
-
-    with pin.tracer.start_as_current_span(
-        "recv", end_on_exit=True, kind=trace.SpanKind.CONSUMER
-    ):
-        record = func(*args, **kwargs)
-        if record:
-            links = []
-            ctx = propagate.extract(record.headers(), getter=_kafka_getter)
-            if ctx:
-                for item in ctx.values():
-                    if hasattr(item, "get_span_context"):
-                        links.append(Link(context=item.get_span_context()))
-
-            instance._current_consume_span = tracer.start_span(
-                name=f"{record.topic()} process",
-                links=links,
-                kind=SpanKind.CONSUMER,
-            )
-
-            _enrich_span(
-                instance._current_consume_span,
-                record.topic(),
-                record.partition(),
-                record.offset(),
-                operation=MessagingOperationValues.PROCESS,
-            )
-    instance._current_context_token = context.attach(
-        trace.set_span_in_context(instance._current_consume_span)
-    )
-
-    return record
-"""
+    with pin.tracer.trace(
+        "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
+    ) as span:
+        span.set_tag_str(SPAN_KIND, "spankhind")
+        span.set_tag_str(COMPONENT, integration_config.integration_name)
+        span.set_tag_str(SPAN_KIND, "spankhind")
+        span.set_tag_str("topic", "banana_topic")
+        span.set_tag_str("bootstrap_servers", "numnah")
+        span.set_tag_str("group_id", "Fhqwhgads")
+        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
+        return func(*args, **kwargs)
