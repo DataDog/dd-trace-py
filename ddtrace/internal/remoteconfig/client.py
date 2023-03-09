@@ -409,7 +409,6 @@ class RemoteConfigClient(object):
                 applied_configs[target] = config
                 continue
             elif target not in client_configs:
-                log.debug("Disable configuration: %s", target)
                 callback_action = False
             else:
                 continue
@@ -417,7 +416,7 @@ class RemoteConfigClient(object):
             callback = self._products.get(config.product_name)
             if callback:
                 try:
-                    log.debug("Disable configuration 2: %s. ", target)
+                    log.debug("Disabling configuration: %s. ", target)
                     self._apply_callback(list_callbacks, callback, callback_action, target, config)
                 except Exception:
                     log.debug("error while removing product %s config %r", config.product_name, config)
