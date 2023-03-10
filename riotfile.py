@@ -2497,6 +2497,11 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
         ),
+        Venv(
+            name="ddgitmetadata",
+            command="pytest {cmdargs} tests/ddgitmetadata",
+            pys=select_pys(),
+        ),
     ],
 )
 
