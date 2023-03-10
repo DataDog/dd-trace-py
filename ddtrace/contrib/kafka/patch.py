@@ -26,6 +26,8 @@ class TracedProducer(confluent_kafka.Producer):
     def __bool__(self):
         return True
 
+    __nonzero__ = __bool__
+
 
 class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config):
