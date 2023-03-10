@@ -1066,8 +1066,9 @@ jobs:
           snapshot: true
 
   kafka:
-    <<: *machine_executor
+    <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - image: *kafka_image
         environment:
         - KAFKA_BROKER_ID=1
@@ -1079,7 +1080,7 @@ jobs:
     steps:
       - run_test:
           pattern: 'kafka'
-          docker_services: 'kafka'
+          docker_services: kafka
 
   kombu:
     <<: *contrib_job_small
