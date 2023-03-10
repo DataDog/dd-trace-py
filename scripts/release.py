@@ -114,7 +114,7 @@ def clean_rn(rn_raw):
 
 
 def generate_rn(branch):
-    subprocess.check_output(
+    rn_raw = subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch} && \
             reno report --no-show-source | \
@@ -124,12 +124,12 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
+    return rn_raw
 
 
 def create_draft_release(branch, name, tag, dd_repo):
 
     rn_raw = generate_rn(branch)
-    import pdb; pdb.set_trace()
     rn = clean_rn(rn_raw)
 
     base_branch = dd_repo.get_branch(branch=branch)
