@@ -34,26 +34,16 @@ def create_release_draft():
     gh_token = os.getenv("GH_TOKEN")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
-    branch_exists = None
 
     if base is None:
         raise ValueError("need to specify the base version with envar e.g. BASE=1.10.0")
 
     # make sure we're up to date
-    subprocess.run("git fetch", shell=True)
+    subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
     # setup gh
     g = Github(gh_token)
     dd_repo = g.get_repo(full_name_or_id="DataDog/dd-trace-py")
-    try:
-        # if there is a branch it means either you want a patch, an RC+1, or a final draft
-        # if there is no branch, it means you want an RC
-        main_branch = dd_repo.get_branch(branch=base)
-        branch_exists = True
-    except GithubException:
-        print("No branch detected. RC release notes will be published")
-        rc = True
-        branch_exists = False
 
     if rc:
         # figure out the rc version we want
@@ -114,13 +104,19 @@ def clean_rn(rn_raw):
 
 
 def generate_rn(branch):
-    rn_raw = subprocess.check_output(
+
+    subprocess.run(
         "git checkout {branch} && \
-            git pull origin {branch} && \
-            reno report --no-show-source | \
-            pandoc -f rst -t gfm --wrap=none".format(
+            git pull origin {branch}".format(
             branch=branch
         ),
+        shell=True,
+        cwd=os.pardir,
+    )
+
+    rn_raw = subprocess.check_output(
+        "reno report --no-show-source | \
+            pandoc -f rst -t gfm --wrap=none",
         shell=True,
         cwd=os.pardir,
     )
@@ -128,7 +124,6 @@ def generate_rn(branch):
 
 
 def create_draft_release(branch, name, tag, dd_repo):
-
     rn_raw = generate_rn(branch)
     rn = clean_rn(rn_raw)
 
