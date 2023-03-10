@@ -21,6 +21,11 @@ class TracedProducer(confluent_kafka.Producer):
     ):
         super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
+    # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
+    # which makes the Pin functionality ignore it.
+    def __bool__(self):
+        return True
+
 
 class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config):
