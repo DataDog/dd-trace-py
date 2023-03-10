@@ -15,7 +15,6 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-kafka_image: &kafka_image confluentinc/cp-kafka:7.3.2
 
 orbs:
   win: circleci/windows@5.0
@@ -1064,6 +1063,13 @@ jobs:
           pattern: "wsgi"
           snapshot: true
 
+  kafka:
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: 'kafka'
+          docker_services: "kafka"
+
   kombu:
     <<: *contrib_job_small
     docker:
@@ -1163,6 +1169,7 @@ requires_tests: &requires_tests
     - vendor
     - profile
     - jinja2
+    - kafka
     - kombu
     - mako
     - mariadb
@@ -1264,6 +1271,7 @@ workflows:
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
+      - kafka: *requires_base_venvs
       - kombu: *requires_base_venvs
       - mako: *requires_base_venvs
       - mariadb: *requires_base_venvs
