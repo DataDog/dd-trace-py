@@ -408,6 +408,7 @@ jobs:
           pattern: 'opentracer'
 
   opentelemetry:
+    parallelism: 4
     <<: *machine_executor
     steps:
       - run_test:
