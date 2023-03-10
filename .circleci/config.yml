@@ -386,6 +386,12 @@ jobs:
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
 
+  ddgitmetadata:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "ddgitmetadata"
+
   telemetry:
     <<: *machine_executor
     steps:
@@ -1141,6 +1147,7 @@ requires_tests: &requires_tests
     - cherrypy
     - consul
     - ddtracerun
+    - ddgitmetadata
     - dogpile_cache
     - django
     - django_hosts
@@ -1241,6 +1248,7 @@ workflows:
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
+      - ddgitmetadata: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
