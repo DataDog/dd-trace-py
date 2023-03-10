@@ -51,7 +51,7 @@ def create_release_draft():
             
             
             
-            name = "%s.0rc%s" % (base, rc_version)
+            name = "%s.0rc%s" % (base, str(rc_version + 1))
             import pdb; pdb.set_trace()
             # switch to base branch to get the latest
             rn_raw = subprocess.check_output(
