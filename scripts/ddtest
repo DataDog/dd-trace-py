@@ -13,4 +13,4 @@ fi
 for i in {1..3}; do docker-compose pull testrunner && break || sleep 3; done
 
 # install and upgrade tox and riot in case testrunner image has not been updated
-docker-compose run -e CIRCLE_NODE_TOTAL -e CIRCLE_NODE_INDEX -e DD_TRACE_AGENT_URL --rm testrunner bash -c "pip install -q --disable-pip-version-check riot tox && $CMD"
+docker-compose run -e CIRCLE_NODE_TOTAL -e CIRCLE_NODE_INDEX -e DD_TRACE_AGENT_URL --rm testrunner bash -c "pip install -q --disable-pip-version-check riot==0.16.0 tox && $CMD"
