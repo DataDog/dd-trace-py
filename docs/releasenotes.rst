@@ -151,4 +151,13 @@ The note is a brief description of the change. It should consist of full sentenc
 The note should also follow valid restructured text (RST) formatting. See the template release note for
 more details and instructions.
 
+Compiling Release Notes
++++++++++++++++++++++++
 
+To compile all release notes since a given version, do this::
+
+    $ pip install reno
+    $ brew install pandoc
+    $ reno report --no-show-source | pandoc -f rst -t gfm --wrap=none | pbcopy
+
+This will generate all release notes in the library's history in a single text string, ordered from latest to earliest.
