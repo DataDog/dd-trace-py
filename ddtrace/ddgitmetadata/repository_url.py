@@ -1,9 +1,12 @@
 import re
 
+
 try:
-    from urllib.parse import urlsplit, urlunsplit
+    from urllib.parse import urlsplit
+    from urllib.parse import urlunsplit
 except ImportError:
-    from urlparse import urlsplit, urlunsplit
+    from urlparse import urlsplit
+    from urlparse import urlunsplit
 
 SCP_REGEXP = re.compile("^[a-z0-9_]+@([a-z0-9._-]+):(.*)$", re.IGNORECASE)
 
