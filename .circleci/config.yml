@@ -274,15 +274,6 @@ postgres_server: &postgres_server
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
 
-kafka_broker: &kafka_broker
-  image: *kafka_image
-  environment:
-    - KAFKA_BROKER_ID=1
-    - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
 
 jobs:
   pre_check:
@@ -1077,7 +1068,14 @@ jobs:
   kafka:
     <<: *machine_executor
     docker:
-      - *kafka_broker
+      image: *kafka_image
+      environment:
+        - KAFKA_BROKER_ID=1
+        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+        - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+        - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
     steps:
       - run_test:
           pattern: 'kafka'
