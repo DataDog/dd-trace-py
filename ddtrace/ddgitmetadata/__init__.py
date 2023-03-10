@@ -1,5 +1,5 @@
-from .source_code_link import get_source_code_link
 from .repository_url import normalize_repository_url
+from .source_code_link import get_source_code_link
 
 
 def __add_project_urls(setup):
@@ -16,6 +16,7 @@ def __add_project_urls(setup):
 
 def patch_setup():
     import distutils.core
+
     import setuptools
 
     distutils.core.setup = __add_project_urls(distutils.core.setup)

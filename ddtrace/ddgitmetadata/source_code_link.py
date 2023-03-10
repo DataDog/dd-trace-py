@@ -1,6 +1,6 @@
 import os
-import sys
 import subprocess
+import sys
 
 from .repository_url import normalize_repository_url
 
