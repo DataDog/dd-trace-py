@@ -49,9 +49,10 @@ def create_release_draft():
                 if rc_num > rc_version:
                     rc_version = rc_num
             
-             
-            print(tag)
             
+            
+            name = "%s.0rc%s" % (base, rc_version)
+            import pdb; pdb.set_trace()
             # switch to base branch to get the latest
             rn_raw = subprocess.check_output(
                 "git checkout {base} && \
@@ -65,7 +66,7 @@ def create_release_draft():
             
             base_branch = dd_repo.get_branch(branch=base)
             dd_repo.create_git_release(
-                name=tag, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
+                name=name, tag=name, prerelease=True, draft=True, target_commitish=base_branch, message=rn
             )
             exit()
         
