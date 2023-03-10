@@ -109,7 +109,7 @@ def create_release_draft():
 
 
 def clean_rn(rn_raw):
-    rn = clean_rn(rn_raw)
+    rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
     return rn
 
 
