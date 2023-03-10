@@ -16,6 +16,7 @@ def create_release_draft():
     base = os.getenv("BASE")
     gh_token = os.getenv("GH_TOKEN")
     rc = bool(os.getenv("RC"))
+    patch = bool(os.getenv("PATCH"))
     branch_exists = None
     
     if base is None:
@@ -51,7 +52,7 @@ def create_release_draft():
             
             
             
-            name = "%s.0rc%s" % (base, str(rc_version + 1))
+            name = "v%s.0rc%s" % (base, str(rc_version + 1))
             import pdb; pdb.set_trace()
             # switch to base branch to get the latest
             rn_raw = subprocess.check_output(
@@ -64,15 +65,44 @@ def create_release_draft():
             )
             rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
             
-            base_branch = dd_repo.get_branch(branch=base)
-            dd_repo.create_git_release(
-                name=name, tag=name, prerelease=True, draft=True, target_commitish=base_branch, message=rn
-            )
-            exit()
+            # base_branch = dd_repo.get_branch(branch=base)
+            # dd_repo.create_git_release(
+            #     name=name, tag=name, prerelease=True, draft=True, target_commitish=base_branch, message=rn
+            # )
+            # exit()
         
         # patch release
         elif patch:
-            pass
+            # figure out the patch version we want
+            search = "v%s.((\d+))" % base
+            tags = dd_repo.get_tags()
+            patch_version = 1
+            for tag in tags:
+                try:
+                    patch_num = re.findall(search, tag.name)[0][0]
+                    patch_num = int(patch_num)
+                except (IndexError, ValueError, TypeError):
+                    continue
+                if patch_num > patch_version:
+                    patch_version = patch_num
+                    
+            name = "v%s.%s" % (base, str(patch_version + 1))
+            import pdb; pdb.set_trace()
+            rn_raw = subprocess.check_output(
+                "git checkout {base} && \
+            git pull origin {base} && \
+            reno report --no-show-source | \
+            pandoc -f rst -t gfm --wrap=none".format(base=base),
+                shell=True,
+                cwd=os.pardir,
+            )
+            rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+            base_branch = dd_repo.get_branch(branch=base)
+            # dd_repo.create_git_release(
+            #     name=name, tag=name, prerelease=True, draft=True, target_commitish=base_branch, message=rn
+            # )
+            # exit()
+
         # final draft
         else:
             pass
