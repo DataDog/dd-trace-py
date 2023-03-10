@@ -105,6 +105,7 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
             assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
@@ -164,6 +165,7 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
             assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == collection_name
             assert span.get_tag("mongodb.db") == "testdb"
@@ -243,6 +245,7 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
             assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "teams"
             assert span.get_tag("mongodb.db") == "testdb"
@@ -316,6 +319,7 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
             assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
@@ -631,6 +635,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("component") == "pymongo"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
         assert span.get_tag("db.system") == "mongodb"
 

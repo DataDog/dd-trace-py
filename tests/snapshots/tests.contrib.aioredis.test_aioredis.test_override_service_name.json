@@ -15,7 +15,8 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"
+      "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,8 +29,8 @@
       "process_id": 62908,
       "redis.args_length": 2
     },
-    "duration": 1973000,
-    "start": 1666808667794620000
+    "duration": 1140000,
+    "start": 1667241175586826000
   }],
 [
   {
@@ -48,7 +49,8 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET cheese my-cheese",
-      "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"
+      "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -61,8 +63,8 @@
       "process_id": 62908,
       "redis.args_length": 3
     },
-    "duration": 911000,
-    "start": 1666808667796683000
+    "duration": 879000,
+    "start": 1667241175588044000
   }],
 [
   {
@@ -81,7 +83,8 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"
+      "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -94,6 +97,6 @@
       "process_id": 62908,
       "redis.args_length": 2
     },
-    "duration": 594000,
-    "start": 1666808667797645000
+    "duration": 718000,
+    "start": 1667241175588972000
   }]]

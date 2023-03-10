@@ -13,7 +13,7 @@
       "aiohttp.template": "/template.jinja2",
       "component": "aiohttp_jinja2",
       "language": "python",
-      "runtime-id": "b1d89180ca5f4de1a9160d70e7149e78"
+      "runtime-id": "6675c2fe10fc41cbb714160b6c434a97"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,6 +22,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 96725
     },
-    "duration": 739000,
-    "start": 1666808749305231000
+    "duration": 579000,
+    "start": 1667240560690160000
   }]]
