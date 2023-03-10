@@ -54,10 +54,10 @@ def create_release_draft():
             
             # switch to base branch to get the latest
             rn_raw = subprocess.check_output(
-                "git checkout %s && \
-            git pull origin %s && \
+                "git checkout {base} && \
+            git pull origin {base} && \
             reno report --no-show-source | \
-            pandoc -f rst -t gfm --wrap=none" % (base),
+            pandoc -f rst -t gfm --wrap=none".format(base=base),
                 shell=True,
                 cwd=os.pardir,
             )
