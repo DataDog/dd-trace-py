@@ -129,6 +129,7 @@ def generate_rn(branch):
 def create_draft_release(branch, name, tag, dd_repo):
 
     rn_raw = generate_rn(branch)
+    import pdb; pdb.set_trace()
     rn = clean_rn(rn_raw)
 
     base_branch = dd_repo.get_branch(branch=branch)
