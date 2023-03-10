@@ -87,7 +87,7 @@ def unpatch():
 
 def wrap_produce(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
-        "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
+        "kafkaproduce", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
     ) as span:
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
@@ -100,7 +100,7 @@ def wrap_produce(func, instance, pin, integration_config, args, kwargs):
 
 def wrap_poll(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
-        "kafkafoo", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
+        "kafkaconsume", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
     ) as span:
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")

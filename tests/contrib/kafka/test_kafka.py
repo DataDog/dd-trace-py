@@ -52,7 +52,7 @@ class TestKafkaPatch(TracerTestCase):
 
         self.assert_is_measured(span)
         assert span.service == "iamkafka"
-        assert span.name == "kafkafoo"
+        assert span.name == "kafkaproduce"
         assert span.span_type == "kafkabar"
         assert span.error == 0
         meta = {
@@ -73,10 +73,11 @@ class TestKafkaPatch(TracerTestCase):
         spans = self.get_spans()
         assert len(spans) > 1
 
+        assert spans[0].name == "kafkaproduce"
         for span in spans[1:]:
             self.assert_is_measured(span)
             assert span.service == "iamkafka"
-            assert span.name == "kafkafoo"
+            assert span.name == "kafkaconsume"
             assert span.span_type == "kafkabar"
             assert span.error == 0
             meta = {
