@@ -2498,10 +2498,10 @@ venv = Venv(
                         Venv(pys="3.6", pkgs={"confluent-kafka": "==2.0.2"}),
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
-                            pkgs={"confluent-kafka": ["~=1.9.0", latest]}
+                            pkgs={"confluent-kafka": ["~=1.9.0", latest]},
                         ),
                         Venv(pys="3.11", pkgs={"confluent-kafka": latest}),
-                    ]
+                    ],
                 ),
             ],
         ),

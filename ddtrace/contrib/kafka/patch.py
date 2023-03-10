@@ -97,9 +97,7 @@ def wrap_produce(func, instance, pin, integration_config, args, kwargs):
         span.set_tag_str("topic", "banana_topic")
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
         return func(*args, **kwargs)
 
 
@@ -115,7 +113,5 @@ def wrap_poll(func, instance, pin, integration_config, args, kwargs):
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag_str("group_id", "Fhqwhgads")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
         return func(*args, **kwargs)
