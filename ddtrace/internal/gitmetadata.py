@@ -1,8 +1,10 @@
 import os
 import typing
 
-from ddtrace.internal.utils import formats
 from envier import Env
+
+from ddtrace.internal.utils import formats
+
 
 _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Dict[str, str]]
 

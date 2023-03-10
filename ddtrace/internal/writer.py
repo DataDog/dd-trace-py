@@ -25,9 +25,8 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..internal.telemetry import telemetry_metrics_writer
-from ..internal.telemetry import telemetry_writer
 from ..internal.gitmetadata import get_tracer_tags
+from ..internal.telemetry import telemetry_metrics_writer
 from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str

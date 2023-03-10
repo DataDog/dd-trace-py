@@ -18,8 +18,8 @@ import tenacity
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.gitmetadata import update_profiler_tags
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils.formats import parse_tags_str
