@@ -1080,7 +1080,6 @@ jobs:
       - *kafka_broker
     steps:
       - run_test:
-          wait: kafka
           pattern: 'kafka'
 
   kombu:
