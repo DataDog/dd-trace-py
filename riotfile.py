@@ -152,7 +152,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs}",
+                    command="python -m flake8 {cmdargs}",
                 ),
             ],
         ),
