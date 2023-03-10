@@ -16,9 +16,7 @@ _original_kafka_consumer = None
 
 
 class TracedProducer(confluent_kafka.Producer):
-    def produce(
-        self, topic, value=None, *args, **kwargs
-    ):
+    def produce(self, topic, value=None, *args, **kwargs):
         super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
@@ -54,17 +52,13 @@ def patch():
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
-        return wrap_produce(
-            func, instance, pin, config.kafka, args, kwargs
-        )
+        return wrap_produce(func, instance, pin, config.kafka, args, kwargs)
 
     def _inner_wrap_poll(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
-        return wrap_poll(
-            func, instance, pin, config.kafka, args, kwargs
-        )
+        return wrap_poll(func, instance, pin, config.kafka, args, kwargs)
 
     wrapt.wrap_function_wrapper(
         TracedProducer,
@@ -94,20 +88,26 @@ def unpatch():
 
 def wrap_produce(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
-        "kafkaproduce", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
+        "kafkaproduce",
+        service=trace_utils.ext_service(pin, integration_config),
+        span_type="kafkabar",
     ) as span:
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str("topic", "banana_topic")
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate()
+        )
         return func(*args, **kwargs)
 
 
 def wrap_poll(func, instance, pin, integration_config, args, kwargs):
     with pin.tracer.trace(
-        "kafkaconsume", service=trace_utils.ext_service(pin, integration_config), span_type="kafkabar"
+        "kafkaconsume",
+        service=trace_utils.ext_service(pin, integration_config),
+        span_type="kafkabar",
     ) as span:
         span.set_tag_str(COMPONENT, integration_config.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
@@ -115,5 +115,7 @@ def wrap_poll(func, instance, pin, integration_config, args, kwargs):
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag_str("group_id", "Fhqwhgads")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate()
+        )
         return func(*args, **kwargs)
