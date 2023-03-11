@@ -404,6 +404,14 @@ jobs:
       - run_test:
           pattern: 'opentracer'
 
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
+
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
   # which is not installed.
@@ -1179,6 +1187,7 @@ requires_tests: &requires_tests
     - mysqlconnector
     - mysqlpython
     - opentracer
+    - opentelemetry
     - psycopg
     - pylibmc
     - pylons
@@ -1280,6 +1289,7 @@ workflows:
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
+      - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs

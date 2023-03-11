@@ -11,6 +11,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
@@ -625,6 +626,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
                 self.assertEqual(1, len(trace))
                 self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 8), reason="opentracing is not supported python<3.8")
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""
         ot_tracer = init_tracer("celery_svc", self.tracer)

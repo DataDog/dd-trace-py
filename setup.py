@@ -369,6 +369,7 @@ setup(
         "ipaddress; python_version<'3.7'",
         "envier",
         "pep562; python_version<'3.7'",
+        "opentelemetry-api>=1; python_version>='3.7'",
     ]
     + bytecode,
     extras_require={
@@ -391,6 +392,9 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
+        ],
+        "opentelemetry_context": [
+            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
         ],
     },
     classifiers=[
