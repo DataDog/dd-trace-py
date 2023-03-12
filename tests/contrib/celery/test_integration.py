@@ -649,11 +649,16 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
 
-        with ot_tracer.start_active_span("celery_op"):
+        with ot_tracer.start_active_span("celery_op") as span:
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
             assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
+        print(span._span)
+        import time
+
+        time.sleep(2)
         traces = self.pop_traces()
+        print(traces)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)

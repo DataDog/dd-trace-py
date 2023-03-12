@@ -651,7 +651,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 5
+    parallelism: 10
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
