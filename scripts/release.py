@@ -44,6 +44,7 @@ def create_release_draft():
     gh_token = os.getenv("GH_TOKEN")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
+    import pdb; pdb.set_trace()
 
     if base is None:
         raise ValueError("need to specify the base version with envar e.g. BASE=1.10.0")
