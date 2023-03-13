@@ -124,9 +124,8 @@ def create_release_draft():
                 sections = rn.split("###")[1:]
                 prelude_section = {}
                 # if there is a prelude, we need to grab that separately since it has different syntax
-                import pdb; pdb.set_trace()
                 if sections[0].startswith(" Prelude\n\n"):
-                    prelude_section[" Prelude\n\n"] = sections[0].split("\n\n", 1)[1]
+                    prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
                     sections = sections[1:]
                 sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
                 relevant_rns.append(sections_dict)
