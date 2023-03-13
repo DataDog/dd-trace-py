@@ -16,7 +16,6 @@ log = get_logger(__name__)
 
 
 class TimeoutChannel:
-
     def __init__(self, context):
         self.crashed = False
         self.context = context
@@ -30,6 +29,7 @@ class TimeoutChannel:
         so no signals are overridden.
         """
         old_signal = signal.getsignal(sig)
+
         def wrap_signals(*args, **kwargs):
             if old_signal is not None:
                 old_signal(*args, **kwargs)
@@ -44,7 +44,6 @@ class TimeoutChannel:
             return signal.signal(sig, f)
 
         return signal.signal(sig, wrap_signals)
-
 
     def _start(self):
         self._handle_signal(signal.SIGALRM, self._crash_flush)
@@ -73,7 +72,6 @@ class TimeoutChannel:
 
         signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
 
-
     def _crash_flush(self, _, __):
         """
         Tags the current root span with an Impending Timeout error.
@@ -94,15 +92,14 @@ class TimeoutChannel:
         if current_span is not None:
             current_span.finish_with_ancestors()
 
-
     def _remove_alarm_signal(self):
         """Removes the handler set for the signal `SIGALRM`."""
         signal.alarm(0)
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
 
-
     def stop(self):
         self._remove_alarm_signal()
+
 
 class DatadogInstrumentation(object):
     """Patches an AWS Lambda handler function for Datadog instrumentation."""
@@ -118,13 +115,11 @@ class DatadogInstrumentation(object):
         finally:
             self._after()
 
-
     def _before(self, args, kwargs):
         self.context = get_argument_value(args, kwargs, -1, "context")
         self.timeoutChannel = TimeoutChannel(self.context)
 
         self.timeoutChannel._start()
-
 
     def _after(self):
         if not self.timeoutChannel.crashed:
