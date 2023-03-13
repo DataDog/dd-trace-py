@@ -46,7 +46,9 @@ class RemoteConfig(object):
     @classmethod
     def enable(cls):
         # type: () -> bool
-        if cls._check_remote_config_enable_in_agent():
+        # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        if rc_env_enabled and cls._check_remote_config_enable_in_agent():
             with cls._worker_lock:
                 if cls._worker is None:
                     cls._worker = RemoteConfigWorker()
@@ -56,7 +58,7 @@ class RemoteConfig(object):
                     atexit.register(cls.disable)
             return True
         return False
-
+            
     @classmethod
     def _restart(cls):
         cls.disable()
