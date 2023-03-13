@@ -8,6 +8,8 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec import _asm_request_context
@@ -32,10 +34,13 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
+from ...ext import http
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
+from ..trace_utils import _get_request_header_user_agent
+from ..trace_utils import _set_url_tag
 from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
@@ -121,13 +126,23 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        result = start_response(status_code, headers)
         if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
             if _context.get_item("http.request.blocked", span=req_span):
-                # response code must be set here or it will be too late
-                result = start_response("403 FORBIDDEN", [])
+                # response code must be set here, or it will be too late
+                ctype = (
+                    "text/html"
+                    if "text/html" in _asm_request_context.get_headers().get("Accept", "").lower()
+                    else "text/json"
+                )
+                response_headers = [("content-type", ctype)]
+                result = start_response("403 FORBIDDEN", response_headers)
+                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
+            else:
+                result = start_response(status_code, headers)
+        else:
+            result = start_response(status_code, headers)
         return result
 
     def _request_span_modifier(self, span, environ, parsed_headers=None):
@@ -561,9 +576,30 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def _block_request_callable(headers, span):
+def _set_block_tags(span):
+    span.set_tag_str(http.STATUS_CODE, "403")
+    request = flask.request
+    try:
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        if base_url and query_string:
+            _set_url_tag(config.flask, span, base_url, query_string)
+        if query_string and config.flask.trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        if request.method is not None:
+            span.set_tag_str(http.METHOD, request.method)
+        user_agent = _get_request_header_user_agent(request.headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
+def _block_request_callable(span):
+    request = flask.request
     _context.set_item("http.request.blocked", True, span=span)
-    ctype = headers.get("Accept") or "text/json"
+    _set_block_tags(span)
+    ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
@@ -583,15 +619,12 @@ def request_tracer(name):
         # This call may be unnecessary since we try to add the tags earlier
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
-        request = flask.request
 
         with pin.tracer.trace(
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            _asm_request_context.set_block_request_callable(
-                functools.partial(_block_request_callable, request.headers, span)
-            )
+            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
@@ -635,6 +668,9 @@ def _set_request_tags(span):
         request = flask.request
 
         span.set_tag_str(COMPONENT, config.flask.integration_name)
+
+        if span.name.split(".")[-1] == "request":
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:

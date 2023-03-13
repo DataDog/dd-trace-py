@@ -43,6 +43,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert template_span.parent_id == request_span.span_id
         assert 0 == template_span.error
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
         assert template_span.get_tag("component") == "tornado"
 
     def test_template_renderer(self):
@@ -120,6 +121,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert template_span.parent_id == template_root.span_id
         assert 0 == template_span.error
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
         assert template_root.get_tag("component") == "tornado"
         assert template_span.get_tag("component") == "tornado"
 
@@ -155,6 +157,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "ModuleThatDoesNotExist" in template_span.get_tag(ERROR_MSG)
         assert "AttributeError" in template_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
         assert template_span.get_tag("component") == "tornado"
 
     def test_template_renderer_exception(self):

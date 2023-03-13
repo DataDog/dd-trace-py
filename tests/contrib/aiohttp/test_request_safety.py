@@ -30,6 +30,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert "aiohttp-web" == request_span.service
     assert "aiohttp.request" == request_span.name
     assert "GET /" == request_span.resource
+    assert request_span.get_tag("span.kind") == "server"
 
 
 async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):

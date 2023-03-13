@@ -49,6 +49,7 @@ class PyODBCTest(object):
         assert span.span_type == "sql"
         assert span.error == 0
         assert span.get_tag("component") == "pyodbc"
+        assert span.get_tag("span.kind") == "client"
 
     def test_simple_query_fetchall(self):
         with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
@@ -70,6 +71,7 @@ class PyODBCTest(object):
             fetch_span = spans[0]
             assert fetch_span.name == "pyodbc.query"
             assert span.get_tag("component") == "pyodbc"
+            assert span.get_tag("span.kind") == "client"
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
@@ -173,6 +175,7 @@ class PyODBCTest(object):
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
+        assert span.get_tag("span.kind") == "client"
         assert span.service == "pyodbc"
         assert span.name == "pyodbc.connection.commit"
 
@@ -184,6 +187,7 @@ class PyODBCTest(object):
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
+        assert span.get_tag("span.kind") == "client"
         assert span.service == "pyodbc"
         assert span.name == "pyodbc.connection.rollback"
 

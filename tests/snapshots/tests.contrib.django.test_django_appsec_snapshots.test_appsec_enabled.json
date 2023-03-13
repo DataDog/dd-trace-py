@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.5.1",
+      "_dd.appsec.event_rules.version": "1.5.2",
       "_dd.appsec.waf.version": "1.8.2",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",
@@ -28,7 +28,8 @@
       "http.version": "1.1",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "5466f88557c249419bc784dec95b8332"
+      "runtime-id": "70ff6f724192483fa0e78b88ca692feb",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
