@@ -205,9 +205,11 @@ def get_kinesis_data_object(data):
 
     # check if data is a json string
     try:
+        if isinstance(data, bytes) or isinstance(data, bytearray):
+            data = data.decode("ascii")
         return get_json_from_str(data)
     except ValueError:
-        pass
+        log.debug("Unable to parse kinesis streams data string of type: %s", type(data))
 
     # check if data is a base64 encoded json string
     try:
