@@ -285,6 +285,7 @@ venv = Venv(
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
+                "wheel": latest,
             },
             # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
             # We'll skip the test_http.py tests in riot and run them separately through tox in CI.

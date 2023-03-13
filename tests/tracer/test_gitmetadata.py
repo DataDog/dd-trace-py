@@ -2,13 +2,16 @@
 """
 tests for git metadata embedding and processing.
 """
-import os
 import glob
-import pytest
-import ddtrace
-import tempfile
+import os
 import subprocess
+import tempfile
 
+import mock
+import pytest
+
+import ddtrace
+from ddtrace.internal.writer import AgentWriter
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
@@ -92,15 +95,18 @@ setup(
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="service:s,env:e,version:v",
-            DD_ENV="env",
-            DD_SERVICE="svc",
-            DD_VERSION="0.123",
+            DD_TAGS="sometag:ttt",
+            DD_MAIN_PACKAGE="gitmetadatapoc",
         )
     )
     def test_tags_from_DD_TAGS(self):
         t = ddtrace.Tracer()
         with t.trace("test") as s:
-            assert s.service == "svc"
-            assert s.get_tag("env") == "env"
-            assert s.get_tag("version") == "0.123"
+            statsd = mock.Mock()
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
+            writer.write([s])
+            writer.stop()
+            writer.join()
+
+            assert s.get_tag("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
+            assert s.get_tag("_dd.git.repository_url") == "https://github.com/user/repo"

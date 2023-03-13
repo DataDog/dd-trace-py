@@ -152,6 +152,7 @@ LATEST_VERSIONS = {
     "types-six": "1.16.21.4",
     "urllib3": "1.26.14",
     "vertica-python": "1.3.0",
+    "wheel": "0.30.0",
     "webob": "1.8.7",
     "WebTest": "3.0.0",
     "webtest": "3.0.0",
