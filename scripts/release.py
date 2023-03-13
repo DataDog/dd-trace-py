@@ -138,6 +138,7 @@ def create_draft_release(branch, name, tag, dd_repo):
     rn = clean_rn(rn_raw)
 
     base_branch = dd_repo.get_branch(branch=branch)
+    import pdb; pdb.set_trace()
     dd_repo.create_git_release(
         name=name, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
     )
