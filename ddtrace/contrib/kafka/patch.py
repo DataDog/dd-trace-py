@@ -2,6 +2,7 @@ import confluent_kafka
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor.wrapt import ObjectProxy
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -10,13 +11,33 @@ from ...constants import SPAN_MEASURED_KEY
 from ...pin import Pin
 
 
-_original_kafka_producer = None
-_original_kafka_consumer = None
+_Producer = confluent_kafka.Producer
+_Consumer = confluent_kafka.Consumer
 
 
-class TracedProducer(confluent_kafka.Producer):
+class TracedProducer(ObjectProxy):
+    def __init__(self, *args, **kwargs):
+        producer = _Producer(*args, **kwargs)
+        super(TracedProducer, self).__init__(producer)
+        Pin(service="iamkafka").onto(self)
+
     def produce(self, topic, value=None, *args, **kwargs):
-        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
+        pin = Pin.get_from(self)
+        if not pin or not pin.enabled():
+            return self.__wrapped__.produce(topic, value=value, *args, **kwargs)
+
+        with pin.tracer.trace(
+            "kafkaproduce",
+            service=trace_utils.ext_service(pin, config.kafka),
+            span_type="kafkabar",
+        ) as span:
+            span.set_tag_str(COMPONENT, config.kafka.integration_name)
+            span.set_tag_str(SPAN_KIND, "spankhind")
+            span.set_tag_str("topic", "banana_topic")
+            span.set_tag_str("bootstrap_servers", "numnah")
+            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
+        self.__wrapped__.produce(topic, value=value, *args, **kwargs)
 
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
@@ -26,12 +47,30 @@ class TracedProducer(confluent_kafka.Producer):
     __nonzero__ = __bool__
 
 
-class TracedConsumer(confluent_kafka.Consumer):
-    def __init__(self, config):
-        super(TracedConsumer, self).__init__(config)
+class TracedConsumer(ObjectProxy):
+    def __init__(self, *args, **kwargs):
+        consumer = _Consumer(*args, **kwargs)
+        super(TracedConsumer, self).__init__(consumer)
+        Pin(service="iamkafka").onto(self)
 
-    def poll(self, timeout=-1):
-        return super(TracedConsumer, self).poll(timeout)
+    def poll(self, *args, **kwargs):
+        pin = Pin.get_from(self)
+        if not pin or not pin.enabled():
+            return self.__wrapped__.poll(*args, **kwargs)
+
+        with pin.tracer.trace(
+            "kafkaconsume",
+            service=trace_utils.ext_service(pin, config.kafka),
+            span_type="kafkabar",
+        ) as span:
+            span.set_tag_str(COMPONENT, config.kafka.integration_name)
+            span.set_tag_str(SPAN_KIND, "spankhind")
+            span.set_tag_str("topic", "banana_topic")
+            span.set_tag_str("bootstrap_servers", "numnah")
+            span.set_tag_str("group_id", "Fhqwhgads")
+            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
+            return self.__wrapped__.poll(*args, **kwargs)
 
 
 def patch():
@@ -39,65 +78,13 @@ def patch():
         return
     setattr(confluent_kafka, "_datadog_patch", True)
 
-    global _original_kafka_consumer
-    global _original_kafka_producer
-    _original_kafka_producer = confluent_kafka.Producer
-    _original_kafka_consumer = confluent_kafka.Consumer
-
-    confluent_kafka.Producer = TracedProducer
-    confluent_kafka.Consumer = TracedConsumer
-
-    trace_utils.wrap(TracedProducer, "produce", traced_produce)
-    trace_utils.wrap(TracedConsumer, "poll", traced_poll)
-    Pin(service="iamkafka").onto(confluent_kafka.Producer)
-    Pin(service="iamkafka").onto(confluent_kafka.Consumer)
+    setattr(confluent_kafka, "Producer", TracedProducer)
+    setattr(confluent_kafka, "Consumer", TracedConsumer)
 
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         setattr(confluent_kafka, "_datadog_patch", False)
 
-    trace_utils.unwrap(TracedProducer, "produce")
-    trace_utils.unwrap(TracedConsumer, "poll")
-
-    confluent_kafka.Producer = _original_kafka_producer
-    confluent_kafka.Consumer = _original_kafka_consumer
-
-
-def traced_produce(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-
-    with pin.tracer.trace(
-        "kafkaproduce",
-        service=trace_utils.ext_service(pin, config.kafka),
-        span_type="kafkabar",
-    ) as span:
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, "spankhind")
-        span.set_tag_str("topic", "banana_topic")
-        span.set_tag_str("bootstrap_servers", "numnah")
-        span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
-        return func(*args, **kwargs)
-
-
-def traced_poll(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-
-    with pin.tracer.trace(
-        "kafkaconsume",
-        service=trace_utils.ext_service(pin, config.kafka),
-        span_type="kafkabar",
-    ) as span:
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, "spankhind")
-        span.set_tag_str("topic", "banana_topic")
-        span.set_tag_str("bootstrap_servers", "numnah")
-        span.set_tag_str("group_id", "Fhqwhgads")
-        span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
-        return func(*args, **kwargs)
+    setattr(confluent_kafka, "Producer", _Producer)
+    setattr(confluent_kafka, "Consumer", _Consumer)

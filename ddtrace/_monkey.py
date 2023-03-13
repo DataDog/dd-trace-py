@@ -41,6 +41,7 @@ PATCH_MODULES = {
     "graphql": True,
     "grpc": True,
     "httpx": True,
+    "kafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -120,6 +121,7 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("httplib" if PY2 else "http.client",),
+    "kafka": ("confluent_kafka",),
 }
 
 IAST_PATCH = {
