@@ -35,6 +35,11 @@ class TimeoutChannel:
                 old_signal(*args, **kwargs)
             f(*args, **kwargs)
 
+        # Return the incoming signal if any of the following cases happens:
+        # - old signal does not exist,
+        # - old signal is the same as the incoming, or
+        # - old signal is our wrapper.
+        # This avoids multiple signal calling and infinite wrapping.
         if not callable(old_signal) or old_signal == f or old_signal == wrap_signals:
             return signal.signal(sig, f)
 
