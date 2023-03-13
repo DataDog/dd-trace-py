@@ -109,10 +109,21 @@ def create_release_draft():
         split_str = "## v%s" % base
         relevent_rns = []
         for rn in rns:
-            if rn.startswith("## v%s" % base):
-                relevent_rns.append(rn)
+            if rn.startswith("%s.0" % base):
+                import pdb; pdb.set_trace()
+                # cut out the version section
+                sections = rn.split("###")[1:]
+                sections_dict = dict(section.split("\n\n-") for section in sections)
+                # for section in sections:
+                #     section_split = 
+                #     sections_dict[]
+                
+                # relevent_rns.appent(sections_dict)
+                
+                # version_rns = dict(section.split("\n\n") for section in rn.split("###"))
+                
+                relevent_rns.append(version_rns)
             
-        import pdb; pdb.set_trace()
         
         
 
