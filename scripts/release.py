@@ -105,8 +105,13 @@ def create_release_draft():
         tag = "v%s" % name
         branch = base
         rn_raw = generate_rn(branch)
-        rns = rn_raw.decode().split("## v")[0]
-        relevent_rns = [rn for rn in rns if rn.startswith("## v%s" % base)]
+        rns = rn_raw.decode().split("## v")
+        split_str = "## v%s" % base
+        relevent_rns = []
+        for rn in rns:
+            if rn.startswith("## v%s" % base):
+                relevent_rns.append(rn)
+            
         import pdb; pdb.set_trace()
         
         
