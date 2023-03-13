@@ -407,9 +407,9 @@ setup(
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
         ],
-        "opentelemetry_context": [
-            "ddcontextvars_context = ddtrace._opentelemetry._context:DDRuntimeContext",
-        ],
+        # "opentelemetry_context": [
+        #     "ddcontextvars_context = ddtrace._opentelemetry._context:DDRuntimeContext",
+        # ],
     },
     classifiers=[
         "Programming Language :: Python",

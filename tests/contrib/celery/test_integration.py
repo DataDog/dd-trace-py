@@ -653,7 +653,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
             assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        print(span._span)
+        print(span._span._dd_span)
         import time
 
         time.sleep(2)
