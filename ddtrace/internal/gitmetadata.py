@@ -19,7 +19,7 @@ class GitMetadataConfig(Env):
     __prefix__ = "dd"
 
     # DD_TRACE_GIT_METADATA_ENABLED
-    enabled = Env.var(bool, "trace_git_metadata_enable", default=True)
+    enabled = Env.var(bool, "trace_git_metadata_enabled", default=True)
 
     # DD_GIT_REPOSITORY_URL
     repository_url = Env.var(str, "git.repository_url", default="")
