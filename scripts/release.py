@@ -130,9 +130,9 @@ def create_release_draft():
                 sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
                 relevant_rns.append(sections_dict)
 
-        import pdb; pdb.set_trace()
         keys = set().union(*relevant_rns)
         rns_dict = {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
+         import pdb; pdb.set_trace()
         # combine the release notes sections
             
 
