@@ -2,7 +2,6 @@ import confluent_kafka
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -48,29 +47,8 @@ def patch():
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
 
-    def _inner_wrap_produce(func, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
-            return func(*args, **kwargs)
-        return wrap_produce(func, instance, pin, config.kafka, args, kwargs)
-
-    def _inner_wrap_poll(func, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
-            return func(*args, **kwargs)
-        return wrap_poll(func, instance, pin, config.kafka, args, kwargs)
-
-    wrapt.wrap_function_wrapper(
-        TracedProducer,
-        "produce",
-        _inner_wrap_produce,
-    )
-
-    wrapt.wrap_function_wrapper(
-        TracedConsumer,
-        "poll",
-        _inner_wrap_poll,
-    )
+    trace_utils.wrap(TracedProducer, "produce", traced_produce)
+    trace_utils.wrap(TracedConsumer, "poll", traced_poll)
     Pin(service="iamkafka").onto(confluent_kafka.Producer)
     Pin(service="iamkafka").onto(confluent_kafka.Consumer)
 
@@ -86,32 +64,40 @@ def unpatch():
     confluent_kafka.Consumer = _original_kafka_consumer
 
 
-def wrap_produce(func, instance, pin, integration_config, args, kwargs):
+def traced_produce(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
     with pin.tracer.trace(
         "kafkaproduce",
-        service=trace_utils.ext_service(pin, integration_config),
+        service=trace_utils.ext_service(pin, config.kafka),
         span_type="kafkabar",
     ) as span:
-        span.set_tag_str(COMPONENT, integration_config.integration_name)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str("topic", "banana_topic")
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
         return func(*args, **kwargs)
 
 
-def wrap_poll(func, instance, pin, integration_config, args, kwargs):
+def traced_poll(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
     with pin.tracer.trace(
         "kafkaconsume",
-        service=trace_utils.ext_service(pin, integration_config),
+        service=trace_utils.ext_service(pin, config.kafka),
         span_type="kafkabar",
     ) as span:
-        span.set_tag_str(COMPONENT, integration_config.integration_name)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, "spankhind")
         span.set_tag_str("topic", "banana_topic")
         span.set_tag_str("bootstrap_servers", "numnah")
         span.set_tag_str("group_id", "Fhqwhgads")
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, integration_config.get_analytics_sample_rate())
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
         return func(*args, **kwargs)
