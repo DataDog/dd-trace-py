@@ -3,6 +3,7 @@
 tests for git metadata embedding and processing.
 """
 import os
+import glob
 import pytest
 import ddtrace
 import tempfile
@@ -43,11 +44,6 @@ setup(
     author="First Last",
     author_email="example@mail.net",
     packages=["git_metadata_poc"],
-    project_urls={
-        "Bug Tracker": "https://bug.tracker.link",
-        "Documentation": "https://some.documentation.link/",
-        "Source Code": "https://github.com/sashacmc/dd-git-metadata-poc",
-    },
     zip_safe=True,
 )"""
             )
@@ -66,10 +62,18 @@ setup(
         self._run(["python3", "setup.py", "bdist_wheel"])
 
     def _install_package(self, tmpdirname):
+        pkgfile = glob.glob(os.path.join(tmpdirname, "dist", "*.whl"))[0]
+        envdir = os.path.join(tmpdirname, "env")
+        self._run(["pip", "install", "--target=" + envdir, pkgfile])
+        os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
+        os.environ["SHA_VALUE"] = self._run(["git", "rev-parse", "HEAD"])
+
+        # TODO: remove
         self._run(["cp", "-r", tmpdirname, "/tmp/out/"])
 
     def _preapare_test_env(self, tmpdirname):
         cwd = os.getcwd()
+        python_path = os.getenv("PYTHONPATH", None)
         try:
             os.chdir(tmpdirname)
             self._create_package_git_repo(tmpdirname)
@@ -77,6 +81,8 @@ setup(
             self._install_package(tmpdirname)
         finally:
             os.chdir(cwd)
+            if python_path is not None:
+                os.environ["PYTHONPATH"] = python_path
 
     @pytest.fixture(autouse=True)
     def setup(self, tmpdir):
