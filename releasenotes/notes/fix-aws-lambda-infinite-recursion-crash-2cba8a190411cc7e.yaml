@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    aws_lambda: Fixes a bug in which signals were wrapped infinitely by adding a condition and removing
+    signals after an invocation.
+other:
+  - |
+    aws_lambda: Updated the integration to use classes instead of methods. This allows developers easily
+    maintain the code by encapsulating pieces of code which belong to a specific category for AWS Lambda
+    instrumentation.
