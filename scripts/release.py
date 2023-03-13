@@ -12,7 +12,10 @@ from github.GithubException import UnknownObjectException
 """This release notes script is built to create a release notes draft for release candidates, patches, and minor releases.
 
 Setup:
-
+1. Create a `.env` file in your home directory.
+2. Create Github token: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
+3. Give the Github token repo, user, audit_log, and project permissions.
+2. Add `export GH_TOKEN=<github token>` to the `.env` file.
 
 Usage:
 Required:
@@ -22,10 +25,17 @@ Required:
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
+    
+Examples:
+Generate release notes for next release candidate version of 1.11: `BASE=1.11 RC=1 python release.py`
+
+Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python release.py`
+
+Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 """
 
 
-load_dotenv(dotenv_path=".env")
+load_dotenv(dotenv_path="~/.env")
 
 
 def create_release_draft():
