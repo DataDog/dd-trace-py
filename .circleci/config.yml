@@ -651,7 +651,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 10
+    parallelism: 5
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -1120,8 +1120,15 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
+requires_pre_check: &requires_pre_check
+  requires:
+    - pre_check
+    - ccheck
+
 requires_base_venvs: &requires_base_venvs
   requires:
+    - pre_check
+    - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -1217,18 +1224,102 @@ workflows:
   version: 2
   test: &workflow_test
     jobs:
+      # Pre-checking before running all jobs
+      - pre_check
+      - ccheck
+
       # Build necessary base venvs for integration tests
       - build_base_venvs
 
+      # Docs
+      - build_docs: *requires_pre_check
+
       # Integration test suites
+      - aiobotocore: *requires_base_venvs
+      - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
+      - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
+      - asyncpg: *requires_base_venvs
+      - algoliasearch: *requires_base_venvs
+      - asgi: *requires_base_venvs
+      - benchmarks: *requires_base_venvs
+      - boto: *requires_base_venvs
+      - bottle: *requires_base_venvs
+      - cassandra: *requires_base_venvs
       - celery: *requires_base_venvs
+      - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
+      - django: *requires_base_venvs
+      - django_hosts: *requires_base_venvs
+      - djangorestframework: *requires_base_venvs
+      - dogpile_cache: *requires_base_venvs
+      - elasticsearch: *requires_base_venvs
+      - falcon: *requires_base_venvs
+      - fastapi: *requires_base_venvs
       - flask: *requires_base_venvs
       - gevent: *requires_base_venvs
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - gunicorn: *requires_base_venvs
+      - httplib: *requires_base_venvs
+      - httpx: *requires_base_venvs
+      - integration_agent: *requires_base_venvs
+      - integration_testagent: *requires_base_venvs
+      - internal: *requires_base_venvs
+      - vendor: *requires_base_venvs
+      - profile: *requires_base_venvs
+      - jinja2: *requires_base_venvs
+      - kombu: *requires_base_venvs
+      - mako: *requires_base_venvs
+      - mariadb: *requires_base_venvs
+      - molten: *requires_base_venvs
+      - mongoengine: *requires_base_venvs
+      - mysqlconnector: *requires_base_venvs
+      - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
+      - psycopg: *requires_base_venvs
+      - pylibmc: *requires_base_venvs
+      - pylons: *requires_base_venvs
+      - pymemcache: *requires_base_venvs
+      - pymongo: *requires_base_venvs
+      - pymysql: *requires_base_venvs
+      - pynamodb: *requires_base_venvs
+      - pyodbc: *requires_base_venvs
+      - pyramid: *requires_base_venvs
+      - pytest: *requires_base_venvs
+      - asynctest: *requires_base_venvs
+      - pytestbdd: *requires_base_venvs
+      - aredis: *requires_base_venvs
+      - yaaredis: *requires_base_venvs
+      - redis: *requires_base_venvs
+      - rediscluster: *requires_base_venvs
+      - requests: *requires_base_venvs
+      - rq: *requires_base_venvs
+      - sanic: *requires_base_venvs
+      - snowflake: *requires_base_venvs
+      - starlette: *requires_base_venvs
+      - stdlib: *requires_base_venvs
+      - sqlalchemy: *requires_base_venvs
+      - test_logging: *requires_base_venvs
+      - tornado: *requires_base_venvs
+      - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
+      - debugger: *requires_base_venvs
+      - appsec: *requires_base_venvs
+      - urllib3: *requires_base_venvs
+      - vertica: *requires_base_venvs
+      - wsgi: *requires_base_venvs
+      # - profile-windows-27: *requires_pre_check
+      # - profile-windows-35: *requires_pre_check
+      # - profile-windows-36: *requires_pre_check
+      # - profile-windows-37: *requires_pre_check
+      # - profile-windows-38: *requires_pre_check
+      # - profile-windows-39: *requires_pre_check
+      # - profile-windows-310: *requires_pre_check
+      # - profile-windows-311: *requires_pre_check
+      # Final reports
+      - coverage_report: *requires_tests
