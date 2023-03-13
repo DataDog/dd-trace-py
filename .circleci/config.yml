@@ -15,6 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+zookeeper_image: &zookeeper_image confluentinc/cp-zookeeper:7.3.1
 kafka_image: &kafka_image confluentinc/cp-kafka:7.3.2
 
 orbs:
@@ -1069,18 +1070,22 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - image: *zookeeper_image
+        environment:
+        - ZOOKEEPER_CLIENT_PORT=2181
+        - ZOOKEEPER_TICK_TIME=2000
       - image: *kafka_image
         environment:
         - KAFKA_BROKER_ID=1
-        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+        - KAFKA_ZOOKEEPER_CONNECT=localhost:2181
+        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,PLAINTEXT_HOST://localhost:29092
         - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
         - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
         - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
     steps:
       - run_test:
           pattern: 'kafka'
-          docker_services: kafka
+          docker_services: 'kafka'
 
   kombu:
     <<: *contrib_job_small
