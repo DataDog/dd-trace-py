@@ -44,14 +44,14 @@ def setup():
     unpatch()
 
 
-@pytest.mark.parametrize("customApmFlushDeadline", [("100"), ("200")])
+@pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot()
 def test_timeout_traces(context, customApmFlushDeadline):
     os.environ.update(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "timeout_handler",
             "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.timeout_handler",
-            "DD_APM_FLUSH_DEADLINE": customApmFlushDeadline,
+            "DD_APM_FLUSH_DEADLINE_MILLISECONDS": customApmFlushDeadline,
         }
     )
 
