@@ -9,35 +9,41 @@ log = get_logger(__name__)
 
 
 def _set_waf_updates_metric(event_rules_version):
-    tags = {
-        "waf_version": version(),
-        "lib_language": "python",
-    }
-    if event_rules_version:
-        tags["event_rules_version"] = event_rules_version
+    try:
+        tags = {
+            "waf_version": version(),
+            "lib_language": "python",
+        }
+        if event_rules_version:
+            tags["event_rules_version"] = event_rules_version
 
-    telemetry_metrics_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_APPSEC,
-        "waf.updates",
-        1.0,
-        tags=tags,
-    )
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "waf.updates",
+            1.0,
+            tags=tags,
+        )
+    except Exception:
+        log.warning("Error reporting ASM WAF updates metrics", exc_info=True)
 
 
 def _set_waf_init_metric(event_rules_version):
-    tags = {
-        "waf_version": version(),
-        "lib_language": "python",
-    }
-    if event_rules_version:
-        tags["event_rules_version"] = event_rules_version
+    try:
+        tags = {
+            "waf_version": version(),
+            "lib_language": "python",
+        }
+        if event_rules_version:
+            tags["event_rules_version"] = event_rules_version
 
-    telemetry_metrics_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_APPSEC,
-        "waf.init",
-        1.0,
-        tags=tags,
-    )
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "waf.init",
+            1.0,
+            tags=tags,
+        )
+    except Exception:
+        log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
 
 def _set_waf_request_metrics():
@@ -83,6 +89,6 @@ def _set_waf_request_metrics():
             )
             # TODO: add log metric to report info.failed and info.errors
     except Exception:
-        log.warning("Error reporting ASM metrics: %s", exc_info=True)
+        log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
     finally:
         _asm_request_context.reset_waf_results()
