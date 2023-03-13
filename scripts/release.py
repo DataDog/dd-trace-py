@@ -112,9 +112,9 @@ def create_release_draft():
             unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
         except ValueError:
             unreleased_sections = {}
-        relevent_rns = []
+        relevant_rns = []
         if unreleased_sections:
-            relevent_rns.append(unreleased_sections)
+            relevant_rns.append(unreleased_sections)
             
         rns = rn_raw.decode().split("## v")
         split_str = "## v%s" % base
@@ -122,19 +122,20 @@ def create_release_draft():
             if rn.startswith("%s.0" % base):
                 # cut out the version section
                 sections = rn.split("###")[1:]
+                prelude_section = {}
+                # if there is a prelude, we need to grab that separately since it has different syntax
                 import pdb; pdb.set_trace()
-                sections_dict = dict(section.split("\n\n-") for section in sections)
-                relevent_rns.append(sections_dict)
+                if sections[0].startswith(" Prelude\n\n"):
+                    prelude_section[" Prelude\n\n"] = sections[0]split("\n\n", 1)[1]
+                    sections = sections[1:]
+                sections_dict = Merge(dict(section.split("\n\n-", 1) for section in sections), prelude_section)
+                relevant_rns.append(sections_dict)
 
         import pdb; pdb.set_trace()
-        keys = set().union(*relevent_rns)
-        rn_clean = {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
+        keys = set().union(*relevant_rns)
+        rns_dict = {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
         # combine the release notes sections
             
-        
-    #     def func(*dicts):
-    # keys = set().union(*dicts)
-    # return {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
 
     create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo)
 
