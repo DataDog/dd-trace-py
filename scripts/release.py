@@ -108,7 +108,10 @@ def create_release_draft():
         
         unreleased = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
         unreleased = unreleased.split("###")
-        unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
+        try:
+            unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
+        except ValueError:
+            unreleased_sections = {}
         relevent_rns = []
         if unreleased_sections:
             relevent_rns.append(unreleased_sections)
@@ -119,6 +122,7 @@ def create_release_draft():
             if rn.startswith("%s.0" % base):
                 # cut out the version section
                 sections = rn.split("###")[1:]
+                import pdb; pdb.set_trace()
                 sections_dict = dict(section.split("\n\n-") for section in sections)
                 relevent_rns.append(sections_dict)
 
@@ -128,9 +132,9 @@ def create_release_draft():
         # combine the release notes sections
             
         
-        def func(*dicts):
-    keys = set().union(*dicts)
-    return {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
+    #     def func(*dicts):
+    # keys = set().union(*dicts)
+    # return {k: "".join(dic.get(k, '') for dic in dicts)  for k in keys}
 
     create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo)
 
