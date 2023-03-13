@@ -128,7 +128,7 @@ def create_release_draft():
                 if sections[0].startswith(" Prelude\n\n"):
                     prelude_section[" Prelude\n\n"] = sections[0].split("\n\n", 1)[1]
                     sections = sections[1:]
-                sections_dict = Merge(dict(section.split("\n\n-", 1) for section in sections), prelude_section)
+                sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
                 relevant_rns.append(sections_dict)
 
         import pdb; pdb.set_trace()
