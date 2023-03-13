@@ -24,7 +24,7 @@ from tests.utils import snapshot
 
 
 starlette_version_str = getattr(starlette, "__version__", "0.0.0")
-starlette_version = tuple([int(i) for i in starlette_version_str.split(".")])
+starlette_version = tuple([int(i) for i in starlette_version_str.split(".")[:3]])
 
 
 @pytest.fixture
