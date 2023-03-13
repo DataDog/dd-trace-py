@@ -456,35 +456,14 @@ Certain status codes can be excluded by providing a list of ranges. Valid option
     - ``400-403,405-499``
     - ``400,401,403``
 
-.. _adv_opentracing:
+.. _adv_opentelemetry:
 
-OpenTracing
+OpenTelemetry
 -----------
 
 
-The Datadog opentracer can be configured via the ``config`` dictionary
-parameter to the tracer which accepts the following described fields. See below
-for usage.
-
-+---------------------+----------------------------------------+---------------+
-|  Configuration Key  |              Description               | Default Value |
-+=====================+========================================+===============+
-| `enabled`           | enable or disable the tracer           | `True`        |
-+---------------------+----------------------------------------+---------------+
-| `debug`             | enable debug logging                   | `False`       |
-+---------------------+----------------------------------------+---------------+
-| `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
-+---------------------+----------------------------------------+---------------+
-| `agent_https`       | use https to connect to the agent      | `False`       |
-+---------------------+----------------------------------------+---------------+
-| `agent_port`        | port the Datadog agent is listening on | `8126`        |
-+---------------------+----------------------------------------+---------------+
-| `global_tags`       | tags that will be applied to each span | `{}`          |
-+---------------------+----------------------------------------+---------------+
-| `uds_path`          | unix socket of agent to connect to     | `None`        |
-+---------------------+----------------------------------------+---------------+
-| `settings`          | see `Advanced Usage`_                  | `{}`          |
-+---------------------+----------------------------------------+---------------+
+Datadog opentelemetry support uses the ddtrace global tracer (``ddtrace.tracer``) to generate and configure traces. All configurations supported 
+by the Datadog tracer can be used to configure opentelemetry traces.
 
 
 Usage
@@ -493,99 +472,70 @@ Usage
 **Manual tracing**
 
 To explicitly trace::
+    import ddtrace
+    import opentelemetry
 
-  import time
-  import opentracing
-  from ddtrace.opentracer import Tracer, set_global_tracer
+    from opentelemetry.trace import set_tracer_provider
+    from ddtrace.opentelemetry import TracerProvider
+    set_tracer_provider(TracerProvider())
 
-  def init_tracer(service_name):
-      config = {
-        'agent_hostname': 'localhost',
-        'agent_port': 8126,
-      }
-      tracer = Tracer(service_name, config=config)
-      set_global_tracer(tracer)
-      return tracer
+    import os
+    os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
-  def my_operation():
-    span = opentracing.tracer.start_span('my_operation_name')
-    span.set_tag('my_interesting_tag', 'my_interesting_value')
-    time.sleep(0.05)
-    span.finish()
-
-  init_tracer('my_service_name')
-  my_operation()
-
-**Context Manager Tracing**
-
-To trace a function using the span context manager::
-
-  import time
-  import opentracing
-  from ddtrace.opentracer import Tracer, set_global_tracer
-
-  def init_tracer(service_name):
-      config = {
-        'agent_hostname': 'localhost',
-        'agent_port': 8126,
-      }
-      tracer = Tracer(service_name, config=config)
-      set_global_tracer(tracer)
-      return tracer
-
-  def my_operation():
-    with opentracing.tracer.start_span('my_operation_name') as span:
-      span.set_tag('my_interesting_tag', 'my_interesting_value')
-      time.sleep(0.05)
-
-  init_tracer('my_service_name')
-  my_operation()
-
-See our tracing trace-examples_ repository for concrete, runnable examples of
-the Datadog opentracer.
-
-.. _trace-examples: https://github.com/DataDog/trace-examples/tree/master/python
-
-See also the `Python OpenTracing`_ repository for usage of the tracer.
-
-.. _Python OpenTracing: https://github.com/opentracing/opentracing-python
-
+    oteltracer = opentelemetry.trace.get_tracer(__name__)
+    with oteltracer.start_as_current_span("otel-flask-manual-span") as otelspan1:
+        otelspan1.set_attribute("otel_attr", "hehe")
 
 **Alongside Datadog tracer**
 
-The Datadog OpenTracing tracer can be used alongside the Datadog tracer. This
+The Datadog OpenTelemetry tracer can be used alongside the Datadog tracer. This
 provides the advantage of providing tracing information collected by
-``ddtrace`` in addition to OpenTracing.  The simplest way to do this is to use
-the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
-application.
+``ddtrace`` in addition to OpenTelemetry.
 
 
 Examples
 ^^^^^^^^
 
-**Celery**
+**Flask**
 
-Distributed Tracing across celery tasks with OpenTracing.
+1. Install Flask and the Open Telemetry Instrumentation Distro::
 
-1. Install Celery OpenTracing::
-
-    pip install Celery-OpenTracing
-
-2. Replace your Celery app with the version that comes with Celery-OpenTracing::
-
-    from celery_opentracing import CeleryTracing
-    from ddtrace.opentracer import set_global_tracer, Tracer
-
-    ddtracer = Tracer()
-    set_global_tracer(ddtracer)
-
-    app = CeleryTracing(app, tracer=ddtracer)
+    pip install flask ddtrace opentelemetry-instrumentation-flask
 
 
-Opentracer API
+2. Create a flask application that generate opentelemetry and datadog spans::
+
+    import flask
+    import ddtrace
+    import opentelemetry
+
+    # The following operations are required when  dd-trace-run is NOT used
+    from opentelemetry.trace import set_tracer_provider
+    from ddtrace.opentelemetry import TracerProvider
+
+    set_tracer_provider(TracerProvider())
+
+    app = flask.Flask(__name__)
+
+    @app.route("/ddogspan")
+    def ddog():
+        with ddtrace.tracer.trace("nested-ddtrace-span"):
+            return "ddog", 200
+
+    @app.route("/otelspan")
+    def otel():
+        oteltracer = opentelemetry.trace.get_tracer(__name__)
+        with oteltracer.start_as_current_span("otel-flask-manual-span"):
+            return "otel", 200
+
+3. Run your application with opentelemetry auto instrumentation::
+    OTEL_PYTHON_CONTEXT=ddcontextvars_context opentelemetry-instrument flask run -h 0.0.0.0 -p 8001
+
+
+OpenTelemetry API
 ^^^^^^^^^^^^^^
 
-.. autoclass:: ddtrace.opentracer.Tracer
+.. autoclass:: ddtrace.opentelemety.TracerProvider
     :members:
     :special-members: __init__
 

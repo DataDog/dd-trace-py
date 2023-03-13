@@ -98,52 +98,40 @@ Configuration
 Almost all configuration of ``ddtrace`` can be done via environment
 variable. See the full list in :ref:`Configuration`.
 
-OpenTracing
------------
+OpenTelemetry
+-------------
 
-``ddtrace`` also provides an OpenTracing API to the Datadog tracer so
-that you can use the Datadog tracer in your OpenTracing-compatible
-applications.
+With the `ddtrace.opentelemetry` package, Opentelemetry users can use the `Opentelemetry API <https://github.com/open-telemetry/opentelemetry-python/tree/main/opentelemetry-api>` to generate and submit traces to the Datadog Agent. Below are instructions to install and configure opentelemetry support.
 
-Installation
-~~~~~~~~~~~~
 
-Include OpenTracing with ``ddtrace``::
+Support
+~~~~~~~
 
-  $ pip install ddtrace[opentracing]
-
-To include the OpenTracing dependency in your project with ``ddtrace``, ensure
-you have the following in ``setup.py``::
-
-    install_requires=[
-        "ddtrace[opentracing]",
-    ],
+The `ddtrace.opentelemetry` supports tracing applications using all operations defined in the [opentelmetry python api](https://opentelemetry.io/docs/instrumentation/python/) except for creating span links, generating span events, and using the Metrics API. These operations are not yet supported. Below is a non-exhaustive list of supported operations:
+ - Creating a span
+ - Activating a span
+ - Setting attributes on Span
+ - Setting error types and error messages on spans
+ - Manual span parenting
+ - Distributed tracing (Injecting/Extracting trace headers)
 
 Configuration
 ~~~~~~~~~~~~~
 
-The OpenTracing convention for initializing a tracer is to define an
-initialization method that will configure and instantiate a new tracer and
-overwrite the global ``opentracing.tracer`` reference.
+No additional configurations are required to enable opentelemetry support when ``ddtrace-run`` is used. To enable support for applications using manual instrumentation
+follow the instructions below:
 
-Typically this method looks something like::
+1. Set the following environment variable. Note, this environment variable must be set before the first span is generated::
+    
+    OTEL_PYTHON_CONTEXT=ddcontextvars_context
 
-    from ddtrace.opentracer import Tracer, set_global_tracer
+2. In your application code set the following tracer provider::
+    
+    import opentelemetry
+    from ddtrace.opentelemetry import TracerProvider
 
-    def init_tracer(service_name):
-        """
-        Initialize a new Datadog opentracer and set it as the
-        global tracer.
+    opentelemetry.trace.set_tracer_provider(TracerProvider())
 
-        This overwrites the opentracing.tracer reference.
-        """
-        config = {
-          'agent_hostname': 'localhost',
-          'agent_port': 8126,
-        }
-        tracer = Tracer(service_name, config=config)
-        set_global_tracer(tracer)
-        return tracer
 
-For more advanced usage of OpenTracing in ``ddtrace`` refer to the
-documentation :ref:`here<adv_opentracing>`.
+For more advanced usage of OpenTelemetry in ``ddtrace`` refer to the
+documentation :ref:`here<adv_opentelemetry>`.

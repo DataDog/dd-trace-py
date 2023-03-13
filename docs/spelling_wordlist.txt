@@ -8,7 +8,7 @@ HTTPPropagator
 INfo
 IPv
 MySQL
-OpenTracing
+OpenTelemetry
 Runtimes
 SpanContext
 aiobotocore
@@ -129,8 +129,7 @@ mysqldb
 namespace
 obfuscator
 opensearch
-opentracer
-opentracing
+opentelemetry
 parameterized
 perf
 pid

@@ -1,4 +1,4 @@
-from .trace import TracerProvider
+from ._trace import TracerProvider
 
 
 __all__ = [

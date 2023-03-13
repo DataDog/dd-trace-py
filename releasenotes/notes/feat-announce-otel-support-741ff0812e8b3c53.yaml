@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    otel: Introduces support for the opentelemetry-api. See https://ddtrace.readthedocs.io/en/stable/configuration.html
+    for more details.

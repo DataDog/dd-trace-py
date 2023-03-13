@@ -408,7 +408,7 @@ setup(
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
         ],
         "opentelemetry_context": [
-            "ddcontextvars_context = ddtrace._opentelemetry._context:DDRuntimeContext",
+            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
         ],
     },
     classifiers=[
