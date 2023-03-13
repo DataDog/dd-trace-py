@@ -121,6 +121,7 @@ def update_profiler_tags(tags):
     Update profiler tags with git metadata
     """
     tracer_tags = get_tracer_tags()
+    clean_tags(tags)
     if TRACE_TAG_REPOSITORY_URL in tracer_tags and TRACE_TAG_COMMIT_SHA in tracer_tags:
         tags[TAG_REPOSITORY_URL] = tracer_tags[TRACE_TAG_REPOSITORY_URL]
         tags[TAG_COMMIT_SHA] = tracer_tags[TRACE_TAG_COMMIT_SHA]
