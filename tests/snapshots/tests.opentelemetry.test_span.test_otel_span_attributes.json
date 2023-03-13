@@ -1,0 +1,62 @@
+[[
+  {
+    "name": "otel-string-tags",
+    "service": "moons-service-str",
+    "resource": "otel-string-tags",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "real_string_tag": "rstr",
+      "runtime-id": "86d94e107de5452e80709b37ac12b380",
+      "service.name": "moons-service-str",
+      "tag1": "one",
+      "tag2": "two",
+      "tag3": "3",
+      "unicode_tag": "ustr"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 32782
+    },
+    "duration": 425000,
+    "start": 1675884475116571000
+  }],
+[
+  {
+    "name": "otel-numerical-tags",
+    "service": "moons-service-num",
+    "resource": "otel-numerical-tags",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "86d94e107de5452e80709b37ac12b380",
+      "service.name": "moons-service-num"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "float_tag": 2.111,
+      "int_tag": 1,
+      "process_id": 32782,
+      "tag1": 1,
+      "tag2": 2,
+      "tag3": 3.1415
+    },
+    "duration": 166000,
+    "start": 1675884475149883000
+  }]]
