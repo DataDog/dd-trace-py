@@ -294,7 +294,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
-    if platform.system() != "Windows":
+    if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
                 "ddtrace.appsec.iast._stacktrace",
@@ -312,7 +312,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                     # Sort source files for reproducibility
                     sources=sorted(
                         glob.glob(
-                            os.path.join(HERE, "ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
                             recursive=True,
                         )
                     ),
