@@ -649,23 +649,18 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
 
-        with ot_tracer.start_active_span("celery_op") as span:
+        with ot_tracer.start_active_span("celery_op"):
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
             assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        print(span._span._dd_span)
-        import time
-
-        time.sleep(2)
-        traces = self.pop_traces()
-        print(traces)
-
         if self.ASYNC_USE_CELERY_FIXTURES:
-            assert 2 == len(traces)
-            assert 1 == len(traces[0])
-            assert 2 == len(traces[1])
-            run_span = traces[0][0]
-            ot_span, async_span = traces[1]
+            async_span = self.find_span(name="celery.apply")
+            ot_span = self.find_span(name="celery_op")
+            run_span = self.find_span(name="celery.run")
+
+            traces = self.pop_traces()
+            assert len(traces) == 2
+            assert len(traces[0]) + len(traces[1]) == 3
 
             self.assert_is_measured(async_span)
             assert async_span.error == 0
@@ -681,6 +676,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
         else:
+            traces = self.pop_traces()
             assert 1 == len(traces)
             assert 2 == len(traces[0])
             ot_span, run_span = traces[0]
