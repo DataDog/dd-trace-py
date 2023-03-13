@@ -5,14 +5,12 @@ import subprocess
 
 from dotenv import load_dotenv
 from github import Github
-from github.GithubException import GithubException
-from github.GithubException import UnknownObjectException
 
 
 """This release notes script is built to create a release notes draft for release candidates, patches, and minor releases.
 
 Setup:
-1. Create a `.env` file in your home directory.
+1. Create a `.env` file in the scripts directory.
 2. Create Github token: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
 3. Give the Github token repo, user, audit_log, and project permissions.
 2. Add `export GH_TOKEN=<github token>` to the `.env` file.
@@ -34,8 +32,10 @@ Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python
 Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 """
 
-
-load_dotenv(dotenv_path="~/.env")
+home_dir = os.path.expanduser('~')
+env_loaded = load_dotenv(dotenv_path="%s/.env" % home_dir)
+if not env_loaded:
+    raise ValueError("No envars were loaded from .env file. Please follow the instructions in the script.")
 
 
 def create_release_draft():
@@ -44,10 +44,9 @@ def create_release_draft():
     gh_token = os.getenv("GH_TOKEN")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
-    import pdb; pdb.set_trace()
 
     if base is None:
-        raise ValueError("need to specify the base version with envar e.g. BASE=1.10.0")
+        raise ValueError("Need to specify the base version with envar e.g. BASE=1.10.0")
 
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
@@ -139,7 +138,6 @@ def create_draft_release(branch, name, tag, dd_repo):
     rn = clean_rn(rn_raw)
 
     base_branch = dd_repo.get_branch(branch=branch)
-    import pdb; pdb.set_trace()
     dd_repo.create_git_release(
         name=name, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
     )
