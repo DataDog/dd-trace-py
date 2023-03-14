@@ -131,10 +131,10 @@ def create_release_draft():
                 relevant_rns.append(sections_dict)
 
         keys = set().union(*relevant_rns)
-        import pdb; pdb.set_trace()
-
         rns_dict = {k: "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
-        
+        for key in rns_dict.keys():
+            rns_dict[key.lstrip()] = dictinary.pop(key)
+                    
         import pdb; pdb.set_trace()
         # combine the release notes sections
         rn_order = ["Prelude", " New Features", " Known Issues", " Upgrade Notes", " Deprecation Notes", " Bug Fixes", " Other Changes"]
