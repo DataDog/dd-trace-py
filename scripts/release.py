@@ -157,18 +157,15 @@ def create_release_draft():
         for key in rn_key_order:
             try:
                 rn_clean += "### %s\n\n%s" % (key, rns_dict_clean[key])
-                # # formatting edge case
-                # if key == "Prelude":
-                #     rn_clean += "### %s\n\n%s" % (key, rns_dict_clean[key])
-                # else:
-                #     rn_clean += "### %s\n\n-%s" % (key, rns_dict_clean[key])
             except KeyError:
                 continue
 
         create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean)
 
+
 def clean_rn(rn_raw):
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+
 
 def generate_rn(branch):
 
