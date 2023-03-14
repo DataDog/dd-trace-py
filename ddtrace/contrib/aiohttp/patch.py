@@ -3,12 +3,14 @@ import os
 from yarl import URL
 
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
 from ...pin import Pin
@@ -76,6 +78,9 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             kwargs["headers"] = headers
 
         span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+
+        # set span.kind tag equal to type of request
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.

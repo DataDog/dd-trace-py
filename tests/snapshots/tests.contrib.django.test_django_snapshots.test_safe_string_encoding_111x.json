@@ -21,7 +21,8 @@
       "http.status_code": "200",
       "http.url": "http://testserver/safe-template/",
       "language": "python",
-      "runtime-id": "771ab9d0147b4fa282ea8b1a6b7e0e3a"
+      "runtime-id": "771ab9d0147b4fa282ea8b1a6b7e0e3a",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -244,6 +245,9 @@
                "component": "django",
                "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
                "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
+             },
+             "metrics": {
+               "db.row_count": 1
              },
              "duration": 128000,
              "start": 1633584268377746000

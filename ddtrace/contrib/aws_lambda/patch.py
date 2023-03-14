@@ -20,26 +20,30 @@ def _crash_flush(_, __):
     Tags the current root span with an Impending Timeout error.
     Finishes spans with ancestors from the current span.
     """
-
     root_span = tracer.current_root_span()
-    root_span.error = 1
-    root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
-    root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+    if root_span is not None:
+        root_span.error = 1
+        root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
+        root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+    else:
+        log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
     current_span = tracer.current_span()
-    current_span.finish_with_ancestors()
+    if current_span is not None:
+        current_span.finish_with_ancestors()
 
 
 def _handle_signal(sig, f):
     """
-    Wraps the given signal with a previously defined, if exists.
-    This to avoid our signals overriding existing ones.
+    Returns a signal of type `sig` with function `f`, if there are
+    no previously defined signals.
 
-    Returns the handler of the wrapped signal.
+    Else, wraps the given signal with the previously defined one,
+    so no signals are overridden.
     """
-    old_signal = None
-    if callable(signal.getsignal(sig)):
-        old_signal = signal.getsignal(sig)
+    old_signal = signal.getsignal(sig)
+    if not callable(old_signal) or old_signal == f:
+        return signal.signal(sig, f)
 
     def wrap_signals(*args, **kwargs):
         if old_signal is not None:
@@ -58,26 +62,12 @@ def _check_timeout(context):
     """
     _handle_signal(signal.SIGALRM, _crash_flush)
     remaining_time_in_millis = context.get_remaining_time_in_millis()
-    apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 0))
+    apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
+    apm_flush_deadline = 100 if apm_flush_deadline < 0 else apm_flush_deadline
 
-    if apm_flush_deadline > 0 and apm_flush_deadline <= remaining_time_in_millis:
-        if apm_flush_deadline < 200:
-            log.warning(
-                "DD_APM_FLUSH_DEADLINE_MILLISECONDS will be overridden to 200ms.",
-                "The value before was %d, more time for span flushing was needed.",
-                apm_flush_deadline,
-            )
-
-            # A minimum deadline of 200ms is set to allow us to have at
-            # least 100ms to flush our span queue.
-            apm_flush_deadline = 200
-
-        remaining_time_in_millis = apm_flush_deadline
-
-    # Subtracting 100ms to ensure we have time to flush.
     # TODO: Update logic to calculate an approximate of how long it will
     # take us to flush the spans on the queue.
-    remaining_time_in_seconds = max((remaining_time_in_millis - 100) / 1000, 0)
+    remaining_time_in_seconds = max(((remaining_time_in_millis - apm_flush_deadline) / 1000), 0)
     signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
 
 

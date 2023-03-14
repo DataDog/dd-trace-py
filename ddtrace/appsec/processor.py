@@ -15,6 +15,9 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._metrics import _set_waf_init_metric
+from ddtrace.appsec._metrics import _set_waf_request_metrics
+from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -42,8 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.ddwaf import DDWaf_result
-    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
+    from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_context_capsule
     from ddtrace.span import Span
 
 
@@ -92,10 +94,13 @@ _COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
     "accept-language",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
     "content-encoding",
     "content-language",
     "content-length",
     "content-type",
+    "fastly-client-ip",
     "forwarded",
     "forwarded-for",
     "host",
@@ -172,6 +177,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
+                info = self._ddwaf.info
+                version = None
+                if info:
+                    version = info.version
+                _set_waf_init_metric(version)
             except ValueError:
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
@@ -184,18 +194,25 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules):
-        # type: (Dict[str, Any]) -> None
+        # type: (Dict[str, Any]) -> bool
+        result = False
         try:
-            self._ddwaf.update_rules(new_rules)
+            result = self._ddwaf.update_rules(new_rules)
+            info = self._ddwaf.info
+            version = None
+            if info:
+                version = info.version
+            _set_waf_updates_metric(version)
         except TypeError:
             log.debug("Error updating ASM rules", exc_info=True)
+        return result
 
     def on_span_start(self, span):
         # type: (Span) -> None
 
         if span.span_type != SpanTypes.WEB:
             return
-        self._ddwaf._at_request_start()
+        ctx = self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
@@ -205,7 +222,7 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None):
-            return self._waf_action(span._local_root or span, custom_data)
+            return self._waf_action(span._local_root or span, ctx, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
 
@@ -228,8 +245,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span, custom_data=None):
-        # type: (Span, dict[str, Any] | None) -> None
+    def _waf_action(self, span, ctx, custom_data=None):
+        # type: (Span, ddwaf_context_capsule, dict[str, Any] | None) -> None
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -267,11 +284,12 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
         log.debug("[DDAS-001-00] Executing ASM In-App WAF")
-        waf_results = self._ddwaf.run(data, self._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", waf_results.data)
 
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
+        _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)
         if blocked:
             _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
 
@@ -288,8 +306,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     old_value = 0.0
                 span.set_metric(name, value + old_value)
 
-            update_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            update_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+            span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             if waf_results:
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
@@ -318,6 +336,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
+                _set_waf_request_metrics()
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
@@ -342,15 +361,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (str) -> bool
         return address in self._addresses_to_keep
 
-    def _run_ddwaf(self, data):
-        # type: (DDWafRulesType) -> DDWaf_result | None
-        try:
-            return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
-        except Exception:
-            log.warning("Error executing ASM In-App WAF: ", exc_info=True)
-
-        return None
-
     def on_span_finish(self, span):
         # type: (Span) -> None
 
@@ -359,7 +369,8 @@ class AppSecSpanProcessor(SpanProcessor):
         # this call is only necessary for tests or frameworks that are not using blocking
         if span.get_tag(APPSEC.JSON) is None:
             log.debug("metrics waf call")
-            self._waf_action(span)
+            _asm_request_context.call_waf_callback()
+        _set_waf_request_metrics()
         self._ddwaf._at_request_end()
         # Force to set respond headers at the end
         headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
