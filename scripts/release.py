@@ -128,7 +128,6 @@ def create_release_draft():
                     prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
                     sections = sections[1:]
                 sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
-                sections_dict = {k.lstrip():}
                 relevant_rns.append(sections_dict)
 
         keys = set().union(*relevant_rns)
