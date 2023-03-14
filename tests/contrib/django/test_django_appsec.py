@@ -665,11 +665,14 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
     with override_global_config(dict(_iast_enabled=True)):
         tracer._iast_enabled = True
-        from ddtrace.appsec.iast._taint_tracking import setup
-
         setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -684,11 +687,14 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
     with override_global_config(dict(_iast_enabled=False)):
         tracer._iast_enabled = False
-        from ddtrace.appsec.iast._taint_tracking import setup
-
+        clear_taint_mapping()
         setup(bytes.join, bytearray.join)
+
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -697,6 +703,5 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
-        # query = dict(_context.get_item("http.request.body", span=root_span))
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
