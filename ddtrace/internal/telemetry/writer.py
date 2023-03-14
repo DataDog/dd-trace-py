@@ -294,7 +294,6 @@ class TelemetryMetricsWriter(TelemetryBase):
 
     def _flush_log_metrics(self):
         # type () -> List[Metric]
-        """Returns a list of all log metrics and clears the namespace's list"""
         with self._lock:
             log_metrics = self._logs.copy()
             self._logs = []
