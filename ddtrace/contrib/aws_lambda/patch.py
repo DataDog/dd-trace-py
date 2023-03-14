@@ -49,27 +49,12 @@ class TimeoutChannel:
         self._handle_signal(signal.SIGALRM, self._crash_flush)
 
         remaining_time_in_millis = self.context.get_remaining_time_in_millis()
-        apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 0))
+        apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
+        apm_flush_deadline = 100 if apm_flush_deadline < 0 else apm_flush_deadline
 
-        if apm_flush_deadline > 0 and apm_flush_deadline <= remaining_time_in_millis:
-            if apm_flush_deadline < 200:
-                log.warning(
-                    "DD_APM_FLUSH_DEADLINE_MILLISECONDS will be overridden to 200ms.",
-                    "The value before was %d, more time for span flushing was needed.",
-                    apm_flush_deadline,
-                )
-
-                # A minimum deadline of 200ms is set to allow us to have at
-                # least 100ms to flush our span queue.
-                apm_flush_deadline = 200
-
-            remaining_time_in_millis = apm_flush_deadline
-
-        # Subtracting 100ms to ensure we have time to flush.
         # TODO: Update logic to calculate an approximate of how long it will
         # take us to flush the spans on the queue.
-        remaining_time_in_seconds = max((remaining_time_in_millis - 100) / 1000, 0)
-
+        remaining_time_in_seconds = max(((remaining_time_in_millis - apm_flush_deadline) / 1000), 0)
         signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
 
     def _crash_flush(self, _, __):
