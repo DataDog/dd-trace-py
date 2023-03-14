@@ -32,7 +32,7 @@ Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python
 Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 """
 
-home_dir = os.path.expanduser('~')
+home_dir = os.path.expanduser("~")
 env_loaded = load_dotenv(dotenv_path="%s/.env" % home_dir)
 if not env_loaded:
     raise ValueError("No envars were loaded from .env file. Please follow the instructions in the script.")
@@ -79,6 +79,8 @@ def create_release_draft():
             name = "%s.0rc%s" % (base, str(rc_version + 1))
             tag = "v%s" % name
             branch = base
+        rn = generate_rn(branch)
+        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
 
     # patch release
     elif patch:
@@ -97,7 +99,8 @@ def create_release_draft():
 
         name = "%s.%s" % (base, str(patch_version + 1))
         tag = "v%s" % name
-        branch = base
+        rn = generate_rn(base)
+        create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
 
     # minor release
     else:
@@ -105,8 +108,10 @@ def create_release_draft():
         tag = "v%s" % name
         branch = base
         rn_raw = generate_rn(branch)
-        
-        unreleased = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+        # get anything in unreleased section in case there were updates since the last RC
+        unreleased = (
+            rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+        )
         unreleased = unreleased.split("###")
         try:
             unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
@@ -115,7 +120,7 @@ def create_release_draft():
         relevant_rns = []
         if unreleased_sections:
             relevant_rns.append(unreleased_sections)
-            
+
         rns = rn_raw.decode().split("## v")
         split_str = "## v%s" % base
         for rn in rns:
@@ -129,32 +134,31 @@ def create_release_draft():
                     sections = sections[1:]
                 sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
                 relevant_rns.append(sections_dict)
-
+        # join all the sections from different relevant RCs together
         keys = set().union(*relevant_rns)
-        rns_dict = {k: "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
+        rns_dict = {k: "".join(dic.get(k, "") for dic in relevant_rns) for k in keys}
         rns_dict_clean = {}
         for key in rns_dict.keys():
             rns_dict_clean[key.lstrip()] = rns_dict[key]
-                    
-        # combine the release notes sections
+
+        # combine the release note sections into a string in the correct order
         rn_clean = ""
-        rn_key_order = ["Prelude", "New Features", "Known Issues", "Upgrade Notes", "Deprecation Notes", "Bug Fixes", "Other Changes"]
+        rn_key_order = [
+            "Prelude",
+            "New Features",
+            "Known Issues",
+            "Upgrade Notes",
+            "Deprecation Notes",
+            "Bug Fixes",
+            "Other Changes",
+        ]
         for key in rn_key_order:
             try:
                 rn_clean += "### %s\n\n-%s" % (key, rns_dict_clean[key])
             except KeyError:
                 continue
-            
-        import pdb; pdb.set_trace()
-        print("\n%s\n" % rns_dict_clean)
-        print(rn_clean)        
 
-    create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo)
-
-
-def clean_rn(rn_raw):
-    rn = rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
-    return rn
+        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean)
 
 
 def generate_rn(branch):
@@ -174,13 +178,10 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
-    return rn_raw
+    return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
-def create_draft_release(branch, name, tag, dd_repo):
-    rn_raw = generate_rn(branch)
-    rn = clean_rn(rn_raw)
-
+def create_draft_release(branch, name, tag, dd_repo, rn):
     base_branch = dd_repo.get_branch(branch=branch)
     dd_repo.create_git_release(
         name=name, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
