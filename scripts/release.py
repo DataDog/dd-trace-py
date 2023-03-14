@@ -134,6 +134,28 @@ def create_release_draft():
         rns_dict = {k: "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
         import pdb; pdb.set_trace()
         # combine the release notes sections
+        rn_order = ["Prelude", "f"]
+        
+        # prelude: >
+#     Us
+# features:
+#   - |
+#     For 
+# issues:
+#   - |
+#     For 
+# upgrade:
+#   - |
+#     F
+# deprecations:
+#   - |
+#     Wa
+# fixes:
+#   - |
+#     Fo
+# other:
+#   - |
+#     Fo
             
 
     create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo)
