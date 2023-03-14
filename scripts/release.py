@@ -133,7 +133,8 @@ def create_release_draft():
         keys = set().union(*relevant_rns)
         rns_dict = {k: "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
         for key in rns_dict.keys():
-            rns_dict[key.lstrip()] = rns_dict.pop(key)
+            stripped_key = key.lstrip()
+            rns_dict[stripped_key] = rns_dict.pop(key)
                     
         import pdb; pdb.set_trace()
         # combine the release notes sections
