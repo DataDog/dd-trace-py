@@ -4,15 +4,14 @@ import sys
 
 import pytest
 
-
-# from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._input_info import Input_info
 
 
 def catch_all(fun, args, kwargs):
     try:
         return True, fun(*args, **kwargs)
     except BaseException as e:
-        return False, type(e), e.args
+        return False, (type(e), e.args)
 
 
 @pytest.mark.parametrize(
@@ -27,13 +26,26 @@ def catch_all(fun, args, kwargs):
 )
 @pytest.mark.parametrize("args", [(), ("utf-8",), ("latin1",), ("iso-8859-8",), ("sjis",)])
 @pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "strict"}, {"errors": "replace"}])
+@pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_decode_aspect(self, args, kwargs):
+def test_decode_aspect(self, args, kwargs, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-    assert catch_all(ddtrace_aspects.decode_aspect, (self,) + args, kwargs) == catch_all(
-        self.__class__.decode, (self,) + args, kwargs
-    )
+    clear_taint_mapping()
+    if should_be_tainted:
+        self = taint_pyobject(self, Input_info("test_decode_aspect", self, 0))
+
+    ok, res = catch_all(ddtrace_aspects.decode_aspect, (self,) + args, kwargs)
+    assert (ok, res) == catch_all(self.__class__.decode, (self,) + args, kwargs)
+    if should_be_tainted and ok:
+        list_tr = get_tainted_ranges(res)
+        assert len(list_tr) == 1
+        assert list_tr[0][1] == 0
+        # assert length of tainted is ok. If last char was replaced due to some missing bytes, it may be shorter.
+        assert list_tr[0][2] == len(res) or (kwargs == {"errors": "replace"} and list_tr[0][2] == len(res) - 1)
 
 
 @pytest.mark.parametrize(

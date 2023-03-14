@@ -120,6 +120,23 @@ static PyObject *get_tainted_ranges(PyObject *Py_UNUSED(module),
   return result;
 }
 
+static PyObject *set_tainted_ranges(PyObject *Py_UNUSED(module),
+                                    PyObject *args) {
+  PyObject *tainted_object;
+  PyObject *list_ranges;
+  PyArg_ParseTuple(args, "OO", &tainted_object, &list_ranges);
+  TaintMapping[tainted_object] = {};
+  for (Py_ssize_t i = 0; i < PySequence_Length(list_ranges); i++) {
+    PyObject *tuple = PySequence_GetItem(list_ranges, i);
+    PyObject *input_info = PySequence_GetItem(tuple, 0);
+    Py_INCREF(input_info);
+    TaintMapping[tainted_object].emplace_back(
+        input_info, PyLong_AsLong(PySequence_GetItem(tuple, 1)),
+        PyLong_AsLong(PySequence_GetItem(tuple, 2)));
+  }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef TaintTrackingMethods[] = {
     {"clear_taint_mapping", (PyCFunction)clear_taint_mapping, METH_NOARGS,
      "clear taint mappings"},
@@ -135,6 +152,8 @@ static PyMethodDef TaintTrackingMethods[] = {
      "is pyobject tainted"},
     {"get_tainted_ranges", (PyCFunction)get_tainted_ranges, METH_O,
      "get tainted ranges as a list of tuples"},
+    {"set_tainted_ranges", (PyCFunction)set_tainted_ranges, METH_VARARGS,
+     "set tainted ranges from a list of tuples"},
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef taint_tracking = {
