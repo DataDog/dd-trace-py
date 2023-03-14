@@ -21,3 +21,13 @@ def add_aspect(op1, op2):
         return op1 + op2
 
     return add_taint_pyobject(getattr(op1.__class__, "__add__")(op1, op2), op1, op2)
+
+
+def decode_aspect(self, *args, **kwargs):
+    result = self.decode(*args, **kwargs)
+    return result
+
+
+def encode_aspect(self, *args, **kwargs):
+    result = self.encode(*args, **kwargs)
+    return result
