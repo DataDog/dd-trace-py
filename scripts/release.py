@@ -128,13 +128,20 @@ def create_release_draft():
                     prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
                     sections = sections[1:]
                 sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
+                sections_dict = {k.lstrip():}
                 relevant_rns.append(sections_dict)
 
         keys = set().union(*relevant_rns)
-        rns_dict = {k: "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
+        import pdb; pdb.set_trace()
+
+        rns_dict = {k.lstrip(): "".join(dic.get(k, '') for dic in relevant_rns)  for k in keys}
+        
         import pdb; pdb.set_trace()
         # combine the release notes sections
-        rn_order = ["Prelude", "f"]
+        rn_order = ["Prelude", " New Features", " Known Issues", " Upgrade Notes", " Deprecation Notes", " Bug Fixes", " Other Changes"]
+        
+        
+        
         
         # prelude: >
 #     Us
