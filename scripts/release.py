@@ -138,12 +138,15 @@ def create_release_draft():
                     
         # combine the release notes sections
         rn_clean = ""
-        rn_key_order = ["Prelude", " New Features", " Known Issues", " Upgrade Notes", " Deprecation Notes", " Bug Fixes", " Other Changes"]
+        rn_key_order = ["Prelude", "New Features", "Known Issues", "Upgrade Notes", "Deprecation Notes", "Bug Fixes", "Other Changes"]
         for key in rn_key_order:
             try:
                 rn_clean += "## %s\n\n" % rns_dict_clean[key]
             except KeyError:
                 continue
+            
+        import pdb; pdb.set_trace()
+        print("\n%s" % rns_dict_clean)
         print(rn_clean)
         import pdb; pdb.set_trace()
         
