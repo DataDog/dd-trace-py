@@ -236,7 +236,7 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         # type: (str, Any) -> None
         prev_probes = self._configs.get(config_id, {})  # type: Dict[str, Probe]
         next_probes = (
-            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config is not None else {}
+            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config not in (None, False) else {}
         )  # type: Dict[str, Probe]
 
         self._dispatch_probe_events(prev_probes, next_probes)
