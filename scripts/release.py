@@ -136,9 +136,17 @@ def create_release_draft():
         for key in rns_dict.keys():
             rns_dict_clean[key.lstrip()] = rns_dict[key]
                     
-        import pdb; pdb.set_trace()
         # combine the release notes sections
-        rn_order = ["Prelude", " New Features", " Known Issues", " Upgrade Notes", " Deprecation Notes", " Bug Fixes", " Other Changes"]
+        rn_clean = ""
+        rn_key_order = ["Prelude", " New Features", " Known Issues", " Upgrade Notes", " Deprecation Notes", " Bug Fixes", " Other Changes"]
+        for key in rn_key_order:
+            try:
+                rn_clean += "## %s\n\n" % rns_dict_clean[key]
+            except KeyError:
+                continue
+        print(rn_clean)
+        import pdb; pdb.set_trace()
+        
         
         
         
