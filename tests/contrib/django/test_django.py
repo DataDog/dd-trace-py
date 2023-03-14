@@ -1699,6 +1699,8 @@ def test_django_use_handler_resource_format(client, test_spans):
         resource = "GET tests.contrib.django.views.index"
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
+        if django.VERSION >= (2, 2, 0):
+            root.assert_meta({"http.route": "^$"})
 
 
 def test_django_use_handler_with_url_name_resource_format(client, test_spans):
