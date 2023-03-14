@@ -141,40 +141,13 @@ def create_release_draft():
         rn_key_order = ["Prelude", "New Features", "Known Issues", "Upgrade Notes", "Deprecation Notes", "Bug Fixes", "Other Changes"]
         for key in rn_key_order:
             try:
-                rn_clean += "## %s\n\n" % rns_dict_clean[key]
+                rn_clean += "### %s\n\n-%s" % (key, rns_dict_clean[key])
             except KeyError:
                 continue
             
         import pdb; pdb.set_trace()
-        print("\n%s" % rns_dict_clean)
-        print(rn_clean)
-        import pdb; pdb.set_trace()
-        
-        
-        
-        
-        
-        # prelude: >
-#     Us
-# features:
-#   - |
-#     For 
-# issues:
-#   - |
-#     For 
-# upgrade:
-#   - |
-#     F
-# deprecations:
-#   - |
-#     Wa
-# fixes:
-#   - |
-#     Fo
-# other:
-#   - |
-#     Fo
-            
+        print("\n%s\n" % rns_dict_clean)
+        print(rn_clean)        
 
     create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo)
 
