@@ -1,3 +1,4 @@
+from collections import Counter
 import subprocess
 from time import sleep
 
@@ -693,6 +694,39 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.get_tag("celery.action") == "run"
         assert run_span.get_tag("component") == "celery"
         assert run_span.get_tag("span.kind") == "consumer"
+
+    def test_beat_scheduler_tracing(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        self.app.conf.beat_schedule = {
+            "mytestschedule": {"task": "tests.contrib.celery.test_integration.fn_task", "schedule": 0.5}
+        }
+
+        beat = celery.beat.EmbeddedService(self.app, thread=True)
+        beat.start()
+        sleep(1.1)
+        beat.stop()
+
+        traces = self.pop_traces()
+        assert len(traces) >= 50  # tick() runs a large, unpredictable amount of times
+        assert traces[0][0].name == "celery.beat.tick"
+        names_counter = Counter()
+        deep_traces = 0
+        for trace in traces:
+            name = trace[0].name
+            names_counter.update([name])
+            if name == "celery.beat.tick" and len(trace) > 1:
+                deep_traces += 1
+                names_counter.update([trace[1].name, trace[2].name])
+                assert trace[1].name == "celery.beat.apply_entry"
+                assert trace[2].name == "celery.apply"
+        assert deep_traces >= 2
+        assert names_counter["celery.run"] == deep_traces
+        # apply_entry count is one larger than run count when beat.stop() happens after apply_entry but before run
+        assert deep_traces <= names_counter["celery.beat.apply_entry"] <= deep_traces + 1
+        assert deep_traces <= names_counter["celery.apply"] <= deep_traces + 1
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
