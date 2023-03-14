@@ -134,7 +134,7 @@ def create_release_draft():
                 if sections[0].startswith(" Prelude\n\n"):
                     prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
                     sections = sections[1:]
-                sections_dict = {**dict(section.split("\n\n-", 1) for section in sections), **prelude_section}
+                sections_dict = {**dict(section.split("\n\n", 1) for section in sections), **prelude_section}
                 relevant_rns.append(sections_dict)
         # join all the sections from different relevant RCs together
         keys = set().union(*relevant_rns)
@@ -156,7 +156,12 @@ def create_release_draft():
         ]
         for key in rn_key_order:
             try:
-                rn_clean += "### %s\n\n-%s" % (key, rns_dict_clean[key])
+                rn_clean += "### %s\n\n%s" % (key, rns_dict_clean[key])
+                # # formatting edge case
+                # if key == "Prelude":
+                #     rn_clean += "### %s\n\n%s" % (key, rns_dict_clean[key])
+                # else:
+                #     rn_clean += "### %s\n\n-%s" % (key, rns_dict_clean[key])
             except KeyError:
                 continue
 
