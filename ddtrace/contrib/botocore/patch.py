@@ -207,21 +207,21 @@ def get_kinesis_data_object(data):
     # check if data is a json string
     try:
         return get_json_from_str(data)
-    except:
+    except Exception:
         log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
 
     # check if data is an encoded json string
     try:
         data_str = data.decode("ascii")
         return get_json_from_str(data_str)
-    except:
+    except Exception:
         log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
 
     # check if data is a base64 encoded json string
     try:
         data_str = base64.b64decode(data).decode("ascii")
         return get_json_from_str(data_str)
-    except:
+    except Exception:
         log.error("Unable to parse payload, unable to inject trace context.")
 
     return None, None
@@ -243,13 +243,13 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
     data = record["Data"]
     line_break, data_obj = get_kinesis_data_object(data)
-    if data_obj != None:
+    if data_obj is not None:
         data_obj["_datadog"] = {}
         HTTPPropagator.inject(span.context, data_obj["_datadog"])
         data_json = json.dumps(data_obj)
 
         # if original string had a line break, add it back
-        if line_break != None:
+        if line_break is not None:
             data_json += line_break
 
         # check if data size will exceed max size with headers
