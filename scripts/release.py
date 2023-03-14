@@ -79,7 +79,8 @@ def create_release_draft():
             name = "%s.0rc%s" % (base, str(rc_version + 1))
             tag = "v%s" % name
             branch = base
-        rn = generate_rn(branch)
+        rn_raw = generate_rn(branch)
+        rn = clean_rn(rn_raw)
         create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
 
     # patch release
@@ -99,7 +100,8 @@ def create_release_draft():
 
         name = "%s.%s" % (base, str(patch_version + 1))
         tag = "v%s" % name
-        rn = generate_rn(base)
+        rn_raw = generate_rn(base)
+        rn = clean_rn(rn_raw)
         create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
 
     # minor release
@@ -160,6 +162,8 @@ def create_release_draft():
 
         create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean)
 
+def clean_rn(rn_raw):
+    return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 def generate_rn(branch):
 
@@ -178,7 +182,7 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
-    return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
+    return rn_raw
 
 
 def create_draft_release(branch, name, tag, dd_repo, rn):
