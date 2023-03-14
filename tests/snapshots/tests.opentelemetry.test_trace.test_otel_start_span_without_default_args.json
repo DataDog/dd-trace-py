@@ -1,39 +1,41 @@
 [[
   {
-    "name": "aws.lambda",
+    "name": "root-span",
     "service": "",
-    "resource": "aws.lambda",
+    "resource": "root-span",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
-    "error": 1,
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "error.message": "Datadog detected an Impending Timeout",
-      "error.type": "Impending Timeout",
       "language": "python",
-      "runtime-id": "e1c641912ee6480591403dbce66ecd68"
+      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52072
+      "process_id": 34011
     },
-    "duration": 204807000,
-    "start": 1677616361362006000
+    "duration": 145000,
+    "start": 1675884560607241000
   },
      {
-       "name": "timeout",
+       "name": "rename-start-span",
        "service": "",
-       "resource": "timeout",
+       "resource": "rename-start-span",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 204452000,
-       "start": 1677616361362248000
+       "meta": {
+         "span.kind": "client",
+         "start_span_tag": "start_span_val"
+       },
+       "duration": 0,
+       "start": 0
      }]]

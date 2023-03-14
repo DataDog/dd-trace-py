@@ -33,8 +33,8 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert metric._tags["request_blocked"] is is_blocked_request
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
-        elif metric.name == "event_rules.loaded":
-            pass
+        elif metric.name == "waf.init":
+            assert len(metric._points) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric.name))
 
