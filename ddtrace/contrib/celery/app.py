@@ -41,10 +41,8 @@ def patch_app(app, pin=None):
         "Scheduler.apply_entry",
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
     )
-    # NB wrapping the tick() function is the closest Celery allows us to get to generating traces when
-    # celery.beat.Scheduler fails to start. This is because celery.beat.Scheduler._ensure_connected does not impose a
-    # maximum number of connection retries and does not allow the maximum to be configured. Thus, when
-    # celery.beat.Scheduler's connection_for_writing is unavailable at startup, _ensure_connected will spin
+    # NB If celery.Celery.conf.broker_max_connection_retries is not set and
+    # celery.beat.Scheduler's connection_for_writing is unavailable at celery.beat startup, _ensure_connected will spin
     # forever and this integration will not generate any traces until that connection becomes available.
     wrapt.wrap_function_wrapper("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     Pin(service=None).onto(celery.beat.Scheduler)
