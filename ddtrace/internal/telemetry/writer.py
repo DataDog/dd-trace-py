@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -27,9 +28,11 @@ from .constants import TELEMETRY_METRIC_TYPE_GAUGE
 from .constants import TELEMETRY_METRIC_TYPE_RATE
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
+from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import LogMetric
 from .metrics import MetricTagType
 from .metrics import MetricType
 from .metrics_namespaces import MetricNamespace
@@ -129,7 +132,7 @@ class TelemetryBase(PeriodicService):
         self._client = _TelemetryClient(self.ENDPOINT_V2)
 
     def add_event(self, payload, payload_type):
-        # type: (Dict[str, Any], str) -> None
+        # type: (Union[Dict[str, Any], List[Any]], str) -> None
         """
         Adds a Telemetry event to the TelemetryWriter event buffer
 
@@ -218,6 +221,16 @@ class TelemetryMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
         self._namespace = MetricNamespace()
+        self._logs = []  # type: List[LogMetric]
+
+    def log_metric(self, level, message, stack_trace="", tags={}):
+        # type: (str, str, str, MetricTagType) -> None
+        """
+        Queues gauge metric
+        """
+        if config._telemetry_metrics_enabled:
+            with self._lock:
+                self._logs.append(LogMetric(level, message, stack_trace, tags))
 
     def add_gauge_metric(self, namespace, name, value, tags={}):
         # type: (str,str, float, MetricTagType) -> None
@@ -261,7 +274,11 @@ class TelemetryMetricsWriter(TelemetryBase):
     def periodic(self):
         namespace_metrics = self._flush_namespace_metrics()
         if namespace_metrics:
-            self._app_generate_metrics_event(namespace_metrics)
+            self._generate_metrics_event(namespace_metrics)
+
+        logs_metrics = self._flush_log_metrics()
+        if logs_metrics:
+            self._logs_metrics_event(logs_metrics)
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
@@ -275,7 +292,15 @@ class TelemetryMetricsWriter(TelemetryBase):
             self._namespace._flush()
         return namespace_metrics
 
-    def _app_generate_metrics_event(self, namespace_metrics):
+    def _flush_log_metrics(self):
+        # type () -> List[Metric]
+        """Returns a list of all log metrics and clears the namespace's list"""
+        with self._lock:
+            log_metrics = self._logs.copy()
+            self._logs = []
+        return log_metrics
+
+    def _generate_metrics_event(self, namespace_metrics):
         # type: (NamespaceMetricType) -> None
         for payload_type, namespaces in namespace_metrics.items():
             for namespace, metrics in namespaces.items():
@@ -292,6 +317,12 @@ class TelemetryMetricsWriter(TelemetryBase):
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
+    def _logs_metrics_event(self, logs_metrics):
+        # type: (List[LogMetric]) -> None
+        payload = [m.to_dict() for m in logs_metrics]
+        log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
+        self.add_event(payload, TELEMETRY_TYPE_LOGS)
+
     def on_shutdown(self):
         self.periodic()
 
@@ -299,6 +330,7 @@ class TelemetryMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryMetricsWriter, self).reset_queues()
         self._namespace._flush()
+        self._logs = []
 
 
 class TelemetryWriter(TelemetryBase):

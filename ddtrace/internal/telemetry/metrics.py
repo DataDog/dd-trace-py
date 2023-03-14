@@ -174,3 +174,38 @@ class DistributionMetric(Metric):
             "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
         }
         return data
+
+
+class LogMetric(object):
+    """
+    This event is meant to send library logs to Datadog’s backend through the Telemetry intake. This will make support
+    cycles easier and ensure we know about potentially silent issues in libraries.
+    """
+
+    def __init__(self, level, message, stack_trace, tags):
+        # type: (str, str, str, MetricTagType) -> None
+        """
+        level: Log level type can be one of the following: ERROR,WARN,DEBUG.
+        message: the text message for the log.
+        stack_trace: the complete stack trace for the log message
+        tags: the tags for the log message
+        """
+        self.level = level.upper()
+        self.message = message
+        self.stack_trace = stack_trace
+        self.tracer_time = time.time()
+        self._tags = tags  # type: MetricTagType
+
+    def to_dict(self):
+        # type: () -> Dict
+        """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
+        data = {
+            "message": self.message,
+            "level": self.level,
+            "tracer_time": int(self.tracer_time),
+        }
+        if self._tags:
+            data["tags"] = ",".join(["%s:%s" % (k, v) for k, v in self._tags.items()])
+        if self.stack_trace:
+            data["stack_trace"] = self.stack_trace
+        return data
