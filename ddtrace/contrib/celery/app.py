@@ -41,11 +41,11 @@ def patch_app(app, pin=None):
         "Scheduler.apply_entry",
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
     )
-    # NB If celery.Celery.conf.broker_max_connection_retries is not set and
-    # celery.beat.Scheduler's connection_for_writing is unavailable at celery.beat startup, _ensure_connected will spin
+    # If celery.Celery.conf.broker_max_connection_retries is not set and
+    # celery.beat.Scheduler's connection_for_writing is unavailable at startup, _ensure_connected will spin
     # forever and this integration will not generate any traces until that connection becomes available.
     wrapt.wrap_function_wrapper("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
-    Pin(service=None).onto(celery.beat.Scheduler)
+    pin.onto(celery.beat.Scheduler)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
