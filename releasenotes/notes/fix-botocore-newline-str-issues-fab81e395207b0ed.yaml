@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    botocore: Fix TypeError raised by injecting trace context into kinesis messages.
+    botocore: Fix TypeError raised by injecting trace context into Kinesis messages.
