@@ -226,7 +226,7 @@ class TelemetryMetricsWriter(TelemetryBase):
     def log_metric(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
         """
-        Queues gauge metric
+        Queues log metric
         """
         if config._telemetry_metrics_enabled:
             with self._lock:
