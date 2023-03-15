@@ -81,7 +81,7 @@ def create_release_draft():
             branch = base
         rn_raw = generate_rn(branch)
         rn = clean_rn(rn_raw)
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
+        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=True)
 
     # patch release
     elif patch:
@@ -102,7 +102,7 @@ def create_release_draft():
         tag = "v%s" % name
         rn_raw = generate_rn(base)
         rn = clean_rn(rn_raw)
-        create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn)
+        create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
 
     # minor release
     else:
@@ -160,7 +160,7 @@ def create_release_draft():
             except KeyError:
                 continue
 
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean)
+        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean, prerelease=False)
 
 
 def clean_rn(rn_raw):
@@ -187,10 +187,10 @@ def generate_rn(branch):
     return rn_raw
 
 
-def create_draft_release(branch, name, tag, dd_repo, rn):
+def create_draft_release(branch, name, tag, rn, prerelease, dd_repo,):
     base_branch = dd_repo.get_branch(branch=branch)
     dd_repo.create_git_release(
-        name=name, tag=tag, prerelease=True, draft=True, target_commitish=base_branch, message=rn
+        name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
     )
 
 
