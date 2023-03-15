@@ -95,6 +95,8 @@ LATEST_VERSIONS = {
     "mysqlclient": "2.1.1",
     "opensearch-py": "2.0.1",
     "opentracing": "2.4.0",
+    "opentelemetry-api": "1.15.0",
+    "opentelemetry-instrumentation-flask": "0.36b0",
     "packaging": "21.3",
     "pastedeploy": "3.0.1",
     "pep562": "1.1",
