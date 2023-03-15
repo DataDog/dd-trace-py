@@ -384,7 +384,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     )
                 else:
                     response = func(*args, **kwargs)
-                    if isinstance(response, HttpResponseForbidden):
+                    if config._appsec_enabled and isinstance(response, HttpResponseForbidden):
                         # Add our custom block template
                         response.content = appsec_utils._get_blocked_template(request_headers.get("Accept"))
                 return response
