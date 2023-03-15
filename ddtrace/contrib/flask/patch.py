@@ -261,9 +261,12 @@ def patch():
 
     Pin().onto(flask.Flask)
 
+    if flask_version >= (2, 0, 0):
+        _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
+    else:
+        _w("werkzeug._internal", "_DictAccessorProperty.__get__", taint_returned_object_for("http.request.querystring"))
     _w("werkzeug.datastructures", "EnvironHeaders.__getitem__", taint_returned_object_for("http.request.header"))
     _w("werkzeug.datastructures", "ImmutableMultiDict.__getitem__", taint_returned_object_for("http.request.parameter"))
-    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
     _w("werkzeug.wrappers.request", "Request.get_data", taint_returned_object_for("http.request.body"))
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
