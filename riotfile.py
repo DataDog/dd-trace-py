@@ -1,27 +1,13 @@
 # type: ignore
 import logging
-import os
-import sys
-from typing import List
-from typing import Tuple
+from typing import List  # noqa
+from typing import Tuple  # noqa
 
 from riot import Venv
-from riot import latest as latest_riot
 
 
 logger = logging.getLogger(__name__)
-latest = object()  # sentinel value
-
-
-# Import fixed version if needed
-PY_Latest = os.environ.get("DD_USE_LATEST_VERSION") == "true"
-if not PY_Latest:
-    try:
-        sys.path.extend([".", ".circleci"])
-        from dependencies import LATEST_VERSIONS
-    except ModuleNotFoundError:
-        logger.error("missing dependencies.py")
-        raise
+latest = ""
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -162,14 +148,14 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
-                "envier": latest,
-                "types-attrs": latest,
-                "types-docutils": latest,
-                "types-protobuf": latest,
-                "types-PyYAML": latest,
-                "types-setuptools": latest,
-                "types-six": latest,
+                "mypy": "==0.991",
+                "envier": "==0.4.0",
+                "types-attrs": "==19.1.0",
+                "types-docutils": "==0.19.1.1",
+                "types-protobuf": "==3.20.4.5",
+                "types-PyYAML": "==6.0.12.2",
+                "types-setuptools": "==65.6.0.0",
+                "types-six": "==1.16.21.4",
             },
         ),
         Venv(
@@ -220,19 +206,14 @@ venv = Venv(
         ),
         Venv(
             name="docs",
-            pys=["3"],
+            pys=["3.10"],
             pkgs={
-                "cython": latest,
-                "reno[sphinx]": latest,
-                "sphinx": "~=4.3.2",
-                "sphinxcontrib-spelling": latest,
-                "PyEnchant": latest,
-                # Pin due to dulwich not publishing wheels and the env doesn't have
-                # the dependencies required to build the package.
-                # https://github.com/jelmer/dulwich/issues/963.
-                "dulwich": "<0.20.36",
+                "reno[sphinx]": "~=3.5.0",
+                "sphinx": "~=4.0",
+                "sphinxcontrib-spelling": "==7.7.0",
+                "PyEnchant": "==3.2.2",
+                "sphinx-copybutton": "==0.5.1",
                 "furo": latest,
-                "sphinx-copybutton": latest,
             },
             command="scripts/build-docs",
         ),
@@ -320,11 +301,19 @@ venv = Venv(
                     },
                     venvs=[
                         Venv(pys=select_pys(max_version="3.5")),
-                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
-                        #      this logs a warning and causes these tests to fail
-                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
-                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
-                        Venv(pys=select_pys(min_version="3.7")),
+                        Venv(
+                            pkgs={
+                                "six": "==1.12.0",
+                            },
+                            venvs=[
+                                # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                                #      this logs a warning and causes these tests to fail
+                                # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                                Venv(pys="3.6", pkgs={"attrs": "<22.2.0"}),
+                                Venv(pys="3.7"),
+                            ],
+                        ),
+                        Venv(pys=select_pys(min_version="3.8")),
                     ],
                 ),
                 Venv(
@@ -368,10 +357,7 @@ venv = Venv(
             name="gevent",
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
-                "botocore": latest,
-                "requests": latest,
                 "elasticsearch": latest,
-                "opensearch-py": latest,
                 "pynamodb": latest,
             },
             venvs=[
@@ -380,25 +366,38 @@ venv = Venv(
                     pkgs={
                         "gevent": "~=1.3.0",
                         "greenlet": "~=1.0",
+                        "requests": "==2.20.0",
+                        "opensearch-py": "==1.0.0",
+                        "botocore": "==1.17.30",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "gevent": "~=1.3.0",
+                        "greenlet": "~=1.0",
+                        "elasticsearch": "==6.3.1",
+                        "pynamodb": "==3.3.1",
+                        "requests": "==2.22.0",
+                        "six": "==1.12.0",
+                        "aiohttp": latest,
+                        "aiobotocore": "<=2.3.1",
+                        "opensearch-py": "~=1.0",
                     },
                 ),
                 Venv(
                     pkgs={
                         "aiobotocore": "<=2.3.1",
                         "aiohttp": latest,
+                        "botocore": latest,
+                        "requests": latest,
+                        "opensearch-py": latest,
                     },
                     venvs=[
                         Venv(
-                            pys=select_pys(min_version="3.5", max_version="3.6"),
-                            pkgs={
-                                "gevent": "~=1.3.0",
-                                "greenlet": "~=1.0",
-                            },
-                        ),
-                        Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": "~=1.4.0",
+                                "gevent": "~=1.5.0",
                                 # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
                                 # This issue was fixed in gevent v20.9:
                                 # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
@@ -416,14 +415,14 @@ venv = Venv(
                             # gevent added support for Python 3.10 in 21.8.0
                             pys="3.10",
                             pkgs={
-                                "gevent": ["~=21.8.0", latest],
+                                "gevent": ["~=21.12.0", latest],
                             },
                         ),
                         Venv(
                             # gevent added support for Python 3.11 in 22.8.0
                             pys="3.11",
                             pkgs={
-                                "gevent": ["~=22.8.0", latest],
+                                "gevent": ["~=22.10.0", latest],
                             },
                         ),
                     ],
@@ -590,6 +589,8 @@ venv = Venv(
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
                         "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
+                        "pytest-cov": "==2.3.0",
+                        "pytest-mock": "==2.0.0",
                     },
                 ),
                 Venv(
@@ -676,20 +677,10 @@ venv = Venv(
                 Venv(
                     pys="2.7",
                     pkgs={
-                        "pylons": ">=0.10,<0.11",
+                        "pylons": ">=1.0,<1.1",
                         "decorator": "<5",
                         "pastedeploy": "<3",
-                        "webob": "<1.1",
-                    },
-                ),
-                Venv(
-                    pys="2.7",
-                    pkgs={
-                        "pylons": [
-                            ">=1.0,<1.1",
-                        ],
-                        "decorator": "<5",
-                        "pastedeploy": "<3",
+                        "pyrsistent": latest,
                     },
                 ),
             ],
@@ -858,7 +849,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={
                         "django": ">=2.2,<2.3",
-                        "djangorestframework": ["~=3.12", "~=3.13"],
+                        "djangorestframework": ["==3.12.4", "==3.13.1"],
                     },
                 ),
                 Venv(
@@ -919,8 +910,16 @@ venv = Venv(
             name="elasticsearch-opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
-            pys=select_pys(),
-            pkgs={"opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest]},
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.5"),
+                    pkgs={"opensearch-py[requests]": ["~=1.1.0", "~=2.0.0"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={"opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest]},
+                ),
+            ],
         ),
         Venv(
             name="flask",
@@ -1023,6 +1022,9 @@ venv = Venv(
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                        "pytest-mock": "==2.0.0",
+                        "pytest-cov": "==2.1.0",
+                        "Jinja2": "~=2.11.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
@@ -1058,6 +1060,7 @@ venv = Venv(
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
+                        "Jinja2": "~=2.11.0",
                     },
                 ),
                 Venv(
@@ -1164,7 +1167,7 @@ venv = Venv(
                     pys=select_pys(max_version="3.5"),
                     pkgs={
                         "pynamodb": ["~=4.3.0"],
-                        "moto": ">=1.0,<2.0",
+                        "moto": ">=0.0,<1.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -1173,6 +1176,8 @@ venv = Venv(
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
                         "moto": ">=1.0,<2.0",
+                        "cfn-lint": "~=0.53.1",
+                        "Jinja2": "~=2.11.0",
                     },
                 ),
             ],
@@ -1230,7 +1235,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.3", "~=1.4", latest],
+                                "sqlalchemy": ["~=1.3", "~=1.4"],
                                 "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
@@ -1239,7 +1244,7 @@ venv = Venv(
                             # sqlalchemy added support for Python 3.10 in 1.4.26
                             pys="3.10",
                             pkgs={
-                                "sqlalchemy": ["~=1.4", latest],
+                                "sqlalchemy": "~=1.4",
                                 "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
@@ -1332,10 +1337,48 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
-                Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
+                Venv(
+                    pys=["2.7"],
+                    pkgs={
+                        "moto": "~=1.0",
+                        "botocore": "~=1.20.0",
+                        "python-jose[cryptography]": "==3.1.0",
+                        "rsa": "<4.7.1",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "cffi": "==1.14.0",
+                        "cfn-lint": "==0.33.2",
+                        "jinja2": "~=2.11.0",
+                        "python-jose[cryptography]": "==3.1.0",
+                    },
+                    venvs=[
+                        Venv(
+                            pys=["3.5"],
+                            pkgs={
+                                "moto[all]": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=["3.6"],
+                            pkgs={
+                                "moto[all]": "~=2.0",
+                                "graphql-core": "~=3.1.0",
+                            },
+                            venvs=[
+                                Venv(
+                                    pys=["3.7"],
+                                    pkgs={
+                                        "markupsafe": "<2.0",
+                                    },
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
             ],
         ),
         Venv(
@@ -1524,7 +1567,11 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
+                    pkgs={
+                        "pytest": ">=4.0,<4.6",
+                        "msgpack": latest,
+                        "pytest-cov": "==2.5.0",
+                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -1535,7 +1582,22 @@ venv = Venv(
                         ],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
+                        "pytest-mock": "==2.0.0",
                     },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "pytest": ["~=6.0"],
+                                "pytest-cov": "==2.9.0",
+                            },
+                        ),
+                        Venv(
+                            pkgs={
+                                "pytest": [latest],
+                                "pytest-cov": "==2.12.0",
+                            },
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -1688,16 +1750,28 @@ venv = Venv(
             pkgs={
                 "graphene": ["~=3.0.0", latest],
                 "pytest-asyncio": latest,
+                "graphql-relay": "~=3.1.5",
             },
         ),
         Venv(
             name="graphql",
             command="pytest {cmdargs} tests/contrib/graphql",
-            pys=select_pys(min_version="3.6"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
-            },
+            venvs=[
+                Venv(
+                    pys=["3.6"],
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "graphql-core": ["~=3.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="rq",
@@ -1808,13 +1882,16 @@ venv = Venv(
                 Venv(
                     # algoliasearch dropped support for Python 2.7 in 3.0
                     pys="2.7",
-                    pkgs={"algoliasearch": ["~=2.5", "~=2.6"]},
+                    pkgs={
+                        "algoliasearch": ["~=2.5", "~=2.6"],
+                        "pyrsistent": "~=0.14.0",
+                    },
                 ),
-                Venv(pys=select_pys(min_version="3.5", max_version="3.8"), pkgs={"algoliasearch": ["~=2.5", latest]}),
+                Venv(pys=select_pys(min_version="3.5", max_version="3.8"), pkgs={"algoliasearch": ["~=2.5", "~=2.6"]}),
                 Venv(
                     # algoliasearch added support for Python 3.9, 3.10, 3.11 in 3.0
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"algoliasearch": latest},
+                    pkgs={"algoliasearch": "~=2.6"},
                 ),
             ],
         ),
@@ -1877,7 +1954,6 @@ venv = Venv(
                         # aiohttp 3.8 dropped support for Python 3.5
                         "aiohttp": ["~=2.3", "<3.8"],
                         "async-timeout": ["<4.0.0"],
-                        "yarl": "~=0.18.0",
                     },
                 ),
                 Venv(
@@ -2088,6 +2164,7 @@ venv = Venv(
                     pys="2.7",
                     pkgs={
                         "snowflake-connector-python": "~=2.1.0",
+                        "pyOpenSSL": "~=19.1",
                     },
                 ),
                 Venv(
@@ -2095,6 +2172,7 @@ venv = Venv(
                     pys="3.5",
                     pkgs={
                         "snowflake-connector-python": "~=2.2.0",
+                        "pyOpenSSL": "~=19.1",
                     },
                 ),
                 Venv(
@@ -2102,6 +2180,7 @@ venv = Venv(
                     pys="3.6",
                     pkgs={
                         "snowflake-connector-python": ["~=2.3.0", "~=2.7.4"],
+                        "pyOpenSSL": "~=19.1",
                     },
                 ),
                 Venv(
@@ -2514,34 +2593,3 @@ venv = Venv(
         ),
     ],
 )
-
-
-def update_venv(venv: Venv):
-    """Recursively update the venvs by replacing the sentinel object 'latest' with either
-    - constant latest from riot package if PY_Latest
-    - fixed version string from local package dependencies
-    """
-
-    def replace(package):
-        if PY_Latest or "/" in package:  # local package are always using latest
-            return latest_riot
-        else:
-            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
-
-    def update_pkgs(d):
-        for k, v in list(d.items()):
-            if v is latest:
-                d[k] = replace(k)
-            elif isinstance(v, list):
-                for i, e in enumerate(v):
-                    if e is latest:
-                        v[i] = replace(k)
-
-    if hasattr(venv, "pkgs"):
-        update_pkgs(venv.pkgs)
-    if hasattr(venv, "venvs"):
-        for v in venv.venvs:
-            update_venv(v)
-
-
-update_venv(venv)
