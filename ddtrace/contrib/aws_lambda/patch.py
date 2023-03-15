@@ -121,19 +121,27 @@ def _get_handler_and_module():
     path = os.environ.get("DD_LAMBDA_HANDLER", None)
     _datadog_instrumentation = DatadogInstrumentation()
 
+    handler, handler_module = None, None
+
     if path is None:
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
+        handler_module = datadog_lambda_wrapper
         handler = getattr(datadog_lambda_wrapper, "__call__")
-
-        return handler, datadog_lambda_wrapper, _datadog_instrumentation
     else:
         parts = path.rsplit(".", 1)
         (mod_name, handler_name) = parts
         modified_mod_name = _modify_module_name(mod_name)
         handler_module = import_module(modified_mod_name)
         handler = getattr(handler_module, handler_name)
-        return handler, handler_module, _datadog_instrumentation
+
+        # Check if handler is a class instance that can be called.
+        if not hasattr(handler, "__code__") and hasattr(handler, "__call__"):
+            class_name = type(handler).__name__
+            handler_module = getattr(handler_module, class_name)
+            handler = getattr(handler_module, "__call__")
+
+    return handler, handler_module, _datadog_instrumentation
 
 
 def _has_patch_module():
