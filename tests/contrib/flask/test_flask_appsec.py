@@ -363,6 +363,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert is_pyobject_tainted(request.headers["User-Agent"])
             assert is_pyobject_tainted(request.query_string)
+            # TODO: Taint extracted path parameters
+            # assert is_pyobject_tainted(param_str)
             assert is_pyobject_tainted(request.path)
             assert is_pyobject_tainted(request.form.get("name"))
             return request.query_string, 200
@@ -393,6 +395,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)
+            assert not is_pyobject_tainted(param_str)
             assert not is_pyobject_tainted(request.path)
             assert not is_pyobject_tainted(request.form.get("name"))
             return request.query_string, 200
