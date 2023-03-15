@@ -130,6 +130,7 @@ async def test_callable_handler_patching(context):
 
     assert result == {"success": True}
 
+
 @pytest.mark.snapshot
 async def test_callable_manually_wrapped_callable_handler_patching(mocker, context):
     mocker.patch("datadog_lambda.wrapper._LambdaDecorator._before")
