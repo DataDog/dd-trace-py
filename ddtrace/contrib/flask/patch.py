@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec.iast._taint_utils import taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -104,14 +105,17 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
-def taint_request_environ(wrapped, instance, args, kwargs):
+def taint_request_init(wrapped, instance, args, kwargs):
+    wrapped(*args, **kwargs)
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
 
-        # Swap WSGI environ argument for a LazyTaintDict
-        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
-
-    return wrapped(*args, **kwargs)
+        taint_pyobject(
+            instance.query_string,
+            Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+        )
+        taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -257,7 +261,11 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_environ)
+    _w("werkzeug.datastructures", "EnvironHeaders.__getitem__", taint_returned_object_for("http.request.header"))
+    _w("werkzeug.datastructures", "ImmutableMultiDict.__getitem__", taint_returned_object_for("http.request.parameter"))
+    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
+    _w("werkzeug.wrappers.request", "Request.get_data", taint_returned_object_for("http.request.body"))
+
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_tracer("dispatch_request"))

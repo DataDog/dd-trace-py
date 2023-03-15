@@ -158,8 +158,10 @@ try:
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec.iast._loader import _exec_iast_patched_module
+        from ddtrace.appsec.iast._taint_tracking import setup
         from ddtrace.internal.module import ModuleWatchdog
 
+        setup(bytes.join, bytearray.join)
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
     opts = {}  # type: Dict[str, Any]

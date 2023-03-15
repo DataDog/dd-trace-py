@@ -354,15 +354,18 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_header_tainted(self):
-        @self.app.route("/sqli", methods=["GET"])
-        def test_sqli():
+    def test_flask_simple_iast_path_header_and_querystring_tainted(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
             from flask import request
 
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
-            assert is_pyobject_tainted(request.headers["Host"])
-            return request.headers["Host"], 200
+            assert is_pyobject_tainted(request.headers["User-Agent"])
+            assert is_pyobject_tainted(request.query_string)
+            assert is_pyobject_tainted(request.path)
+            assert is_pyobject_tainted(request.form.get("name"))
+            return request.query_string, 200
 
         with override_global_config(
             dict(
@@ -374,22 +377,25 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             setup(bytes.join, bytearray.join)
 
             self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.get("/sqli")
+            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
-                assert resp.text == "localhost"
+                assert resp.text == "select%20from%20table"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_header_not_tainted_if_iast_disabled(self):
-        @self.app.route("/sqli", methods=["GET"])
-        def test_sqli():
+    def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
             from flask import request
 
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
-            assert not is_pyobject_tainted(request.headers["Host"])
-            return request.headers["Host"], 200
+            assert not is_pyobject_tainted(request.headers["User-Agent"])
+            assert not is_pyobject_tainted(request.query_string)
+            assert not is_pyobject_tainted(request.path)
+            assert not is_pyobject_tainted(request.form.get("name"))
+            return request.query_string, 200
 
         with override_global_config(
             dict(
@@ -401,11 +407,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             setup(bytes.join, bytearray.join)
 
             self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.get("/sqli")
+            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
-                assert resp.text == "localhost"
+                assert resp.text == "select%20from%20table"
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/")

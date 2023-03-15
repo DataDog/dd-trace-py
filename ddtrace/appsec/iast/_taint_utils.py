@@ -2,6 +2,7 @@
 from ddtrace.appsec.iast._input_info import Input_info
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+from ddtrace.appsec.iast._util import _is_iast_enabled
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
@@ -50,3 +51,18 @@ def check_tainted_args(args, kwargs, tracer, integration_name, method):
         return args[0] and is_pyobject_tainted(args[0])
 
     return False
+
+
+def taint_returned_object_for(origin="http.request.body"):
+    def taint_returned_object(wrapped, instance, args, kwargs):
+        value = wrapped(*args, **kwargs)
+
+        if _is_iast_enabled():
+            from ddtrace.appsec.iast._input_info import Input_info
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+
+            name = str(args[0]) if len(args) else "http.request.body"
+            return taint_pyobject(value, Input_info(name, value, origin))
+        return value
+
+    return taint_returned_object
