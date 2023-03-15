@@ -58,9 +58,6 @@ def taint_returned_object_for(origin="http.request.body"):
         value = wrapped(*args, **kwargs)
 
         if _is_iast_enabled():
-            from ddtrace.appsec.iast._input_info import Input_info
-            from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
-
             name = str(args[0]) if len(args) else "http.request.body"
             return taint_pyobject(value, Input_info(name, value, origin))
         return value
