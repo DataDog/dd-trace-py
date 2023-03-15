@@ -8,7 +8,6 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
-from ddtrace.appsec.iast._taint_utils import taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -103,6 +102,18 @@ else:
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
+
+
+def if_iast_taint_returned_object_for(origin):
+    def _wrap(wrapped, instance, args, kwargs):
+        if _is_iast_enabled():
+            from ddtrace.appsec.iast._taint_utils import taint_returned_object_for
+
+            return taint_returned_object_for(origin)(wrapped, instance, args, kwargs)
+
+        return wrapped(*args, **kwargs)
+
+    return _wrap
 
 
 def taint_request_init(wrapped, instance, args, kwargs):
@@ -261,12 +272,25 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    if flask_version < (2, 0, 0):
-        _w("werkzeug._internal", "_DictAccessorProperty.__get__", taint_returned_object_for("http.request.querystring"))
-    _w("werkzeug.datastructures", "EnvironHeaders.__getitem__", taint_returned_object_for("http.request.header"))
-    _w("werkzeug.datastructures", "ImmutableMultiDict.__getitem__", taint_returned_object_for("http.request.parameter"))
+    # IAST
+    _w(
+        "werkzeug.datastructures",
+        "EnvironHeaders.__getitem__",
+        if_iast_taint_returned_object_for("http.request.header"),
+    )
+    _w(
+        "werkzeug.datastructures",
+        "ImmutableMultiDict.__getitem__",
+        if_iast_taint_returned_object_for("http.request.parameter"),
+    )
     _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
-    _w("werkzeug.wrappers.request", "Request.get_data", taint_returned_object_for("http.request.body"))
+    _w("werkzeug.wrappers.request", "Request.get_data", if_iast_taint_returned_object_for("http.request.body"))
+    if flask_version < (2, 0, 0):
+        _w(
+            "werkzeug._internal",
+            "_DictAccessorProperty.__get__",
+            if_iast_taint_returned_object_for("http.request.querystring"),
+        )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
