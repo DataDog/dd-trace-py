@@ -22,39 +22,43 @@ def str_aspect(*args, **kwargs):
 def add_aspect(op1, op2):
     if not isinstance(op1, (str, bytes, bytearray)):
         return op1 + op2
-
-    return add_taint_pyobject(getattr(op1.__class__, "__add__")(op1, op2), op1, op2)
+    res = getattr(op1.__class__, "__add__")(op1, op2)
+    if res is op1 or res is op2:
+        return res
+    return add_taint_pyobject(res, op1, op2)
 
 
 def decode_aspect(self, *args, **kwargs):
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
         return self.decode(*args, **kwargs)
     codec = args[0] if args else "utf-8"
-    tainted_ranges = get_tainted_ranges(self)
+    tainted_ranges = iter(get_tainted_ranges(self))
     inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
-    res = []
-    pos = 0
-    id_range = 0
-    new_ranges = []
-    i = 0
+    result_list, new_ranges = [], []
+    result_length, i = 0, 0
+    tainted_range = next(tainted_ranges, None)
     try:
         for i in range(len(self)):
-            if id_range < len(tainted_ranges) and i == tainted_ranges[id_range][1]:  # start
-                new_ranges.append([tainted_ranges[id_range][0], pos])
+            if tainted_range is None:
+                # no more tainted ranges, finish decoding all at once
+                new_prod = inc_dec.decode(self[i:])
+                result_list.append(new_prod)
+                break
+            if i == tainted_range[1]:
+                # start new tainted range
+                new_ranges.append([tainted_range[0], result_length])
             new_prod = inc_dec.decode(self[i : i + 1])
-            res.append(new_prod)
-            pos += len(new_prod)
-            if (
-                id_range < len(tainted_ranges) and i + 1 == tainted_ranges[id_range][1] + tainted_ranges[id_range][2]
-            ):  # end_range
-                new_ranges[-1].append(pos)
-                id_range += 1
-        res.append(inc_dec.decode(b"", True))
+            result_list.append(new_prod)
+            result_length += len(new_prod)
+            if i + 1 == tainted_range[1] + tainted_range[2]:
+                # end range. Do no taint partial multi-bytes character that comes next.
+                new_ranges[-1].append(result_length - new_ranges[-1][-1])
+                tainted_range = next(tainted_ranges, None)
+        result_list.append(inc_dec.decode(b"", True))
     except UnicodeDecodeError as e:
-        raise UnicodeDecodeError(
-            e.args[0], self, i + 1 - len(e.args[1]), i + 1 - len(e.args[1]) + e.args[3], *e.args[4:]
-        )
-    result = "".join(res)
+        offset = -len(inc_dec.getstate()[0])
+        raise UnicodeDecodeError(e.args[0], self, i + e.args[2] + offset, i + e.args[3] + offset, *e.args[4:])
+    result = "".join(result_list)
     set_tainted_ranges(result, new_ranges)
     return result
 
