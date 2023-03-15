@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where some 403 body responses in Django where wrongly replaced by datadog 403 block response body.
