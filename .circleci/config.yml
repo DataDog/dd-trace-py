@@ -71,7 +71,7 @@ commands:
   setup_riot:
     description: "Install riot"
     steps:
-      # Make sure we install and run riot on Python 3 and retrigger CI
+      # Make sure we install and run riot on Python 3 and retrigger CI again
       - run: pip3 install git+https://github.com/DataDog/riot@emmett.butler/changing-hashes
 
   restore_tox_cache:
