@@ -37,6 +37,19 @@ def finishing_spans_early_handler(event, context):
     return {"success": False}
 
 
+class CallableHandler:
+    """Mocks a callable handler. Used in frameworks like Chalice."""
+    def __call__(self, event, context):
+        @tracer.wrap("result-trace")
+        def get_result():
+            return {"success": True}
+
+        return get_result()
+    
+callable_handler = CallableHandler()
+manually_wrapped_callable_handler = datadog_lambda_wrapper(callable_handler)
+
+
 def datadog(_handler):
     @tracer.wrap("aws.lambda")
     def wrapped(*args):
