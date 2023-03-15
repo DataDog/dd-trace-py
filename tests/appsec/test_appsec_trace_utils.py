@@ -1,13 +1,27 @@
+import pytest
+
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
+from ddtrace.contrib.trace_utils import set_user
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
+from ddtrace.internal import _context
+from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.test_processor import tracer_appsec  # noqa: F401
 from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class EventsSDKTestCase(TracerTestCase):
+    _BLOCKED_USER = "123456"
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, tracer_appsec):  # noqa: F811
+        self._tracer_appsec = tracer_appsec
+
     def test_track_user_login_event_success_without_metadata(self):
         with self.trace("test_success1"):
             track_user_login_success_event(
@@ -99,3 +113,26 @@ class EventsSDKTestCase(TracerTestCase):
             root_span = self.tracer.current_root_span()
 
             assert root_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
+
+    def test_set_user_blocked(self):
+        tracer = self._tracer_appsec
+        with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            tracer.configure(api_version="v0.4")
+            with tracer.trace("fake_span", span_type=SpanTypes.WEB) as span:
+                set_user(
+                    self.tracer,
+                    user_id=self._BLOCKED_USER,
+                    email="usr.email",
+                    name="usr.name",
+                    session_id="usr.session_id",
+                    role="usr.role",
+                    scope="usr.scope",
+                )
+                assert span.get_tag(user.ID)
+                assert span.get_tag(user.EMAIL)
+                assert span.get_tag(user.SESSION_ID)
+                assert span.get_tag(user.NAME)
+                assert span.get_tag(user.ROLE)
+                assert span.get_tag(user.SCOPE)
+                assert span.get_tag(user.SESSION_ID)
+                assert _context.get_item("http.request.blocked", span=span)
