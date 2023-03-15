@@ -11,7 +11,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-class TestRedisPatch(TracerTestCase):
+class TestGrokzenRedisClusterPatch(TracerTestCase):
 
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
@@ -24,7 +24,7 @@ class TestRedisPatch(TracerTestCase):
             return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super(TestGrokzenRedisClusterPatch, self).setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
@@ -33,7 +33,7 @@ class TestRedisPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super(TestGrokzenRedisClusterPatch, self).tearDown()
 
     def test_basics(self):
         us = self.r.get("cheese")

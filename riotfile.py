@@ -1967,6 +1967,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={
+                # deprecated package
                 "redis-py-cluster": [">=2.0,<2.1", latest],
             },
         ),
@@ -2252,6 +2253,21 @@ venv = Venv(
                     ">=1.1,<1.2",
                     latest,
                 ],
+            },
+        ),
+        Venv(
+            name="opentelemetry",
+            command="pytest {cmdargs} tests/opentelemetry",
+            pys=select_pys(min_version="3.7"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
+                "opentelemetry-instrumentation-flask": latest,
+                # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
+                "markupsafe": "==2.0.1",
+                "flask": latest,
+                "gevent": latest,
+                "requests": latest,
             },
         ),
         Venv(
