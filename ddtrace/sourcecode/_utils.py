@@ -1,17 +1,15 @@
+import os
 import re
+import subprocess
+import sys
 
+from ddtrace.internal.compat import parse
 
-try:
-    from urllib.parse import urlsplit
-    from urllib.parse import urlunsplit
-except ImportError:
-    from urlparse import urlsplit
-    from urlparse import urlunsplit
 
 SCP_REGEXP = re.compile("^[a-z0-9_]+@([a-z0-9._-]+):(.*)$", re.IGNORECASE)
 
 
-def __remove_suffix(s, suffix):
+def _remove_suffix(s, suffix):
     if s.endswith(suffix):
         return s[: -len(suffix)]
     else:
@@ -31,10 +29,10 @@ def normalize_repository_url(url):
         hostname = match.group(1)
         path = "/" + match.group(2)
     else:
-        u = urlsplit(url)
+        u = parse.urlsplit(url)
         if u.scheme == "" and u.hostname is None:
             # Try to add a scheme.
-            u = urlsplit("https://" + url)  # Default to HTTPS.
+            u = parse.urlsplit("https://" + url)  # Default to HTTPS.
             if u.hostname is None:
                 return ""
 
@@ -50,11 +48,33 @@ def normalize_repository_url(url):
             scheme = "https"  # Default to HTTPS.
             port = None
 
-    path = __remove_suffix(path, ".git/")
-    path = __remove_suffix(path, ".git")
+    path = _remove_suffix(path, ".git/")
+    path = _remove_suffix(path, ".git")
 
     netloc = hostname
     if port is not None:
         netloc += ":" + str(port)
 
-    return urlunsplit((scheme, netloc, path, "", ""))
+    return parse.urlunsplit((scheme, netloc, path, "", ""))
+
+
+def _query_git(args):
+    try:
+        p = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE)
+    except EnvironmentError:
+        print("Couldn't run git")
+        return
+    ver = p.communicate()[0]
+    return ver.strip().decode("utf-8")
+
+
+def get_commit_sha():
+    return _query_git(["rev-parse", "HEAD"])
+
+
+def get_repository_url():
+    return _query_git(["config", "--get", "remote.origin.url"])
+
+
+def get_source_code_link():
+    return normalize_repository_url(get_repository_url()) + "#" + get_commit_sha()

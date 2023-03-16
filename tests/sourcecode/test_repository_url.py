@@ -1,6 +1,6 @@
 import pytest
 
-from datadog.sourcecode import normalize_repository_url
+from ddtrace.sourcecode._utils import normalize_repository_url
 
 
 @pytest.mark.parametrize(

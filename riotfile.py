@@ -2501,6 +2501,9 @@ venv = Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
+            pkgs={
+                "setuptools": ["<=67.6.0"],
+            },
         ),
     ],
 )
