@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Send Python runtime metrics as gauge metrics to match the metric type used across supported runtimes.

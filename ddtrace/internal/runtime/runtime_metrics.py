@@ -140,7 +140,7 @@ class RuntimeWorker(periodic.PeriodicService):
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
                 log.debug("Writing metric %s:%s", key, value)
-                self._dogstatsd_client.distribution(key, value)
+                self._dogstatsd_client.gauge(key, value)
 
     def _stop_service(self):
         # type: (...) -> None
