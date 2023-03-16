@@ -46,7 +46,6 @@ static PyObject *new_pyobject_id(PyObject *tainted_object,
     Py_INCREF(tainted_object);
     return tainted_object;
   } else if (PyBytes_Check(tainted_object)) {
-
     return PyObject_CallFunctionObjArgs(
         bytes_join, empty_bytes,
         Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);

@@ -28,12 +28,8 @@ def add_aspect(op1, op2):
     return add_taint_pyobject(res, op1, op2)
 
 
-def decode_aspect(self, *args, **kwargs):
-    if not is_pyobject_tainted(self) or not isinstance(self, bytes):
-        return self.decode(*args, **kwargs)
-    codec = args[0] if args else "utf-8"
+def incremental_translation(self, incr_coder, funcode, empty):
     tainted_ranges = iter(get_tainted_ranges(self))
-    inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
@@ -41,28 +37,41 @@ def decode_aspect(self, *args, **kwargs):
         for i in range(len(self)):
             if tainted_range is None:
                 # no more tainted ranges, finish decoding all at once
-                new_prod = inc_dec.decode(self[i:])
+                new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
             if i == tainted_range[1]:
                 # start new tainted range
                 new_ranges.append([tainted_range[0], result_length])
-            new_prod = inc_dec.decode(self[i : i + 1])
+            new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
             if i + 1 == tainted_range[1] + tainted_range[2]:
                 # end range. Do no taint partial multi-bytes character that comes next.
                 new_ranges[-1].append(result_length - new_ranges[-1][-1])
                 tainted_range = next(tainted_ranges, None)
-        result_list.append(inc_dec.decode(b"", True))
+        result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
-        offset = -len(inc_dec.getstate()[0])
+        offset = -len(incr_coder.getstate()[0])
         raise UnicodeDecodeError(e.args[0], self, i + e.args[2] + offset, i + e.args[3] + offset, *e.args[4:])
-    result = "".join(result_list)
+    except UnicodeEncodeError:
+        funcode(self)
+    result = empty.join(result_list)
     set_tainted_ranges(result, new_ranges)
     return result
 
 
+def decode_aspect(self, *args, **kwargs):
+    if not is_pyobject_tainted(self) or not isinstance(self, bytes):
+        return self.decode(*args, **kwargs)
+    codec = args[0] if args else "utf-8"
+    inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
+    return incremental_translation(self, inc_dec, inc_dec.decode, "")
+
+
 def encode_aspect(self, *args, **kwargs):
-    result = self.encode(*args, **kwargs)
-    return result
+    if not is_pyobject_tainted(self) or not isinstance(self, str):
+        return self.encode(*args, **kwargs)
+    codec = args[0] if args else "utf-8"
+    inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
+    return incremental_translation(self, inc_enc, inc_enc.encode, b"")
