@@ -32,7 +32,6 @@ from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
-from .metrics import LogMetric
 from .metrics import MetricTagType
 from .metrics import MetricType
 from .metrics_namespaces import MetricNamespace
@@ -212,25 +211,36 @@ class TelemetryBase(PeriodicService):
         self.join()
 
 
-class TelemetryMetricsWriter(TelemetryBase):
+class TelemetryLogsMetricsWriter(TelemetryBase):
     """
     Submits Telemetry Metrics events to the datadog agent.
     """
 
     def __init__(self):
         # type: () -> None
-        super(TelemetryMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
+        super(TelemetryLogsMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
         self._namespace = MetricNamespace()
-        self._logs = []  # type: List[LogMetric]
+        self._logs = []  # type: List[Dict[str, Any]]
 
-    def log_metric(self, level, message, stack_trace="", tags={}):
+    def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
         """
-        Queues log metric
+        Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
+        This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
-        if config._telemetry_metrics_enabled:
+        if self._enabled:
+            data = {
+                "message": message,
+                "level": level,
+                "tracer_time": int(time.time()),
+            }
+            if tags:
+                data["tags"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+            if stack_trace:
+                data["stack_trace"] = stack_trace
+
             with self._lock:
-                self._logs.append(LogMetric(level, message, stack_trace, tags))
+                self._logs.append(data)
 
     def add_gauge_metric(self, namespace, name, value, tags={}):
         # type: (str,str, float, MetricTagType) -> None
@@ -265,7 +275,7 @@ class TelemetryMetricsWriter(TelemetryBase):
         """
         Queues metric
         """
-        if config._telemetry_metrics_enabled:
+        if self._enabled:
             with self._lock:
                 self._namespace._add_metric(
                     metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
@@ -278,7 +288,7 @@ class TelemetryMetricsWriter(TelemetryBase):
 
         logs_metrics = self._flush_log_metrics()
         if logs_metrics:
-            self._logs_metrics_event(logs_metrics)
+            self._generate_logs_event(logs_metrics)
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
@@ -316,9 +326,8 @@ class TelemetryMetricsWriter(TelemetryBase):
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
-    def _logs_metrics_event(self, logs_metrics):
-        # type: (List[LogMetric]) -> None
-        payload = [m.to_dict() for m in logs_metrics]
+    def _generate_logs_event(self, payload):
+        # type: (List[Dict[str, str]]) -> None
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event(payload, TELEMETRY_TYPE_LOGS)
 
@@ -327,7 +336,7 @@ class TelemetryMetricsWriter(TelemetryBase):
 
     def reset_queues(self):
         # type: () -> None
-        super(TelemetryMetricsWriter, self).reset_queues()
+        super(TelemetryLogsMetricsWriter, self).reset_queues()
         self._namespace._flush()
         self._logs = []
 

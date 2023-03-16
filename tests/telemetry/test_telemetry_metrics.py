@@ -36,7 +36,7 @@ def _assert_metric(
     assert events[0] == _get_request_body(payload, type_paypload, seq_id)
 
 
-def _assert_log_metric(
+def _assert_logs(
     test_agent,
     expected_payload,
     seq_id=1,
@@ -333,7 +333,7 @@ def test_send_log_metric_simple(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
-        telemetry_writer.log_metric("WARNING", "test error 1")
+        telemetry_writer.add_log("WARNING", "test error 1")
         expected_payload = [
             {
                 "level": "WARNING",
@@ -342,7 +342,7 @@ def test_send_log_metric_simple(test_agent_metrics_session, mock_time):
             },
         ]
 
-        _assert_log_metric(test_agent_metrics_session, expected_payload)
+        _assert_logs(test_agent_metrics_session, expected_payload)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
@@ -350,7 +350,7 @@ def test_send_log_metric_simple_tags(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
-        telemetry_writer.log_metric("WARNING", "test error 1", tags={"a": "b", "c": "d"})
+        telemetry_writer.add_log("WARNING", "test error 1", tags={"a": "b", "c": "d"})
         expected_payload = [
             {
                 "level": "WARNING",
@@ -360,7 +360,7 @@ def test_send_log_metric_simple_tags(test_agent_metrics_session, mock_time):
             },
         ]
 
-        _assert_log_metric(test_agent_metrics_session, expected_payload)
+        _assert_logs(test_agent_metrics_session, expected_payload)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
@@ -368,7 +368,7 @@ def test_send_multiple_log_metric(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
-        telemetry_writer.log_metric("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+        telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
         expected_payload = [
             {
                 "level": "WARNING",
@@ -379,8 +379,8 @@ def test_send_multiple_log_metric(test_agent_metrics_session, mock_time):
             },
         ]
 
-        _assert_log_metric(test_agent_metrics_session, expected_payload)
+        _assert_logs(test_agent_metrics_session, expected_payload)
 
-        telemetry_writer.log_metric("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+        telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
 
-        _assert_log_metric(test_agent_metrics_session, expected_payload, seq_id=2)
+        _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
