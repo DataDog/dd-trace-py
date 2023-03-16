@@ -215,15 +215,16 @@ def test_collect_gevent_thread_task():
         for t in threads:
             t.join()
 
+    expected_task_ids = {thread.ident for thread in threads}
     for event in r.events[stack_event.StackSampleEvent]:
-        if event.thread_name is None and event.task_id in {thread.ident for thread in threads}:
+        if event.task_id in expected_task_ids:
             assert event.task_name.startswith("TestThread ")
             # This test is not uber-reliable as it has timing issue, therefore
             # if we find one of our TestThread with the correct info, we're
             # happy enough to stop here.
             break
     else:
-        pytest.fail("No gevent thread found")
+        pytest.fail("No gevent threads found")
 
 
 def test_max_time_usage():

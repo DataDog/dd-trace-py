@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: correct accounting of wall and CPU time for gevent tasks within
+    the main Python thread.

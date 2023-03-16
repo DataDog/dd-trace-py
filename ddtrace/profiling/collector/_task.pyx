@@ -1,7 +1,7 @@
 import sys
+from types import ModuleType
 import weakref
 
-from ddtrace.internal import compat
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import _asyncio
@@ -27,7 +27,7 @@ def install_greenlet_tracer(gevent):
 
     class DDGreenletTracer(object):
         def __init__(self, gevent):
-            # type: (...) -> None
+            # type: (ModuleType) -> None
             self.gevent = gevent
 
             self.previous_trace_function = settrace(self)
@@ -112,16 +112,22 @@ cpdef list_tasks(thread_id):
 
     tasks = []
 
-    # We consider all Thread objects to be greenlet
-    # This should be true as nobody could use a half-monkey-patched gevent
     if _gevent_tracer is not None:
-        tasks.extend([
-            (greenlet_id,
-             _threading.get_thread_name(greenlet_id),
-             greenlet.gr_frame)
-            for greenlet_id, greenlet in list(compat.iteritems(_gevent_tracer.greenlets))
-            if not greenlet.dead
-        ])
+        if type(_threading.get_thread_by_id(thread_id)).__name__.endswith("_MainThread"):
+            # Under normal circumstances, the Hub is running in the main thread.
+            # Python will only ever have a single instance of a _MainThread
+            # class, so if we find it we attribute all the greenlets to it.
+            tasks.extend(
+                [
+                    (
+                        greenlet_id,
+                        _threading.get_thread_name(greenlet_id),
+                        greenlet.gr_frame
+                    )
+                    for greenlet_id, greenlet in dict(_gevent_tracer.greenlets).items()
+                    if not greenlet.dead
+                ]
+            )
 
     policy = _asyncio.get_event_loop_policy()
     if isinstance(policy, _asyncio.DdtraceProfilerEventLoopPolicy):
