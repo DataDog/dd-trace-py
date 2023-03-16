@@ -11,6 +11,7 @@ import six
 
 import ddtrace
 from ddtrace import Tracer
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.internal import agent
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -405,18 +406,12 @@ def test_writer_headers(encoding, monkeypatch):
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
-@allencodings
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
-def test_priority_sampling_response(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-
+def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
-    t = Tracer()
     s = t.trace("operation", service="my-svc")
     s.set_tag("env", "my-env")
     s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
     t.flush()
 
     # If a previous test has run then the agent might reply immediately
@@ -432,44 +427,10 @@ def test_priority_sampling_response(encoding, monkeypatch):
         # Agent will now reply with the sampling rates
         with t.trace("operation", service="my-svc") as s:
             s.set_tag("env", "my-env")
-    t.shutdown()
-    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
 
-@allencodings
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
-def test_priority_sampling_rate_honored(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-
-    # Send the data once because the agent doesn't respond with them on the
-    # first payload.
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    for i in range(100):
-        s = t.trace("operation", service=f"my-svc{i}")
-        s.set_tag("env", f"my-env{i}")
-        s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.flush()
-
-    # If a previous test has run then the agent might reply immediately
-    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
-        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
-        import time
-
-        time.sleep(5)
-        with t.trace("operation", service="my-svc") as s:
-            s.set_tag("env", "my-env")
-        t.flush()
-
-        # Agent will now reply with the sampling rates
-        with t.trace("operation", service="my-svc") as s:
-            s.set_tag("env", "my-env")
-    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
-    rate_from_agent = t._writer._priority_sampler._by_service_samplers["service:my-svc,env:my-env"].sample_rate
-    assert 0.2 < rate_from_agent < 0.5
+def _turn_tracer_into_dummy(tracer: Tracer):
+    """Override tracer's writer's write() method to keep traces instead of sending them away"""
 
     def monkeypatched_write(self, spans=None):
         if spans:
@@ -480,20 +441,63 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
             self.spans += spans
             self.traces += traces
 
-    t._writer.spans = []
-    t._writer.traces = []
-    t._writer.json_encoder = JSONEncoder()
-    t._writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-    t._writer.write = monkeypatched_write.__get__(t._writer, AgentWriter)
+    tracer._writer.spans = []
+    tracer._writer.traces = []
+    tracer._writer.json_encoder = JSONEncoder()
+    tracer._writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+    tracer._writer.write = monkeypatched_write.__get__(tracer._writer, AgentWriter)
 
-    captured_trace_count = 100
-    for _ in range(captured_trace_count):
+
+@allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
+def test_priority_sampling_response(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+
+    service = "my-svc"
+    env = "my-env"
+    t = Tracer()
+    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
+    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
+    t.shutdown()
+
+
+@allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
+def test_priority_sampling_rate_honored(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+
+    service = "my-svc"
+    env = "my-env"
+    t = Tracer()
+
+    # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
+    for i in range(100):
+        s = t.trace("operation", service=f"my-svc{i}")
+        s.set_tag("env", f"my-env{i}")
+        s.finish()
+
+    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+
+    rate_from_agent = t._writer._priority_sampler._by_service_samplers["service:my-svc,env:my-env"].sample_rate
+    assert 0.2 < rate_from_agent < 0.5
+
+    _turn_tracer_into_dummy(t)
+
+    captured_span_count = 100
+    for _ in range(captured_span_count):
         with t.trace("operation", service="my-svc") as s:
             s.set_tag("env", "my-env")
         t.flush()
-    assert len(t._writer.traces) == captured_trace_count
+    assert len(t._writer.traces) == captured_span_count
     sampled_spans = [s for s in t._writer.spans if s.sampled]
-    assert len(sampled_spans) / captured_trace_count == rate_from_agent
+    priority_spans = [s for s in t._writer.spans if s.context.sampling_priority == AUTO_KEEP]
+    assert len(priority_spans) == len(
+        sampled_spans
+    ), "span.sampled and span.context.sampling_priority should always update together"
+    assert (
+        len(sampled_spans) / captured_span_count == rate_from_agent
+    ), "the proportion of sampled spans should match the sample rate given by the agent"
 
     t.shutdown()
 
@@ -728,6 +732,8 @@ def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch
     f.write(
         """
 import ddtrace
+
+
 ddtrace.patch(logging=%s)
 
 s1 = ddtrace.tracer.trace("1")
@@ -785,6 +791,8 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import logging
+
+
 root = logging.getLogger()
 print(len(root.handlers))
 """,
@@ -832,6 +840,7 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
+
 assert ddtrace.tracer._writer._encoder.max_size == 1000
 assert ddtrace.tracer._writer._encoder.max_item_size == 1000
 assert ddtrace.tracer._writer._interval == 5.0
@@ -845,6 +854,7 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
+
 
 assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
 assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
