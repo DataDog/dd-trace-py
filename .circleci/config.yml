@@ -386,11 +386,11 @@ jobs:
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
 
-  ddgitmetadata:
+  sourcecode:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: "ddgitmetadata"
+          pattern: "sourcecode"
 
   telemetry:
     <<: *machine_executor
