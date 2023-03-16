@@ -38,7 +38,6 @@ class TestKafkaPatch(TracerTestCase):
         self.consumer.subscribe(["test_topic"])
 
     def tearDown(self):
-        self.producer.purge()
         self.consumer.close()
         unpatch()
         super(TestKafkaPatch, self).tearDown()
