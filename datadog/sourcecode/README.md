@@ -1,6 +1,6 @@
-# Datadog Git Metadata embedding library
+# Datadog Source Code library
 
-The library allows easily tag telemetry for 
+The library allows easily tag telemetry for the
 [Datadog Source Code Integration](https://docs.datadoghq.com/integrations/guide/source-code-integration/)
  
 It embeds git metadata:
@@ -14,7 +14,7 @@ in the format: `repository_url#commit_hash`
 
 Usage: import the module in the setup.py file, e.g.
 ```
-import ddgitmetadata
+import datadog.sourcecode 
 from setuptools import setup
 
 setup(
@@ -27,7 +27,6 @@ setup(
     project_urls={
         "Bug Tracker": "https://bug.tracker.link",
         "Documentation": "https://some.documentation.link/",
-        "Source Code": "https://github.com/sashacmc/dd-git-metadata-poc",
     },
     zip_safe=True,
 )

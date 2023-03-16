@@ -2498,8 +2498,8 @@ venv = Venv(
             },
         ),
         Venv(
-            name="ddgitmetadata",
-            command="pytest {cmdargs} tests/ddgitmetadata",
+            name="sourcecode",
+            command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
         ),
     ],

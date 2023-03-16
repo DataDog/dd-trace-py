@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.ddgitmetadata import normalize_repository_url
+from datadog.sourcecode import normalize_repository_url
 
 
 @pytest.mark.parametrize(

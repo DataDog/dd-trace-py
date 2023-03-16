@@ -1,6 +1,6 @@
 import re
 
-from ddtrace.ddgitmetadata import get_source_code_link
+from datadog.sourcecode import get_source_code_link
 
 
 def test_get_source_code_link():
