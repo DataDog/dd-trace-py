@@ -50,10 +50,3 @@ def check_tainted_args(args, kwargs, tracer, integration_name, method):
         return args[0] and is_pyobject_tainted(args[0])
 
     return False
-
-
-def taint_returned_object_for(origin, wrapped, instance, args, kwargs):
-    value = wrapped(*args, **kwargs)
-
-    name = str(args[0]) if len(args) else "http.request.body"
-    return taint_pyobject(value, Input_info(name, value, origin))

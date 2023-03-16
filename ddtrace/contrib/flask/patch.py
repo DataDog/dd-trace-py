@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -102,15 +103,6 @@ else:
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
-
-
-def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
-    if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_utils import taint_returned_object_for
-
-        return taint_returned_object_for(origin, wrapped, instance, args, kwargs)
-
-    return wrapped(*args, **kwargs)
 
 
 def taint_request_init(wrapped, instance, args, kwargs):
