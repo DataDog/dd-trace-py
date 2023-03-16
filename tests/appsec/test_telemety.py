@@ -73,6 +73,7 @@ def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
 
 def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
     with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -87,6 +88,7 @@ def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
         dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
     ):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
@@ -98,6 +100,7 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
         dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
     ):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
