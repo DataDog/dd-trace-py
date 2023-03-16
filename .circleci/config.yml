@@ -1075,7 +1075,7 @@ jobs:
           snapshot: true
 
   kafka:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *zookeeper_image
