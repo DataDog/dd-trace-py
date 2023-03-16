@@ -44,3 +44,52 @@ jobs:
           docker-registry-username: ${{ github.repository_owner }}
           docker-registry-password: ${{ secrets.GITHUB_TOKEN }}
           test-script: ./lib-injection/run-manual-lib-injection.sh
+
+  test_unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [
+          'dd-lib-python-init-test-django',
+          'dd-lib-python-init-test-django-gunicorn',
+          'dd-lib-python-init-test-django-uvicorn',
+          'dd-lib-python-init-test-django-uwsgi',
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create a docker network for the app and test agent
+        run: |
+          docker network create test-inject
+      - name: Run the test agent
+        run: |
+          docker run \
+            -d \
+            --network=test-inject \
+            -p 8126:8126 \
+            ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.7.2
+      - name: Apply a fixed, stable version of the library
+        run: sed -i "s~<DD_TRACE_VERSION_TO_BE_REPLACED>~1.8.0~g" lib-injection/sitecustomize.py
+      - name: Build test app
+        run: |
+          docker build \
+            -t ${{ matrix.variant }} \
+            tests/lib-injection/${{ matrix.variant }}/
+      - name: Run the app
+        run: |
+          docker run -d \
+            --name ${{ matrix.variant }} \
+            --network test-inject \
+            -p 18080:18080 \
+            -e PYTHONPATH=/lib-injection \
+            -v $PWD/lib-injection:/lib-injection \
+            ${{matrix.variant}}
+          sleep 20
+          docker logs ${{matrix.variant}}
+      - name: Test the app
+        run: |
+          curl http://localhost:18080
+          sleep 1  # wait for traces to be sent
+      - name: Check test agent
+        run: |
+          curl http://localhost:8126/test/traces

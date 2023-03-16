@@ -12,6 +12,18 @@ version = "<DD_TRACE_VERSION_TO_BE_REPLACED>"
 
 
 def _configure_ddtrace():
+    import ddtrace.internal.uwsgi as dduwsgi
+
+    try:
+        dduuwsgi.check_uwsgi()
+    except dduwsgi.uWSGIConfigError:
+        print(
+            "datadog autoinstrumentation: skipping instrumentation due to incompatible uwsgi configuration. Please see https://ddtrace.readthedocs.io/en/stable/advanced_usage.html."
+        )
+        return
+    except dduwsgi.uWSGIMasterProcess:
+        pass
+
     # This import has the same effect as ddtrace-run for the current process.
     import ddtrace.bootstrap.sitecustomize
 
@@ -44,9 +56,16 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         else:
             ddtrace_version = "ddtrace==%s" % version
 
-        # Execute the installation with the current interpreter
+        # When uwsgi is being used, sys.executable is `/usr/local/bin/uwsgi`
+        # (or wherever uwsgi is installed to) as it programatically invokes the
+        # CPython interpreter.
+        # In this case, assume that the version of Python uwsgi uses is the one
+        # on the path (eg. `which python`).
+        executable = sys.executable
+        if "uwsgi" in executable:
+            executable = os.which("python")
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", ddtrace_version], env=env, check=True)
+            subprocess.run([executable, "-m", "pip", "install", ddtrace_version], env=env, check=True)
         except Exception:
             print("datadog autoinstrumentation: failed to install python package version %r" % ddtrace_version)
         else:

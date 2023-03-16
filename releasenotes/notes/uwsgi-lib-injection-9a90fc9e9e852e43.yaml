@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    lib-injection: Add support for uwsgi.
