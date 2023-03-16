@@ -5,10 +5,9 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
+from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import override_config
-
-from ..config import KAFKA_CONFIG
 
 
 class TestKafkaPatch(TracerTestCase):

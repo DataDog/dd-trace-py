@@ -20,7 +20,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.kafka["service"]
 
-   The service name reported by default for graphql instances.
+   The service name reported by default for your kafka spans.
 
    This option can also be set with the ``DD_KAFKA_SERVICE`` environment
    variable.
@@ -28,7 +28,7 @@ Global Configuration
    Default: ``"kafka"``
 
 
-To configure the graphql integration using the
+To configure the kafka integration using the
 ``Pin`` API::
 
     from ddtrace import Pin
@@ -49,5 +49,6 @@ required_modules = ["confluent_kafka"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
+        from .patch import unpatch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "unpatch"]
