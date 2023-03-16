@@ -677,7 +677,9 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/taint-checking-enabled/",
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/taint-checking-enabled/?q=aaa",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
@@ -699,7 +701,9 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/taint-checking-disabled/",
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/taint-checking-disabled/?q=aaa",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 

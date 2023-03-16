@@ -243,6 +243,10 @@ def taint_checking_enabled_view(request):
         def is_pyobject_tainted(x):
             return True
 
+    # TODO: Taint request body
+    # assert is_pyobject_tainted(request.body)
+    assert is_pyobject_tainted(request.GET["q"])
+    assert is_pyobject_tainted(request.META["QUERY_STRING"])
     assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     assert is_pyobject_tainted(request.headers["User-Agent"])
 
@@ -257,6 +261,9 @@ def taint_checking_disabled_view(request):
         def is_pyobject_tainted(x):
             return False
 
+    assert not is_pyobject_tainted(request.body)
+    assert not is_pyobject_tainted(request.GET["q"])
+    assert not is_pyobject_tainted(request.META["QUERY_STRING"])
     assert not is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     assert not is_pyobject_tainted(request.headers["User-Agent"])
 

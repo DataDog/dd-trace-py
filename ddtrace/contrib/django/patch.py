@@ -20,6 +20,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -643,6 +644,12 @@ def _patch(django):
         import django.core.handlers.wsgi
 
         trace_utils.wrap(django, "core.handlers.wsgi.WSGIRequest.__init__", wrap_wsgi_environ)
+
+    trace_utils.wrap(
+        django,
+        "http.request.QueryDict.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+    )
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
     if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
