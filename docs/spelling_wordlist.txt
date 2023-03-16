@@ -103,6 +103,7 @@ iterable
 JSON
 jinja
 js
+kafka
 kombu
 kubernetes
 kwarg
