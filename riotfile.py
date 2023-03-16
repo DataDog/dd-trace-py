@@ -2346,7 +2346,7 @@ venv = Venv(
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
-                "requests": latest,
+                "requests": "==2.28.1",
             },
         ),
         Venv(
