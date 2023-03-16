@@ -108,7 +108,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         cmd = ["ddtrace-run"]
     cmd += ["gunicorn", "--config", str(cfg_file), str(gunicorn_server_settings.app_path)]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
-
+    gunicorn_server_settings.env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=gunicorn_server_settings.env,
