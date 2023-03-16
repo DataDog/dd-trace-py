@@ -1248,7 +1248,6 @@ workflows:
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
-      - ddgitmetadata: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
@@ -1302,6 +1301,7 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
