@@ -230,6 +230,7 @@ class Tracer(object):
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
+        self._env = config.env
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -694,6 +695,9 @@ class Tracer(object):
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+
+            if self._env:
+                span.set_tag_str(ENV_KEY, self._env)  # env tag is used by _sampler.sample
             span.sampled = self._sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
@@ -727,9 +731,6 @@ class Tracer(object):
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
-
-        if config.env:
-            span.set_tag_str(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
