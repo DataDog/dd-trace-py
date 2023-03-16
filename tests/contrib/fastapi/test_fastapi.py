@@ -633,6 +633,14 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
+@snapshot()
+async def test_traced_websocket(snapshot_client):
+    with snapshot_client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_json()
+        assert data == {"test": "Hello World"}
+    websocket.close(code=1000)
+
+
 def test_background_task(client, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
     response = client.get("/asynctask")

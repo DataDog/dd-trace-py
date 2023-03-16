@@ -35,6 +35,12 @@ class User(BaseModel):
 def get_app():
     app = FastAPI()
 
+    @app.websocket("/ws")
+    async def websocket(websocket):
+        await websocket.accept()
+        await websocket.send_json({"test": "Hello World"})
+        await websocket.close()
+
     @app.get("/")
     async def read_homepage(sleep: str = Header(...)):
         if sleep == "True":

@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "WEBSOCKET /ws",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "fastapi",
+      "http.method": "WEBSOCKET",
+      "http.url": "ws://testserver/ws",
+      "http.useragent": "testclient",
+      "language": "python",
+      "runtime-id": "e6f66c58a12f4537b36fbfa0b0c44036",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 81426
+    },
+    "duration": 581000,
+    "start": 1678999605128341000
+  }]]
