@@ -634,7 +634,7 @@ def test_table_query_snapshot(snapshot_client):
 
 
 @snapshot()
-async def test_traced_websocket(snapshot_client):
+def test_traced_websocket(snapshot_client):
     with snapshot_client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "Hello World"}
