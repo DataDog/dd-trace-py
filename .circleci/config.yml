@@ -1147,7 +1147,6 @@ requires_tests: &requires_tests
     - cherrypy
     - consul
     - ddtracerun
-    - ddgitmetadata
     - dogpile_cache
     - django
     - django_hosts
@@ -1198,6 +1197,7 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
+    - sourcecode 
     - starlette
     - stdlib
     - test_logging
