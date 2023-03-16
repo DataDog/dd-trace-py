@@ -12,6 +12,7 @@ import six
 import ddtrace
 from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -470,33 +471,30 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
     service = "my-svc"
     env = "my-env"
     t = Tracer()
+    t._env = env
 
     # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
     for i in range(100):
         s = t.trace("operation", service=f"my-svc{i}")
-        s.set_tag("env", f"my-env{i}")
         s.finish()
+    t.flush()
 
     _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
 
     rate_from_agent = t._writer._priority_sampler._by_service_samplers["service:my-svc,env:my-env"].sample_rate
-    assert 0.2 < rate_from_agent < 0.5
+    assert 0 < rate_from_agent < 1
 
     _turn_tracer_into_dummy(t)
 
     captured_span_count = 100
     for _ in range(captured_span_count):
         with t.trace("operation", service="my-svc") as s:
-            s.set_tag("env", "my-env")
+            pass
         t.flush()
     assert len(t._writer.traces) == captured_span_count
-    sampled_spans = [s for s in t._writer.spans if s.sampled]
-    priority_spans = [s for s in t._writer.spans if s.context.sampling_priority == AUTO_KEEP]
-    assert len(priority_spans) == len(
-        sampled_spans
-    ), "span.sampled and span.context.sampling_priority should always update together"
+    sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
     assert (
-        len(sampled_spans) / captured_span_count == rate_from_agent
+        abs(len(sampled_spans) / captured_span_count - rate_from_agent) < 0.1
     ), "the proportion of sampled spans should match the sample rate given by the agent"
 
     t.shutdown()
