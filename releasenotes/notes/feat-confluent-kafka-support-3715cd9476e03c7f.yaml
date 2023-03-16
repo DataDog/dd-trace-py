@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    kafka: Adds instrumentation support for ``confluent-kafka>=1.7``. This enables tracing for the ``confluent_kafka.Producer.produce`` 
+    and ``confluent_kafka.Consumer.poll`` methods. See the ``confluent-kafka<https://ddtrace.readthedocs.io/en/stable/integrations.html#kafka>`` 
+    documentation for more information.
