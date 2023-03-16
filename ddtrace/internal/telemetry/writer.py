@@ -239,7 +239,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 data["tags"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
-                self._logs.append(data)
+            self._logs.append(data)
 
     def add_gauge_metric(self, namespace, name, value, tags={}):
         # type: (str,str, float, MetricTagType) -> None
