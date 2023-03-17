@@ -2179,7 +2179,7 @@ venv = Venv(
                     # snowflake-connector-python dropped support for Python 3.6 in 2.7.5
                     pys="3.6",
                     pkgs={
-                        "snowflake-connector-python": ["~=2.3.0", "~=2.7.4"],
+                        "snowflake-connector-python": ["~=2.4.0", "~=2.7.4"],
                         "pyOpenSSL": "~=19.1",
                     },
                 ),
