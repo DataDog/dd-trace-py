@@ -7,13 +7,18 @@ from types import ModuleType
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import DD_IAST_PATCH_MODULES
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)
+IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
+
+if DD_IAST_PATCH_MODULES in os.environ:
+    IAST_ALLOWLIST += tuple(os.environ[DD_IAST_PATCH_MODULES].split(":"))
+
 
 ENCODING = ""
 

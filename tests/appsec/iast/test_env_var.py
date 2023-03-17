@@ -91,3 +91,31 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
     assert "hi" in captured.out
+
+
+@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+def test_A_env_var_iast_modules_to_patch(capfd):
+    # type: (...) -> None
+    import sys
+
+    from ddtrace.appsec._constants import DD_IAST_PATCH_MODULES
+
+    if "ddtrace.appsec.iast._ast.ast_patching" in sys.modules:
+        # this module must not be already loaded
+        assert False
+
+    os.environ[DD_IAST_PATCH_MODULES] = "please_patch:also.that:ddtrace"
+    import ddtrace.appsec.iast._ast.ast_patching as ap
+
+    for module_name in [
+        "please_patch",
+        "please_patch.submodule",
+        "also.that",
+        "also.that.sub",
+        "tests.appsec.iast",
+        "tests.appsec.iast.sub",
+    ]:
+        assert ap._should_iast_patch(module_name)
+
+    for module_name in ["please_do_not_patch", "also", "anything", "ddtrace.sub"]:
+        assert not ap._should_iast_patch(module_name)
