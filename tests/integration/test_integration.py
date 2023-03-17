@@ -468,36 +468,36 @@ def test_priority_sampling_response(encoding, monkeypatch):
 def test_priority_sampling_rate_honored(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    service = "my-svc"
     env = "my-env"
-    t = Tracer()
-    t._env = env
+    with override_global_config(dict(env=env)):
+        service = "my-svc"
+        t = Tracer()
 
-    # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
-    for i in range(100):
-        s = t.trace("operation", service="my-svc{}".format(i))
-        s.finish()
-    t.flush()
-
-    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-
-    rate_from_agent = t._writer._priority_sampler._by_service_samplers["service:my-svc,env:my-env"].sample_rate
-    assert 0 < rate_from_agent < 1
-
-    _turn_tracer_into_dummy(t)
-
-    captured_span_count = 100
-    for _ in range(captured_span_count):
-        with t.trace("operation", service="my-svc") as s:
-            pass
+        # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
+        for i in range(100):
+            s = t.trace("operation", service="my-svc{}".format(i))
+            s.finish()
         t.flush()
-    assert len(t._writer.traces) == captured_span_count
-    sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
-    assert (
-        abs(len(sampled_spans) / captured_span_count - rate_from_agent) < 0.1
-    ), "the proportion of sampled spans should match the sample rate given by the agent"
 
-    t.shutdown()
+        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+
+        rate_from_agent = t._writer._priority_sampler._by_service_samplers["service:my-svc,env:my-env"].sample_rate
+        assert 0 < rate_from_agent < 1
+
+        _turn_tracer_into_dummy(t)
+
+        captured_span_count = 100
+        for _ in range(captured_span_count):
+            with t.trace("operation", service="my-svc") as s:
+                pass
+            t.flush()
+        assert len(t._writer.traces) == captured_span_count
+        sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
+        assert (
+            abs(len(sampled_spans) / captured_span_count - rate_from_agent) < 0.1
+        ), "the proportion of sampled spans should match the sample rate given by the agent"
+
+        t.shutdown()
 
 
 def test_bad_endpoint():
