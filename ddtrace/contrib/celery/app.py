@@ -4,7 +4,6 @@ from celery import signals
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -12,7 +11,6 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ..trace_utils import unwrap
 from .signals import trace_after_publish
 from .signals import trace_before_publish
 from .signals import trace_failure
@@ -36,7 +34,7 @@ def patch_app(app, pin=None):
     )
     pin.onto(app)
 
-    wrapt.wrap_function_wrapper(
+    trace_utils.wrap(
         "celery.beat",
         "Scheduler.apply_entry",
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
@@ -44,7 +42,7 @@ def patch_app(app, pin=None):
     # If celery.Celery.conf.broker_max_connection_retries is not set and
     # celery.beat.Scheduler's connection_for_writing is unavailable at startup, _ensure_connected will spin
     # forever and this integration will not generate any traces until that connection becomes available.
-    wrapt.wrap_function_wrapper("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
+    trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     pin.onto(celery.beat.Scheduler)
 
     # connect to the Signal framework
@@ -69,8 +67,8 @@ def unpatch_app(app):
     if pin is not None:
         delattr(app, _DD_PIN_NAME)
 
-    unwrap(celery.beat.Scheduler, "apply_entry")
-    unwrap(celery.beat.Scheduler, "tick")
+    trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
+    trace_utils.unwrap(celery.beat.Scheduler, "tick")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
