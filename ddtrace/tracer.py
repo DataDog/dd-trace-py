@@ -729,6 +729,9 @@ class Tracer(object):
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
+        if ENV_KEY not in span.get_tags() and self._env:
+            span.set_tag_str(ENV_KEY, self._env)
+
         if self._tags:
             span.set_tags(self._tags)
 
