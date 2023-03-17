@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: Fix AttributeError raised when patching object callable handlers.
