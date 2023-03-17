@@ -494,7 +494,7 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
         sampled_ratio = len(sampled_spans) / captured_span_count
         diff_magnitude = abs(sampled_ratio - rate_from_agent)
         assert (
-            diff_magnitude < 0.3
+            diff_magnitude < 0.1
         ), "the proportion of sampled spans should approximate the sample rate given by the agent"
 
         t.shutdown()
