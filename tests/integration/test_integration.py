@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 
 import mock
 import pytest
@@ -411,23 +412,15 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
     s = t.trace("operation", service=service)
-    s.set_tag("env", env)
     s.finish()
     t.flush()
 
-    # If a previous test has run then the agent might reply immediately
-    if "service:{},env:{}".format(service, env) not in t._writer._priority_sampler._by_service_samplers:
-        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
-        import time
-
-        time.sleep(5)
-        with t.trace("operation", service=service) as s:
-            s.set_tag("env", env)
+    sampler_key = "service:{},env:{}".format(service, env)
+    while sampler_key not in t._writer._priority_sampler._by_service_samplers:
+        time.sleep(1)
+        s = t.trace("operation", service=service)
+        s.finish()
         t.flush()
-
-        # Agent will now reply with the sampling rates
-        with t.trace("operation", service=service) as s:
-            s.set_tag("env", env)
 
 
 def _turn_tracer_into_dummy(tracer):
@@ -454,13 +447,15 @@ def _turn_tracer_into_dummy(tracer):
 def test_priority_sampling_response(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    service = "my-svc"
-    env = "my-env"
-    t = Tracer()
-    assert "service:{},env:{}".format(service, env) not in t._writer._priority_sampler._by_service_samplers
-    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-    assert "service:{},env:{}".format(service, env) in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    env = "my-env-{}".format(time.time())
+    with override_global_config(dict(env=env)):
+        service = "my-svc-{}".format(time.time())
+        sampler_key = "service:{},env:{}".format(service, env)
+        t = Tracer()
+        assert sampler_key not in t._writer._priority_sampler._by_service_samplers
+        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+        assert sampler_key in t._writer._priority_sampler._by_service_samplers
+        t.shutdown()
 
 
 @allencodings
@@ -468,26 +463,25 @@ def test_priority_sampling_response(encoding, monkeypatch):
 def test_priority_sampling_rate_honored(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    env = "my-env"
+    env = "my-env-{}".format(time.time())
     with override_global_config(dict(env=env)):
-        service = "my-svc"
+        service = "my-svc-{}".format(time.time())
         t = Tracer()
 
         # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
         for i in range(100):
-            s = t.trace("operation", service="my-svc{}".format(i))
+            s = t.trace("operation", service="dummysvc{}".format(i))
             s.finish()
         t.flush()
 
         _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+        sampler_key = "service:{},env:{}".format(service, env)
+        assert sampler_key in t._writer._priority_sampler._by_service_samplers
 
-        rate_from_agent = t._writer._priority_sampler._by_service_samplers[
-            "service:{},env:{}".format(service, env)
-        ].sample_rate
+        rate_from_agent = t._writer._priority_sampler._by_service_samplers[sampler_key].sample_rate
         assert 0 < rate_from_agent < 1
 
         _turn_tracer_into_dummy(t)
-
         captured_span_count = 100
         for _ in range(captured_span_count):
             with t.trace("operation", service=service) as s:
