@@ -430,7 +430,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
             s.set_tag("env", "my-env")
 
 
-def _turn_tracer_into_dummy(tracer: Tracer):
+def _turn_tracer_into_dummy(tracer):
     """Override tracer's writer's write() method to keep traces instead of sending them away"""
 
     def monkeypatched_write(self, spans=None):
@@ -475,7 +475,7 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
 
     # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
     for i in range(100):
-        s = t.trace("operation", service=f"my-svc{i}")
+        s = t.trace("operation", service="my-svc{}".format(i))
         s.finish()
     t.flush()
 
