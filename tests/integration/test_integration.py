@@ -447,9 +447,10 @@ def _turn_tracer_into_dummy(tracer):
 def test_priority_sampling_response(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    env = "my-env-{}".format(time.time())
+    _id = time.time()
+    env = "my-env-{}".format(_id)
     with override_global_config(dict(env=env)):
-        service = "my-svc-{}".format(time.time())
+        service = "my-svc-{}".format(_id)
         sampler_key = "service:{},env:{}".format(service, env)
         t = Tracer()
         assert sampler_key not in t._writer._priority_sampler._by_service_samplers
@@ -463,9 +464,10 @@ def test_priority_sampling_response(encoding, monkeypatch):
 def test_priority_sampling_rate_honored(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    env = "my-env-{}".format(time.time())
+    _id = time.time()
+    env = "my-env-{}".format(_id)
     with override_global_config(dict(env=env)):
-        service = "my-svc-{}".format(time.time())
+        service = "my-svc-{}".format(_id)
         t = Tracer()
 
         # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
