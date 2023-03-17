@@ -8,8 +8,6 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Iterator
 
-DD_IAST_PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
-
 
 class Constant_Class(type):
     """
@@ -68,6 +66,9 @@ class IAST(object):
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
+    PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
+    DENY_MODULES = "_DD_IAST_DENY_MODULES"
+    SEP_MODULES = ","
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

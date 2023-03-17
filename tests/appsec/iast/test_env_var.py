@@ -98,24 +98,39 @@ def test_A_env_var_iast_modules_to_patch(capfd):
     # type: (...) -> None
     import sys
 
-    from ddtrace.appsec._constants import DD_IAST_PATCH_MODULES
+    from ddtrace.appsec._constants import IAST
 
     if "ddtrace.appsec.iast._ast.ast_patching" in sys.modules:
         # this module must not be already loaded
         assert False
 
-    os.environ[DD_IAST_PATCH_MODULES] = "please_patch:also.that:ddtrace"
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
+        ["please_patch", "also.that", "ddtrace", "please_patch.do_not.but_yes"]
+    )
+    os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not", "also.that.but.not.that"])
     import ddtrace.appsec.iast._ast.ast_patching as ap
 
     for module_name in [
         "please_patch",
         "please_patch.submodule",
+        "please_patch.do_not.but_yes",
+        "please_patch.do_not.but_yes.sub",
         "also.that",
-        "also.that.sub",
+        "also.that.but",
+        "also.that.but.not",
         "tests.appsec.iast",
         "tests.appsec.iast.sub",
     ]:
-        assert ap._should_iast_patch(module_name)
+        assert ap._should_iast_patch(module_name), module_name
 
-    for module_name in ["please_do_not_patch", "also", "anything", "ddtrace.sub"]:
-        assert not ap._should_iast_patch(module_name)
+    for module_name in [
+        "please_do_not_patch",
+        "also",
+        "anything",
+        "ddtrace.sub",
+        "please_patch.do_not",
+        "please_patch.do_not.any",
+        "also.that.but.not.that",
+        "also.that.but.not.that.never",
+    ]:
+        assert not ap._should_iast_patch(module_name), module_name
