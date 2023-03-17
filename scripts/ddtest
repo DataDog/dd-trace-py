@@ -12,7 +12,7 @@ fi
 # retry docker pull if fails
 for i in {1..3}; do docker-compose pull -q testrunner && break || sleep 3; done
 
-FULL_CMD="pip install -q --disable-pip-version-check git+https://github.com/DataDog/riot@emmett.butler/changing-hashes tox && $CMD"
+FULL_CMD="pip install -q --disable-pip-version-check riot==0.17.1 tox && $CMD"
 
 # install and upgrade tox and riot in case testrunner image has not been updated
 # DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI
