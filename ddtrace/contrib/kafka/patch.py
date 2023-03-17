@@ -59,7 +59,9 @@ class TracedProducer(ObjectProxy):
             span.set_tag(kafkax.PARTITION, partition)
             span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
             span.set_tag(SPAN_MEASURED_KEY)
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
+            rate = config.kafka.get_analytics_sample_rate()
+            if rate is not None:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
             return func(*args, **kwargs)
 
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
@@ -99,7 +101,9 @@ class TracedConsumer(ObjectProxy):
                 span.set_tag(kafkax.PARTITION, message.partition())
                 span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(SPAN_MEASURED_KEY)
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kafka.get_analytics_sample_rate())
+            rate = config.kafka.get_analytics_sample_rate()
+            if rate is not None:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
             return message
 
 
