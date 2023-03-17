@@ -2509,7 +2509,7 @@ venv = Venv(
                     command="pytest {cmdargs} tests/contrib/kafka",
                     venvs=[
                         # confluent-kafka dropped official wheels for Python 2.7 in 1.8.2
-                        Venv(pys="2.7", pkgs={"confluent-kafka": "==1.7.0"}),
+                        Venv(pys="2.7", pkgs={"confluent-kafka": "~=1.7.0"}),
                         # confluent-kafka>=1.7 has issues building on linux with Python 3.5
                         Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
                         Venv(
