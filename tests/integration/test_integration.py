@@ -730,8 +730,6 @@ def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch
     f.write(
         """
 import ddtrace
-
-
 ddtrace.patch(logging=%s)
 
 s1 = ddtrace.tracer.trace("1")
@@ -789,8 +787,6 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import logging
-
-
 root = logging.getLogger()
 print(len(root.handlers))
 """,
@@ -838,7 +834,6 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
-
 assert ddtrace.tracer._writer._encoder.max_size == 1000
 assert ddtrace.tracer._writer._encoder.max_item_size == 1000
 assert ddtrace.tracer._writer._interval == 5.0
@@ -852,7 +847,6 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
-
 
 assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
 assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
