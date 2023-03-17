@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds source code integration with setuptools build metadata.

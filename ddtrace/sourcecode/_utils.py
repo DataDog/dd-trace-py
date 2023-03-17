@@ -1,7 +1,5 @@
-import os
 import re
 import subprocess
-import sys
 
 from ddtrace.internal.compat import parse
 
