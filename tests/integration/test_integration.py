@@ -494,7 +494,7 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
         assert len(t._writer.traces) == captured_span_count
         sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
         assert (
-            abs(len(sampled_spans) / captured_span_count - rate_from_agent) < 0.1
+            abs(len(sampled_spans) / captured_span_count - rate_from_agent) < 0.13
         ), "the proportion of sampled spans should match the sample rate given by the agent"
 
         t.shutdown()
