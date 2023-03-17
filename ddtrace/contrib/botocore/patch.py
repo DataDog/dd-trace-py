@@ -3,7 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import collections
-from enum import Enum
+from dataclasses import dataclass
 import json
 import os
 import typing
@@ -39,29 +39,22 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-class SubModules(Enum):
-    LAMBDA = "lambda"
-    SQS = "sqs"
-    EVENTS = "events"
-    KINESIS = "kinesis"
-    SNS = "sns"
+@dataclass(frozen=True)
+class SubModules:
+    LAMBDA: str = "lambda"
+    SQS: str = "sqs"
+    EVENTS: str = "events"
+    KINESIS: str = "kinesis"
+    SNS: str = "sns"
 
     @classmethod
-    def parse_list(cls, sub_modules):
-        # type: (List[str]) -> List[SubModules]
-        return [cls.parse(s) for s in sub_modules]
+    def get_params(cls):
+        return [field.name.lower() for field in cls.__dataclass_fields__.values()]
 
     @classmethod
-    def parse(cls, sub_module):
-        # type: (str) -> SubModules
-        if sub_module not in cls._value2member_map_:
-            raise ValueError("Invalid sub module: {}".format(sub_module))
-        return cls._value2member_map_[sub_module]
-
-    @classmethod
-    def __eq__(self, other):
-        # type: (Any) -> bool
-        return other in self._value2member_map_
+    def filter_params(cls, submodules):
+        available_submodules = cls.get_params()
+        return [submodule for submodule in submodules if submodule in available_submodules]
 
 
 _PATCHED_SUB_MODULES = set()  # type: Set[SubModules]
@@ -348,7 +341,7 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
-    _PATCHED_SUB_MODULES.update(list(SubModules))
+    _PATCHED_SUB_MODULES.update(SubModules.get_params())
 
 
 def unpatch():
@@ -360,9 +353,9 @@ def unpatch():
 
 def patch_sub_modules(sub_modules):
     if isinstance(sub_modules, bool) and sub_modules:
-        _PATCHED_SUB_MODULES.update(list(SubModules))
+        _PATCHED_SUB_MODULES.update(SubModules.get_params())
     elif isinstance(sub_modules, list):
-        _PATCHED_SUB_MODULES.update(SubModules.parse_list(sub_modules))
+        _PATCHED_SUB_MODULES.update(SubModules.filter_params(sub_modules))
 
 
 def patched_api_call(original_func, instance, args, kwargs):
