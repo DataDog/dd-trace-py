@@ -39,9 +39,6 @@ def patch_app(app, pin=None):
         "Scheduler.apply_entry",
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
     )
-    # If celery.Celery.conf.broker_max_connection_retries is not set and
-    # celery.beat.Scheduler's connection_for_writing is unavailable at startup, _ensure_connected will spin
-    # forever and this integration will not generate any traces until that connection becomes available.
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     pin.onto(celery.beat.Scheduler)
 
