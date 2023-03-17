@@ -709,7 +709,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             return 42
 
         target_task_run_count = 2
-        run_time_seconds = 1
+        run_time_seconds = 1.0
 
         self.app.conf.beat_schedule = {
             "mytestschedule": {
@@ -746,13 +746,17 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
                 spans_counter.update([trace[1].name, trace[2].name])
                 assert trace[1].name == "celery.beat.apply_entry"
                 assert trace[2].name == "celery.apply"
-        assert deep_traces_count >= target_task_run_count
-        assert 0 < spans_counter["celery.run"] <= deep_traces_count
+        # the number of task runs that beat schedules in this test is unpredictable
+        # luckily this test doesn't care about the specific number of runs as long as it's
+        # within a fairly wide range
+        max_extra_run_count = 3
+        assert target_task_run_count + max_extra_run_count >= deep_traces_count >= target_task_run_count
+        assert deep_traces_count == spans_counter["celery.beat.apply_entry"]
+        assert deep_traces_count == spans_counter["celery.apply"]
         # beat_service.stop() can happen any time during the beat thread's execution.
-        # When by chance it happens between apply_entry() and run(), the number of spans
-        # for apply() and apply_entry() will be one greater than the number of spans for run()
-        assert deep_traces_count <= spans_counter["celery.beat.apply_entry"] <= deep_traces_count + 1
-        assert deep_traces_count <= spans_counter["celery.apply"] <= deep_traces_count + 1
+        # When by chance it happens between apply_entry() and run(), the run() span will be
+        # omitted, resulting in one fewer span for run() than the other functions
+        assert target_task_run_count >= spans_counter["celery.run"] >= target_task_run_count - 1
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
