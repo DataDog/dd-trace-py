@@ -5,7 +5,9 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
@@ -24,6 +26,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import asyncpg
     from asyncpg.prepared_stmt import PreparedStatement
+
+
+DBMS_NAME = "postgresql"
 
 
 config._add(
@@ -55,7 +60,9 @@ def _get_connection_tags(conn):
 class _TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin):
         super(_TracedConnection, self).__init__(conn)
-        conn_pin = pin.clone(tags=_get_connection_tags(conn))
+        tags = _get_connection_tags(conn)
+        tags[db.SYSTEM] = DBMS_NAME
+        conn_pin = pin.clone(tags=tags)
         # Keep the pin on the protocol
         conn_pin.onto(self._protocol)
 
@@ -76,6 +83,10 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str(db.SYSTEM, DBMS_NAME)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
@@ -88,6 +99,10 @@ async def _traced_query(pin, method, query, args, kwargs):
         "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
     ) as span:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str(db.SYSTEM, DBMS_NAME)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)

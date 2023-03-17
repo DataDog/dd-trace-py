@@ -66,6 +66,9 @@ class IAST(object):
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
+    PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
+    DENY_MODULES = "_DD_IAST_DENY_MODULES"
+    SEP_MODULES = ","
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -80,6 +83,7 @@ class WAF_DATA_NAMES(object):
     REQUEST_PATH_PARAMS = "server.request.path_params"
     REQUEST_COOKIES = "server.request.cookies"
     REQUEST_HTTP_IP = "http.client_ip"
+    REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
@@ -97,6 +101,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_PATH_PARAMS = "http.request.path_params"
     REQUEST_COOKIES = "http.request.cookies"
     REQUEST_HTTP_IP = "http.request.remote_ip"
+    REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
 

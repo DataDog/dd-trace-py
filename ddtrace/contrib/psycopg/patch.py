@@ -1,30 +1,33 @@
 import os
 
 import psycopg2
+from psycopg2.extensions import parse_dsn
 from psycopg2.sql import Composable
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
+from ...propagation._database_monitoring import default_sql_injector as _default_sql_injector
 
 
 def _psycopg2_sql_injector(dbm_comment, sql_statement):
     # type: (str, Composable) -> Composable
     if isinstance(sql_statement, Composable):
         return psycopg2.sql.SQL(dbm_comment) + sql_statement
-    return dbm_comment + sql_statement
+    return _default_sql_injector(dbm_comment, sql_statement)
 
 
 config._add(
@@ -35,6 +38,7 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg2_sql_injector),
+        dbms_name="postgresql",
     ),
 )
 
@@ -104,12 +108,13 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     c = traced_conn_cls(conn)
 
     # fetch tags from the dsn
-    dsn = sql.parse_pg_dsn(conn.dsn)
+    dsn = parse_dsn(conn.dsn)
     tags = {
         net.TARGET_HOST: dsn.get("host"),
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
+        db.SYSTEM: config.psycopg.dbms_name,
         "db.application": dsn.get("application_name"),
     }
 
@@ -149,6 +154,11 @@ def patched_connect(connect_func, _, args, kwargs):
             "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
         ) as span:
             span.set_tag_str(COMPONENT, config.psycopg.integration_name)
+            if span.get_tag(db.SYSTEM) is None:
+                span.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

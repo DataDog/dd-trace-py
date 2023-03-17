@@ -31,6 +31,9 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
 RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
+RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
+RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
+RULES_SRB_METHOD = os.path.join(ROOT_DIR, "rules-suspicious-requests-get.json")
 
 
 @pytest.fixture
@@ -473,7 +476,8 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res = _ddwaf.run(data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        ctx = _ddwaf._at_request_start()
+        res = _ddwaf.run(ctx, data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0
@@ -486,10 +490,10 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info.loaded == 4
+        assert info.loaded == 5
         assert info.failed == 0
         assert info.errors == {}
-        assert info.version == ""
+        assert info.version == "rules_good"
 
 
 def test_ddwaf_info_with_2_errors():

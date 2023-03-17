@@ -32,10 +32,19 @@ static PyObject *clear_taint_mapping(PyObject *Py_UNUSED(module),
   Py_RETURN_NONE;
 }
 
-static PyObject *new_pyobject_id(PyObject *tainted_object) {
+static PyObject *new_pyobject_id(PyObject *tainted_object,
+                                 Py_ssize_t object_length) {
   if (PyUnicode_Check(tainted_object)) {
+    if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { // SSTATE_NOT_INTERNED
+      Py_INCREF(tainted_object);
+      return tainted_object;
+    }
     return PyUnicode_Join(empty_unicode,
                           Py_BuildValue("(OO)", tainted_object, empty_unicode));
+  } else if (object_length > 1) {
+    // Bytes and bytearrays with length > 1 are not interned
+    Py_INCREF(tainted_object);
+    return tainted_object;
   } else if (PyBytes_Check(tainted_object)) {
     return PyObject_CallFunctionObjArgs(
         bytes_join, empty_bytes,
@@ -52,15 +61,15 @@ static PyObject *taint_pyobject(PyObject *Py_UNUSED(module), PyObject *args) {
   T_input_info input_info;
   PyArg_ParseTuple(args, "OO", &tainted_object, &input_info);
   // DEV: could use PyUnicode_GET_LENGTH if we are only using unicode string
-  Py_ssize_t tainted_length = PyObject_Length(tainted_object);
-  if (tainted_length < 1) {
+  Py_ssize_t object_length = PyObject_Length(tainted_object);
+  if (object_length < 1) {
     Py_INCREF(tainted_object);
     return tainted_object;
   }
 
   Py_INCREF(input_info);
-  tainted_object = new_pyobject_id(tainted_object);
-  TaintMapping[tainted_object] = {{input_info, 0, tainted_length}};
+  tainted_object = new_pyobject_id(tainted_object, object_length);
+  TaintMapping[tainted_object] = {{input_info, 0, object_length}};
   return tainted_object;
 }
 
@@ -75,7 +84,8 @@ static PyObject *add_taint_pyobject(PyObject *Py_UNUSED(module),
     Py_INCREF(tainted_object);
     return tainted_object;
   }
-  tainted_object = new_pyobject_id(tainted_object);
+  tainted_object =
+      new_pyobject_id(tainted_object, PyObject_Length(tainted_object));
   if IS_TAINTED (op1)
     TaintMapping[tainted_object] = TaintMapping[op1];
   else
@@ -109,6 +119,23 @@ static PyObject *get_tainted_ranges(PyObject *Py_UNUSED(module),
   return result;
 }
 
+static PyObject *set_tainted_ranges(PyObject *Py_UNUSED(module),
+                                    PyObject *args) {
+  PyObject *tainted_object;
+  PyObject *list_ranges;
+  PyArg_ParseTuple(args, "OO", &tainted_object, &list_ranges);
+  TaintMapping[tainted_object] = {};
+  for (Py_ssize_t i = 0; i < PySequence_Length(list_ranges); i++) {
+    PyObject *tuple = PySequence_GetItem(list_ranges, i);
+    PyObject *input_info = PySequence_GetItem(tuple, 0);
+    Py_INCREF(input_info);
+    TaintMapping[tainted_object].emplace_back(
+        input_info, PyLong_AsLong(PySequence_GetItem(tuple, 1)),
+        PyLong_AsLong(PySequence_GetItem(tuple, 2)));
+  }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef TaintTrackingMethods[] = {
     {"clear_taint_mapping", (PyCFunction)clear_taint_mapping, METH_NOARGS,
      "clear taint mappings"},
@@ -124,6 +151,8 @@ static PyMethodDef TaintTrackingMethods[] = {
      "is pyobject tainted"},
     {"get_tainted_ranges", (PyCFunction)get_tainted_ranges, METH_O,
      "get tainted ranges as a list of tuples"},
+    {"set_tainted_ranges", (PyCFunction)set_tainted_ranges, METH_VARARGS,
+     "set tainted ranges from a list of tuples"},
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef taint_tracking = {

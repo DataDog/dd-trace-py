@@ -1,5 +1,8 @@
 {
   "version": "2.1",
+  "metadata": {
+    "rules_version": "rules_good"
+  },
   "rules": [
     {
       "id": "blk-001-001",
@@ -17,11 +20,42 @@
                 "address": "http.client_ip"
               }
             ],
-            "list": ["8.8.4.4"],
+            "list": [
+              "8.8.4.4"
+            ],
             "data": "blocked_ips"
           }
         }
       ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-002",
+      "name": "Block User Addresses",
+      "tags": {
+        "type": "block_user",
+        "category": "security_response"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "usr.id"
+              }
+            ],
+            "list": [
+              "123456",
+              "654321"
+            ],
+            "data": "blocked_users"
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "transformers": [],
       "on_match": [
         "block"
       ]

@@ -61,13 +61,14 @@ USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 IP_PATTERNS = (
     "x-forwarded-for",
     "x-real-ip",
-    "client-ip",
-    "x-forwarded",
-    "x-cluster-client-ip",
-    "forwarded-for",
-    "forwarded",
-    "via",
     "true-client-ip",
+    "x-client-ip",
+    "x-forwarded",
+    "forwarded-for",
+    "x-cluster-client-ip",
+    "fastly-client-ip",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
 )
 
 
@@ -403,6 +404,18 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+def _set_url_tag(integration_config, span, url, query):
+    # type: (IntegrationConfig, Span, str, str) -> None
+
+    if integration_config.http_tag_query_string:  # Tagging query string in http.url
+        if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
+            span.set_tag_str(http.URL, url)
+        else:  # Redact query strings
+            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+    else:  # Not tagging query string in http.url
+        span.set_tag_str(http.URL, strip_query_string(url))
+
+
 def set_http_meta(
     span,  # type: Span
     integration_config,  # type: IntegrationConfig
@@ -445,14 +458,7 @@ def set_http_meta(
 
     if url is not None:
         url = _sanitized_url(url)
-
-        if integration_config.http_tag_query_string:  # Tagging query string in http.url
-            if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
-                span.set_tag_str(http.URL, url)
-            else:  # Redact query strings
-                span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-        else:  # Not tagging query string in http.url
-            span.set_tag_str(http.URL, strip_query_string(url))
+        _set_url_tag(integration_config, span, url, query)
 
     if status_code is not None:
         try:
@@ -605,6 +611,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
+
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
@@ -630,3 +637,8 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
+
+    if config._appsec_enabled:
+        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+        block_request_if_user_blocked(tracer, user_id)

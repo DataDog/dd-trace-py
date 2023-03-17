@@ -154,7 +154,7 @@ def get_request_uri(request):
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
-    for (k, v) in urlparts.items():
+    for k, v in urlparts.items():
         if isinstance(v, SimpleLazyObject):
             if issubclass(v.__class__, str):
                 v = str(v)
@@ -187,19 +187,22 @@ def _set_resolver_tags(pin, span, request):
             resolver_match = resolver.resolve(request.path_info)
         handler = func_name(resolver_match[0])
 
+        route = None
+        # In Django >= 2.2.0 we can access the original route or regex pattern
+        # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+        if DJANGO22:
+            # Determine the resolver and resource name for this request
+            route = get_django_2_route(request, resolver_match)
+            if route:
+                span.set_tag_str("http.route", route)
+
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
             resource = handler
         else:
-            # In Django >= 2.2.0 we can access the original route or regex pattern
-            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-            if DJANGO22:
-                # Determine the resolver and resource name for this request
-                route = get_django_2_route(request, resolver_match)
-                if route:
-                    resource = " ".join((request.method, route))
-                    span.set_tag_str("http.route", route)
+            if route:
+                resource = " ".join((request.method, route))
             else:
                 if config.django.use_handler_with_url_name_resource_format:
                     # Append url name in order to distinguish different routes of the same ViewSet
@@ -272,8 +275,8 @@ def _extract_body(request):
                     if rest_framework
                     else xmltodict.parse(request.body.decode("UTF-8"))
                 )
-            else:  # text/plain, xml, others: take them as strings
-                req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+            else:  # text/plain, others: don't use them
+                req_body = None
         except (
             AttributeError,
             RawPostDataException,
