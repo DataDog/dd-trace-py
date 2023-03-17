@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Iterator
 
-DD_IAST_PATCH_MODULES = "_DD_IAST_PATH_MODULES"
+DD_IAST_PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
 
 
 class Constant_Class(type):
