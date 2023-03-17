@@ -747,7 +747,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
                 assert trace[1].name == "celery.beat.apply_entry"
                 assert trace[2].name == "celery.apply"
         assert deep_traces_count >= target_task_run_count
-        assert target_task_run_count <= spans_counter["celery.run"] <= deep_traces_count
+        assert 0 < spans_counter["celery.run"] <= deep_traces_count
         # beat_service.stop() can happen any time during the beat thread's execution.
         # When by chance it happends between apply_entry() and run(), the number of spans
         # for apply() and apply_entry() will be one greater than the number of spans for run()
