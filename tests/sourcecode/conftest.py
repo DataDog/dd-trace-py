@@ -17,21 +17,17 @@ def create_package(directory, pyproject, setup):
     os.mkdir(package_dir)
 
     pyproject_file = os.path.join(package_dir, "pyproject.toml")
-    with open(pyproject_file, "w", encoding="utf-8") as f:
-        f.write(pyproject)
+    with open(pyproject_file, "wb") as f:
+        f.write(pyproject.encode("utf-8"))
 
     setup_file = os.path.join(package_dir, "setup.py")
-    with open(setup_file, "w", encoding="utf-8") as f:
-        f.write(setup)
+    with open(setup_file, "wb") as f:
+        f.write(setup.encode("utf-8"))
 
     _ = os.path.join(package_dir, "mypackage")
     os.mkdir(_)
-    with open(
-        os.path.join(_, "__init__.py"),
-        "w",
-        encoding="utf-8",
-    ) as f:
-        f.write('"0.0.1"')
+    with open(os.path.join(_, "__init__.py"), "wb") as f:
+        f.write('"0.0.1"'.encode("utf-8"))
 
     cwd = os.getcwd()
     os.chdir(package_dir)
@@ -61,8 +57,6 @@ def temp_dir():
         d = os.path.realpath(d)
         yield d
     finally:
-        print(d)
-        pass
         try:
             shutil.rmtree(d)
         except OSError:
