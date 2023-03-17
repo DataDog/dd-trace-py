@@ -10,6 +10,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.pin import Pin
@@ -51,7 +52,7 @@ class TracedProducer(ObjectProxy):
             service=trace_utils.ext_service(pin, config.kafka),
             span_type=SpanTypes.WORKER,
         ) as span:
-            span.set_tag_str("messaging.system", kafkax.SERVICE)
+            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
             span.set_tag_str(COMPONENT, config.kafka.integration_name)
             span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
             span.set_tag_str(kafkax.TOPIC, topic)
@@ -90,7 +91,7 @@ class TracedConsumer(ObjectProxy):
             span_type=SpanTypes.WORKER,
         ) as span:
             message = func(*args, **kwargs)
-            span.set_tag_str("messaging.system", kafkax.SERVICE)
+            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
             span.set_tag_str(COMPONENT, config.kafka.integration_name)
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))

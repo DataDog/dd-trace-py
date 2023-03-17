@@ -20,10 +20,13 @@ class TestKafkaPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
 
     def assert_module_patched(self, confluent_kafka):
-        pass
+        self.assert_wrapped(confluent_kafka.Producer)
+        self.assert_wrapped(confluent_kafka.Consumer)
 
     def assert_not_module_patched(self, confluent_kafka):
-        pass
+        self.assert_not_wrapped(confluent_kafka.Producer)
+        self.assert_not_wrapped(confluent_kafka.Consumer)
 
     def assert_not_module_double_patched(self, confluent_kafka):
-        pass
+        self.assert_not_double_wrapped(confluent_kafka.Producer)
+        self.assert_not_double_wrapped(confluent_kafka.Consumer)
