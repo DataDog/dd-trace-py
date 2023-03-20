@@ -1094,6 +1094,7 @@ jobs:
       - run_test:
           pattern: 'kafka'
           docker_services: 'kafka'
+          snapshot: true
 
   kombu:
     <<: *contrib_job_small
