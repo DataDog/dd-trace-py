@@ -685,9 +685,9 @@ class _TraceContext:
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
-        
+
         if ts:
-            # whitespace is allowed, but whitespace to start or end values should be trimmed 
+            # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
             ts_l = [member.strip() for member in ts.split(",")]
             ts = ",".join(ts_l)
