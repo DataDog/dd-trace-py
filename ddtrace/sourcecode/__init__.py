@@ -20,7 +20,7 @@ Packages with ``pyproject.toml`` can update the build system requirements::
   build-backend = "setuptools.build_meta"
 
 
-The instrumentation of ``setuptool`` can be automatically enabled to embed the
+The instrumentation of ``setuptools`` can be automatically enabled to embed the
 source code link is provided with a one-line import::
 
    import ddtrace.sourcecode.setuptools_auto
