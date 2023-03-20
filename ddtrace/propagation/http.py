@@ -686,7 +686,11 @@ class _TraceContext:
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        
+        assert 0
         if ts:
+            # strip whitespace
+            ts = "".join(ts.split())
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E
             if re.search(r"[^\x20-\x7E]+", ts):

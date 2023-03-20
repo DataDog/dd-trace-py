@@ -160,7 +160,7 @@ class Context(object):
         # if there is no original tracestate value then tracestate is just the dd list member we created
         elif dd_list_member:
             ts = "dd={}".format(dd_list_member)
-        return ts
+        return "".join(ts.split())
 
     @property
     def dd_origin(self):
