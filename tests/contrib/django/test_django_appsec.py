@@ -389,7 +389,7 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_env(dict(DD_IAST_ENABLED="true")):
+    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/", iast_enabled=True)
         str_json = root_span.get_tag(IAST_JSON)
