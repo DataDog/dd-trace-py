@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    propagation: This fix resolves an issue where previously W3C tracecontext propagation could not handle whitespace.
+    propagation: This fix resolves an issue where previously W3C tracestate propagation could not handle whitespace.
     With this fix we now remove all whitespace for incoming and outgoing requests.
