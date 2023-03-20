@@ -58,7 +58,6 @@ class RemoteConfig(object):
                     atexit.register(cls.disable)
             return True
         return False
-            
     @classmethod
     def _restart(cls):
         cls.disable()
