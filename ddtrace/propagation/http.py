@@ -687,7 +687,6 @@ class _TraceContext:
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         
-        # assert 0
         if ts:
             # strip whitespace
             ts = "".join(ts.split())
