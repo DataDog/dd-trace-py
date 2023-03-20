@@ -15,79 +15,100 @@ from ddtrace.internal.wrapping import wrap
 log = get_logger(__name__)
 
 
-def _crash_flush(_, __):
-    """
-    Tags the current root span with an Impending Timeout error.
-    Finishes spans with ancestors from the current span.
-    """
+class TimeoutChannel:
+    def __init__(self, context):
+        self.crashed = False
+        self.context = context
 
-    root_span = tracer.current_root_span()
-    root_span.error = 1
-    root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
-    root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+    def _handle_signal(self, sig, f):
+        """
+        Returns a signal of type `sig` with function `f`, if there are
+        no previously defined signals.
 
-    current_span = tracer.current_span()
-    current_span.finish_with_ancestors()
+        Else, wraps the given signal with the previously defined one,
+        so no signals are overridden.
+        """
+        old_signal = signal.getsignal(sig)
+
+        def wrap_signals(*args, **kwargs):
+            if old_signal is not None:
+                old_signal(*args, **kwargs)
+            f(*args, **kwargs)
+
+        # Return the incoming signal if any of the following cases happens:
+        # - old signal does not exist,
+        # - old signal is the same as the incoming, or
+        # - old signal is our wrapper.
+        # This avoids multiple signal calling and infinite wrapping.
+        if not callable(old_signal) or old_signal == f or old_signal == wrap_signals:
+            return signal.signal(sig, f)
+
+        return signal.signal(sig, wrap_signals)
+
+    def _start(self):
+        self._handle_signal(signal.SIGALRM, self._crash_flush)
+
+        remaining_time_in_millis = self.context.get_remaining_time_in_millis()
+        apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
+        apm_flush_deadline = 100 if apm_flush_deadline < 0 else apm_flush_deadline
+
+        # TODO: Update logic to calculate an approximate of how long it will
+        # take us to flush the spans on the queue.
+        remaining_time_in_seconds = max(((remaining_time_in_millis - apm_flush_deadline) / 1000), 0)
+        signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
+
+    def _crash_flush(self, _, __):
+        """
+        Tags the current root span with an Impending Timeout error.
+        Finishes spans with ancestors from the current span.
+        """
+        self._remove_alarm_signal()
+        self.crashed = True
+
+        root_span = tracer.current_root_span()
+        if root_span is not None:
+            root_span.error = 1
+            root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
+            root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
+        else:
+            log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
+
+        current_span = tracer.current_span()
+        if current_span is not None:
+            current_span.finish_with_ancestors()
+
+    def _remove_alarm_signal(self):
+        """Removes the handler set for the signal `SIGALRM`."""
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+    def stop(self):
+        self._remove_alarm_signal()
 
 
-def _handle_signal(sig, f):
-    """
-    Returns a signal of type `sig` with function `f`, if there are
-    no previously defined signals.
-
-    Else, wraps the given signal with the previously defined one,
-    so no signals are overridden.
-    """
-    old_signal = signal.getsignal(sig)
-    if not callable(old_signal) or old_signal == f:
-        return signal.signal(sig, f)
-
-    def wrap_signals(*args, **kwargs):
-        if old_signal is not None:
-            old_signal(*args, **kwargs)
-        f(*args, **kwargs)
-
-    return signal.signal(sig, wrap_signals)
-
-
-def _check_timeout(context):
-    """
-    Creates a timeout to detect when an AWS Lambda handler's remaining
-    time is about to end.
-
-    Crashes flushes when the signal is activated.
-    """
-    _handle_signal(signal.SIGALRM, _crash_flush)
-    remaining_time_in_millis = context.get_remaining_time_in_millis()
-    apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 0))
-
-    if apm_flush_deadline > 0 and apm_flush_deadline <= remaining_time_in_millis:
-        if apm_flush_deadline < 200:
-            log.warning(
-                "DD_APM_FLUSH_DEADLINE_MILLISECONDS will be overridden to 200ms.",
-                "The value before was %d, more time for span flushing was needed.",
-                apm_flush_deadline,
-            )
-
-            # A minimum deadline of 200ms is set to allow us to have at
-            # least 100ms to flush our span queue.
-            apm_flush_deadline = 200
-
-        remaining_time_in_millis = apm_flush_deadline
-
-    # Subtracting 100ms to ensure we have time to flush.
-    # TODO: Update logic to calculate an approximate of how long it will
-    # take us to flush the spans on the queue.
-    remaining_time_in_seconds = max((remaining_time_in_millis - 100) / 1000, 0)
-    signal.setitimer(signal.ITIMER_REAL, remaining_time_in_seconds)
-
-
-def _datadog_instrumentation(func, args, kwargs):
+class DatadogInstrumentation(object):
     """Patches an AWS Lambda handler function for Datadog instrumentation."""
-    context = get_argument_value(args, kwargs, -1, "context")  # context is always the last parameter
-    _check_timeout(context)
 
-    return func(*args, **kwargs)
+    def __call__(self, func, args, kwargs):
+        self.func = func
+        self._before(args, kwargs)
+        try:
+            self.response = self.func(*args, **kwargs)
+            return self.response
+        except Exception:
+            raise
+        finally:
+            self._after()
+
+    def _before(self, args, kwargs):
+        self.context = get_argument_value(args, kwargs, -1, "context")
+        self.timeoutChannel = TimeoutChannel(self.context)
+
+        self.timeoutChannel._start()
+
+    def _after(self):
+        if not self.timeoutChannel.crashed:
+            self.timeoutChannel.stop()
 
 
 def _modify_module_name(module_name):
@@ -98,15 +119,14 @@ def _modify_module_name(module_name):
 def _get_handler_and_module():
     """Returns the user AWS Lambda handler and module."""
     path = os.environ.get("DD_LAMBDA_HANDLER", None)
+    _datadog_instrumentation = DatadogInstrumentation()
+
     if path is None:
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
         handler = getattr(datadog_lambda_wrapper, "__call__")
 
-        def wrapper(func, args, kwargs):
-            return _datadog_instrumentation(func, args, kwargs)
-
-        return handler, datadog_lambda_wrapper, wrapper
+        return handler, datadog_lambda_wrapper, _datadog_instrumentation
     else:
         parts = path.rsplit(".", 1)
         (mod_name, handler_name) = parts

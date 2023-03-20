@@ -136,10 +136,16 @@ def probe_factory(attribs):
     if _type == ProbeType.LOG_PROBE:
         take_snapshot = attribs.get("captureSnapshot", False)
 
+        rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
+        sampling = attribs.get("sampling")
+        if sampling is not None:
+            rate = sampling.get("snapshotsPerSecond", rate)
+
         args = dict(
             probe_id=_id,
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+            rate=rate,
             limits=CaptureLimits(
                 **xlate_keys(
                     attribs["capture"],
@@ -153,12 +159,9 @@ def probe_factory(attribs):
             )
             if "capture" in attribs
             else None,
-            rate=DEFAULT_SNAPSHOT_PROBE_RATE
-            if take_snapshot
-            else DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
-            template=attribs["template"],
+            template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
 
@@ -171,7 +174,7 @@ def probe_factory(attribs):
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            rate=DEFAULT_PROBE_RATE,  # unused
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             value=_compile_expression(attribs.get("value")),
         )
@@ -233,7 +236,7 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         # type: (str, Any) -> None
         prev_probes = self._configs.get(config_id, {})  # type: Dict[str, Probe]
         next_probes = (
-            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config is not None else {}
+            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config not in (None, False) else {}
         )  # type: Dict[str, Probe]
 
         self._dispatch_probe_events(prev_probes, next_probes)

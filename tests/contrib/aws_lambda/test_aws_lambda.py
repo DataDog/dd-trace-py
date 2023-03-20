@@ -5,6 +5,7 @@ import pytest
 from ddtrace.contrib.aws_lambda import patch
 from ddtrace.contrib.aws_lambda import unpatch
 from tests.contrib.aws_lambda.handlers import datadog
+from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler
 from tests.contrib.aws_lambda.handlers import handler
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
@@ -43,20 +44,38 @@ def setup():
     unpatch()
 
 
-@pytest.mark.parametrize("customApmFlushDeadline", [("100"), ("200")])
+@pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot()
 def test_timeout_traces(context, customApmFlushDeadline):
     os.environ.update(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "timeout_handler",
             "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.timeout_handler",
-            "DD_APM_FLUSH_DEADLINE": customApmFlushDeadline,
+            "DD_APM_FLUSH_DEADLINE_MILLISECONDS": customApmFlushDeadline,
         }
     )
 
     patch()
 
     datadog(timeout_handler)({}, context())
+
+
+@pytest.mark.snapshot()
+def test_continue_on_early_trace_ending(context):
+    """
+    These scenario expects no timeout error being tagged on the root span
+    when closing all spans in the customers code and reaching a timeout.
+    """
+    os.environ.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "finishing_spans_early_handler",
+            "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.finishing_spans_early_handler",
+        }
+    )
+
+    patch()
+
+    datadog(finishing_spans_early_handler)({}, context())
 
 
 @pytest.mark.snapshot
@@ -87,6 +106,7 @@ async def test_module_patching(mocker, context):
         }
     )
 
+    os.environ.pop("DD_LAMBDA_HANDLER")
     patch()
 
     result = manually_wrapped_handler({}, context())

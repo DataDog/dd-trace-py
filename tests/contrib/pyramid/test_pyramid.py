@@ -45,6 +45,7 @@ class TestPyramid(PyramidTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("component") == "pyramid"
+        assert s.get_tag("span.kind") == "server"
 
         assert s.get_tag("http.request.headers.my-header") == "my_value"
 
@@ -82,6 +83,7 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         # check the propagated Context
         span = spans[0]
         assert span.get_tag("component") == "pyramid"
+        assert span.get_tag("span.kind") == "server"
         assert span.trace_id == 100
         assert span.parent_id == 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
@@ -110,6 +112,7 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         # check the propagated Context
         span = spans[0]
         assert span.get_tag("component") == "pyramid"
+        assert span.get_tag("span.kind") == "server"
         assert span.trace_id != 100
         assert span.parent_id != 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2

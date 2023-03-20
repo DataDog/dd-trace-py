@@ -1,6 +1,8 @@
 import datetime
 from importlib import import_module
 
+import pytest
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -79,6 +81,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
@@ -114,6 +117,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         # search data
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
@@ -141,6 +145,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
         assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
         assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 
@@ -272,3 +277,24 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def _get_index_args(self):
         return {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
+
+    @pytest.mark.skipif(
+        (7, 0, 0) <= elasticsearch.__version__ <= (7, 1, 0), reason="test isn't compatible these elasticsearch versions"
+    )
+    def test_large_body(self):
+        """
+        Ensure large bodies are omitted to prevent large traces from being produced.
+        """
+        args = self._get_index_args()
+        body = {
+            "query": {"range": {"created": {"gte": "asdf" * 25000}}},
+        }
+        # it doesn't matter if the request fails, so long as a span is generated
+        try:
+            self.es.search(size=100, body=body, **args)
+        except Exception:
+            pass
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert len(spans[0].get_tag("elasticsearch.body")) < 25000

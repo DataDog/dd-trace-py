@@ -12,12 +12,14 @@
       "_dd.p.dm": "-0",
       "component": "fastapi",
       "http.method": "GET",
+      "http.route": "/",
       "http.status_code": "200",
       "http.url": "http://testserver/",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "7433b22c2562484081ca485a65d19945"
+      "runtime-id": "7433b22c2562484081ca485a65d19945",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

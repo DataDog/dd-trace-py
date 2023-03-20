@@ -4,9 +4,8 @@ import os
 
 import mock
 
+from ddtrace.appsec._remoteconfiguration import RCASMDDCallBack
 from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
@@ -71,13 +70,10 @@ def _assert_response(mock_send_request, expected_response):
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
-    RemoteConfig.disable()
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
-    class RCAppSecCallBack(RemoteConfigCallBackAfterMerge):
-        configs = {}
-
+    class RCAppSecMockCallBack(RCASMDDCallBack):
         def __call__(self, metadata, features):
             mock_callback(metadata, features)
 
@@ -85,7 +81,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    callback = RCAppSecCallBack()
+    callback = RCAppSecMockCallBack(mock.mock.MagicMock())
 
     rc_client.register_product("ASM_FEATURES", callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
@@ -118,7 +114,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         expected_response = _expected_payload(
             rc_client,
             targets_version=2,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"}],
+            config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2}],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
                 {
@@ -146,7 +142,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         expected_response = _expected_payload(
             rc_client,
             targets_version=3,
-            config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"}],
+            config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2}],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
                 {
@@ -192,8 +188,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=5,
             config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -233,8 +229,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=6,
             config_states=[
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -274,9 +270,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=7,
             config_states=[
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -326,8 +322,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=8,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -369,8 +365,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=9,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -411,8 +407,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=10,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -453,9 +449,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=11,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -507,9 +503,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             rc_client,
             targets_version=12,
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -564,9 +560,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             has_errors=True,
             error_msg="Not all client configurations have target files",
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -624,9 +620,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 "not exists in client_config and signed targets"
             ),
             config_states=[
-                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES"},
-                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES"},
+                {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
+                {"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2},
             ],
             backend_client_state="eyJmb28iOiAiYmFyIn0=",
             cached_target_files=[
@@ -671,3 +667,94 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         mock_callback.assert_not_called()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
+
+
+@mock.patch.object(RemoteConfigClient, "_apply_callback")
+@mock.patch.object(RemoteConfigClient, "_send_request")
+@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+def test_remote_config_client_callback_error(
+    mock_appsec_rc_capabilities,
+    mock_send_request,
+    mock_apply_callback,
+):
+    def callback_with_exception():
+        raise Exception("fake error")
+
+    mock_apply_callback.side_effect = callback_with_exception
+
+    with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
+        MOCK_AGENT_RESPONSES = json.load(f)
+
+    class RCAppSecMockCallBack(RCASMDDCallBack):
+        def __call__(self, metadata, features):
+            mock_callback(metadata, features)
+
+    mock_appsec_rc_capabilities.return_value = "Ag=="
+
+    rc_client = RemoteConfigClient()
+    mock_callback = mock.mock.MagicMock()
+    callback = RCAppSecMockCallBack(mock.mock.MagicMock())
+
+    rc_client.register_product("ASM_FEATURES", callback)
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        # 0.
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
+        rc_client.request()
+        expected_response = _expected_payload(rc_client)
+
+        assert rc_client._last_error is None
+        _assert_response(mock_send_request, expected_response)
+        mock_callback.assert_not_called()
+        mock_send_request.reset_mock()
+        mock_callback.reset_mock()
+
+        # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
+        # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
+        rc_client.request()
+        expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+
+        assert rc_client._last_error is None
+        _assert_response(mock_send_request, expected_response)
+        mock_send_request.reset_mock()
+        mock_callback.reset_mock()
+
+        # 2. A single configuration for the product is added. (“base”)
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
+        rc_client.request()
+        expected_response = _expected_payload(
+            rc_client,
+            targets_version=2,
+            config_states=[
+                {
+                    "id": "ASM_FEATURES-base",
+                    "version": 1,
+                    "product": "ASM_FEATURES",
+                    "apply_state": 3,
+                    "apply_error": "Failed to apply configuration "
+                    "ConfigMetadata(id='ASM_FEATURES-base', product_name='ASM_FEATURES', "
+                    "sha256_hash='9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6', "
+                    "length=47, "
+                    "tuf_version=1, "
+                    "apply_state=1, "
+                    "apply_error=None) for "
+                    "product "
+                    "'ASM_FEATURES'",
+                }
+            ],
+            backend_client_state="eyJmb28iOiAiYmFyIn0=",
+            cached_target_files=[
+                {
+                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
+                    "length": 47,
+                    "hashes": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
+                        }
+                    ],
+                }
+            ],
+        )
+
+        _assert_response(mock_send_request, expected_response)
