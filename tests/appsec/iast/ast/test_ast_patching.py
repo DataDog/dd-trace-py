@@ -120,6 +120,7 @@ def test_astpatch_source_unchanged(module_name):
     assert ("", "") == astpatch_module(__import__(module_name, fromlist=[None]))
 
 
+@pytest.mark.skipif(PY2, reason="Python 3 only")
 def test_module_should_iast_patch():
     assert not _should_iast_patch("ddtrace.internal.module")
     assert not _should_iast_patch("ddtrace.appsec.iast")
