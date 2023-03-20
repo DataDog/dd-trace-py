@@ -611,12 +611,11 @@ class _TraceContext:
         return trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(ts):
-        # type: (str) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+    def _get_tracestate_values(ts_l):
+        # type: List[str] -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
         dd = None
-        ts_l = ts.strip().split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
@@ -686,9 +685,12 @@ class _TraceContext:
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        
         if ts:
-            # strip whitespace
-            ts = "".join(ts.split())
+            # whitespace is allowed, but whitespace to start or end values should be trimmed 
+            # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
+            ts_l = [member.strip() for member in ts.split(",")]
+            ts = ",".join(ts_l)
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E
             if re.search(r"[^\x20-\x7E]+", ts):
@@ -697,7 +699,7 @@ class _TraceContext:
                 # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
                 meta[W3C_TRACESTATE_KEY] = ts
                 try:
-                    tracestate_values = _TraceContext._get_tracestate_values(ts)
+                    tracestate_values = _TraceContext._get_tracestate_values(ts_l)
                 except (TypeError, ValueError):
                     log.debug("received invalid dd header value in tracestate: %r ", ts)
                     tracestate_values = None

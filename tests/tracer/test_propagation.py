@@ -705,10 +705,10 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
-                tracestate_values = _TraceContext._get_tracestate_values(ts_string)
+                tracestate_values = _TraceContext._get_tracestate_values(ts_string.split(","))
                 assert tracestate_values == expected_tuple
         else:
-            tracestate_values = _TraceContext._get_tracestate_values(ts_string)
+            tracestate_values = _TraceContext._get_tracestate_values(ts_string.split(","))
             assert tracestate_values == expected_tuple
             if caplog.text or expected_logging:
                 for expected_log in expected_logging:
