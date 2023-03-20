@@ -2281,7 +2281,12 @@ venv = Venv(
         Venv(
             name="sqlite3",
             command="pytest {cmdargs} tests/contrib/sqlite3",
-            pys=select_pys(),
+            venvs=[
+                Venv(
+                    pys=["2.7", "3.5", "3.6", "3.8", "3.9", "3.10", "3.11"],
+                ),
+                Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
+            ],
         ),
         Venv(
             name="dbapi",
