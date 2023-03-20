@@ -4,6 +4,7 @@ import logging
 
 import pytest
 
+from ddtrace import config
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.constants import APPSEC_JSON
@@ -29,15 +30,14 @@ def _aux_appsec_get_root_span(
     client,
     test_spans,
     tracer,
-    appsec_enabled=True,
     payload=None,
     url="/",
     content_type="text/plain",
     headers=None,
-    iast_enabled=False,
 ):
-    tracer._appsec_enabled = appsec_enabled
-    tracer._iast_enabled = iast_enabled
+    tracer._appsec_enabled = config._appsec_enabled
+    tracer._iast_enabled = config._iast_enabled
+    print(tracer._iast_enabled)
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     if payload is None:
@@ -122,7 +122,6 @@ def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, tes
             client,
             test_spans,
             tracer,
-            appsec_enabled=False,
             payload=payload,
             url="/",
             content_type="application/x-www-form-urlencoded",
@@ -389,9 +388,11 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_env(dict(DD_IAST_ENABLED="true")):
+    with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)), override_env(
+        dict(DD_IAST_ENABLED="true")
+    ):
         patch_iast(weak_hash=True)
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/", iast_enabled=True)
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/")
         str_json = root_span.get_tag(IAST_JSON)
         assert str_json is not None, "no JSON tag in root span"
         vulnerability = json.loads(str_json)["vulnerabilities"][0]
@@ -513,9 +514,6 @@ def test_request_userblock_403(client, test_spans, tracer):
 def test_request_suspicious_request_block_match_method(client, test_spans, tracer):
     # GET must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
@@ -530,9 +528,6 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
             assert response.headers["content-type"] == "text/json"
     # POST must pass
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/", payload="any")
         assert response.status_code == 200
 
@@ -540,9 +535,6 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
 def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
     # .git must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
@@ -551,19 +543,17 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
     # legit must pass
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/legit")
+        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/legit")
+        assert response.status_code == 404
+    # appsec disabled must not block
+    with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
         assert response.status_code == 404
 
 
 def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):
     # value AiKfOeRcvG45 must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/path-params/2022/AiKfOeRcvG45/"
         )
@@ -572,13 +562,11 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC_JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
+    # other values must not be blocked
 
 
 def test_request_suspicious_request_block_match_query_value(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=xtrace")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
@@ -589,9 +577,6 @@ def test_request_suspicious_request_block_match_query_value(client, test_spans, 
 
 def test_request_suspicious_request_block_match_header(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/", headers={"HTTP_USER_AGENT": "01972498723465"}
         )
@@ -604,9 +589,6 @@ def test_request_suspicious_request_block_match_header(client, test_spans, trace
 
 def test_request_suspicious_request_block_match_body(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -624,9 +606,6 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
 
 def test_request_suspicious_request_block_match_response_code(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/do_not_exist.php")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
@@ -637,9 +616,6 @@ def test_request_suspicious_request_block_match_response_code(client, test_spans
 
 def test_request_suspicious_request_block_match_request_cookie(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         client.cookies.load({"mytestingcookie_key": "jdfoSDGFkivRG_234"})
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="")
         assert response.status_code == 403
@@ -651,9 +627,6 @@ def test_request_suspicious_request_block_match_request_cookie(client, test_span
 
 def test_request_suspicious_request_block_match_response_headers(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        tracer._appsec_enabled = True
-        # # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
