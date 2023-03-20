@@ -686,7 +686,6 @@ class _TraceContext:
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
-
         if ts:
             # strip whitespace
             ts = "".join(ts.split())
