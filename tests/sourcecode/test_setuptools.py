@@ -12,6 +12,7 @@ def test_example(example):
         "PKG-INFO",
     )
     with open(pkg_info, "r") as f:
-        project_url = f.readlines()[-1].strip()
+        links = [_.strip() for _ in f.readlines() if _.startswith("Project-URL: source_code_link, ")]
 
-    assert project_url == expected
+    assert len(links) == 1
+    assert links[0] == expected
