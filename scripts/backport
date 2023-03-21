@@ -25,17 +25,13 @@ TO_BRANCHES="$@"
 # Determine the remote to use
 # DEV: If anything here fails, then default to 'origin'
 # DEV: We might have https://github.com/DataDog/dd-trace-py, or git@github.com:DataDog/dd-trace-py.
-if git remote -v show | grep -e "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" > /dev/null;
+REMOTE=origin
+
+if git remote -v show | grep -qe "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)"
 then
     REMOTE=$(git remote -v show | grep -e "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" | awk '{print $1}')
 else
-    echo "Failed to automatically determine the remote to use, falling back to 'origin'"
-    REMOTE="origin"
-fi
-
-if [[ -z "${REMOTE}" ]];
-then
-    echo "Failed to determine which remote to use, falling back to 'origin'"
+    echo "🟠 Failed to automatically determine the remote to use, falling back to 'origin'"
     REMOTE="origin"
 fi
 
