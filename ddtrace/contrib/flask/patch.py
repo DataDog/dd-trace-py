@@ -182,17 +182,13 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     environ["wsgi.input"] = BytesIO(body)
 
             try:
-                if content_type == "application/json":
+                if content_type == "application/json" or content_type == "text/json":
                     if _HAS_JSON_MIXIN and hasattr(request, "json"):
                         req_body = request.json
                     else:
                         req_body = json.loads(request.data.decode("UTF-8"))
                 elif content_type in ("application/xml", "text/xml"):
                     req_body = xmltodict.parse(request.get_data())
-                elif hasattr(request, "values"):
-                    req_body = request.values.to_dict()
-                elif hasattr(request, "args"):
-                    req_body = request.args.to_dict()
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
                 else:

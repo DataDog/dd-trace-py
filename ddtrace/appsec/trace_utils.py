@@ -122,6 +122,8 @@ def track_custom_event(tracer, event_name, metadata):
         )
         return
 
+    span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
+
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
