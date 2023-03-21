@@ -192,6 +192,20 @@ def test_payload_too_large(encoding, monkeypatch):
         log.error.assert_not_called()
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
+def test_resource_name_too_large(monkeypatch):
+    SIZE = 1 << 12  # 4KB
+    monkeypatch.setenv("DD_TRACE_API_VERSION", "v0.5")
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(SIZE))
+
+    t = Tracer()
+    assert t._writer._buffer_size == SIZE
+    s = t.trace("operation", service="foo")
+    s.resource = "B" * (SIZE + 1)
+    with pytest.raises(ValueError):
+        s.finish()
+
+
 @allencodings
 def test_large_payload(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
