@@ -98,7 +98,7 @@ target/
 .python-version
 
 # celery beat schedule file
-celerybeat-schedule
+celerybeat-schedule*
 
 # docker-compose env file
 # it must be versioned to keep track of backing services defaults
