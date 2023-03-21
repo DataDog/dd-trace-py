@@ -7,6 +7,7 @@ import pytest
 from ddtrace import config
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
@@ -717,3 +718,51 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
         assert response.status_code == 200
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)):
+        tracer._iast_enabled = True
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/taint-checking-enabled/?q=aaa",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)):
+        tracer._iast_enabled = False
+        clear_taint_mapping()
+        setup(bytes.join, bytearray.join)
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/taint-checking-disabled/?q=aaa",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
