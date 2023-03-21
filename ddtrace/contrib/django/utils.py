@@ -263,7 +263,7 @@ def _extract_body(request):
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = request.data.dict() if rest_framework else request.POST.dict()
-            elif content_type == "application/json":
+            elif content_type in ("application/json", "text/json"):
                 req_body = (
                     json.loads(request.data.decode("UTF-8"))
                     if rest_framework
@@ -275,6 +275,8 @@ def _extract_body(request):
                     if rest_framework
                     else xmltodict.parse(request.body.decode("UTF-8"))
                 )
+            elif request.method == "POST" and request.POST:
+                req_body = dict(request.POST)
             else:  # text/plain, others: don't use them
                 req_body = None
         except (
