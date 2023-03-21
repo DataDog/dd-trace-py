@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: This fix resolves an issue where a very long string as a span attribute would cause that span not to
+    be delivered.
