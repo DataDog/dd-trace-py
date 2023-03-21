@@ -25,6 +25,7 @@ from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
 from .internal.compat import pattern_type
+from .internal.constants import _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
@@ -44,8 +45,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
-MAX_TRACE_ID = 2 ** 64
-
+# MAX_TRACE_ID is no longer used. It should deprecated and removed.
+MAX_TRACE_ID = _MAX_UINT_64BITS
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
 
@@ -101,11 +102,11 @@ class RateSampler(BaseSampler):
     def set_sample_rate(self, sample_rate):
         # type: (float) -> None
         self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * MAX_TRACE_ID
+        self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
     def sample(self, span):
         # type: (Span) -> bool
-        return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
+        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
 
 
 class RateByServiceSampler(BasePrioritySampler):
@@ -431,7 +432,7 @@ class SamplingRule(BaseSampler):
     def sample_rate(self, sample_rate):
         # type: (float) -> None
         self._sample_rate = sample_rate
-        self._sampling_id_threshold = sample_rate * MAX_TRACE_ID
+        self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
 
     def _pattern_matches(self, prop, pattern):
         # If the rule is not set, then assume it matches
@@ -501,7 +502,7 @@ class SamplingRule(BaseSampler):
         elif self.sample_rate == 0:
             return False
 
-        return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self._sampling_id_threshold
+        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
 
     def _no_rule_or_self(self, val):
         return "NO_RULE" if val is self.NO_RULE else val
