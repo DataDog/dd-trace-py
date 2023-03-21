@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import os
 from os import getpid
+import sys
 import threading
 from unittest.case import SkipTest
 import weakref
@@ -30,23 +31,31 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
+from ddtrace.contrib.trace_utils import set_user
+from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.serverless import has_aws_lambda_agent_extension
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
-from ddtrace.tracer import _has_aws_lambda_agent_extension
-from ddtrace.tracer import _in_aws_lambda
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
+from ..appsec.test_processor import tracer_appsec
 from ..utils import override_env
 
 
 class TracerTestCases(TracerTestCase):
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
+        self._tracer_appsec = tracer_appsec
+
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
         span.assert_matches(name="a", service="s", resource="r", span_type="t")
@@ -151,7 +160,7 @@ class TracerTestCases(TracerTestCase):
                     name="tests.test_tracer.f",
                     error=1,
                     meta={
-                        "error.msg": ex.message,
+                        "error.message": ex.message,
                         "error.type": ex.__class__.__name__,
                     },
                 ),
@@ -466,6 +475,17 @@ class TracerTestCases(TracerTestCase):
                 pass
         assert self.tracer._services == set(["one", "two"])
 
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
+    def test_adding_mapped_services(self):
+        assert self.tracer._services == set()
+        with self.start_span("root", service="one") as root:
+            assert self.tracer._services == set(["one"])
+
+            # service "two" gets remapped to "three"
+            with self.start_span("child", service="two", child_of=root):
+                pass
+        assert self.tracer._services == set(["one", "three"])
+
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()
         tracer.configure(dogstatsd_url="foo:1234")
@@ -491,6 +511,126 @@ class TracerTestCases(TracerTestCase):
         assert tracer._writer.dogstatsd.host is None
         assert tracer._writer.dogstatsd.port is None
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
+
+    def test_tracer_set_user(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+        )
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.context.dd_user_id is None
+
+    def test_tracer_set_user_mandatory(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+        )
+        span_keys = list(span.get_tags().keys())
+        span_keys.sort()
+        assert span_keys == ["runtime-id", "usr.id"]
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL) is None
+        assert span.get_tag(user.SESSION_ID) is None
+        assert span.get_tag(user.NAME) is None
+        assert span.get_tag(user.ROLE) is None
+        assert span.get_tag(user.SCOPE) is None
+        assert span.context.dd_user_id is None
+
+    def test_tracer_set_user_warning_no_span(self):
+        with self._caplog.at_level(logging.WARNING):
+            set_user(
+                self.tracer,
+                user_id="usr.id",
+            )
+            assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
+
+    def test_tracer_set_user_propagation(self):
+        span = self.trace("fake_span")
+        user_id_string = "usr.id"
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "dXNyLmlk"
+
+    def test_tracer_set_user_propagation_empty(self):
+        span = self.trace("fake_span")
+        user_id_string = ""
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id is None
+        assert user_id == user_id_string
+
+    @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
+    def test_tracer_set_user_propagation_string_error_py3(self):
+        span = self.trace("fake_span")
+        user_id_string = "ユーザーID"
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "44Om44O844K244O8SUQ="
+
+    @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
+    def test_tracer_set_user_propagation_string_error_py2(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="ユーザーID",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+        assert span.get_tag(user.ID) == u"ユーザーID"
+        assert span.context.dd_user_id == "ユーザーID"
+        assert user_id == "44Om44O844K244O8SUQ="
 
 
 def test_tracer_url():
@@ -774,10 +914,36 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "mysql"
                     assert VERSION_KEY not in child2.get_tags()
 
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2", DD_SERVICE_MAPPING="mysql:django"))
+    def test_version_service_mapping(self):
+        """When using DD_SERVICE_MAPPING we properly add version tag to appropriate spans"""
+
+        # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
+        # mysql spans will get remapped to django via DD_SERVICE_MAPPING=mysql:django
+
+        with self.trace("django.request") as root:
+            # Root span should be tagged
+            assert root.service == "django"
+            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+
+            # Child spans should be tagged
+            with self.trace("") as child1:
+                assert child1.service == "django"
+                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+
+            # Service name gets remapped to django and we get version tag applied
+            with self.trace("mysql.query", service="mysql") as span:
+                assert span.service == "django"
+                assert VERSION_KEY in span.get_tags() and span.get_tag(VERSION_KEY) == "0.1.2"
+                # Child should also have a version
+                with self.trace("") as child2:
+                    assert child2.service == "django"
+                    assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
+
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
-        assert _in_aws_lambda()
-        assert not _has_aws_lambda_agent_extension()
+        assert in_aws_lambda()
+        assert not has_aws_lambda_agent_extension()
         tracer = Tracer()
         assert isinstance(tracer._writer, LogWriter)
         tracer.configure(enabled=True)
@@ -788,10 +954,10 @@ class EnvTracerTestCase(TracerTestCase):
         def mock_os_path_exists(path):
             return path == "/opt/extensions/datadog-agent"
 
-        assert _in_aws_lambda()
+        assert in_aws_lambda()
 
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
-            assert _has_aws_lambda_agent_extension()
+            assert has_aws_lambda_agent_extension()
 
             tracer = Tracer()
             assert isinstance(tracer._writer, AgentWriter)
@@ -1664,10 +1830,10 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
-
-    t.configure(api_version="v0.5")
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+
+    t.configure(api_version="v0.3")
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.4")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)
@@ -1721,6 +1887,22 @@ def test_top_level(tracer):
             assert _is_top_level(child_span)
         with tracer.trace("child2", service="child-svc") as child_span2:
             assert _is_top_level(child_span2)
+
+
+def test_finish_span_with_ancestors(tracer):
+    # single span case
+    span1 = tracer.trace("span1")
+    span1.finish_with_ancestors()
+    assert span1.finished
+
+    # multi ancestor case
+    span1 = tracer.trace("span1")
+    span2 = tracer.trace("span2")
+    span3 = tracer.trace("span2")
+    span3.finish_with_ancestors()
+    assert span1.finished
+    assert span2.finished
+    assert span3.finished
 
 
 def test_ctx_api():

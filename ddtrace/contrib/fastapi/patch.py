@@ -1,13 +1,15 @@
 import fastapi
-from fastapi.middleware import Middleware
 import fastapi.routing
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.debtcollector import removals
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -25,11 +27,15 @@ config._add(
 )
 
 
-def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.fastapi))
-    kwargs.update({"middleware": mw})
-    wrapped(*args, **kwargs)
+@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
+def span_modifier(span, scope):
+    resource = get_resource(scope)
+    if config.fastapi["aggregate_resources"] and resource:
+        span.resource = "{} {}".format(scope["method"], resource)
+
+
+def wrap_middleware_stack(wrapped, instance, args, kwargs):
+    return TraceMiddleware(app=wrapped(*args, **kwargs), integration_config=config.fastapi)
 
 
 async def traced_serialize_response(wrapped, instance, args, kwargs):
@@ -63,7 +69,7 @@ def patch():
 
     setattr(fastapi, "_datadog_patch", True)
     Pin().onto(fastapi)
-    _w("fastapi.applications", "FastAPI.__init__", traced_init)
+    _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
     # We need to check that Starlette instrumentation hasn't already patched these
@@ -80,7 +86,7 @@ def unpatch():
 
     setattr(fastapi, "_datadog_patch", False)
 
-    _u(fastapi.applications.FastAPI, "__init__")
+    _u(fastapi.applications.FastAPI, "build_middleware_stack")
     _u(fastapi.routing, "serialize_response")
 
     # We need to check that Starlette instrumentation hasn't already unpatched these

@@ -68,27 +68,37 @@ class _PytestBddPlugin:
                 child_of=feature_span,
                 activate=True,
             )
+            span.set_tag_str("component", "pytest_bdd")
+
             span.set_tag(test.FRAMEWORK, FRAMEWORK)
             span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)
 
             # store parsed step arguments
-            parser = getattr(step_func, "parser", None)
-            if parser is not None:
-                converters = getattr(step_func, "converters", {})
-                parameters = {}
+            try:
+                parsers = [step_func.parser]
+            except AttributeError:
                 try:
-                    for arg, value in parser.parse_arguments(step.name).items():
-                        try:
-                            if arg in converters:
-                                value = converters[arg](value)
-                        except Exception:
-                            # Ignore invalid converters
-                            pass
-                        parameters[arg] = value
-                except Exception:
-                    pass
-                if parameters:
-                    span.set_tag(test.PARAMETERS, json.dumps(parameters))
+                    # pytest-bdd >= 6.0.0
+                    parsers = step_func._pytest_bdd_parsers
+                except AttributeError:
+                    parsers = []
+            for parser in parsers:
+                if parser is not None:
+                    converters = getattr(step_func, "converters", {})
+                    parameters = {}
+                    try:
+                        for arg, value in parser.parse_arguments(step.name).items():
+                            try:
+                                if arg in converters:
+                                    value = converters[arg](value)
+                            except Exception:
+                                # Ignore invalid converters
+                                pass
+                            parameters[arg] = value
+                    except Exception:
+                        pass
+                    if parameters:
+                        span.set_tag(test.PARAMETERS, json.dumps(parameters))
 
             location = os.path.relpath(step_func.__code__.co_filename, str(request.config.rootdir))
             span.set_tag(test.FILE, location)

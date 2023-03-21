@@ -1,0 +1,4 @@
+---
+fixes:
+  - | 
+    asgi: set the ``http.url`` tag using the hostname in the request header before defaulting to the hostname of the asgi server.

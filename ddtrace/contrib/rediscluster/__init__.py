@@ -15,6 +15,16 @@
 
     # Use a pin to specify metadata related to this client
     Pin.override(client, service='redis-queue')
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.rediscluster["service"]
+   The service name reported by default for rediscluster spans
+
+   The option can also be set with the ``DD_REDISCLUSTER_SERVICE`` environment variable
+
+   Default: ``'rediscluster'``
 """
 
 from ...internal.utils.importlib import require_modules

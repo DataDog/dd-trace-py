@@ -45,11 +45,12 @@ async def test_trace_multiple_calls(tracer):
         with tracer.trace("coroutine"):
             await asyncio.sleep(0.01)
 
-    futures = [asyncio.ensure_future(coro()) for x in range(1000)]
+    # partial flushing is enabled, ensure the number of spans generated is less than 500
+    futures = [asyncio.ensure_future(coro()) for x in range(400)]
     for future in futures:
         await future
 
     # the trace is wrong but the Context is finished
     traces = tracer.pop_traces()
     assert 1 == len(traces)
-    assert 1000 == len(traces[0])
+    assert 400 == len(traces[0])

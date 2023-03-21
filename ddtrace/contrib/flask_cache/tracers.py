@@ -3,15 +3,22 @@ Datadog trace code for flask_cache
 """
 
 import logging
+import typing
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from .utils import _extract_client
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
+
+
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from ddtrace import Span
 
 
 log = logging.Logger(__name__)
@@ -55,20 +62,24 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd, write=False):
+        def __trace(self, cmd):
+            # type: (str, bool) -> Span
             """
             Start a tracing with default attributes and tags
             """
             # create a new span
             s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
+
+            s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
+
             s.set_tag(SPAN_MEASURED_KEY)
             # set span tags
-            s.set_tag(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
+            s.set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
             s.set_tags(self._datadog_meta)
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
             # add connection meta if there is one
-            client = _extract_client(self.cache, write=write)
+            client = _extract_client(self.cache)
             if client is not None:
                 try:
                     s.set_tags(_extract_conn_tags(client))
@@ -84,44 +95,46 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
-                return super(TracedCache, self).get(*args, **kwargs)
+                    span.set_tag_str(COMMAND_KEY, args[0])
+                result = super(TracedCache, self).get(*args, **kwargs)
+                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                return result
 
         def set(self, *args, **kwargs):
             """
             Track ``set`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).set(*args, **kwargs)
 
         def add(self, *args, **kwargs):
             """
             Track ``add`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).add(*args, **kwargs)
 
         def delete(self, *args, **kwargs):
             """
             Track ``delete`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).delete(*args, **kwargs)
 
         def delete_many(self, *args, **kwargs):
             """
             Track ``delete_many`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
                 return super(TracedCache, self).delete_many(*args, **kwargs)
@@ -130,7 +143,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``clear`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("CLEAR", self.config)
                 return super(TracedCache, self).clear(*args, **kwargs)
 
@@ -141,13 +154,16 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
-                return super(TracedCache, self).get_many(*args, **kwargs)
+                result = super(TracedCache, self).get_many(*args, **kwargs)
+                # get many returns a list, with either the key value or None if it doesn't exist
+                span.set_metric(db.ROWCOUNT, sum(1 for val in result if val))
+                return result
 
         def set_many(self, *args, **kwargs):
             """
             Track ``set_many`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET_MANY", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, list(args[0].keys()))

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aiohttp_jinja2: use ``app_key`` to look up templates.

@@ -5,7 +5,7 @@ set -eu
 PREFIX=${1}
 
 AUSTIN_INTERVAL=200  # usec
-AUSTIN_EXPOSURE=10  # sec
+AUSTIN_EXPOSURE=5  # sec
 
 test -f ${PREFIX}/gunicorn.pid && (kill -9 `cat ${PREFIX}/gunicorn.pid` ; sleep 3) || rm -f ${PREFIX}/gunicorn.pid
 pkill k6 || true
@@ -18,8 +18,8 @@ function profile_with_load {
 
     sleep 3
     ${PREFIX}/k6*/k6 run --quiet scripts/profiles/django-simple/k6-load.js &
-        sleep 1
-        sudo ${PREFIX}/austin -sCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.austin -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
+        sleep 2
+        sudo ${PREFIX}/austin -bsCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.mojo -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
     pkill k6
 }
 
@@ -48,5 +48,19 @@ profile_with_load "head"
 kill $(cat ${PREFIX}/gunicorn.pid)
 
 sudo chown -R $(id -u):$(id -g) ${PREFIX}/artifacts/*
-python scripts/diff.py ${PREFIX}/artifacts/head.austin ${PREFIX}/artifacts/baseline.austin ${PREFIX}/artifacts/baseline_head.diff
+
+echo -n "Converting MOJO to Austin ... "
+mojo2austin ${PREFIX}/artifacts/head.mojo     ${PREFIX}/artifacts/head.austin.tmp
+mojo2austin ${PREFIX}/artifacts/baseline.mojo ${PREFIX}/artifacts/baseline.austin.tmp
+echo "[done]"
+
+echo -n "Diffing ... "
+python scripts/diff.py \
+    ${PREFIX}/artifacts/head.austin.tmp \
+    ${PREFIX}/artifacts/baseline.austin.tmp \
+    ${PREFIX}/artifacts/baseline_head.diff
+echo "[done]"
+
+rm ${PREFIX}/artifacts/*.austin.tmp
+
 head -n 25 ${PREFIX}/artifacts/baseline_head.diff.top

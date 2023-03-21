@@ -96,6 +96,8 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, l
     request_span = traces[0][0]
     assert request_span.service == "aiohttp-web"
     assert request_span.get_tag("http.request.headers.my-header") == "my_value"
+    assert request_span.get_tag("component") == "aiohttp"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
@@ -113,3 +115,5 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, 
     request_span = traces[0][0]
     assert request_span.service == "aiohttp-web"
     assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+    assert request_span.get_tag("component") == "aiohttp"
+    assert request_span.get_tag("span.kind") == "server"

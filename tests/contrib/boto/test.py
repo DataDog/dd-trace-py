@@ -49,6 +49,8 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         # Create an instance
@@ -62,6 +64,8 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.ec2")
         self.assertEqual(span.resource, "ec2.runinstances")
         self.assertEqual(span.name, "ec2.command")
@@ -93,8 +97,8 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @mock_s3
-    def test_s3_client(self):
+    def _test_s3_client(self):
+        # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
@@ -107,18 +111,21 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.operation"), "get_all_buckets")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
 
         # Create a bucket command
         s3.create_bucket("cheese")
         spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
-        span = spans[0]
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        self.assertEqual(span.get_tag(http.METHOD), "PUT")
-        self.assertEqual(span.get_tag("path"), "/")
-        self.assertEqual(span.get_tag("aws.operation"), "create_bucket")
+        create_span = spans[0]
+        assert_is_measured(create_span)
+        assert_span_http_status_code(create_span, 200)
+        self.assertEqual(create_span.get_tag(http.METHOD), "PUT")
+        self.assertEqual(create_span.get_tag("aws.operation"), "create_bucket")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
 
         # Get the created bucket
         s3.get_bucket("cheese")
@@ -130,6 +137,8 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "HEAD")
         self.assertEqual(span.get_tag("aws.operation"), "head_bucket")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.s3")
         self.assertEqual(span.resource, "s3.head")
         self.assertEqual(span.name, "s3.command")
@@ -142,6 +151,34 @@ class BotoTest(TracerTestCase):
             assert spans
             span = spans[0]
             self.assertEqual(span.resource, "s3.head")
+
+        return create_span
+
+    @mock_s3
+    def test_s3_client(self):
+        span = self._test_s3_client()
+        # DEV: Not currently supported
+        self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+
+    @mock_s3
+    def test_s3_client_no_params(self):
+        with self.override_config("boto", dict(tag_no_params=True)):
+            span = self._test_s3_client()
+            self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+
+    @mock_s3
+    def test_s3_client_all_params(self):
+        with self.override_config("boto", dict(tag_all_params=True)):
+            span = self._test_s3_client()
+            self.assertEqual(span.get_tag("path"), "/")
+
+    @mock_s3
+    def test_s3_client_no_params_all_params(self):
+        # DEV: Test no params overrides all params
+        with self.override_config("boto", dict(tag_no_params=True, tag_all_params=True)):
+            span = self._test_s3_client()
+            self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+            self.assertIsNone(span.get_tag("path"))
 
     @mock_s3
     def test_s3_put(self):
@@ -158,6 +195,8 @@ class BotoTest(TracerTestCase):
         # create bucket
         self.assertEqual(len(spans), 3)
         self.assertEqual(spans[0].get_tag("aws.operation"), "create_bucket")
+        self.assertEqual(spans[0].get_tag("component"), "boto")
+        self.assertEqual(spans[0].get_tag("span.kind"), "client")
         assert_is_measured(spans[0])
         assert_span_http_status_code(spans[0], 200)
         self.assertEqual(spans[0].service, "test-boto-tracing.s3")
@@ -165,10 +204,14 @@ class BotoTest(TracerTestCase):
         # get bucket
         assert_is_measured(spans[1])
         self.assertEqual(spans[1].get_tag("aws.operation"), "head_bucket")
+        self.assertEqual(spans[1].get_tag("component"), "boto")
+        self.assertEqual(spans[1].get_tag("span.kind"), "client")
         self.assertEqual(spans[1].resource, "s3.head")
         # put object
         assert_is_measured(spans[2])
         self.assertEqual(spans[2].get_tag("aws.operation"), "_send_file_internal")
+        self.assertEqual(spans[2].get_tag("component"), "boto")
+        self.assertEqual(spans[2].get_tag("span.kind"), "client")
         self.assertEqual(spans[2].resource, "s3.put")
 
     @mock_lambda
@@ -214,6 +257,8 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.region"), "us-east-2")
         self.assertEqual(span.get_tag("aws.operation"), "list_functions")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.lambda")
         self.assertEqual(span.resource, "lambda.get")
 
@@ -230,6 +275,8 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
         self.assertEqual(span.get_tag("aws.operation"), "GetFederationToken")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.sts")
         self.assertEqual(span.resource, "sts.getfederationtoken")
 
@@ -253,6 +300,8 @@ class BotoTest(TracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("component"), "boto")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
         self.assertEqual(span.resource, "elasticache")
 
@@ -276,6 +325,8 @@ class BotoTest(TracerTestCase):
 
         self.assertEqual(ot_span.resource, "ot_span")
         self.assertEqual(dd_span.get_tag("aws.operation"), "DescribeInstances")
+        self.assertEqual(dd_span.get_tag("component"), "boto")
+        self.assertEqual(dd_span.get_tag("span.kind"), "client")
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
@@ -295,6 +346,8 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("component"), "boto")
+        self.assertEqual(dd_span.get_tag("span.kind"), "client")
         self.assertEqual(dd_span.service, "test-boto-tracing.ec2")
         self.assertEqual(dd_span.resource, "ec2.runinstances")
         self.assertEqual(dd_span.name, "ec2.command")

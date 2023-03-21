@@ -1,10 +1,13 @@
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 
 
@@ -108,13 +111,18 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
+        span.set_tag_str(COMPONENT, config.algoliasearch.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span.set_tag("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            span.set_tag_str("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
@@ -122,7 +130,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                 value = query_args.get(query_arg)
                 if value is not None:
-                    span.set_tag("query.args.{}".format(tag_name), value)
+                    span.set_tag_str("query.args.{}".format(tag_name), value)
 
         # Result would look like this
         # {

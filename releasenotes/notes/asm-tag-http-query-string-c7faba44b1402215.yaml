@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: HTTP query string tagged by default in http.url tag (sensitive query strings will be obfuscated).

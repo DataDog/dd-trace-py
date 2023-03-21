@@ -1,0 +1,22 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "parent",
+        "Resource": "parent",
+        "Service": "test",
+        "Type": null,
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 59083,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      }
+    ]
+  }
+]

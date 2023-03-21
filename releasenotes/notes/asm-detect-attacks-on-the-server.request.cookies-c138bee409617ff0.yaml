@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ASM: Detect attacks on Flask request cookies
+  - |
+    ASM: Detect attacks on Django request cookies
+

@@ -11,9 +11,8 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-class TestRedisPatch(TracerTestCase):
+class TestGrokzenRedisClusterPatch(TracerTestCase):
 
-    TEST_SERVICE = "rediscluster-patch"
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
@@ -25,16 +24,16 @@ class TestRedisPatch(TracerTestCase):
             return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super(TestGrokzenRedisClusterPatch, self).setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin.override(r, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super(TestGrokzenRedisClusterPatch, self).tearDown()
 
     def test_basics(self):
         us = self.r.get("cheese")
@@ -43,11 +42,14 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET cheese"
+        assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
 
@@ -58,11 +60,14 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET 😐"
+        assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == u"GET 😐"
 
@@ -77,12 +82,14 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("component") == "rediscluster"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):
@@ -139,3 +146,19 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
+    def test_env_user_specified_rediscluster_service(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster", span.service
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster")
+    )
+    def test_service_precedence(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster"
+
+        self.reset()

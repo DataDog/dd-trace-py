@@ -2,6 +2,7 @@ import os
 
 import molten
 
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -9,7 +10,9 @@ from .. import trace_utils
 from ... import Pin
 from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import urlencode
 from ...internal.utils.formats import asbool
@@ -89,6 +92,12 @@ def patch_app_call(wrapped, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WEB,
     ) as span:
+
+        span.set_tag_str(COMPONENT, config.molten.integration_name)
+
+        # set span.kind tag equal to type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.molten.get_analytics_sample_rate(use_global_config=True))
@@ -131,7 +140,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
         )
 
-        span.set_tag("molten.version", molten.__version__)
+        span.set_tag_str("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 

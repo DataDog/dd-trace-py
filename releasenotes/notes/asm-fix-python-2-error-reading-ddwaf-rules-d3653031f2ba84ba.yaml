@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: fix Python 2 error reading WAF rules.

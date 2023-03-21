@@ -1,9 +1,11 @@
 import contextlib
 from contextlib import contextmanager
 import inspect
+import json
 import os
 import subprocess
 import sys
+import time
 from typing import List
 
 import attr
@@ -84,18 +86,25 @@ def override_global_config(values):
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "analytics_enabled",
+        "client_ip_header",
+        "retrieve_client_ip",
         "report_hostname",
         "health_metrics_enabled",
+        "_telemetry_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
         "_x_datadog_tags_enabled",
+        "_propagate_service",
         "env",
         "version",
         "service",
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_iast_enabled",
+        "_obfuscation_query_string_pattern",
+        "global_query_string_obfuscation_disabled",
     ]
 
     # Grab the current values of all keys
@@ -469,9 +478,9 @@ class DummyTracer(Tracer):
     DummyTracer is a tracer which uses the DummyWriter by default
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
-        self.configure()
+        self.configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -512,7 +521,7 @@ class TestSpan(Span):
             print('matches')
 
         # Raises an AssertionError
-        span.assert_matches(name='not.my.span', meta={'system.pid': getpid()})
+        span.assert_matches(name='not.my.span', meta={'process_id': getpid()})
     """
 
     def __init__(self, span):
@@ -592,7 +601,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.meta_matches({'system.pid': getpid()})
+            span.meta_matches({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
@@ -643,7 +652,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.assert_meta({'system.pid': getpid()})
+            span.assert_meta({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
@@ -851,7 +860,7 @@ class SnapshotTest(object):
 
 
 @contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None):
+def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -907,6 +916,27 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
                 del tracer._writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+
+        # Wait for the traces to be available
+        if wait_for_num_traces is not None:
+            traces = []
+            for i in range(50):
+                try:
+                    conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
+                    r = conn.getresponse()
+                    if r.status == 200:
+                        traces = json.loads(r.read())
+                        if len(traces) == wait_for_num_traces:
+                            break
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                pytest.fail(
+                    "Expected %r trace(s), got %r:\n%s" % (wait_for_num_traces, len(traces), traces), pytrace=False
+                )
+
         # Query for the results of the test.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
@@ -924,7 +954,9 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         conn.close()
 
 
-def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None):
+def snapshot(
+    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -960,7 +992,14 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True,
             else token_override
         )
 
-        with snapshot_context(token, ignores=ignores, tracer=tracer, async_mode=async_mode, variants=variants):
+        with snapshot_context(
+            token,
+            ignores=ignores,
+            tracer=tracer,
+            async_mode=async_mode,
+            variants=variants,
+            wait_for_num_traces=wait_for_num_traces,
+        ):
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = tracer
@@ -979,12 +1018,27 @@ class AnyInt(object):
         return isinstance(other, int)
 
 
+class AnyExc(object):
+    def __eq__(self, other):
+        return isinstance(other, Exception)
+
+
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
 
 
 def call_program(*args, **kwargs):
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, **kwargs)
+    close_fds = sys.platform != "win32"
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
+
+
+def request_token(request):
+    # type: (pytest.FixtureRequest) -> str
+    token = ""
+    token += request.module.__name__
+    token += ".%s" % request.cls.__name__ if request.cls else ""
+    token += ".%s" % request.node.name
+    return token

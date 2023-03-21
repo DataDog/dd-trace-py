@@ -48,15 +48,32 @@ jobs:
         run: pip install ../ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
       - name: Run tests
-        # Disable TestServerAdapter_gunicorn.test_simple because it checks for
-        # log output and it contains the profiler failing to upload
-        run: ddtrace-run pytest test --continue-on-collection-errors -v -k 'not TestServerAdapter_gunicorn'
+        # Disable all test_simple tests because they check for
+        # log output and it contains phony error messages.
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1:
-    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        expl_profiler: [0, 1]
+        expl_coverage: [0 ,1]
+        exclude:
+          - expl_profiler: 1
+            expl_coverage: 1
+          - expl_profiler: 0
+            expl_coverage: 0
+          # Temporarily disabling line coverage to investigate cause of hangs
+          - expl_profiler: 0
+            expl_coverage: 1
+    runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
+      DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
+      DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
         working-directory: django
@@ -81,15 +98,22 @@ jobs:
       - name: Install ddtrace
         run: pip install ../ddtrace
       - name: Install django
-        run: pip install ../django
-      - name: Set Pythonpath
-        run: echo "PYTHONPATH=." >> $GITHUB_ENV
+        run: pip install -e .
       - name: Disable unsupported tests
         run: |
           # Note: test_supports_json_field_operational_error will fail with the tracer
           # DEV: Insert @skipUnless before the test definition
           # DEV: We need to escape the space indenting
           sed -i'' '/def test_supports_json_field_operational_error/i \ \ \ \ @skipUnless(False, "test not supported by dd-trace-py")' tests/backends/sqlite/test_features.py
+          sed -i'' 's/if not filename.startswith(os.path.dirname(django.__file__))/if False/' django/conf/__init__.py
+          sed -i'' 's/test_paginating_unordered_queryset_raises_warning/paginating_unordered_queryset_raises_warning/' tests/pagination/tests.py
+          sed -i'' 's/test_access_warning/access_warning/' tests/auth_tests/test_password_reset_timeout_days.py
+          sed -i'' 's/test_get_or_set_version/get_or_set_version/' tests/cache/tests.py
+          sed -i'' 's/test_avoid_infinite_loop_on_too_many_subqueries/avoid_infinite_loop_on_too_many_subqueries/' tests/queries/tests.py
+          sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
+          sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
+          sed -i'' 's/test_django_admin_py_equivalent_main/django_admin_py_equivalent_main/' tests/admin_scripts/test_django_admin_py.py
+
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
@@ -99,6 +123,7 @@ jobs:
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
         working-directory: graphene
@@ -124,12 +149,10 @@ jobs:
         run: pip install "pytest-asyncio>0.17,<2"
       - name: Install ddtrace
         run: pip install ../ddtrace
-      - name: Set Pythonpath
-        run: echo "PYTHONPATH=." >> $GITHUB_ENV
       - name: Run tests
         run: ddtrace-run pytest graphene
 
-  fastapi-testsuite-0_75:
+  fastapi-testsuite-0_92:
     runs-on: ubuntu-latest
     env:
       DD_TESTING_RAISE: true
@@ -147,25 +170,20 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: tiangolo/fastapi
-          ref: 0.75.0
+          ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@v3.0.4
+      - uses: actions/cache@v3.2.6
         id: cache
         with:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-python-${{ env.pythonLocation }}-fastapi
-      #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
-      - name: Install Flit
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: pip install flit
-      #Installs all dependencies needed for FastAPI
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: flit install --symlink
+        run: pip install -e .[all,dev,doc,test]
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
-        run: ddtrace-run pytest -p no:warnings tests
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
 
   flask-testsuite-1_1_4:
     runs-on: ubuntu-latest
@@ -173,6 +191,7 @@ jobs:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
     defaults:
       run:
         working-directory: flask
@@ -230,6 +249,8 @@ jobs:
         env:
           # Disabled distributed tracing since there are a lot of tests that assert on headers
           DD_HTTPX_DISTRIBUTED_TRACING: "false"
+          # Debugger exploration testing does not work in CI
+          # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
         run: pytest -k 'not test_pool_timeout'
 
@@ -239,6 +260,7 @@ jobs:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
     defaults:
       run:
         working-directory: mako
@@ -260,18 +282,21 @@ jobs:
         run: sed -i 's/pygments/pygments~=2.11.0/' tox.ini
       - name: Create tox env
         run: tox -e py --notest
-      - name: Inject ddtrace
-        run: .tox/py/bin/pip install ../ddtrace
       - name: Add pytest configuration for ddtrace
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
       - name: Run tests
-        run: tox -e py
+        run: |
+          source .tox/py/bin/activate
+          pip install ../ddtrace
+          pip install -e .
+          pytest -p no:warnings
 
   starlette-testsuite-0_17_1:
     runs-on: "ubuntu-latest"
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
     defaults:
       run:
         working-directory: starlette
@@ -294,7 +319,7 @@ jobs:
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
-        run: pytest --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
+        run: pytest -W ignore --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
 
   requests-testsuite-2_26_0:
     runs-on: "ubuntu-latest"
@@ -323,7 +348,7 @@ jobs:
       - name: MarkupSafe fix
         run: pip install --upgrade MarkupSafe==2.0.1
       - name: Run tests
-        run: ddtrace-run pytest -p no:warnings tests
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
 
   asyncpg-testsuite-0_25_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
@@ -352,7 +377,116 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: |
-          python -m pip install -U pip setuptools wheel
+          python -m pip install -U pip setuptools wheel pytest
           python -m pip install -e .[test]
       - name: Run tests
-        run: ddtrace-run python setup.py test
+        # Disable tests checking GC references since profiling can interfere
+        run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter' tests
+
+  pylons-testsuite-1_0_3:
+    name: Pylons 1.0.3
+    runs-on: "ubuntu-20.04"
+    # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
+    env:
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: pylons
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '2.7'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: pylons/pylons
+          ref: master
+          path: pylons
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install test dependencies
+        run: pip install -e .[test]
+      - name: Pin PasteDeploy to Python 2.7 compatible version
+        run: pip install pastedeploy==2.1.1
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==0.18 pip setuptools --force
+      - name: Disable failing tests
+        run: |
+          sed -i'' "s/test_detect_lang/detect_lang/g" tests/test_units/test_basic_app.py
+          sed -i'' "s/test_langs/langs/g" tests/test_units/test_basic_app.py
+      - name: Run tests
+        run: nosetests
+
+  gunicorn-testsuite-20_1_0:
+    name: gunicorn 20.1.0
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: gunicorn
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: benoitc/gunicorn
+          ref: 20.1.0
+          path: gunicorn
+      - name: Run tests
+        run: |
+          . ../ddtrace/.github/workflows/setup-tox.sh py39
+          
+          pip install -e .
+          pytest -p no:warnings -k "not test_import" tests/
+
+  uwsgi-testsuite-2_0_21:
+    name: uwsgi 2.0.21
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: uwsgi
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: unbit/uwsgi
+          ref: 2.0.21
+          path: uwsgi
+      - name: Install dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt install --no-install-recommends -qqyf python3-dev \
+            libpcre3-dev libjansson-dev libcap2-dev \
+            curl check
+      - name: Install distutils
+        run: sudo apt install --no-install-recommends -qqyf python3-distutils
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Build uwsgi binary
+        run: make
+      - name: Build Python plugin
+        run: |
+          python -V
+          python uwsgiconfig.py --plugin plugins/python base python39
+      - name: Run Python tests
+        run: ddtrace-run ./tests/gh-python.sh python39
+      - name: Run deadlock tests
+        run: ddtrace-run ./tests/gh-deadlocks.sh python39

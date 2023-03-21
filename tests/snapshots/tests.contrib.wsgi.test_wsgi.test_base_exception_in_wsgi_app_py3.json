@@ -1,0 +1,50 @@
+[[
+  {
+    "name": "wsgi.request",
+    "service": "wsgi",
+    "resource": "GET /baseException",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "wsgi",
+      "error.message": "base exception raised in wsgi app",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 143, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 37, in application\n    raise BaseException(\"base exception raised in wsgi app\")\nBaseException: base exception raised in wsgi app\n",
+      "error.type": "builtins.BaseException",
+      "http.method": "GET",
+      "http.url": "http://localhost:80/baseException",
+      "language": "python",
+      "runtime-id": "575af25462a246a5a715b2e41994e197",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 51455
+    },
+    "duration": 238000,
+    "start": 1672864866721407000
+  },
+     {
+       "name": "wsgi.application",
+       "service": "wsgi",
+       "resource": "wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 1,
+       "meta": {
+         "component": "wsgi",
+         "error.message": "base exception raised in wsgi app",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 143, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 37, in application\n    raise BaseException(\"base exception raised in wsgi app\")\nBaseException: base exception raised in wsgi app\n",
+         "error.type": "builtins.BaseException"
+       },
+       "duration": 118000,
+       "start": 1672864866721508000
+     }]]

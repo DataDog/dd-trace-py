@@ -1,6 +1,8 @@
 import datetime
 from importlib import import_module
 
+import pytest
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -19,6 +21,7 @@ module_names = (
     "elasticsearch5",
     "elasticsearch6",
     "elasticsearch7",
+    "opensearchpy",
 )
 
 for module_name in module_names:
@@ -41,17 +44,15 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     ES_INDEX = "ddtrace_index"
     ES_TYPE = "ddtrace_type"
-
-    TEST_PORT = str(ELASTICSEARCH_CONFIG["port"])
+    ES_MAPPING = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
 
     def setUp(self):
         """Prepare ES"""
         super(ElasticsearchPatchTest, self).setUp()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        es = self._get_es()
         Pin(tracer=self.tracer).onto(es.transport)
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=self.ES_MAPPING)
 
         patch()
 
@@ -66,8 +67,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def test_elasticsearch(self):
         es = self.es
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=self.ES_MAPPING)
 
         spans = self.get_spans()
         self.reset()
@@ -80,11 +80,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.span_type == "elasticsearch"
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
+        assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
-        args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
-        args["doc_type"] = self.ES_TYPE
+        args = self._get_index_args()
         es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
         es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
         es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
@@ -115,9 +116,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
+        assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         # search data
-        args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
             es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
             es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
@@ -142,6 +144,8 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
         assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
         assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
+        assert span.get_tag("component") == "elasticsearch"
+        assert span.get_tag("span.kind") == "client"
 
         self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 
@@ -153,8 +157,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def test_analytics_default(self):
         es = self.es
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=self.ES_MAPPING)
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -163,8 +166,7 @@ class ElasticsearchPatchTest(TracerTestCase):
     def test_analytics_with_rate(self):
         with self.override_config("elasticsearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             es = self.es
-            mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=self.ES_MAPPING)
 
             spans = self.get_spans()
             self.assertEqual(len(spans), 1)
@@ -173,8 +175,7 @@ class ElasticsearchPatchTest(TracerTestCase):
     def test_analytics_without_rate(self):
         with self.override_config("elasticsearch", dict(analytics_enabled=True)):
             es = self.es
-            mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=self.ES_MAPPING)
 
             spans = self.get_spans()
             self.assertEqual(len(spans), 1)
@@ -185,7 +186,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
         patch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        es = self._get_es()
         Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
@@ -200,7 +201,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         unpatch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        es = self._get_es()
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -213,7 +214,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         patch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        es = self._get_es()
         Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
@@ -270,3 +271,30 @@ class ElasticsearchPatchTest(TracerTestCase):
             pass
         spans = self.get_spans()
         assert len(spans) == 1
+
+    def _get_es(self):
+        return elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+
+    def _get_index_args(self):
+        return {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
+
+    @pytest.mark.skipif(
+        (7, 0, 0) <= elasticsearch.__version__ <= (7, 1, 0), reason="test isn't compatible these elasticsearch versions"
+    )
+    def test_large_body(self):
+        """
+        Ensure large bodies are omitted to prevent large traces from being produced.
+        """
+        args = self._get_index_args()
+        body = {
+            "query": {"range": {"created": {"gte": "asdf" * 25000}}},
+        }
+        # it doesn't matter if the request fails, so long as a span is generated
+        try:
+            self.es.search(size=100, body=body, **args)
+        except Exception:
+            pass
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert len(spans[0].get_tag("elasticsearch.body")) < 25000

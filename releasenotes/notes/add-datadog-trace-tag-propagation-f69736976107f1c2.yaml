@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add support for Datadog trace tag propagation
+    internal: Add support for Datadog trace tag propagation

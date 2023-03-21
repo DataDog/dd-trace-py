@@ -1,5 +1,6 @@
 from doctest import DocTest
 import json
+import re
 from typing import Dict
 
 import pytest
@@ -17,12 +18,20 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
+
+
+def encode_test_parameter(parameter):
+    param_repr = repr(parameter)
+    # if the representation includes an id() we'll remove it
+    # because it isn't constant across executions
+    return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
 def is_enabled(config):
@@ -137,6 +146,8 @@ def pytest_runtest_protocol(item, nextitem):
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
     ) as span:
+        span.set_tag_str(COMPONENT, "pytest")
+
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.context.sampling_priority = AUTO_KEEP
         span.set_tags(pin.tags)
@@ -169,7 +180,7 @@ def pytest_runtest_protocol(item, nextitem):
             parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
             for param_name, param_val in item.callspec.params.items():
                 try:
-                    parameters["arguments"][param_name] = repr(param_val)
+                    parameters["arguments"][param_name] = encode_test_parameter(param_val)
                 except Exception:
                     parameters["arguments"][param_name] = "Could not encode"
                     log.warning("Failed to encode %r", param_name, exc_info=True)

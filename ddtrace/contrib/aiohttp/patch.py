@@ -3,11 +3,14 @@ import os
 from yarl import URL
 
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
 from ...pin import Pin
@@ -33,6 +36,7 @@ config._add(
     "aiohttp_client",
     dict(
         distributed_tracing=asbool(os.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
+        default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     ),
 )
 
@@ -69,6 +73,11 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
+        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+
+        # set span.kind tag equal to type of request
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
         url_str = str(url.update_query(params) if params else url)
@@ -77,7 +86,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             span,
             config.aiohttp_client,
             method=method,
-            url=url_str,
+            url=str(url),
             query=parsed_url.query,
             request_headers=headers,
         )

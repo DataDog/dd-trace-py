@@ -4,7 +4,7 @@ from ddtrace.provider import _DD_CONTEXTVAR
 from ddtrace.span import Span
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Dict
     from typing import List
@@ -47,5 +47,4 @@ def set_items(kvs, span=None):
     ctx = span if span is not None else _DD_CONTEXTVAR.get()  # type: Optional[Union[Context, Span]]
     if not isinstance(ctx, Span) or ctx._local_root is None:
         raise ValueError("No context found")
-    for k, v in kvs.items():
-        ctx._local_root._set_ctx_item(k, v)
+    ctx._local_root._set_ctx_items(kvs)

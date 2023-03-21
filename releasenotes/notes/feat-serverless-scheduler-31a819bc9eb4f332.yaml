@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds support for Lambda profiling, which can be enabled by starting the profiler outside of the handler (on cold start).

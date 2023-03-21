@@ -12,7 +12,7 @@ import pytest
 from ddtrace import Tracer
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.span import Span
 
 

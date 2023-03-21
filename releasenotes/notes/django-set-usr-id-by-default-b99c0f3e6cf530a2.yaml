@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Django: set `usr.id` tag by default if `request.user` is authenticated.

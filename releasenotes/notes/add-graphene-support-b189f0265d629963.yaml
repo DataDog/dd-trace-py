@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    graphene: add support for ``graphene>=2``. `See the graphql documentation <https://ddtrace.readthedocs.io/en/stable/integrations.html#graphql>`_
+    for more information.

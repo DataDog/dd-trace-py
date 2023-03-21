@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: avoid ``SynchronousOnlyOperation`` when failing to retrieve user information.

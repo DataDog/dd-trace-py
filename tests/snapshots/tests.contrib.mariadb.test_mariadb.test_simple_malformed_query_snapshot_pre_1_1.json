@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "mariadb.query",
+    "service": "mariadb",
+    "resource": "SELEC 1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "mariadb",
+      "db.name": "test",
+      "db.system": "mariadb",
+      "db.user": "test",
+      "error.message": "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/dbapi/__init__.py\", line 109, in _trace_method\n    return method(*args, **kwargs)\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n",
+      "error.type": "mariadb.ProgrammingError",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "network.destination.port": 3306,
+      "process_id": 9600
+    },
+    "duration": 1313000,
+    "start": 1667513574903634000
+  }]]

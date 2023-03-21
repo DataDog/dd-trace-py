@@ -80,8 +80,11 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -130,9 +133,14 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
     ) as span:
-        span._set_str_tag("queue.name", instance.name)
-        span.set_tag("job.id", job.get_id())
-        span._set_str_tag("job.func_name", job.func_name)
+        span.set_tag_str(COMPONENT, config.rq.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+        span.set_tag_str("queue.name", instance.name)
+        span.set_tag_str("job.id", job.get_id())
+        span.set_tag_str("job.func_name", job.func_name)
 
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
@@ -143,8 +151,10 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
     with pin.tracer.trace("rq.queue.fetch_job", service=trace_utils.int_service(pin, config.rq)) as span:
+        span.set_tag_str(COMPONENT, config.rq.integration_name)
+
         job_id = get_argument_value(args, kwargs, 0, "job_id")
-        span.set_tag("job.id", job_id)
+        span.set_tag_str("job.id", job_id)
         return func(*args, **kwargs)
 
 
@@ -166,12 +176,16 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
         ) as span:
-            span.set_tag("job.id", job.get_id())
+            span.set_tag_str(COMPONENT, config.rq.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+            span.set_tag_str("job.id", job.get_id())
             try:
                 return func(*args, **kwargs)
             finally:
-                span.set_tag("job.status", job.get_status())
-                span.set_tag("job.origin", job.origin)
+                span.set_tag_str("job.status", job.get_status())
+                span.set_tag_str("job.origin", job.origin)
                 if job.is_failed:
                     span.error = 1
     finally:
@@ -189,6 +203,8 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
     with pin.tracer.trace("rq.job.perform", resource=job.func_name) as span:
+        span.set_tag_str(COMPONENT, config.rq.integration_name)
+
         span.set_tag("job.id", job.get_id())
         return func(*args, **kwargs)
 
@@ -197,6 +213,8 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     with pin.tracer.trace("rq.job.fetch_many", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
+        span.set_tag_str(COMPONENT, config.rq.integration_name)
+
         job_ids = get_argument_value(args, kwargs, 0, "job_ids")
         span.set_tag("job_ids", job_ids)
         return func(*args, **kwargs)

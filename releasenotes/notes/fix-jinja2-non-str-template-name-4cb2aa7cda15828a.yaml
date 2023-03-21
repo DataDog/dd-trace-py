@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    jinja2: fix handling of template names which are not strings.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: internal use of RLock needs to ensure original threading locks are used rather than gevent threading lock. Because of an indirection in the initialization of the original RLock, we end up getting an underlying gevent lock. We work around this behavior with gevent by creating a patched RLock for use internally.

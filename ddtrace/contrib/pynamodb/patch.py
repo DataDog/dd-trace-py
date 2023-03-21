@@ -5,12 +5,16 @@ Trace queries to botocore api done via a pynamodb client
 import pynamodb.connection.base
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
@@ -53,6 +57,11 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         "pynamodb.command", service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), span_type=SpanTypes.HTTP
     ) as span:
+        span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
+        span.set_tag_str(db.SYSTEM, "dynamodb")
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -62,7 +71,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             if args[1] and "TableName" in args[1]:
                 table_name = args[1]["TableName"]
-                span.set_tag("table_name", table_name)
+                span.set_tag_str("table_name", table_name)
                 span.resource = span.resource + " " + table_name
 
         except ArgumentError:

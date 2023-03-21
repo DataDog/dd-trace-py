@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    mypy: Avoid parsing redis asyncio files when type checking Python 2

@@ -1,10 +1,10 @@
 import logging
-import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Text
+from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -21,9 +21,6 @@ CMD_MAX_LEN = 1000
 
 
 T = TypeVar("T")
-
-# Tags `key:value` must be separated by either comma or space
-_TAGS_NOT_SEPARATED = re.compile(r":[^,\s]+:")
 
 log = logging.getLogger(__name__)
 
@@ -79,21 +76,43 @@ def parse_tags_str(tags_str):
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    parsed_tags = {}  # type: Dict[str, str]
     if not tags_str:
-        return parsed_tags
+        return {}
 
-    if _TAGS_NOT_SEPARATED.search(tags_str):
-        log.error("Malformed tag string with tags not separated by comma or space '%s'.", tags_str)
-        return parsed_tags
+    TAGSEP = ", "
 
-    # Identify separator based on which successfully identifies the correct
-    # number of valid tags
-    numtagseps = tags_str.count(":")
-    for sep in [",", " "]:
-        if sum(":" in _ for _ in tags_str.split(sep)) == numtagseps:
-            break
-    else:
+    def parse_tags(tags):
+        # type: (List[str]) -> Tuple[List[Tuple[str, str]], List[str]]
+        parsed_tags = []
+        invalids = []
+
+        for tag in tags:
+            key, sep, value = tag.partition(":")
+            if not sep or not key or "," in key:
+                invalids.append(tag)
+            else:
+                parsed_tags.append((key, value))
+
+        return parsed_tags, invalids
+
+    tags_str = tags_str.strip(TAGSEP)
+
+    # Take the maximal set of tags that can be parsed correctly for a given separator
+    tag_list = []  # type: List[Tuple[str, str]]
+    invalids = []
+    for sep in TAGSEP:
+        ts = tags_str.split(sep)
+        tags, invs = parse_tags(ts)
+        if len(tags) > len(tag_list):
+            tag_list = tags
+            invalids = invs
+        elif len(tags) == len(tag_list) > 1:
+            # Both separators produce the same number of tags.
+            # DEV: This only works when checking between two separators.
+            tag_list[:] = []
+            invalids[:] = []
+
+    if not tag_list:
         log.error(
             (
                 "Failed to find separator for tag string: '%s'.\n"
@@ -103,25 +122,11 @@ def parse_tags_str(tags_str):
             ),
             tags_str,
         )
-        return parsed_tags
 
-    for tag in tags_str.split(sep):
-        try:
-            key, value = tag.split(":", 1)
+    for tag in invalids:
+        log.error("Malformed tag in tag pair '%s' from tag string '%s'.", tag, tags_str)
 
-            # Validate the tag
-            if key == "" or value == "" or value.endswith(":"):
-                raise ValueError
-        except ValueError:
-            log.error(
-                "Malformed tag in tag pair '%s' from tag string '%s'.",
-                tag,
-                tags_str,
-            )
-        else:
-            parsed_tags[key] = value
-
-    return parsed_tags
+    return dict(tag_list)
 
 
 def stringify_cache_args(args):

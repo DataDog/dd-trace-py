@@ -88,12 +88,18 @@ class MemoryCollector(collector.PeriodicCollector):
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
+    _max_events = attr.ib(
+        factory=attr_utils.from_env(
+            "_DD_PROFILING_MEMORY_EVENTS_BUFFER",
+            _DEFAULT_MAX_EVENTS,
+            int,
+        )
+    )
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
@@ -103,7 +109,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
         super(MemoryCollector, self)._start_service()
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: (...) -> None
         super(MemoryCollector, self)._stop_service()
 
@@ -142,7 +148,13 @@ class MemoryCollector(collector.PeriodicCollector):
         )
 
     def collect(self):
-        events, count, alloc_count = _memalloc.iter_events()
+        try:
+            events, count, alloc_count = _memalloc.iter_events()
+        except RuntimeError:
+            # DEV: This can happen if either _memalloc has not been started or has been stopped.
+            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
+            return tuple()
+
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
@@ -160,7 +172,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     capture_pct=capture_pct,
                     nevents=alloc_count,
                 )
-                for (stack, nframes, thread_id), size in events
+                for (stack, nframes, thread_id), size, domain in events
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
         )

@@ -1,0 +1,46 @@
+name: "Library Injection"
+on:
+  # Build each branch for testing
+  push:
+
+jobs:
+  build-and-publish-test-image:
+    uses: ./.github/workflows/build-and-publish-image.yml
+    with:
+      tags: 'ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}'
+      platforms: 'linux/amd64,linux/arm64/v8'
+      build-args: 'DDTRACE_PYTHON_VERSION=git+https://github.com/Datadog/dd-trace-py@${{ github.sha }}'
+      context: ./lib-injection
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    needs:
+      - build-and-publish-test-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        lib-injection-connection: ['network','uds']
+        lib-injection-use-admission-controller: ['', 'use-admission-controller']
+        weblog-variant: ['dd-lib-python-init-test-django','dd-lib-python-init-test-django-gunicorn','dd-lib-python-init-test-django-uvicorn']
+      fail-fast: false
+    env:
+      TEST_LIBRARY: python
+      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
+      LIBRARY_INJECTION_CONNECTION: ${{ matrix.lib-injection-connection }}
+      LIBRARY_INJECTION_ADMISSION_CONTROLLER: ${{ matrix.lib-injection-use-admission-controller }}
+      DOCKER_REGISTRY_IMAGES_PATH: ghcr.io/datadog
+      DOCKER_IMAGE_TAG: ${{ github.sha }}
+      BUILDX_PLATFORMS: linux/amd64
+    steps:
+      - name: lib-injection test runner
+        id: lib-injection-test-runner
+        uses: DataDog/system-tests/lib-injection/runner@b3ca75b6ce109a349f7390a9f111e6b3ef3c97ef
+        with:
+          docker-registry: ghcr.io
+          docker-registry-username: ${{ github.repository_owner }}
+          docker-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          test-script: ./lib-injection/run-manual-lib-injection.sh

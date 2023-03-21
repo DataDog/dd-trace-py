@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "cmake >= 3.14", "ninja"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -32,6 +32,7 @@ exclude = '''
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/vendor/
   | \.eggs
   | \.git
@@ -62,12 +63,14 @@ exclude = [
 exclude-modules = '''
 (
   ^ddtrace.(contrib|vendor)
+  | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # protobuf file fails to import
   | ddtrace.profiling.exporter.pprof_pre312_pb2
+  | ddtrace.profiling.exporter.pprof_pre319_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
 )

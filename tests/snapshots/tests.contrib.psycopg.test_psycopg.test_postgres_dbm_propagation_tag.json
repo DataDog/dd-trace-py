@@ -1,0 +1,219 @@
+[[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select 'str blah'",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 8128000,
+    "start": 1677184993764288000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select %s",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client",
+      "sql.executemany": "true"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 2,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 5081000,
+    "start": 1677184993788584000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select 'byte str blah'",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 2678000,
+    "start": 1677184993793709000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select %s",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client",
+      "sql.executemany": "true"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 2,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 4226000,
+    "start": 1677184993796426000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select 'composed_blah'",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 1378000,
+    "start": 1677184993800707000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select %s",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.dbm_trace_injected": "true",
+      "_dd.p.dm": "-0",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "976be4b4fbee409ba62cdc546761d15a",
+      "span.kind": "client",
+      "sql.executemany": "true"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 2,
+      "network.destination.port": 5432,
+      "process_id": 58527
+    },
+    "duration": 2705000,
+    "start": 1677184993802144000
+  }]]

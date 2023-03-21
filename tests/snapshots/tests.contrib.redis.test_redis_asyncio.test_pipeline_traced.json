@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "redis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
+      "runtime-id": "aaaa5501985e44f38570a5b204209686",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 2746650,
+      "redis.pipeline_length": 4
+    },
+    "duration": 959000,
+    "start": 1667243591902473000
+  }]]

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    This fix improves a cryptic error message encountered during some ``pip install ddtrace`` runs under pip versions <18.

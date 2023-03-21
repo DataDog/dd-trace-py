@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    propagation: Configuration of propagation style with ``DD_TRACE_PROPAGATION_STYLE=b3`` is deprecated and will be removed in version 2.0.0. Please use the newly added ``DD_TRACE_PROPAGATION_STYLE=b3multi`` instead.

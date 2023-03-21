@@ -13,6 +13,10 @@ ELASTICSEARCH_CONFIG = {
     "port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),
 }
 
+OPENSEARCH_CONFIG = {
+    "port": int(os.getenv("TEST_OPENSEARCH_PORT", 9201)),
+}
+
 CASSANDRA_CONFIG = {
     "port": int(os.getenv("TEST_CASSANDRA_PORT", 9042)),
 }

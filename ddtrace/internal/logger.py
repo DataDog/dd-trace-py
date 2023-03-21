@@ -36,7 +36,8 @@ def get_logger(name):
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
     # DEV: This is a simplified version of `logging.Manager.getLogger`
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa
-    if name not in manager.loggerDict:
+    # DEV: _fixupParents could be adding a placeholder, we want to replace it if that's the case
+    if name not in manager.loggerDict or isinstance(manager.loggerDict[name], logging.PlaceHolder):
         manager.loggerDict[name] = DDLogger(name=name)
 
     # Get our logger
@@ -48,7 +49,7 @@ def get_logger(name):
     #   https://github.com/python/cpython/blob/7c7839329c2c66d051960ab1df096aed1cc9343e/Lib/logging/__init__.py#L1272-L1294  # noqa
     # DEV: `_fixupParents` has been around for awhile, but add the `hasattr` guard... just in case.
     if hasattr(manager, "_fixupParents"):
-        manager._fixupParents(logger)  # type: ignore[attr-defined]
+        manager._fixupParents(logger)
 
     # Return our logger
     return logger

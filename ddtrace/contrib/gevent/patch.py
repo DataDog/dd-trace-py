@@ -25,6 +25,10 @@ def patch():
     This action ensures that if a user extends the ``Greenlet``
     class, the ``TracedGreenlet`` is used as a parent class.
     """
+    if getattr(gevent, "__datadog_patch", False):
+        return
+    setattr(gevent, "__datadog_patch", True)
+
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
     ddtrace.tracer.configure(context_provider=GeventContextProvider())
 
@@ -35,6 +39,10 @@ def unpatch():
     before executing application code, otherwise the ``DatadogGreenlet``
     class may be used during initialization.
     """
+    if not getattr(gevent, "__datadog_patch", False):
+        return
+    setattr(gevent, "__datadog_patch", False)
+
     _replace(__Greenlet, __IMap, __IMapUnordered)
     ddtrace.tracer.configure(context_provider=DefaultContextProvider())
 

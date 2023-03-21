@@ -58,6 +58,8 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.resource, "GET /hello/{name}/{age}")
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
+        self.assertEqual(span.get_tag("component"), "molten")
+        self.assertEqual(span.get_tag("span.kind"), "server")
         assert_span_http_status_code(span, 200)
         assert http.QUERY_STRING not in span.get_tags()
 
@@ -87,7 +89,9 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.resource, "GET /hello/{name}/{age}")
         self.assertEqual(span.get_tag("http.method"), "GET")
-        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
+        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24?foo=bar")
+        self.assertEqual(span.get_tag("component"), "molten")
+        self.assertEqual(span.get_tag("span.kind"), "server")
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.QUERY_STRING), "foo=bar")
 
@@ -179,6 +183,8 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.resource, "GET 404")
         self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/goodbye")
         self.assertEqual(span.get_tag("http.method"), "GET")
+        self.assertEqual(span.get_tag("component"), "molten")
+        self.assertEqual(span.get_tag("span.kind"), "server")
         assert_span_http_status_code(span, 404)
 
     def test_route_exception(self):
@@ -200,6 +206,8 @@ class TestMolten(TracerTestCase):
         # error tags only set for route function span and not root span
         self.assertIsNone(span.get_tag(ERROR_MSG))
         self.assertEqual(route_error_span.get_tag(ERROR_MSG), "Error message")
+        self.assertEqual(span.get_tag("component"), "molten")
+        self.assertEqual(span.get_tag("span.kind"), "server")
 
     def test_resources(self):
         """Tests request has expected span resources"""

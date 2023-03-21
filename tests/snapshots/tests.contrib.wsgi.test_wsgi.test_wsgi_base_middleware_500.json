@@ -1,0 +1,50 @@
+[[
+  {
+    "name": "test_wsgi.request",
+    "service": "wsgi",
+    "resource": "request resource was modified",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "wsgi",
+      "error.message": "Oops!",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 139, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+      "error.type": "builtins.Exception",
+      "language": "python",
+      "request_tag": "req test tag set",
+      "runtime-id": "bb2d07942242401fa27e41f08139d6a1",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 41758,
+      "request_metric": 1
+    },
+    "duration": 202000,
+    "start": 1669654618431047000
+  },
+     {
+       "name": "test_wsgi.application",
+       "service": "wsgi",
+       "resource": "test_wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 1,
+       "meta": {
+         "component": "wsgi",
+         "error.message": "Oops!",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 139, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+         "error.type": "builtins.Exception"
+       },
+       "duration": 120000,
+       "start": 1669654618431110000
+     }]]

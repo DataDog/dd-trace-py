@@ -52,6 +52,8 @@ class TraceBottleTest(TracerTestCase):
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
+        assert s.get_tag("component") == "bottle"
+        assert s.get_tag("span.kind"), "server"
 
     def test_500(self):
         @self.app.route("/hi")
@@ -76,6 +78,8 @@ class TraceBottleTest(TracerTestCase):
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.get_tag("http.method") == "GET"
+        assert s.get_tag("component") == "bottle"
+        assert s.get_tag("span.kind"), "server"
 
     def test_bottle_global_tracer(self):
         # without providing a Tracer instance, it should work
@@ -97,3 +101,5 @@ class TraceBottleTest(TracerTestCase):
         assert s.resource == "GET /home/"
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
+        assert s.get_tag("component") == "bottle"
+        assert s.get_tag("span.kind"), "server"

@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
+import sys
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
@@ -8,6 +9,7 @@ from ddtrace.vendor import wrapt
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
+from ...ext import db
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 
@@ -44,7 +46,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin().onto(wrapped)
+    Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
     return wrapped
 
 
@@ -75,3 +77,13 @@ class TracedSQLite(TracedConnection):
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions
         return self.cursor().execute(*args, **kwargs)
+
+    # backup was added in Python 3.7
+    if sys.version_info >= (3, 7, 0):
+
+        def backup(self, target, *args, **kwargs):
+            # sqlite3 checks the type of `target`, it cannot be a wrapped connection
+            # https://github.com/python/cpython/blob/4652093e1b816b78e9a585d671a807ce66427417/Modules/_sqlite/connection.c#L1897-L1899
+            if isinstance(target, TracedConnection):
+                target = target.__wrapped__
+            return self.__wrapped__.backup(target, *args, **kwargs)

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    rediscluster: add service name configuration with ``DD_REDISCLUSTER_SERVICE``

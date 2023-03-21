@@ -75,6 +75,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.span_type == "sql"
         assert start <= span.start <= end
         assert span.duration <= end - start
+        assert span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
         # Ensure OpenTracing compatibility
         ot_tracer = init_tracer("aiopg_svc", tracer)
@@ -97,6 +99,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert dd_span.get_tag("sql.query") == q
         assert dd_span.error == 0
         assert dd_span.span_type == "sql"
+        assert dd_span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
@@ -116,8 +120,10 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == service
         assert span.get_tag("sql.query") == q
         assert span.error == 1
-        assert span.get_metric("out.port") == TEST_PORT
+        assert span.get_metric("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"
+        assert span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
     @mark_asyncio
     def test_disabled_execute(self):

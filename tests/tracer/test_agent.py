@@ -1,18 +1,41 @@
+import mock
 import pytest
 
 from ddtrace.internal import agent
+from ddtrace.internal.agent import info
+
+
+@pytest.mark.parametrize(
+    "hostname,expected",
+    [
+        (None, False),
+        ("10.0.0.1", False),
+        ("192.168.1.1", False),
+        ("https://www.datadog.com", False),
+        ("2001:db8:3333:4444:5555:6666:7777:8888", True),
+        ("2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF", True),
+        ("[2001:db8:3333:4444:5555:6666:7777:8888]", False),
+        ("::", True),
+    ],
+)
+def test_is_ipv6_hostname(hostname, expected):
+    assert agent.is_ipv6_hostname(hostname) == expected
 
 
 def test_trace_hostname(monkeypatch):
     assert agent.get_trace_hostname() == "localhost"
     monkeypatch.setenv("DD_AGENT_HOST", "host")
     assert agent.get_trace_hostname() == "host"
+    monkeypatch.setenv("DD_AGENT_HOST", "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF")
+    assert agent.get_trace_hostname() == "[2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF]"
 
 
 def test_stats_hostname(monkeypatch):
     assert agent.get_stats_hostname() == "localhost"
     monkeypatch.setenv("DD_AGENT_HOST", "host")
     assert agent.get_stats_hostname() == "host"
+    monkeypatch.setenv("DD_AGENT_HOST", "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF")
+    assert agent.get_stats_hostname() == "[2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF]"
 
 
 def test_trace_port(monkeypatch):
@@ -193,6 +216,8 @@ def test_verify_url():
     agent.verify_url("https://localhost:1234")
     agent.verify_url("https://localhost")
     agent.verify_url("http://192.168.1.1")
+    agent.verify_url("http://[2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF]")
+    agent.verify_url("http://[2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF]:1234")
     agent.verify_url("unix:///file.sock")
     agent.verify_url("unix:///file")
 
@@ -222,3 +247,46 @@ def test_verify_url():
     with pytest.raises(ValueError) as e:
         agent.verify_url("unix://")
     assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+
+
+def _mock_raise(ex):
+    raise ex
+
+
+@pytest.mark.parametrize(
+    "request_response,read_response, status_response, expected",
+    [
+        (None, "{}", 201, {}),
+        (None, '{"result": "ok"}', 200, {"result": "ok"}),
+        (None, "{}", 300, None),
+        (None, "{}", 401, None),
+        (None, "{}", 404, None),
+        (None, "{}", 500, None),
+    ],
+)
+@mock.patch("ddtrace.internal.agent.get_connection")
+def test_info(mock_connection, request_response, read_response, status_response, expected):
+    class MockResponse(object):
+        def read(self):
+            return read_response
+
+        @property
+        def status(self):
+            return status_response
+
+        @property
+        def reason(self):
+            return ""
+
+    class MockConn:
+        def request(self, *args, **kwargs):
+            return request_response
+
+        def getresponse(self):
+            return MockResponse()
+
+        def close(self):
+            return None
+
+    mock_connection.return_value = MockConn()
+    assert info() == expected

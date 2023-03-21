@@ -58,7 +58,7 @@ def daphne_client(django_asgi, additional_env=None):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
+@snapshot(variants={"": django.VERSION >= (2, 2)})
 def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
@@ -69,9 +69,7 @@ def test_urlpatterns_include(client):
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -86,9 +84,7 @@ def test_middleware_trace_callable_view(client):
 )
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -98,23 +94,26 @@ def test_middleware_trace_partial_based_view(client):
 
 
 @pytest.mark.django_db
-@snapshot(
-    variants={
-        "18x": django.VERSION < (1, 9),
-        "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
-        "": django.VERSION >= (2, 2),
-    }
-)
-def test_safe_string_encoding(client):
-    assert client.get("/safe-template/").status_code == 200
+def test_safe_string_encoding(client, snapshot_context):
+    """test_safe_string_encoding.
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces. Until the
+    first request is executed, the SQlite DB isn't create and Django executes the migrations and the snapshot
+    raises: Received unmatched spans: 'sqlite.query'
+    """
+    client.get("/safe-template/")
+    with snapshot_context(
+        variants={
+            "111x": (1, 9) <= django.VERSION < (1, 12),
+            "": django.VERSION >= (2, 2),
+        },
+        ignores=["metrics._dd.tracer_kr"],
+    ):
+        assert client.get("/safe-template/").status_code == 200
 
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -141,29 +140,31 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
-@snapshot(ignores=["meta.out.host"])
 @pytest.mark.django_db
-def test_psycopg_query_default(client, psycopg2_patched):
-    """Execute a psycopg2 query on a Django database wrapper"""
+def test_psycopg_query_default(client, snapshot_context, psycopg2_patched):
+    """Execute a psycopg2 query on a Django database wrapper.
+
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+    """
     from django.db import connections
     from psycopg2.sql import SQL
 
-    query = SQL("""select 'one' as x""")
-    conn = connections["postgres"]
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+        query = SQL("""select 'one' as x""")
+        conn = connections["postgres"]
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
+    ignores=["meta.http.useragent"],
     token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
@@ -175,7 +176,7 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
@@ -186,7 +187,7 @@ def test_asgi_200_simple_app():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as client:
         resp = client.get("/traced-simple-asgi-app/")
@@ -196,10 +197,8 @@ def test_asgi_200_traced_simple_app():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.error.stack"],
+    ignores=["meta.error.stack", "meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -209,18 +208,31 @@ def test_asgi_500():
         assert resp.status_code == 500
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
-def test_appsec_enabled():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/")
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot(
+    ignores=["meta.http.useragent"],
+    variants={
+        "3x": django.VERSION >= (3, 2, 0),
+    },
+)
+def test_templates_enabled():
+    """Default behavior to compare with disabled variant"""
+    with daphne_client("application") as client:
+        resp = client.get("/template-view/")
         assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
+        assert resp.content == b"some content\n"
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
-def test_appsec_enabled_attack():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/.git")
-        assert resp.status_code == 404
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot(
+    ignores=["meta.http.useragent"],
+    variants={
+        "3x": django.VERSION >= (3, 2, 0),
+    },
+)
+def test_templates_disabled():
+    """Template instrumentation disabled"""
+    with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as client:
+        resp = client.get("/template-view/")
+        assert resp.status_code == 200
+        assert resp.content == b"some content\n"

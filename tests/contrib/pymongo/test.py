@@ -11,7 +11,6 @@ from ddtrace.contrib.pymongo.client import normalize_filter
 from ddtrace.contrib.pymongo.patch import patch
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import mongo as mongox
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -71,8 +70,6 @@ class PymongoCore(object):
     TODO: merge to a single class when patching is the only way.
     """
 
-    TEST_SERVICE = "test-mongo"
-
     def get_tracer_and_client(service):
         # implement me
         pass
@@ -105,12 +102,15 @@ class PymongoCore(object):
         for span in spans:
             # ensure all the of the common metadata is set
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymongo"
             assert span.span_type == "mongodb"
+            assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         expected_resources = set(
             [
@@ -162,12 +162,15 @@ class PymongoCore(object):
         for span in spans:
             # ensure all the of the common metadata is set
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymongo"
             assert span.span_type == "mongodb"
+            assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == collection_name
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         if pymongo.version_tuple >= (4, 0):
             expected_resources = [
@@ -239,12 +242,15 @@ class PymongoCore(object):
         for span in spans:
             # ensure all the of the common metadata is set
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymongo"
             assert span.span_type == "mongodb"
+            assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "teams"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
             assert span.start > start
             assert span.duration < end - start
 
@@ -310,12 +316,15 @@ class PymongoCore(object):
             assert span.parent_id == ot_span.span_id
             # ensure all the of the common metadata is set
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymongo"
             assert span.span_type == "mongodb"
+            assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
-            assert span.get_metric("out.port")
+            assert span.get_metric("network.destination.port")
 
         expected_resources = set(
             [
@@ -356,11 +365,55 @@ class PymongoCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    def test_rowcount(self):
+        tracer, client = self.get_tracer_and_client()
+        db = client["testdb"]
+        songs_collection = db["songs"]
+        songs_collection.delete_many({})
+
+        input_songs = [
+            {"name": "Powderfinger", "artist": "Neil"},
+            {"name": "Harvest", "artist": "Neil"},
+            {"name": "Suzanne", "artist": "Leonard"},
+            {"name": "Partisan", "artist": "Leonard"},
+        ]
+        songs_collection.insert_many(input_songs)
+
+        # scoped query (using the getattr syntax) to get 1 row
+        q = {"name": "Powderfinger"}
+        queried = list(songs_collection.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        # scoped query (using the getattr syntax) to get 2 rows
+        q = {"artist": "Neil"}
+        queried = list(songs_collection.find(q))
+
+        assert len(queried) == 2
+        count = 0
+        for row in queried:
+            count += 1
+        assert count == 2
+
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        assert queried[1]["name"] == "Harvest"
+        assert queried[1]["artist"] == "Neil"
+
+        spans = tracer.pop()
+        one_row_span = spans[2]
+        two_row_span = spans[3]
+
+        assert len(spans) == 4
+        assert one_row_span.name == "pymongo.cmd"
+        assert one_row_span.get_metric("db.row_count") == 1
+        assert two_row_span.get_metric("db.row_count") == 2
+
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
-
-    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()
@@ -394,8 +447,6 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
 class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     """Test suite for pymongo with a configured patched library"""
 
-    TEST_SERVICE = "test-mongo-trace-client"
-
     def setUp(self):
         super(TestPymongoPatchConfigured, self).setUp()
         patch()
@@ -406,7 +457,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def get_tracer_and_client(self):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        Pin(service="pymongo", tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         return self.tracer, client
@@ -468,6 +519,33 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo"))
+    def test_user_specified_pymongo_service(self):
+
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin(service="mypymongo", tracer=self.tracer).onto(client)
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        # We do not wish to trace tcp spans here
+        Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service == "mypymongo"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo"))
+    def test_service_precedence(self):
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin(service="mypymongo", tracer=self.tracer).onto(client)
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        # We do not wish to trace tcp spans here
+        Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service == "mypymongo"
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
@@ -533,8 +611,6 @@ class TestPymongoSocketTracing(TracerTestCase):
     Test suite which checks that tcp socket creation/retrieval is correctly traced
     """
 
-    TEST_SERVICE = "testdb"
-
     def setUp(self):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
@@ -555,10 +631,13 @@ class TestPymongoSocketTracing(TracerTestCase):
     @staticmethod
     def check_socket_metadata(span):
         assert span.name == "pymongo.get_socket"
-        assert span.service == mongox.SERVICE
+        assert span.service == "pymongo"
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
-        assert span.get_metric("out.port") == MONGO_CONFIG["port"]
+        assert span.get_tag("component") == "pymongo"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
+        assert span.get_tag("db.system") == "mongodb"
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
@@ -569,12 +648,12 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert spans[1].name == "pymongo.cmd"
 
     def test_service_name_override(self):
-        with TracerTestCase.override_config("pymongo", dict(service_name=self.TEST_SERVICE)):
+        with TracerTestCase.override_config("pymongo", dict(service_name="testdb")):
             self.client["some_db"].drop_collection("some_collection")
             spans = self.pop_spans()
 
             assert len(spans) == 2
-            assert all(span.service == self.TEST_SERVICE for span in spans)
+            assert all(span.service == "testdb" for span in spans)
 
     def test_multiple_ops(self):
         db = self.client["medias"]

@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "mariadb.connection.commit",
+    "service": "mariadb",
+    "resource": "mariadb.connection.commit",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "mariadb",
+      "db.name": "test",
+      "db.system": "mariadb",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 3306,
+      "process_id": 9600
+    },
+    "duration": 1088000,
+    "start": 1667513575076891000
+  }]]

@@ -2,121 +2,147 @@
   {
     "name": "rq.queue.enqueue_job",
     "service": "rq",
-    "resource": "tests.contrib.rq.jobs.JobClass.job_on_class",
+    "resource": "tests.contrib.rq.jobs.JobClass.__call__",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
-      "job.func_name": "job_on_class",
-      "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
-      "queue.name": "q",
-      "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
-    },
-    "metrics": {
-      "_dd.agent_psr": 1.0,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "system.pid": 67067
-    },
-    "duration": 5544000,
-    "start": 1632150771353770000
-  },
-     {
-       "name": "rq.worker.perform_job",
-       "service": "rq-worker",
-       "resource": "job_on_class",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "worker",
-       "meta": {
-         "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
-         "job.origin": "q",
-         "job.status": "finished",
-         "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
-       },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "system.pid": 67067
-       },
-       "duration": 10248000,
-       "start": 1632150771378857000
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "job_on_class",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "meta": {
-            "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2"
-          },
-          "duration": 1378000,
-          "start": 1632150771381318000
-        }],
-[
-  {
-    "name": "rq.queue.enqueue_job",
-    "service": "rq",
-    "resource": "tests.contrib.rq.jobs.JobClass.__call__",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "worker",
-    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "rq",
       "job.func_name": "__call__",
-      "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
+      "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
+      "language": "python",
       "queue.name": "q",
-      "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
-    "duration": 1906000,
-    "start": 1632150771359518000
+    "duration": 1655000,
+    "start": 1667319043984969000
   },
      {
        "name": "rq.worker.perform_job",
        "service": "rq-worker",
        "resource": "__call__",
-       "trace_id": 1,
+       "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
-         "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
+         "_dd.p.dm": "-0",
+         "component": "rq",
+         "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
          "job.origin": "q",
          "job.status": "finished",
-         "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
+         "language": "python",
+         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+         "span.kind": "consumer"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
-       "duration": 9641000,
-       "start": 1632150771412118000
+       "duration": 6509000,
+       "start": 1667319044019710000
      },
         {
           "name": "rq.job.perform",
           "service": "rq-worker",
           "resource": "__call__",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "rq",
+            "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f"
+          },
+          "duration": 817000,
+          "start": 1667319044020974000
+        }],
+[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.JobClass.job_on_class",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "rq",
+      "job.func_name": "job_on_class",
+      "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 67067
+    },
+    "duration": 3115000,
+    "start": 1667319043981739000
+  },
+     {
+       "name": "rq.worker.perform_job",
+       "service": "rq-worker",
+       "resource": "job_on_class",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "rq",
+         "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+         "job.origin": "q",
+         "job.status": "finished",
+         "language": "python",
+         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+         "span.kind": "consumer"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "process_id": 67067
+       },
+       "duration": 6578000,
+       "start": 1667319044000205000
+     },
+        {
+          "name": "rq.job.perform",
+          "service": "rq-worker",
+          "resource": "job_on_class",
           "trace_id": 1,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
-            "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222"
+            "component": "rq",
+            "job.id": "68323ae3-de16-446a-8c20-eff6074c0841"
           },
-          "duration": 1285000,
-          "start": 1632150771413950000
+          "duration": 834000,
+          "start": 1667319044001187000
         }]]

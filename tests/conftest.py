@@ -10,6 +10,8 @@ import time
 
 from _pytest.runner import CallInfo
 from _pytest.runner import TestReport
+from _pytest.runner import call_and_report
+from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 from six import PY2
 
@@ -17,6 +19,7 @@ import ddtrace
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
+from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -66,14 +69,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
-def _request_token(request):
-    token = ""
-    token += request.module.__name__
-    token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
-    return token
-
-
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -84,7 +79,7 @@ def snapshot(request):
         if token:
             del snap.kwargs["token"]
         else:
-            token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+            token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
@@ -102,7 +97,7 @@ def snapshot_context(request):
         with snapshot_context():
             # my code
     """
-    token = _request_token(request)
+    token = request_token(request)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
@@ -171,6 +166,21 @@ class FunctionDefFinder(ast.NodeVisitor):
             return t
 
 
+def is_stream_ok(stream, expected):
+    if expected is None:
+        return True
+
+    if isinstance(expected, str):
+        ex = expected.encode("utf-8")
+    elif isinstance(expected, bytes):
+        ex = expected
+    else:
+        # Assume it's a callable condition
+        return expected(stream.decode("utf-8"))
+
+    return stream == ex
+
+
 def run_function_from_file(item, params=None):
     file, _, func = item.location
     marker = item.get_closest_marker("subprocess")
@@ -193,14 +203,8 @@ def run_function_from_file(item, params=None):
         env.update(params)
 
     expected_status = marker.kwargs.get("status", 0)
-
     expected_out = marker.kwargs.get("out", "")
-    if expected_out is not None:
-        expected_out = expected_out.encode("utf-8")
-
     expected_err = marker.kwargs.get("err", "")
-    if expected_err is not None:
-        expected_err = expected_err.encode("utf-8")
 
     with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
@@ -222,12 +226,16 @@ def run_function_from_file(item, params=None):
 
             if status != expected_status:
                 raise AssertionError(
-                    "Expected status %s, got %s.\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                    % (expected_status, status, err.decode("utf-8"))
+                    "Expected status %s, got %s."
+                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                    % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
                 )
-            elif expected_out is not None and out != expected_out:
+
+            if not is_stream_ok(out, expected_out):
                 raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
-            elif expected_err is not None and err != expected_err:
+
+            if not is_stream_ok(err, expected_err):
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
         return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))
@@ -235,6 +243,13 @@ def run_function_from_file(item, params=None):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
+    if item.get_closest_marker("skip"):
+        return default_pytest_runtest_protocol(item, None)
+
+    skipif = item.get_closest_marker("skipif")
+    if skipif and skipif.args[0]:
+        return default_pytest_runtest_protocol(item, None)
+
     marker = item.get_closest_marker("subprocess")
     if marker:
         params = marker.kwargs.get("parametrize", None)
@@ -244,12 +259,25 @@ def pytest_runtest_protocol(item):
         for ps in unwind_params(params):
             nodeid = (base_name + str(ps)) if ps is not None else base_name
 
+            # Start
             ihook.pytest_runtest_logstart(nodeid=nodeid, location=item.location)
 
+            # Setup
+            report = call_and_report(item, "setup", log=False)
+            report.nodeid = nodeid
+            ihook.pytest_runtest_logreport(report=report)
+
+            # Call
             report = run_function_from_file(item, ps)
             report.nodeid = nodeid
             ihook.pytest_runtest_logreport(report=report)
 
+            # Teardown
+            report = call_and_report(item, "teardown", log=False, nextitem=None)
+            report.nodeid = nodeid
+            ihook.pytest_runtest_logreport(report=report)
+
+            # Finish
             ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
 
         return True

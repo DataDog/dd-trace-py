@@ -8,6 +8,7 @@ from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
+from ..dbapi import TracedCursor
 from ..trace_utils import unwrap
 
 
@@ -26,25 +27,41 @@ config._add(
 )
 
 
+class _SFTracedCursor(TracedCursor):
+    def _set_post_execute_tags(self, span):
+        super(_SFTracedCursor, self)._set_post_execute_tags(span)
+        span.set_tag_str("sfqid", self.__wrapped__.sfqid)
+
+
 def patch():
-    import snowflake.connector
+    try:
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
 
-    if getattr(snowflake.connector, "_datadog_patch", False):
+        c = sys.modules.get("snowflake.connector")
+
+    if getattr(c, "_datadog_patch", False):
         return
-    setattr(snowflake.connector, "_datadog_patch", True)
+    setattr(c, "_datadog_patch", True)
 
-    wrapt.wrap_function_wrapper(snowflake.connector, "Connect", patched_connect)
-    wrapt.wrap_function_wrapper(snowflake.connector, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(c, "Connect", patched_connect)
+    wrapt.wrap_function_wrapper(c, "connect", patched_connect)
 
 
 def unpatch():
-    import snowflake.connector
+    try:
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
 
-    if getattr(snowflake.connector, "_datadog_patch", False):
-        setattr(snowflake.connector, "_datadog_patch", False)
+        c = sys.modules.get("snowflake.connector")
 
-        unwrap(snowflake.connector, "Connect")
-        unwrap(snowflake.connector, "connect")
+    if getattr(c, "_datadog_patch", False):
+        setattr(c, "_datadog_patch", False)
+
+        unwrap(c, "Connect")
+        unwrap(c, "connect")
 
 
 def patched_connect(connect_func, _, args, kwargs):
@@ -57,6 +74,7 @@ def patched_connect(connect_func, _, args, kwargs):
         net.TARGET_HOST: conn.host,
         net.TARGET_PORT: conn.port,
         db.NAME: conn.database,
+        db.SYSTEM: "snowflake",
         db.USER: conn.user,
         "db.application": conn.application,
         "db.schema": conn.schema,
@@ -64,6 +82,6 @@ def patched_connect(connect_func, _, args, kwargs):
     }
 
     pin = Pin(tags=tags)
-    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake)
+    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
     pin.onto(traced_conn)
     return traced_conn

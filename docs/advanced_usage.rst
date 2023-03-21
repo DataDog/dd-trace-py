@@ -373,6 +373,14 @@ Examples::
     # Integration level config, e.g. 'falcon'
     config.falcon.http.trace_query_string = True
 
+The sensitive query strings (e.g: token, password) are obfuscated by default.
+
+It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable.
+
+To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable to empty string ("")
+
+If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable is set to an invalid regexp, the query strings will not be traced.
+
 ..  _http-headers-tracing:
 
 Headers tracing
@@ -408,6 +416,7 @@ The following rules apply:
     configuration, only for the specific integration.
   - if you do not configure a specific integration, then the default global configuration applies, if any.
   - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
+
 
 Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
 structure like in the following example::
@@ -668,25 +677,3 @@ Example with uWSGI ini file:
 .. code-block:: bash
 
   uwsgi --ini uwsgi.ini
-
-
-.. _gunicorn:
-
-Gunicorn
---------
-
-``ddtrace`` supports `Gunicorn <https://gunicorn.org>`__.
-
-However, if you are using the ``gevent`` worker class, you have to make sure
-``gevent`` monkey patching is done before loading the ``ddtrace`` library.
-
-There are different options to make that happen:
-
-- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
-  your environment to have gevent patched first-thing.
-
-- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
-  as the first import of your application.
-
-- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
-  hook to import ``ddtrace.bootstrap.sitecustomize``.

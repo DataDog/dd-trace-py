@@ -16,8 +16,10 @@ except ImportError:
         # type: (...) -> None
         pass
 
+    asyncio_available = False
 
 else:
+    asyncio_available = True
     DefaultEventLoopPolicy = asyncio.DefaultEventLoopPolicy  # type: ignore[misc]
 
     get_event_loop_policy = asyncio.get_event_loop_policy  # type: ignore[assignment]
@@ -26,7 +28,7 @@ else:
     if hasattr(asyncio, "current_task"):
         current_task = asyncio.current_task
     elif hasattr(asyncio.Task, "current_task"):
-        current_task = asyncio.Task.current_task  # type: ignore[attr-defined]
+        current_task = asyncio.Task.current_task
     else:
 
         def current_task(loop=None):
@@ -35,7 +37,7 @@ else:
     if hasattr(asyncio, "all_tasks"):
         all_tasks = asyncio.all_tasks
     elif hasattr(asyncio.Task, "all_tasks"):
-        all_tasks = asyncio.Task.all_tasks  # type: ignore[attr-defined]
+        all_tasks = asyncio.Task.all_tasks
     else:
 
         def all_tasks(loop=None):

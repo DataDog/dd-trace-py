@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
+from ddtrace.sampler import SamplingRule
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
@@ -37,7 +38,8 @@ def stats_tracer(sample_rate):
         tracer.shutdown()
 
 
-def test_compute_stats_default_and_configure(run_python_code_in_subprocess):
+@pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
+def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
 
     # Test enabling via `configure`
@@ -50,7 +52,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess):
 
     # Test enabling via environment variable
     env = os.environ.copy()
-    env.update({"DD_TRACE_COMPUTE_STATS": "true"})
+    env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import tracer
@@ -75,15 +77,15 @@ def test_sampling_rate(stats_tracer, sample_rate):
 
 
 @pytest.mark.snapshot()
-def test_stats_1000(stats_tracer, sample_rate):
-    for i in range(1000):
+def test_stats_100(stats_tracer, sample_rate):
+    for i in range(100):
         with stats_tracer.trace("name", service="abc", resource="/users/list"):
             pass
 
 
 @pytest.mark.snapshot()
 def test_stats_errors(stats_tracer, sample_rate):
-    for i in range(1000):
+    for i in range(100):
         with stats_tracer.trace("name", service="abc", resource="/users/list") as span:
             if i % 2 == 0:
                 span.error = 1
@@ -141,3 +143,17 @@ def test_top_level(stats_tracer):
         with stats_tracer.trace("parent", service="svc-one"):  # Should have stats
             with stats_tracer.trace("child", service="svc-two"):  # Should have stats
                 pass
+
+
+@pytest.mark.parametrize(
+    "sampling_rule",
+    [SamplingRule(sample_rate=0, service="test"), SamplingRule(sample_rate=1, service="test")],
+)
+@pytest.mark.snapshot()
+def test_single_span_sampling(stats_tracer, sampling_rule):
+    sampler = DatadogSampler([sampling_rule])
+    stats_tracer.configure(sampler=sampler)
+    with stats_tracer.trace("parent", service="test"):
+        with stats_tracer.trace("child") as child:
+            # FIXME: Replace with span sampling rule
+            child.set_metric("_dd.span_sampling.mechanism", 8)

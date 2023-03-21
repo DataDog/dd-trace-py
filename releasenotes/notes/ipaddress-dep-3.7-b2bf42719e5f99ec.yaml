@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Change dependency from ``backport_ipaddress` to ``ipaddress``. Only install ``ipaddress`` for Python < 3.7.

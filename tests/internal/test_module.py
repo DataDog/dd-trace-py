@@ -1,4 +1,4 @@
-from os.path import dirname
+import os
 import sys
 
 import mock
@@ -7,6 +7,35 @@ import pytest
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _build_env():
+    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    return environ
+
+
+@pytest.fixture(autouse=True, scope="module")
+def ensure_no_module_watchdog():
+    # DEV: The library might use the ModuleWatchdog and install it at a very
+    # early stage. This fixture ensures that the watchdog is not installed
+    # before the tests start.
+    was_installed = ModuleWatchdog.is_installed()
+    if was_installed:
+        ModuleWatchdog.uninstall()
+
+    try:
+        yield
+    finally:
+        if was_installed:
+            ModuleWatchdog.install()
 
 
 @pytest.fixture
@@ -65,8 +94,6 @@ def test_import_origin_hook_for_module_not_yet_imported():
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
 
-    ModuleWatchdog.install()
-
     ModuleWatchdog.register_origin_hook(path, hook)
 
     hook.assert_not_called()
@@ -99,8 +126,6 @@ def test_import_module_hook_for_module_not_yet_imported():
 
     name = "tests.test_module"
     hook = mock.Mock()
-
-    ModuleWatchdog.install()
 
     ModuleWatchdog.register_module_hook(name, hook)
 
@@ -135,8 +160,6 @@ def test_module_deleted():
     name = "tests.test_module"
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
-
-    ModuleWatchdog.install()
 
     ModuleWatchdog.register_origin_hook(path, hook)
     ModuleWatchdog.register_module_hook(name, hook)
@@ -258,7 +281,7 @@ def test_module_import_hierarchy():
 
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
-    env=dict(PYTHONPATH=dirname(__file__)),
+    env=_build_env(),
     run_module=True,
 )
 def test_post_run_module_hook():
@@ -271,4 +294,97 @@ def test_post_run_module_hook():
 
 
 def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]
+    assert module_watchdog.get_by_origin(__file__.replace(".pyc", ".py")) is sys.modules[__name__]
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_propagation():
+    # Test that the module watchdog propagates the module hooks to each
+    # installed subclass.
+    from ddtrace.internal.module import ModuleWatchdog
+
+    class BaseCollector(ModuleWatchdog):
+        def __init__(self):
+            self.__modules__ = set()
+            super(BaseCollector, self).__init__()
+
+        def after_import(self, module):
+            # We save the module name as proof that the after_import method
+            # was called on the subclass instance.
+            self.__modules__.add(module.__name__)
+            return super(BaseCollector, self).after_import(module)
+
+    class Alice(BaseCollector):
+        pass
+
+    class Bob(BaseCollector):
+        pass
+
+    Alice.install()
+    Bob.install()
+
+    a = Alice._instance
+    b = Bob._instance
+
+    import tests.submod.stuff  # noqa
+
+    assert a.__modules__ >= {"tests.submod.stuff"}, a.__modules__
+    assert b.__modules__ >= {"tests.submod.stuff"}, b.__modules__
+
+    Bob.uninstall()
+    Alice.uninstall()
+
+
+def test_module_watchdog_dict_shallow_copy():
+    # Save original reference to sys.modules
+    original_sys_modules = sys.modules
+
+    ModuleWatchdog.install()
+
+    # Ensure that we have replaced sys.modules
+    assert original_sys_modules is not sys.modules
+
+    # Make a shallow copy of both using the dict constructor
+    original_modules = set(dict(original_sys_modules).keys())
+    new_modules = set(dict(sys.modules).keys())
+
+    # Ensure that they match
+    assert original_modules == new_modules
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="LazyLoader was introduced in Python 3.5")
+@pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
+def test_module_watchdog_no_lazy_force_load():
+    """Test that the module watchdog does not force-load lazy modules.
+
+    We use the LazyLoader to load a module lazily. On actual import, the module
+    emits a print statement. We check that the timing of other print statements
+    around the actual import is correct to ensure that the import of ddtrace is
+    not forcing the lazy module to be loaded.
+    """
+    import importlib.util
+    import sys
+
+    def lazy_import(name):
+        spec = importlib.util.find_spec(name)
+        loader = importlib.util.LazyLoader(spec.loader)
+        spec.loader = loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        loader.exec_module(module)
+        return module
+
+    lazy = lazy_import("tests.internal.lazy")
+
+    import ddtrace  # noqa
+
+    print("ddtrace imported")
+
+    print("accessing lazy module")
+    try:
+        # This attribute access should cause the module to be loaded
+        lazy.__spec__
+    except AttributeError:
+        pass

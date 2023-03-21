@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ASM: Detect attacks on Flask body.
+

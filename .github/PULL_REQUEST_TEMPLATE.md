@@ -1,47 +1,20 @@
-## Description
-<!-- Briefly describe the change and why it was required. -->
-
-<!-- If this is a breaking change, explain why it is necessary. Breaking changes must append `!` after the type/scope. See https://ddtrace.readthedocs.io/en/stable/contributing.html for more details. -->
-
 ## Checklist
-- [ ] Title must conform to [conventional commit](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional).
-- [ ] Add additional sections for `feat` and `fix` pull requests.
-- [ ] Ensure tests are passing for affected code.
-- [ ] [Library documentation](https://github.com/DataDog/dd-trace-py/tree/1.x/docs) and/or [Datadog's documentation site](https://github.com/DataDog/documentation/) is updated. Link to doc PR in description.
 
-<!-- Copy and paste the relevant snippet based on the type of pull request -->
-
-<!-- START feat -->
-
-## Motivation
-<!-- Expand on why the change is required, include relevant context for reviewers -->
-
-## Design 
-<!-- Include benefits from the change as well as possible drawbacks and trade-offs -->
-
-## Testing strategy
-<!-- Describe the automated tests and/or the steps for manual testing.
-
-<!-- END feat -->
-
-<!-- START fix -->
-
-## Relevant issue(s)
-<!-- Link the pull request to any issues related to the fix. Use keywords for links to automate closing the issues once the pull request is merged. -->
-
-## Testing strategy
-<!-- Describe any added regression tests and/or the manual testing performed. -->
-
-<!-- END fix -->
+- [ ] Change(s) are motivated and described in the PR description.
+- [ ] Testing strategy is described if automated tests are not included in the PR.
+- [ ] Risk is outlined (performance impact, potential for breakage, maintainability, etc).
+- [ ] Change is maintainable (easy to change, telemetry, documentation).
+- [ ] [Library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines) are followed.
+- [ ] Documentation is included (in-code, generated user docs, [public corp docs](https://github.com/DataDog/documentation/)).
+- [ ] Author is aware of the performance implications of this PR as reported in the benchmarks PR comment.
 
 ## Reviewer Checklist
+
 - [ ] Title is accurate.
+- [ ] No unnecessary changes are introduced.
 - [ ] Description motivates each change.
-- [ ] No unnecessary changes were introduced in this PR.
-- [ ] PR cannot be broken up into smaller PRs.
-- [ ] Avoid breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes unless absolutely necessary.
-- [ ] Tests provided or description of manual testing performed is included in the code or PR.
-- [ ] Release note has been added for fixes and features, or else `changelog/no-changelog` label added.
-- [ ] All relevant GitHub issues are correctly linked.
-- [ ] Backports are identified and tagged with Mergifyio.
-- [ ] Add to milestone.
+- [ ] Avoids breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes unless absolutely necessary.
+- [ ] Testing strategy adequately addresses listed risk(s).
+- [ ] Change is maintainable (easy to change, telemetry, documentation).
+- [ ] Release note makes sense to a user of the library.
+- [ ] Reviewer is aware of, and discussed the performance implications of this PR as reported in the benchmarks PR comment.

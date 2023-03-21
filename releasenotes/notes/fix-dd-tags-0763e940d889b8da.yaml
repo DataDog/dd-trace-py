@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix parsing of the ``DD_TAGS`` environment variable value to include
+    support for values with colons (e.g. URLs). Also fixed the parsing of
+    invalid tags that begin with a space (e.g. ``DD_TAGS=" key:val"`` will now
+    produce a tag with label ``key``, instead of `` key``, and value ``val``).

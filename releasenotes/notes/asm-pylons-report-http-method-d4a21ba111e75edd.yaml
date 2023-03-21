@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Report HTTP method on Pylons framework

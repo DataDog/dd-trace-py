@@ -6,10 +6,21 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace.internal.processor import SpanProcessor
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
+from ddtrace.internal.processor.trace import SpanProcessor
+from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
 from ddtrace.internal.processor.truncator import MAX_META_KEY_LENGTH
@@ -19,7 +30,11 @@ from ddtrace.internal.processor.truncator import MAX_RESOURCE_NAME_LENGTH
 from ddtrace.internal.processor.truncator import MAX_TYPE_LENGTH
 from ddtrace.internal.processor.truncator import NormalizeSpanProcessor
 from ddtrace.internal.processor.truncator import TruncateSpanProcessor
+from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.sampling import SpanSamplingRule
+from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 def test_no_impl():
@@ -252,8 +267,8 @@ def test_trace_top_level_span_processor_partial_flushing():
             pass
 
     # child spans 1 and 2 were partial flushed WITHOUT the parent span in the trace chunk
-    assert child1.get_metric("_dd.top_level") == 0
-    assert child2.get_metric("_dd.top_level") == 0
+    assert child1.get_metric("_dd.top_level") is None
+    assert child2.get_metric("_dd.top_level") is None
 
     # child span 3 was partial flushed WITH the parent span in the trace chunk
     assert "_dd.top_level" not in child3.get_metrics()
@@ -300,20 +315,8 @@ def test_trace_top_level_span_processor_orphan_span():
     with tracer.start_span("orphan span", child_of=parent) as orphan_span:
         pass
 
-    # top_level in orphan_span should be explicitly set to zero/false
-    assert orphan_span.get_metric("_dd.top_level") == 0
-
-
-def test_trace_top_level_span_processor_trace_return_val():
-    """TraceProcessor returns spans"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    # Trace contains no spans
-    trace = []
-    assert trace_processors.process_trace(trace) == trace
-
-    trace = [Span("span1"), Span("span2"), Span("span3")]
-    # Test return value contains all spans in the argument
-    assert trace_processors.process_trace(trace[:]) == trace
+    # top_level in orphan_span should not be set as implicitly it is false
+    assert orphan_span.get_metric("_dd.top_level") is None
 
 
 def test_span_truncator():
@@ -342,3 +345,256 @@ def test_span_normalizator():
     assert span.name == DEFAULT_SPAN_NAME
     assert span.resource == DEFAULT_SPAN_NAME
     assert span.span_type == "x" * MAX_TYPE_LENGTH
+
+
+def test_single_span_sampling_processor():
+    """Test that single span sampling tags are applied to spans that should get sampled"""
+
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span)
+
+
+def test_single_span_sampling_processor_match_second_rule():
+    """Test that single span sampling rule is applied if the first rule does not match, but a later one does"""
+
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service2", name="test_name2", sample_rate=1.0, max_per_second=-1)
+    rules = [rule_1, rule_2]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    span = traced_function(tracer, name="test_name2", service="test_service2")
+
+    assert_span_sampling_decision_tags(span)
+
+
+def test_single_span_sampling_processor_rule_order_drop():
+    """Test that single span sampling rules are applied in an order and
+    will only be applied if earlier rules have not been
+    """
+
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rules = [rule_1, rule_2]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_sampling_processor_rule_order_keep():
+    """Test that single span sampling rules are applied in an order
+    and will not be applied if an earlier rule has been
+    """
+
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
+    rules = [rule_1, rule_2]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span)
+
+
+@pytest.mark.parametrize(
+    "span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority",
+    [
+        (0, None, None, AUTO_KEEP),  # Span sample rate is 0, but the tracer is going to keep it
+        (0, None, None, USER_KEEP),  # Span sample rate is 0, but the user is going to keep it
+        (0, None, None, AUTO_REJECT),  # The tracer will try to drop the span, the span sampling rule will not keep it
+        (0, None, None, USER_REJECT),  # The user will try to drop the span, the span sampling rule will not keep it
+        # The tracer will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, AUTO_REJECT),
+        # The user will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, USER_REJECT),
+        # Span sample rate is 1, but the tracer is going to keep it so span sampling tags will not be applied
+        (1, None, None, AUTO_KEEP),
+        # Span sample rate is 1, but the user is going to keep it so span sampling tags will not be applied
+        (1, None, None, USER_KEEP),
+    ],
+)
+def test_single_span_sampling_processor_w_tracer_sampling(
+    span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority
+):
+    """Test how the single span sampler interacts with the trace sampler"""
+
+    rule_1 = SpanSamplingRule(
+        service="test_service", name="test_name", sample_rate=span_sample_rate_rule, max_per_second=-1
+    )
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    span = traced_function(tracer, trace_sampling_priority=trace_sampling_priority)
+
+    assert_span_sampling_decision_tags(
+        span,
+        sample_rate=expected_span_sample_rate_tag,
+        mechanism=mechanism,
+        trace_sampling_priority=trace_sampling_priority,
+    )
+
+
+def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
+    """Test that single span sampling tags and tracer sampling context are applied to spans
+    if the trace sampling is changed after the span is processed.
+    """
+
+    rule_1 = SpanSamplingRule(name="child", sample_rate=1.0, max_per_second=-1)
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    root = tracer.trace("root")
+
+    # When trace sampling marks it as a drop
+    root.context.sampling_priority = AUTO_REJECT
+    assert root.context.sampling_priority <= 0
+
+    # Child is checked against the span sampling rules, and then is kept
+    child = tracer.trace("child")
+    child.finish()
+
+    # The trace is updated to be a keep, but we already span sampled child
+    root.set_tag(MANUAL_KEEP_KEY)
+    root.finish()
+    # We now expect the span to have both span sampling and tracer context that will sample
+    assert_span_sampling_decision_tags(child)
+    assert child.context.sampling_priority == USER_KEEP
+
+
+def test_single_span_sampling_processor_no_rules():
+    """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
+    tracer = DummyTracer()
+
+    span = traced_function(tracer, trace_sampling_priority=AUTO_KEEP)
+
+    assert_span_sampling_decision_tags(
+        span,
+        sample_rate=None,
+        mechanism=None,
+        limit=None,
+        trace_sampling_priority=AUTO_KEEP,
+    )
+
+
+def test_single_span_sampling_processor_w_stats_computation():
+    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
+        tracer._span_processors.append(processor)
+
+        span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
+
+
+def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):
+    with tracer.trace(name) as span:
+        # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
+        span.context.sampling_priority = trace_sampling_priority
+
+        span.service = service
+    return span
+
+
+def assert_span_sampling_decision_tags(
+    span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling_priority=None
+):
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+
+    if trace_sampling_priority:
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+
+
+def test_endpoint_call_counter_processor():
+    """ProfilingSpanProcessor collects information about endpoints for profiling"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+    spanB = Span("spanB", resource="b", span_type=SpanTypes.WEB)
+    spanB._local_root = spanB
+    spanNonWeb = Span("spanNonWeb", resource="c", span_type=SpanTypes.WORKER)
+    spanNonLocalRoot = Span("spanNonLocalRoot", resource="d")
+
+    processor = EndpointCallCounterProcessor()
+    processor.enable()
+
+    processor.on_span_finish(spanA)
+    processor.on_span_finish(spanA)
+    processor.on_span_finish(spanB)
+    processor.on_span_finish(spanNonWeb)
+    processor.on_span_finish(spanNonLocalRoot)
+
+    assert processor.reset() == {"a": 2, "b": 1}
+    # Make sure data has been cleared
+    assert processor.reset() == {}
+
+
+def test_endpoint_call_counter_processor_disabled():
+    """ProfilingSpanProcessor is disabled by default"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+
+    processor = EndpointCallCounterProcessor()
+
+    processor.on_span_finish(spanA)
+
+    assert processor.reset() == {}
+
+
+def test_endpoint_call_counter_processor_real_tracer():
+    tracer = Tracer()
+    tracer._endpoint_call_counter_span_processor.enable()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
+        with tracer.trace("child", service="top_level_test_service2"):
+            # Non root spans are ignores
+            with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.WEB):
+                pass
+
+    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
+        pass
+
+    with tracer.trace("parent", service="top_level_test_service", resource="b", span_type=SpanTypes.WEB):
+        pass
+
+    # Non web spans are ignored
+    with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
+        pass
+
+    assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
+
+
+def test_trace_tag_processor_adds_chunk_root_tags():
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child") as child:
+            pass
+
+    # test that parent span gets required chunk root span tags and child does not get language tag
+    assert parent.get_tag("language") == "python"
+    assert child.get_tag("language") is None

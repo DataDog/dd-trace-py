@@ -123,3 +123,19 @@ class PropertyStuff(object):
         self._foo = "foo"
 
     foo = property(operator.attrgetter("_foo"))
+
+
+from time import sleep  # noqa
+
+
+def durationstuff(ns):
+
+    sleep(ns / 1e9)
+
+
+def mutator(arg):
+    arg.append(42)
+
+
+def age_checker(people, age, name=None):
+    return filter(lambda person: person.age > age, people)

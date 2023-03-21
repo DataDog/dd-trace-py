@@ -1,8 +1,16 @@
 from django.conf.urls import url
+from django.http import HttpResponse
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
 from .. import views
+
+
+def magic_header_key(request):
+    # Endpoint used to block request on response headers
+    res = HttpResponse(status=200)
+    res["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
+    return res
 
 
 urlpatterns = [
@@ -22,10 +30,17 @@ urlpatterns = [
     url(r"^template-view/$", views.template_view, name="template-view"),
     url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    url(r"^path-params/(?P<year>[0-9]{4})/(?P<month>\w+)/$", views.path_params_view, name="path-params-view"),
     # This must precede composed tests.
     url(r"some-static-view/", TemplateView.as_view(template_name="my-template.html")),
     url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^alter-resource/$", views.alter_resource, name="alter-resource"),
+    url(r"^identify/$", views.identify, name="identify"),
+    url(r"^body/$", views.body_view, name="body_view"),
+    url(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
+    url(r"^response-header/$", magic_header_key, name="response-header"),
+    url(r"^block/$", views.block_callable_view, name="block"),
+    url(r"^checkuser/(?P<user_id>\w+)/$", views.checkuser_view, name="checkuser"),
 ]

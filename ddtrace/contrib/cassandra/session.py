@@ -3,16 +3,24 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
-import cassandra.cluster
+
+try:
+    import cassandra.cluster as cassandra_cluster
+except AttributeError:
+    from cassandra import cluster as cassandra_cluster
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
+from ...ext import db
 from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
@@ -30,18 +38,19 @@ SERVICE = "cassandra"
 CURRENT_SPAN = "_ddtrace_current_span"
 PAGE_NUMBER = "_ddtrace_page_number"
 
+
 # Original connect connect function
-_connect = cassandra.cluster.Cluster.connect
+_connect = cassandra_cluster.Cluster.connect
 
 
 def patch():
     """patch will add tracing to the cassandra library."""
-    setattr(cassandra.cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE).onto(cassandra.cluster.Cluster)
+    setattr(cassandra_cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
+    Pin(service=SERVICE).onto(cassandra_cluster.Cluster)
 
 
 def unpatch():
-    cassandra.cluster.Cluster.connect = _connect
+    cassandra_cluster.Cluster.connect = _connect
 
 
 def traced_connect(func, instance, args, kwargs):
@@ -58,7 +67,7 @@ def _close_span_on_success(result, future):
         log.debug("traced_set_final_result was not able to get the current span from the ResponseFuture")
         return
     try:
-        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
+        span.set_tags(_extract_result_metas(cassandra_cluster.ResultSet(future, result)))
     except Exception:
         log.debug("an exception occurred while setting tags", exc_info=True)
     finally:
@@ -81,8 +90,8 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag(ERROR_MSG, exc.args[0])
-        span.set_tag(ERROR_TYPE, exc.__class__.__name__)
+        span.set_tag_str(ERROR_MSG, exc.args[0])
+        span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
     finally:
@@ -171,6 +180,13 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
     span = tracer.trace("cassandra.query", service=service, span_type=SpanTypes.CASSANDRA)
+
+    span.set_tag_str(COMPONENT, config.cassandra.integration_name)
+    span.set_tag_str(db.SYSTEM, "cassandra")
+
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))  # FIXME[matt] do once?
@@ -236,7 +252,7 @@ def _extract_result_metas(result):
 
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
-        metas[cassx.ROW_COUNT] = len(result_rows)
+        metas[db.ROWCOUNT] = len(result_rows)
 
     return metas
 
@@ -260,7 +276,7 @@ def _sanitize_query(span, query):
         #   raises an error in python3 around joining bytes to unicode, so this
         #   just filters out prepared statements from this tag value
         q = "; ".join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
-        span.set_tag("cassandra.query", q)
+        span.set_tag_str("cassandra.query", q)
         span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
     elif t == "BoundStatement":
         ps = getattr(query, "prepared_statement", None)

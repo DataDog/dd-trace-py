@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from ipaddress import ip_network
+import sys
+
 from hypothesis import given
 from hypothesis.strategies import booleans
 from hypothesis.strategies import dictionaries
@@ -14,9 +18,12 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -329,6 +336,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             {"id": "val", "name": "vlad"},
             None,
         ),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -369,7 +381,16 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        assert span.get_tag(http.URL) == stringify(url)
+        if url.startswith("http://user"):
+            # Remove any userinfo that may be in the original url
+            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
+        else:
+            expected_url = url
+
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -437,12 +458,309 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER": "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span.get_tags().keys()) == [
-        "runtime-id",
-    ]
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    mock_store_headers.assert_not_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_key,user_agent_value,expected_keys,expected",
+    [
+        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["runtime-id"], None),
+        ("useragent", True, ["runtime-id"], None),
+        ("http-user-agent", False, ["runtime-id"], None),
+        ("http-user-agent", [], ["runtime-id"], None),
+        ("http-user-agent", {}, ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent(
+    mock_store_headers, user_agent_key, user_agent_value, expected_keys, expected, span, int_config
+):
+    int_config.myint.http._header_tags = {"enabled": True}
+    assert int_config.myint.is_header_tracing_configured is True
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={user_agent_key: user_agent_value},
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=True
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id"]
+    assert not span.get_tag(http.USER_AGENT)
+    mock_store_headers.assert_called()
+
+
+@pytest.mark.parametrize(
+    "header_env_var,headers_dict,expected",
+    [
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8"},
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.144.2"},
+            "192.168.144.2",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "127.0.0.1"},
+            "127.0.0.1",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,8.8.8.8,127.0.0.1"},
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,127.0.0.1"},
+            "192.168.1.14",
+        ),
+        ("", {"x-forwarded-for": "foobar"}, ""),
+        ("x-real-ip", {"x-forwarded-for": "4.4.8.8"}, ""),
+        ("x-real-ip", {"x-real-ip": "8.8.8.8"}, "8.8.8.8"),
+        (
+            "x-real-ip",
+            {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
+            "8.8.4.4",
+        ),
+    ],
+)
+def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
+    with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
+        ip = trace_utils._get_request_header_client_ip(headers_dict, None, False)
+        assert ip == expected
+
+
+@pytest.mark.parametrize(
+    "headers_dict,peer_ip,expected",
+    [
+        # Public IP in headers should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "127.0.0.1",
+            "8.8.8.8",
+        ),
+        # Public IP in headers only should be selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over loopback IP in headers
+        (
+            {"x-forwarded-for": "127.0.0.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public peer IP, get preferred over private IP in headers
+        (
+            {"x-forwarded-for": "192.168.1.1"},
+            "8.8.8.8",
+            "8.8.8.8",
+        ),
+        # Public IP on both, headers selected
+        (
+            {"x-forwarded-for": "8.8.8.8"},
+            "8.8.4.4",
+            "8.8.8.8",
+        ),
+        # Empty header IP, peer should be selected
+        (
+            {"x-forwarded-for": ""},
+            "8.8.4.4",
+            "8.8.4.4",
+        ),
+        # Empty header IP, peer should be selected even if loopback
+        (
+            {"x-forwarded-for": ""},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # Empty headers, peer should be selected even if loopback
+        (
+            {},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None headers, peer should be selected even if loopback
+        (
+            None,
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+        # None everything, empty IP returned
+        (
+            None,
+            None,
+            "",
+        ),
+        # None headers, invalid peer IP, empty IP returned
+        (
+            None,
+            "invalid",
+            "",
+        ),
+        # Both invalid, empty IP returned
+        (
+            {"x-forwarded-for": "invalid"},
+            "invalid",
+            "",
+        ),
+        # Invalid IP in headers, peer ip should be selected even if loopback
+        (
+            {"x-forwarded-for": "invalid"},
+            "127.0.0.1",
+            "127.0.0.1",
+        ),
+    ],
+)
+def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
+    ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
+    assert ip == expected
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"x-real-ip": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=False)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"x-real-ip": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id"]
+
+
+def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
+    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=True)):
+        int_config.myint.http._header_tags = {"enabled": True}
+        assert int_config.myint.is_header_tracing_configured is True
+        trace_utils.set_http_meta(
+            span,
+            int_config.myint,
+            request_headers={"x-real-ip": "8.8.8.8"},
+        )
+        result_keys = list(span.get_tags().keys())
+        result_keys.sort(reverse=True)
+        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
+        assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+
+
+def test_ip_subnet_regression():
+    del_ip = "1.2.3.4/32"
+    req_ip = "10.2.3.4"
+
+    del_ip = six.ensure_text(del_ip)
+    req_ip = six.ensure_text(req_ip)
+
+    assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
+        (b"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py3(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_not_called()
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
+        (u"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py2(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
     mock_store_headers.assert_not_called()
 
 
@@ -588,11 +906,47 @@ def test_activate_distributed_headers_override_false(int_config):
     assert tracer.context_provider.active() is None
 
 
+def test_activate_distributed_headers_existing_context(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=678910, span_id=823923)  # Note: Span id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    assert tracer.context_provider.active() == ctx
+
+
+def test_activate_distributed_headers_existing_context_different_trace_id(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=3473873, span_id=678308)  # Note: Trace id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    new_ctx = tracer.context_provider.active()
+    assert new_ctx != ctx
+    assert new_ctx is not None
+    assert new_ctx.trace_id == 678910
+    assert new_ctx.span_id == 12345
+
+
 def test_sanitized_url_in_http_meta(span, int_config):
     FULL_URL = "http://example.com/search?q=test+query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
 
-    int_config.trace_query_string = False
+    int_config.http_tag_query_string = False
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -602,7 +956,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
     )
     assert span.get_tag(http.URL) == STRIPPED_URL
 
-    int_config.trace_query_string = True
+    int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -611,6 +965,150 @@ def test_sanitized_url_in_http_meta(span, int_config):
         status_code=200,
     )
     assert span.get_tag(http.URL) == FULL_URL
+
+
+def test_url_in_http_meta(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    REDACTED_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.http_tag_query_string = True
+    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == REDACTED_URL
+    with override_global_config({"global_query_string_obfuscation_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == SENSITIVE_QS_URL
+
+    int_config.http_tag_query_string = False
+    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+    with override_global_config({"global_query_string_obfuscation_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+
+
+def test_redacted_url_in_http_meta(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+    REDACTED_QS_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
+
+    int_config.http_tag_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.http_tag_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_QS_URL
+
+
+def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
+    BASE_URL = "http://example.com/search"
+    SENSITIVE_QS = "token=03cb9f67dbbc4cb8b963629951e10934&q=query"
+    REDACTED_QS = "<redacted>&q=query"
+    FRAGMENT = "frag?ment"
+    SENSITIVE_URL = BASE_URL + "?" + SENSITIVE_QS + "#" + FRAGMENT
+    REDACTED_URL = BASE_URL + "?" + REDACTED_QS + "#" + FRAGMENT
+    STRIPPED_URL = BASE_URL + "#" + FRAGMENT
+
+    int_config.http_tag_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.http_tag_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_URL
+
+
+@mock.patch("ddtrace.internal.utils.http.redact_query_string")
+def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_redact_query_string, span, int_config):
+    URL = "http://example.com/search#frag?ment"
+    EMPTY_QS = ""
+    NONE_QS = None
+
+    int_config.http_tag_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=EMPTY_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=NONE_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
 
 
 # This generates a list of (key, value) tuples, with values given by nested

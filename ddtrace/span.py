@@ -38,6 +38,8 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .internal.sampling import SamplingMechanism
+from .internal.sampling import update_sampling_decision
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -161,6 +163,12 @@ class Span(object):
         if not self._store:
             self._store = {}
         self._store[key] = val
+
+    def _set_ctx_items(self, items):
+        # type: (Dict[str, Any]) -> None
+        if not self._store:
+            self._store = {}
+        self._store.update(items)
 
     def _get_ctx_item(self, key):
         # type: (str) -> Optional[Any]
@@ -297,9 +305,11 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -322,7 +332,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def _set_str_tag(self, key, value):
+    def set_tag_str(self, key, value):
         # type: (_TagNameType, Text) -> None
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
@@ -430,7 +440,9 @@ class Span(object):
             return
 
         self.error = 1
+        self._set_exc_tags(exc_type, exc_val, exc_tb)
 
+    def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
@@ -442,14 +454,6 @@ class Span(object):
         self._meta[ERROR_MSG] = stringify(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
-
-    def _remove_exc_info(self):
-        # type: () -> None
-        """Remove all exception related information from the span."""
-        self.error = 0
-        self._remove_tag(ERROR_MSG)
-        self._remove_tag(ERROR_TYPE)
-        self._remove_tag(ERROR_STACK)
 
     def _pprint(self):
         # type: () -> str
@@ -482,6 +486,18 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
+
+    def finish_with_ancestors(self):
+        # type: () -> None
+        """Finish this span along with all (accessible) ancestors of this span.
+
+        This method is useful if a sudden program shutdown is required and finishing
+        the trace is desired.
+        """
+        span = self  # type: Optional[Span]
+        while span is not None:
+            span.finish()
+            span = span._parent
 
     def __enter__(self):
         return self

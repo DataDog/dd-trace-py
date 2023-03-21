@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The profiler now supports code provenance reporting. This can be enabled by
+    using the ``enable_code_provenance=True`` argument to the profiler or by
+    setting the environment variable ``DD_PROFILING_ENABLE_CODE_PROVENANCE`` to
+    ``true``.

@@ -1,6 +1,7 @@
 """
 tags for common git attributes
 """
+import logging
 import os
 import re
 import subprocess
@@ -65,6 +66,11 @@ def normalize_ref(name):
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
+def is_ref_a_tag(ref):
+    # type: (Optional[str]) -> bool
+    return "tags/" in ref if ref else False
+
+
 def _git_subprocess_cmd(cmd, cwd=None):
     # type: (str, Optional[str]) -> str
     """Helper for invoking the git CLI binary."""
@@ -74,7 +80,7 @@ def _git_subprocess_cmd(cmd, cwd=None):
     stdout, stderr = process.communicate()
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()
-    raise ValueError(stderr)
+    raise ValueError(compat.ensure_text(stderr).strip())
 
 
 def extract_user_info(cwd=None):
@@ -144,8 +150,10 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        debug_mode = log.isEnabledFor(logging.DEBUG)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     return tags
 
@@ -158,13 +166,10 @@ def extract_user_git_metadata(env=None):
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))
 
-    if env.get("DD_GIT_TAG"):
-        branch = None
-
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if "origin/tags" in env.get("DD_GIT_BRANCH", "") or "refs/heads/tags" in env.get("DD_GIT_BRANCH", ""):
+    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
+        tag = branch
         branch = None
-        tag = normalize_ref(env.get("DD_GIT_BRANCH"))
 
     tags = {}
     tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")

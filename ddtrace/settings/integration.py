@@ -56,6 +56,12 @@ class IntegrationConfig(AttrDict):
         # unified.
         self.setdefault("service_name", service)
 
+        object.__setattr__(
+            self,
+            "http_tag_query_string",
+            self.get_http_tag_query_string(getattr(self, "default_http_tag_query_string", None)),
+        )
+
     def _get_analytics_settings(self):
         # type: () -> Tuple[Optional[bool], float]
         # Set default analytics configuration, default is disabled
@@ -75,6 +81,13 @@ class IntegrationConfig(AttrDict):
         )
 
         return analytics_enabled, analytics_sample_rate
+
+    def get_http_tag_query_string(self, value):
+        if self.global_config.http_tag_query_string:
+            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            # If invalid value, will default to True
+            return dd_http_server_tag_query_string.lower() not in ("false", "0")
+        return False
 
     @property
     def trace_query_string(self):

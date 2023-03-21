@@ -2,10 +2,22 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
+
 import threading
+
 from ._utils cimport PyBytesLike_Check
 
-from ddtrace.constants import ORIGIN_KEY
+
+# Do not use an absolute import here Cython<3.0.0 will
+#   import `ddtrace.internal.constants` instead when this
+#   package is installed in editable mode
+# See the following for more details
+#   https://github.com/DataDog/dd-trace-py/pull/4085
+#   https://github.com/brettlangdon/shadow-import-issue
+# DEV: This only occurs because there is a `constants.py` module
+#   in both `ddtrace` and `ddtrace.internal`
+
+from ..constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -154,22 +166,26 @@ cdef class StringTable(object):
     cdef insert(self, object string):
         pass
 
-    cdef stdint.uint32_t _index(self, object string):
+    cdef stdint.uint32_t _index(self, object string) except? -1:
         cdef stdint.uint32_t _id
+        cdef int ret
 
         if string is None:
             return 0
 
-        if PyDict_Contains(self._table, string):
+        ret = PyDict_Contains(self._table, string)
+        if ret == -1: return ret
+        if ret:
             return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
 
         _id = self._next_id
-        PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
+        ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
+        if ret == -1: return ret
         self.insert(string)
         self._next_id += 1
         return _id
 
-    cpdef index(self, object string):
+    cpdef stdint.uint32_t index(self, object string) except? -1:
         return self._index(string)
 
     cdef reset(self):
@@ -218,7 +234,7 @@ cdef class MsgpackStringTable(StringTable):
         self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
-        assert self.index(ORIGIN_KEY) == 1
+        self.index(ORIGIN_KEY)
         self._reset_size = self.pk.length
 
     def __dealloc__(self):
@@ -253,7 +269,7 @@ cdef class MsgpackStringTable(StringTable):
         cdef stdint.uint32_t l = self._next_id
         cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(l)
         cdef int old_pos = self.pk.length
-        
+
         with self._lock:
             # Update table size prefix
             self.pk.length = offset
@@ -266,7 +282,7 @@ cdef class MsgpackStringTable(StringTable):
             if ret:
                 return None
             self.pk.length = old_pos
-        
+
         return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
     @property
@@ -277,7 +293,12 @@ cdef class MsgpackStringTable(StringTable):
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
         with self._lock:
-            assert self.size + size <= self.max_size
+            if self.size + size > self.max_size:
+                raise BufferFull(
+                    "Cannot append raw bytes: string table is full (current size: %d, max size: %d)." % (
+                        self.size, self.max_size
+                    )
+                )
             res = msgpack_pack_raw_body(&self.pk, <char *>PyLong_AsLong(src), size)
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
@@ -673,7 +694,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 self._st.rollback()
                 raise
 
-    cdef inline int _pack_string(self, object string):
+    cdef inline int _pack_string(self, object string) except? -1:
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, str dd_origin):

@@ -8,8 +8,8 @@ from ddtrace.internal import compat
 
 _T = typing.TypeVar("_T")
 
-# (filename, line number, function name)
-FrameType = typing.Tuple[str, int, str]
+# (filename, line number, function name, class name)
+FrameType = typing.Tuple[str, int, str, str]
 StackTraceType = typing.List[FrameType]
 
 

@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 import mock
@@ -9,8 +10,11 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
+from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import http
 
 
@@ -147,7 +151,7 @@ def test_tags_api():
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.env == "staging"
             assert exp.version == "123"
-            assert exp.tags["foo"] == b"bar"
+            assert exp.tags["foo"] == "bar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -180,7 +184,7 @@ def test_env_agentless(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/api/v2/profile")
 
 
 def test_env_agentless_site(monkeypatch):
@@ -188,7 +192,7 @@ def test_env_agentless_site(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/api/v2/profile")
 
 
 def test_env_no_agentless(monkeypatch):
@@ -200,10 +204,10 @@ def test_env_no_agentless(monkeypatch):
 
 def test_url():
     prof = profiler.Profiler(url="https://foobar:123")
-    _check_url(prof, "https://foobar:123")
+    _check_url(prof, "https://foobar:123", os.environ.get("DD_API_KEY"))
 
 
-def _check_url(prof, url, api_key=None, endpoint_path="profiling/v1/input"):
+def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.api_key == api_key
@@ -218,7 +222,7 @@ def test_default_tracer_and_url():
     try:
         ddtrace.tracer.configure(hostname="foobar")
         prof = profiler.Profiler(url="https://foobaz:123")
-        _check_url(prof, "https://foobaz:123")
+        _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
     finally:
         ddtrace.tracer.configure(hostname="localhost")
 
@@ -227,40 +231,40 @@ def test_tracer_and_url():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t, url="https://foobaz:123")
-    _check_url(prof, "https://foobaz:123")
+    _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "http://foobar:8126")
+    _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_https():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar", https=True)
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "https://foobar:8126")
+    _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds_hostname():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar", uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "unix://foobar/foobar")
+    _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds():
     t = ddtrace.Tracer()
     t.configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "unix:///foobar")
+    _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_env_no_api_key():
     prof = profiler.Profiler()
-    _check_url(prof, "http://localhost:8126")
+    _check_url(prof, "http://localhost:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_env_endpoint_url(monkeypatch):
@@ -268,7 +272,7 @@ def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
     t = ddtrace.Tracer()
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "http://foobar:123")
+    _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
 
 
 def test_env_endpoint_url_no_agent(monkeypatch):
@@ -363,3 +367,24 @@ def test_failed_start_collector(caplog, monkeypatch):
     assert caplog.record_tuples == [
         (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
     ]
+
+
+def test_default_collectors():
+    p = profiler.Profiler()
+    assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
+    assert any(isinstance(c, threading.ThreadingLockCollector) for c in p._profiler._collectors)
+    try:
+        import asyncio as _  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
+    p.stop(flush=False)
+
+
+def test_profiler_serverless(monkeypatch):
+    # type: (...) -> None
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
+    p = profiler.Profiler()
+    assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+    assert p.tags["functionname"] == "foobar"

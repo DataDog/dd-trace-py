@@ -161,7 +161,7 @@ def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "github",
-        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": "this is the correct commit message",
+        "APPVEYOR_REPO_COMMIT_MESSAGE": "this is the correct commit message",
         "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
@@ -204,7 +204,7 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "github",
-        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": "this is the correct commit message",
+        "APPVEYOR_REPO_COMMIT_MESSAGE": "this is the correct commit message",
         "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
@@ -228,7 +228,7 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "not-github",
-        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": None,
+        "APPVEYOR_REPO_COMMIT_MESSAGE": None,
         "APPVEYOR_REPO_COMMIT_AUTHOR": "",
     }
 

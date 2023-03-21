@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: fix exception raised for invalid values of ``DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH``.

@@ -5,10 +5,14 @@ from aiopg.utils import _ContextManager
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
 from ddtrace.ext import sql
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -34,8 +38,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
+            s.set_tag_str(COMPONENT, config.aiopg.integration_name)
+            s.set_tag_str(db.SYSTEM, "postgresql")
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag(sql.QUERY, resource)
+            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -46,7 +56,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = yield from method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric(db.ROWCOUNT, self.rowcount)
 
     @asyncio.coroutine
     def executemany(self, query, *args, **kwargs):

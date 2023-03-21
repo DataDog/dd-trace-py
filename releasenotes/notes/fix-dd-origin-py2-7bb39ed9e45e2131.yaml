@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: fix handling of unicode ``_dd.origin`` tag for Python 2

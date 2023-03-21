@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import ProgrammingError
 
+from ddtrace.constants import ERROR_MSG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -25,7 +26,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
     def check_meta(self, span):
         # check database connection tags
         self.assertEqual(span.get_tag("out.host"), MYSQL_CONFIG["host"])
-        self.assertEqual(span.get_metric("out.port"), MYSQL_CONFIG["port"])
+        self.assertEqual(span.get_metric("network.destination.port"), MYSQL_CONFIG["port"])
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
@@ -44,12 +45,12 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
-        self.assertIsNone(span.get_tag("sql.rows") or span.get_metric("sql.rows"))
+        self.assertIsNone(span.get_metric("db.row_count"))
         self.check_meta(span)
         self.assertEqual(span.span_type, "sql")
         self.assertTrue(span.duration > 0)
         # check the error
         self.assertEqual(span.error, 1)
         self.assertEqual(span.get_tag("error.type"), "mysql.connector.errors.ProgrammingError")
-        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag("error.msg"))
+        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag(ERROR_MSG))
         self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag("error.stack"))

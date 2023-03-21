@@ -97,9 +97,15 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`grpc`                                      | >= 1.12.0     | Yes [5]_       |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`graphene <graphql>`                        | >= 2.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`graphql-core <graphql>`                    | >= 2.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`gunicorn <gunicorn>`                       | >= 20.0       | No             |
++--------------------------------------------------+---------------+----------------+
 | :ref:`httplib`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`httpx`                                     | >= 0.14.0     | Yes            |
+| :ref:`httpx`                                     | >= 0.9.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`jinja2`                                    | >= 2.7        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -117,6 +123,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mysqlclient <mysqlclient>`                 | >= 1.3        | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`opensearch-py <elasticsearch>`             | >= 1.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`psycopg2`                                  | >= 2.7        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pylibmc`                                   | >= 1.4        | Yes            |
@@ -126,6 +134,8 @@ contacting support.
 | :ref:`pymemcache`                                | >= 1.3        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pymongo`                                   | >= 3.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pymysql`                                   | >= 0.7        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pynamodb`                                  | >= 4.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -178,6 +188,21 @@ contacting support.
        :ref:`asyncio` for more details.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
+
+
+.. _`Instrumentation Telemetry`:
+
+Instrumentation Telemetry
+-------------------------
+
+Datadog may gather environmental and diagnostic information about instrumentation libraries; this includes information
+about the host running an application, operating system, programming language and runtime, APM integrations used,
+and application dependencies. Additionally, Datadog may collect information such as diagnostic logs, crash dumps
+with obfuscated stack traces, and various system performance metrics.
+
+To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
+
+See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 
 Indices and tables
 ==================

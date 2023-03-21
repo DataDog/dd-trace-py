@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    sqlite3: fix error when using ``connection.backup`` method.

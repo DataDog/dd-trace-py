@@ -1,65 +1,72 @@
 [[
   {
     "name": "p",
-    "service": null,
+    "service": "",
     "resource": "p",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 5678,
+    "type": "",
+    "error": 0,
     "meta": {
-      "_dd.p.dm": "value",
-      "runtime-id": "c2758d86b9604e5cb87ec48c3f1ce03b"
+      "_dd.p.dm": "-1",
+      "_dd.p.test": "value",
+      "language": "python",
+      "runtime-id": "07b9d728a8cc4e46826183565c0f2077"
     },
     "metrics": {
       "_dd.py.partial_flush": 2,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "system.pid": 66646
+      "_sampling_priority_v1": 1,
+      "process_id": 55659
     },
-    "duration": 2404000,
-    "start": 1654101727226213000
+    "duration": 4940000,
+    "start": 1655133503444976000
   },
      {
        "name": "c1",
-       "service": null,
+       "service": "",
        "resource": "c1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
-         "_dd.p.dm": "value"
+         "_dd.p.dm": "-1",
+         "_dd.p.test": "value",
+         "language": "python"
        },
        "metrics": {
          "_dd.py.partial_flush": 2,
-         "_dd.top_level": 0,
-         "_dd.tracer_kr": 1.0
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1
        },
        "duration": 7000,
-       "start": 1654101727226231000
+       "start": 1655133503444997000
      },
      {
        "name": "c2",
-       "service": null,
+       "service": "",
        "resource": "c2",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "metrics": {
-         "_dd.top_level": 0
-       },
-       "duration": 16000,
-       "start": 1654101727226249000
+       "type": "",
+       "error": 0,
+       "duration": 18000,
+       "start": 1655133503445018000
      },
         {
           "name": "gc",
-          "service": null,
+          "service": "",
           "resource": "gc",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "metrics": {
-            "_dd.top_level": 0
-          },
-          "duration": 2369000,
-          "start": 1654101727226259000
+          "type": "",
+          "error": 0,
+          "duration": 4898000,
+          "start": 1655133503445029000
         }]]

@@ -65,6 +65,8 @@ class DDLoggerTestCase(BaseTestCase):
                 We return the expected logger
             When a different logger is requested
                 We return a new DDLogger
+            When a Placeholder exists
+                We return DDLogger
         """
         # Assert the logger doesn't already exist
         self.assertNotIn("test.logger", self.manager.loggerDict)
@@ -89,6 +91,14 @@ class DDLoggerTestCase(BaseTestCase):
         new_log = get_logger("new.test.logger")
         # Make sure we didn't get the same one
         self.assertNotEqual(log, new_log)
+
+        # If a PlaceHolder is in place of the logger
+        # We should return the DDLogger
+        placeholder = logging.PlaceHolder("test")
+        self.manager.loggerDict["test.name.logger"] = placeholder
+        log = get_logger("test.name.logger")
+        self.assertEqual(log.name, "test.name.logger")
+        self.assertIsInstance(log, DDLogger)
 
     def test_get_logger_parents(self):
         """

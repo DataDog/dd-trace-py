@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask_caching: fix redis tagging after the v2.0 release.

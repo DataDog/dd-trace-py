@@ -1,25 +1,39 @@
+import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Text
 from typing import Union
 
+from django.http import RawPostDataException
+from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
 import six
+import xmltodict
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...appsec import _asm_request_context
+from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
+
+
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 
 log = get_logger(__name__)
@@ -29,6 +43,7 @@ Resolver404 = None
 DJANGO22 = None
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
@@ -95,11 +110,11 @@ def set_tag_array(span, prefix, value):
 
     if len(value) == 1:
         if value[0]:
-            span._set_str_tag(prefix, value[0])
+            span.set_tag_str(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
             if v:
-                span._set_str_tag("".join((prefix, ".", str(i))), v)
+                span.set_tag_str("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -139,7 +154,7 @@ def get_request_uri(request):
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
-    for (k, v) in urlparts.items():
+    for k, v in urlparts.items():
         if isinstance(v, SimpleLazyObject):
             if issubclass(v.__class__, str):
                 v = str(v)
@@ -172,23 +187,32 @@ def _set_resolver_tags(pin, span, request):
             resolver_match = resolver.resolve(request.path_info)
         handler = func_name(resolver_match[0])
 
+        route = None
+        # In Django >= 2.2.0 we can access the original route or regex pattern
+        # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+        if DJANGO22:
+            # Determine the resolver and resource name for this request
+            route = get_django_2_route(request, resolver_match)
+            if route:
+                span.set_tag_str("http.route", route)
+
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
             resource = handler
         else:
-            # In Django >= 2.2.0 we can access the original route or regex pattern
-            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-            if DJANGO22:
-                # Determine the resolver and resource name for this request
-                route = get_django_2_route(request, resolver_match)
-                if route:
-                    resource = " ".join((request.method, route))
-                    span._set_str_tag("http.route", route)
+            if route:
+                resource = " ".join((request.method, route))
             else:
+                if config.django.use_handler_with_url_name_resource_format:
+                    # Append url name in order to distinguish different routes of the same ViewSet
+                    url_name = resolver_match.url_name
+                    if url_name:
+                        handler = ".".join([handler, url_name])
+
                 resource = " ".join((request.method, handler))
 
-        span._set_str_tag("django.view", resolver_match.view_name)
+        span.set_tag_str("django.view", resolver_match.view_name)
         set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
         # Django >= 2.0.0
@@ -225,7 +249,63 @@ def _before_request_tags(pin, span, request):
     if analytics_sr is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-    span._set_str_tag("django.request.class", func_name(request))
+    span.set_tag_str("django.request.class", func_name(request))
+
+
+def _extract_body(request):
+    req_body = None
+
+    if config._appsec_enabled and request.method in _BODY_METHODS:
+        content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+
+        rest_framework = hasattr(request, "data")
+
+        try:
+            if content_type == "application/x-www-form-urlencoded":
+                req_body = request.data.dict() if rest_framework else request.POST.dict()
+            elif content_type in ("application/json", "text/json"):
+                req_body = (
+                    json.loads(request.data.decode("UTF-8"))
+                    if rest_framework
+                    else json.loads(request.body.decode("UTF-8"))
+                )
+            elif content_type in ("application/xml", "text/xml"):
+                req_body = (
+                    xmltodict.parse(request.data.decode("UTF-8"))
+                    if rest_framework
+                    else xmltodict.parse(request.body.decode("UTF-8"))
+                )
+            elif request.method == "POST" and request.POST:
+                req_body = dict(request.POST)
+            else:  # text/plain, others: don't use them
+                req_body = None
+        except (
+            AttributeError,
+            RawPostDataException,
+            UnreadablePostError,
+            OSError,
+            ValueError,
+            JSONDecodeError,
+            xmltodict.expat.ExpatError,
+            xmltodict.ParsingInterrupted,
+        ):
+            log.warning("Failed to parse request body")
+            # req_body is None
+
+        return req_body
+
+
+def _get_request_headers(request):
+    if DJANGO22:
+        request_headers = request.headers
+    else:
+        request_headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                request_headers[name] = value
+
+    return request_headers
 
 
 def _after_request_tags(pin, span, request, response):
@@ -239,24 +319,28 @@ def _after_request_tags(pin, span, request, response):
             # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
             # Django's get_user_model():
             # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+            #
+            # FIXME: getattr calls to user fail in async contexts.
+            # Sample Error: django.core.exceptions.SynchronousOnlyOperation: You cannot call this from an async context
+            # - use a thread or sync_to_async.
             try:
                 if hasattr(user, "is_authenticated"):
-                    span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
+                    span.set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
                 if uid:
-                    span._set_str_tag("django.user.id", str(uid))
-
+                    span.set_tag_str("django.user.id", str(uid))
+                    span.set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:
-                        span._set_str_tag("django.user.name", username)
+                        span.set_tag_str("django.user.name", username)
             except Exception:
-                log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+                log.debug("Error retrieving authentication information for user", exc_info=True)
 
         if response:
             status = response.status_code
-            span._set_str_tag("django.response.class", func_name(response))
+            span.set_tag_str("django.response.class", func_name(response))
             if hasattr(response, "template_name"):
                 # template_name is a bit of a misnomer, as it could be any of:
                 # a list of strings, a tuple of strings, a single string, or an instance of Template
@@ -286,23 +370,23 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            if DJANGO22:
-                request_headers = request.headers
-            else:
-                request_headers = {}
-                for header, value in request.META.items():
-                    name = from_wsgi_header(header)
-                    if name:
-                        request_headers[name] = value
-
             # DEV: Resolve the view and resource name at the end of the request in case
             #      urlconf changes at any point during the request
             _set_resolver_tags(pin, span, request)
+
+            request_headers = None
+            if config._appsec_enabled:
+                request_headers = _asm_request_context.get_headers()
+
+            if not request_headers:
+                # did not go through AppSecProcessor.on_span_start
+                request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
+
             trace_utils.set_http_meta(
                 span,
                 config.django,
@@ -316,6 +400,9 @@ def _after_request_tags(pin, span, request, response):
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+                request_body=_extract_body(request),
+                peer_ip=_context.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

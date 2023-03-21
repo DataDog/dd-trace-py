@@ -14,9 +14,11 @@ from . import utils
 
 
 # uwsgi does not support Python 3.10 yet
-if sys.version_info[:2] >= (3, 10):
+# uwsgi is not available on Windows
+if sys.version_info[:2] >= (3, 10) or sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
@@ -97,6 +99,9 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
+# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
+# interrupted randomly in the middle and has no time to flush out the profile.
+@pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -141,6 +146,9 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
 @pytest.mark.skipif(
     not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7), reason="this test crashes on old Python versions"
 )
+# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
+# interrupted randomly in the middle and has no time to flush out the profile.
+@pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)

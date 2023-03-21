@@ -2,7 +2,7 @@
 import time
 from unittest import skipIf
 
-# 3p
+import mock
 import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
@@ -20,6 +20,7 @@ from tests.utils import snapshot
 
 
 if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import Composed
     from psycopg2.sql import Identifier
     from psycopg2.sql import Literal
     from psycopg2.sql import SQL
@@ -128,11 +129,13 @@ class PsycopgCore(TracerTestCase):
                     "out.host": "127.0.0.1",
                 },
                 metrics={
-                    "out.port": TEST_PORT,
+                    "network.destination.port": TEST_PORT,
                 },
             ),
         )
         root = self.get_root_span()
+        assert root.get_tag("component") == "psycopg"
+        assert root.get_tag("span.kind") == "client"
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
@@ -385,6 +388,71 @@ class PsycopgCore(TracerTestCase):
         with self._get_conn(service=service) as conn:
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
+
+    @snapshot()
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_postgres_dbm_propagation_tag(self):
+        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        cursor = conn.cursor()
+        # test string queries
+        cursor.execute("select 'str blah'")
+        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
+        # test byte string queries
+        cursor.execute(b"select 'byte str blah'")
+        cursor.executemany(b"select %s", ((b"bstr_foo",), (b"bstr_bar",)))
+        # test composed queries
+        cursor.execute(SQL("select 'composed_blah'"))
+        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    def test_postgres_dbm_propagation_comment(self):
+        """tests if dbm comment is set in postgres"""
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        cursor = conn.cursor()
+        cursor.__wrapped__ = mock.Mock()
+        # test string queries
+        cursor.execute("select 'blah'")
+        cursor.executemany("select %s", (("foo",), ("bar",)))
+        dbm_comment = "/*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
+        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        # test byte string queries
+        cursor.__wrapped__.reset_mock()
+        cursor.execute(b"select 'blah'")
+        cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
+        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
+        cursor.__wrapped__.executemany.assert_called_once_with(
+            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
+        )
+        # test composed queries
+        cursor.__wrapped__.reset_mock()
+        cursor.execute(SQL("select 'blah'"))
+        cursor.executemany(SQL("select %s"), (("foo",), ("bar",)))
+        cursor.__wrapped__.execute.assert_called_once_with(
+            Composed(
+                [
+                    SQL(dbm_comment),
+                    SQL("select 'blah'"),
+                ]
+            )
+        )
+        cursor.__wrapped__.executemany.assert_called_once_with(
+            Composed(
+                [
+                    SQL(dbm_comment),
+                    SQL("select %s"),
+                ]
+            ),
+            (("foo",), ("bar",)),
+        )
 
 
 @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")

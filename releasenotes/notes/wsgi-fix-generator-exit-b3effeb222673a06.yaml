@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    wsgi: ignore GeneratorExit Exception in wsgi.response spans

@@ -4,12 +4,15 @@ import os
 import kombu
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 # project
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...internal.utils import get_argument_value
@@ -93,14 +96,19 @@ def traced_receive(func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
     with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+
+        # set span.kind to the type of operation being performed
+        s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
-        s.set_tag(kombux.EXCHANGE, exchange)
+        s.set_tag_str(kombux.EXCHANGE, exchange)
 
         s.set_tags(extract_conn_tags(message.channel.connection))
-        s.set_tag(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
+        s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         # set analytics sample rate
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         return func(*args, **kwargs)
@@ -112,13 +120,18 @@ def traced_publish(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+
+        # set span.kind to the type of operation being performed
+        s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
         s.set_tag(SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
-        s.set_tag(kombux.EXCHANGE, exchange_name)
+        s.set_tag_str(kombux.EXCHANGE, exchange_name)
         if pin.tags:
             s.set_tags(pin.tags)
-        s.set_tag(kombux.ROUTING_KEY, get_routing_key_from_args(args))
+        s.set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
         s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
         # set analytics sample rate

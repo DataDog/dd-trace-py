@@ -2,12 +2,14 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
+import ipaddress
 import re
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -18,17 +20,22 @@ from typing import cast
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.compat import parse
+from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
@@ -48,11 +55,45 @@ RESPONSE = "response"
 # starting a "new object" on the UI.
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
+# Possible User Agent header.
+USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
+
+IP_PATTERNS = (
+    "x-forwarded-for",
+    "x-real-ip",
+    "true-client-ip",
+    "x-client-ip",
+    "x-forwarded",
+    "forwarded-for",
+    "x-cluster-client-ip",
+    "fastly-client-ip",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
+)
+
 
 @cached()
 def _normalized_header_name(header_name):
     # type: (str) -> str
     return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
+def _get_header_value_case_insensitive(headers, keyname):
+    # type: (Mapping[str, str], str) -> Optional[str]
+    """
+    Get a header in a case insensitive way. This function is meant for frameworks
+    like Django < 2.2 that don't store the headers in a case insensitive mapping.
+    """
+    # just in case we are lucky
+    shortcut_value = headers.get(keyname)
+    if shortcut_value is not None:
+        return shortcut_value
+
+    for key, value in six.iteritems(headers):
+        if key.lower().replace("_", "-") == keyname:
+            return value
+
+    return None
 
 
 def _normalize_tag_name(request_or_response, header_name):
@@ -101,11 +142,114 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
+        """config._header_tag_name gets an element of the dictionary in config.http._header_tags
+        which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+
+
+def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
+    # type: (Mapping[str, str], bool) -> str
+    """Get user agent from request headers
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    """
+    for key_pattern in USER_AGENT_PATTERNS:
+        if not headers_are_case_sensitive:
+            user_agent = headers.get(key_pattern)
+        else:
+            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
+
+        if user_agent:
+            return user_agent
+    return ""
+
+
+# Used to cache the last header used for the cache. From the same server/framework
+# usually the same header will be used on further requests, so we use this to check
+# only it.
+_USED_IP_HEADER = ""
+
+
+def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
+    # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
+
+    global _USED_IP_HEADER
+
+    def get_header_value(key):  # type: (str) -> Optional[str]
+        if not headers_are_case_sensitive:
+            return headers.get(key)
+
+        return _get_header_value_case_insensitive(headers, key)
+
+    if not headers:
+        try:
+            _ = ipaddress.ip_address(six.text_type(peer_ip))
+        except ValueError:
+            return ""
+        return peer_ip
+
+    ip_header_value = ""
+    user_configured_ip_header = config.client_ip_header
+    if user_configured_ip_header:
+        # Used selected the header to use to get the IP
+        ip_header_value = headers.get(user_configured_ip_header)
+        if not ip_header_value:
+            log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", user_configured_ip_header)
+            return ""
+
+        try:
+            _ = ipaddress.ip_address(six.text_type(ip_header_value))
+        except ValueError:
+            log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
+            return ""
+
+    else:
+        # No configured IP header, go through the IP_PATTERNS headers in order
+        if _USED_IP_HEADER:
+            # Check first the caught header that previously contained an IP
+            ip_header_value = get_header_value(_USED_IP_HEADER)
+
+        if not ip_header_value:
+            for ip_header in IP_PATTERNS:
+                tmp_ip_header_value = get_header_value(ip_header)
+                if tmp_ip_header_value:
+                    ip_header_value = tmp_ip_header_value
+                    _USED_IP_HEADER = ip_header
+                    break
+
+    private_ip_from_headers = ""
+
+    if ip_header_value:
+        # At this point, we have one IP header, check its value and retrieve the first public IP
+        ip_list = ip_header_value.split(",")
+        for ip in ip_list:
+            ip = ip.strip()
+            if not ip:
+                continue
+
+            try:
+                if ip_is_global(ip):
+                    return ip
+                elif not private_ip_from_headers:
+                    # IP is private, store it just in case we don't find a public one later
+                    private_ip_from_headers = ip
+            except ValueError:  # invalid IP
+                continue
+
+    # At this point we have none or maybe one private ip from the headers: check the peer ip in
+    # case it's public and, if not, return either the private_ip from the headers (if we have one)
+    # or the peer private ip
+    try:
+        if ip_is_global(peer_ip) or not private_ip_from_headers:
+            return peer_ip
+    except ValueError:
+        pass
+
+    return private_ip_from_headers
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -134,6 +278,34 @@ def _store_response_headers(headers, span, integration_config):
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
     _store_headers(headers, span, integration_config, RESPONSE)
+
+
+def _sanitized_url(url):
+    # type: (str) -> str
+    """
+    Sanitize url by removing parts with potential auth info
+    """
+    if "@" in url:
+        parsed = parse.urlparse(url)
+        netloc = parsed.netloc
+
+        if "@" not in netloc:
+            # Safe url, `@` not in netloc
+            return url
+
+        netloc = netloc[netloc.index("@") + 1 :]
+        return parse.urlunparse(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                "",
+                parsed.query,
+                "",
+            )
+        )
+
+    return url
 
 
 def with_traced_module(func):
@@ -232,6 +404,18 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+def _set_url_tag(integration_config, span, url, query):
+    # type: (IntegrationConfig, Span, str, str) -> None
+
+    if integration_config.http_tag_query_string:  # Tagging query string in http.url
+        if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
+            span.set_tag_str(http.URL, url)
+        else:  # Redact query strings
+            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+    else:  # Not tagging query string in http.url
+        span.set_tag_str(http.URL, strip_query_string(url))
+
+
 def set_http_meta(
     span,  # type: Span
     integration_config,  # type: IntegrationConfig
@@ -247,6 +431,10 @@ def set_http_meta(
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
     request_path_params=None,  # type: Optional[Dict[str, str]]
+    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
+    peer_ip=None,  # type: Optional[str]
+    headers_are_case_sensitive=False,  # type: bool
+    route=None,  # type: Optional[str]
 ):
     # type: (...) -> None
     """
@@ -266,10 +454,11 @@ def set_http_meta(
          { "id": <int_value> }
     """
     if method is not None:
-        span._set_str_tag(http.METHOD, method)
+        span.set_tag_str(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
+        url = _sanitized_url(url)
+        _set_url_tag(integration_config, span, url, query)
 
     if status_code is not None:
         try:
@@ -277,26 +466,48 @@ def set_http_meta(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span._set_str_tag(http.STATUS_CODE, str(status_code))
+            span.set_tag_str(http.STATUS_CODE, str(status_code))
             if config.http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
-        span._set_str_tag(http.STATUS_MSG, status_msg)
+        span.set_tag_str(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
-        span._set_str_tag(http.QUERY_STRING, query)
+        span.set_tag_str(http.QUERY_STRING, query)
 
-    if request_headers is not None and integration_config.is_header_tracing_configured:
-        _store_request_headers(dict(request_headers), span, integration_config)
+    request_ip = peer_ip
+    if request_headers:
+        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+
+        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        if config._appsec_enabled or config.retrieve_client_ip:
+            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+            request_ip = _context.get_item("http.request.remote_ip", span=span)
+
+            if not request_ip:
+                # Not calculated: framework does not support IP blocking or testing env
+                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+
+            span.set_tag_str(http.CLIENT_IP, request_ip)
+            span.set_tag_str("network.client.ip", request_ip)
+
+        if integration_config.is_header_tracing_configured:
+            """We should store both http.<request_or_response>.headers.<header_name> and
+            http.<key>. The last one
+            is the DD standardized tag for user-agent"""
+            _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
-        span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+        span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if config._appsec:
+    if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
 
         _context.set_items(
@@ -311,11 +522,16 @@ def set_http_meta(
                     ("http.response.headers", response_headers),
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
+                    ("http.request.body", request_body),
+                    ("http.request.remote_ip", request_ip),
                 ]
                 if v is not None
             },
             span=span,
         )
+
+    if route is not None:
+        span.set_tag_str(http.ROUTE, route)
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
@@ -330,9 +546,31 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
 
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
+
         # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            tracer.context_provider.activate(context)
+        if not context.trace_id:
+            return None
+
+        # Do not reactivate a context with the same trace id
+        # DEV: An example could be nested web frameworks, when one layer already
+        #      parsed request headers and activated them.
+        #
+        # Example::
+        #
+        #     app = Flask(__name__)  # Traced via Flask instrumentation
+        #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
+        current_context = tracer.current_trace_context()
+        if current_context and current_context.trace_id == context.trace_id:
+            log.debug(
+                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+                context.trace_id,
+                context.span_id,
+            )
+            return None
+
+        # We have parsed a trace id from headers, and we do not already
+        # have a context with the same trace id active
+        tracer.context_provider.activate(context)
 
 
 def _flatten(
@@ -365,3 +603,42 @@ def set_flattened_tags(
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
+
+
+def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
+    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None
+    """Set user tags.
+    https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
+    https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
+    """
+
+    span = tracer.current_root_span()
+    if span:
+        # Required unique identifier of the user
+        str_user_id = str(user_id)
+        span.set_tag_str(user.ID, str_user_id)
+        if propagate:
+            span.context.dd_user_id = str_user_id
+
+        # All other fields are optional
+        if name:
+            span.set_tag_str(user.NAME, name)
+        if email:
+            span.set_tag_str(user.EMAIL, email)
+        if scope:
+            span.set_tag_str(user.SCOPE, scope)
+        if role:
+            span.set_tag_str(user.ROLE, role)
+        if session_id:
+            span.set_tag_str(user.SESSION_ID, session_id)
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping set_user tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+
+    if config._appsec_enabled:
+        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+        block_request_if_user_blocked(tracer, user_id)

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    tracing: The value of ``ddtrace.constants.PID`` has been changed from ``system.pid`` to ``process_id``. All spans will now use
+    the metric tag of ``process_id`` instead.

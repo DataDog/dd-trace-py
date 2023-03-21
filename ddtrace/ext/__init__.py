@@ -3,6 +3,7 @@ class SpanTypes(object):
     CASSANDRA = "cassandra"
     ELASTICSEARCH = "elasticsearch"
     GRPC = "grpc"
+    GRAPHQL = "graphql"
     HTTP = "http"
     MONGODB = "mongodb"
     REDIS = "redis"
@@ -11,3 +12,10 @@ class SpanTypes(object):
     TEST = "test"
     WEB = "web"
     WORKER = "worker"
+
+
+class SpanKind(object):
+    CLIENT = "client"
+    SERVER = "server"
+    PRODUCER = "producer"
+    CONSUMER = "consumer"

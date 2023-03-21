@@ -37,11 +37,11 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Support for new features, bug and security fixes.
+     - Support for new features, bug and security fixes. Bug and security fixes are backported to the latest minor release branch.
 
        .. _versioning_support_maintenace:
    * - Maintenance
-     - Does not receive new features. Support for critical bug fixes and security fixes only.
+     - Does not receive new features. Support for critical bug fixes and security fixes only. Applicable bug and security fixes are backported to the latest minor release branch.
    * - End-of-life
      - No support.
 
@@ -108,15 +108,15 @@ Supported runtimes
    * - Linux
      - x86-64, i686, AArch64
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``
    * - MacOS
      - Intel, Apple Silicon
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``
    * - Windows
      - 64bit, 32bit
      - CPython
-     - 2.7, 3.5-3.10
+     - 2.7, 3.5-3.11
      - ``<2``

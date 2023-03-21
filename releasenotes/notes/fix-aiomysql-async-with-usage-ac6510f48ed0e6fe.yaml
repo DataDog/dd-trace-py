@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aiomysql: fix ``AttributeError: __aenter__`` when using cursors as context managers.

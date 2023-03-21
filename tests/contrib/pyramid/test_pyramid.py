@@ -44,6 +44,8 @@ class TestPyramid(PyramidTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
+        assert s.get_tag("component") == "pyramid"
+        assert s.get_tag("span.kind") == "server"
 
         assert s.get_tag("http.request.headers.my-header") == "my_value"
 
@@ -80,6 +82,8 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
+        assert span.get_tag("component") == "pyramid"
+        assert span.get_tag("span.kind") == "server"
         assert span.trace_id == 100
         assert span.parent_id == 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
@@ -107,6 +111,8 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
+        assert span.get_tag("component") == "pyramid"
+        assert span.get_tag("span.kind") == "server"
         assert span.trace_id != 100
         assert span.parent_id != 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
@@ -158,7 +164,7 @@ def pyramid_client(snapshot, pyramid_app):
         "ddtrace-run python tests/contrib/pyramid/app/app.py",
     ],
 )
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200

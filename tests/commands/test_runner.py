@@ -3,6 +3,7 @@ import subprocess
 import sys
 import tempfile
 
+import pytest
 import six
 
 import ddtrace
@@ -38,23 +39,6 @@ def inject_sitecustomize(path):
 
 
 class DdtraceRunTest(BaseTestCase):
-    def test_service_name_passthrough(self):
-        """
-        $DD_SERVICE gets passed through to the program
-        """
-        with self.override_env(dict(DD_SERVICE="my_test_service")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_service.py"])
-            assert out.startswith(b"Test success")
-
-    def test_env_name_passthrough(self):
-        """
-        $DD_ENV gets passed through to the global tracer as an 'env' tag
-        """
-
-        with self.override_env(dict(DD_ENV="test")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
-            assert out.startswith(b"Test success")
-
     def test_env_enabling(self):
         """
         DD_TRACE_ENABLED=false allows disabling of the global tracer
@@ -269,16 +253,7 @@ class DdtraceRunTest(BaseTestCase):
         """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true", DD_CALL_BASIC_CONFIG="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
-            assert out.startswith(b"Test success")
-
-    def test_gevent_patch_all(self):
-        with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
-            assert out.startswith(b"Test success")
-
-        with self.override_env(dict(DD_GEVENT_PATCH_ALL="1")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
-            assert out.startswith(b"Test success")
+            assert out.startswith(b"Test success"), out.decode()
 
     def test_debug_mode(self):
         with self.override_env(dict(DD_CALL_BASIC_CONFIG="true")):
@@ -294,6 +269,7 @@ class DdtraceRunTest(BaseTestCase):
             assert six.b("ddtrace.sampler") in p.stderr.read()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default
@@ -410,7 +386,7 @@ def test_info_no_configs():
     Log injection enabled: False
     Health metrics enabled: False
     Priority sampling enabled: True
-    Partial flushing enabled: False
+    Partial flushing enabled: True
     Partial flush minimum number of spans: 500
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None

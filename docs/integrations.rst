@@ -125,6 +125,13 @@ Consul
 .. automodule:: ddtrace.contrib.consul
 
 
+.. _datadog_lambda:
+
+Datadog Lambda
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.aws_lambda
+
+
 .. _djangorestframework:
 .. _django:
 
@@ -189,11 +196,25 @@ gevent
 .. automodule:: ddtrace.contrib.gevent
 
 
+.. _graphql:
+
+graphql
+^^^^^^^
+.. automodule:: ddtrace.contrib.graphql
+
+
 .. _grpc:
 
 Grpc
 ^^^^
 .. automodule:: ddtrace.contrib.grpc
+
+
+.. _gunicorn:
+
+gunicorn
+^^^^^^^^
+.. automodule:: ddtrace.contrib.gunicorn
 
 
 .. _httplib:

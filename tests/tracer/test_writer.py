@@ -1,5 +1,7 @@
+import contextlib
 import os
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -20,10 +22,22 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.sampler import RateByServiceSampler
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
+from tests.utils import override_global_config
+
+
+@contextlib.contextmanager
+def mock_sys_platform(new_value):
+    old_value = sys.platform
+    try:
+        sys.platform = new_value
+        yield
+    finally:
+        sys.platform = old_value
 
 
 class DummyOutput:
@@ -42,22 +56,24 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.stop()
+            writer.join()
 
         statsd.increment.assert_not_called()
         statsd.distribution.assert_not_called()
 
     def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.stop()
+            writer.join()
 
         statsd.distribution.assert_has_calls(
             [
@@ -72,12 +88,15 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.write([Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.write(
+                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+            )
+            writer.stop()
+            writer.join()
 
         statsd.distribution.assert_has_calls(
             [
@@ -94,81 +113,87 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_multi(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.flush_queue()
-        statsd.distribution.assert_has_calls(
-            [
-                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
-                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
-                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
-                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
-            ],
-            any_order=True,
-        )
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.flush_queue()
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                    mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
+                    mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                    mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+                ],
+                any_order=True,
+            )
 
-        statsd.reset_mock()
+            statsd.reset_mock()
 
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.stop()
-        writer.join()
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.stop()
+            writer.join()
 
-        statsd.distribution.assert_has_calls(
-            [
-                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
-                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
-                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
-                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
-            ],
-            any_order=True,
-        )
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                    mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
+                    mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                    mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+                ],
+                any_order=True,
+            )
 
     def test_write_sync(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True, sync_mode=True)
-        writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        statsd.distribution.assert_has_calls(
-            [
-                mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
-                mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
-                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
-                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
-                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
-            ],
-            any_order=True,
-        )
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, sync_mode=True)
+            writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
+                    mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
+                    mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                    mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+                ],
+                any_order=True,
+            )
 
     def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
-        writer._metrics_reset = writer_metrics_reset
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer._metrics_reset = writer_metrics_reset
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.stop()
+            writer.join()
 
-        writer_metrics_reset.assert_called_once()
+            writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["http.errors"]["count"]
-        assert 10 == writer._metrics["http.dropped.traces"]["count"]
+            assert 1 == writer._metrics["http.errors"]["count"]
+            assert 10 == writer._metrics["http.dropped.traces"]["count"]
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
-        writer._metrics_reset = writer_metrics_reset
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.write([Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer._metrics_reset = writer_metrics_reset
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.write(
+                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+            )
+            writer.stop()
+            writer.join()
 
-        writer_metrics_reset.assert_called_once()
+            writer_metrics_reset.assert_called_once()
 
         assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
         assert ["reason:t_too_big"] == writer._metrics["buffer.dropped.traces"]["tags"]
@@ -176,18 +201,19 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd, report_metrics=False)
-        writer._metrics_reset = writer_metrics_reset
-        for i in range(10):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-        writer.stop()
-        writer.join()
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd)
+            writer._metrics_reset = writer_metrics_reset
+            for i in range(10):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.stop()
+            writer.join()
 
-        writer_metrics_reset.assert_called_once()
+            writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
-        assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
+            assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
+            assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_encoding_error(self):
         n_traces = 10
@@ -196,93 +222,95 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
         writer_metrics_reset = mock.Mock()
         writer_encoder.encode.side_effect = Exception
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
-        writer._encoder = writer_encoder
-        writer._metrics_reset = writer_metrics_reset
-        for i in range(n_traces):
-            writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer._encoder = writer_encoder
+            writer._metrics_reset = writer_metrics_reset
+            for i in range(n_traces):
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
 
-        writer.stop()
-        writer.join()
+            writer.stop()
+            writer.join()
 
-        writer_metrics_reset.assert_called_once()
+            writer_metrics_reset.assert_called_once()
 
-        assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
+            assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
 
     def test_keep_rate(self):
         statsd = mock.Mock()
         writer_run_periodic = mock.Mock()
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
-        writer.run_periodic = writer_run_periodic
-        writer._put = writer_put
+        with override_global_config(dict(health_metrics_enabled=False)):
+            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer.run_periodic = writer_run_periodic
+            writer._put = writer_put
 
-        traces = [
-            [Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)] for i in range(4)
-        ]
+            traces = [
+                [Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)] for i in range(4)
+            ]
 
-        traces_too_big = [
-            [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
-            for i in range(4)
-        ]
+            traces_too_big = [
+                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+                for i in range(4)
+            ]
 
-        # 1. We write 4 traces successfully.
-        for trace in traces:
-            writer.write(trace)
-        writer.flush_queue()
+            # 1. We write 4 traces successfully.
+            for trace in traces:
+                writer.write(trace)
+            writer.flush_queue()
 
-        payload = msgpack.unpackb(writer_put.call_args.args[0])
-        # No previous drops.
-        assert 0.0 == writer._drop_sma.get()
-        # 4 traces written.
-        assert 4 == len(payload)
-        # 100% of traces kept (refers to the past).
-        # No traces sent before now so 100% kept.
-        for trace in payload:
-            assert 1.0 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+            payload = msgpack.unpackb(writer_put.call_args.args[0])
+            # No previous drops.
+            assert 0.0 == writer._drop_sma.get()
+            # 4 traces written.
+            assert 4 == len(payload)
+            # 100% of traces kept (refers to the past).
+            # No traces sent before now so 100% kept.
+            for trace in payload:
+                assert 1.0 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
 
-        # 2. We fail to write 4 traces because of size limitation.
-        for trace in traces_too_big:
-            writer.write(trace)
-        writer.flush_queue()
+            # 2. We fail to write 4 traces because of size limitation.
+            for trace in traces_too_big:
+                writer.write(trace)
+            writer.flush_queue()
 
-        # 50% of traces were dropped historically.
-        # 4 successfully written before and 4 dropped now.
-        assert 0.5 == writer._drop_sma.get()
-        # put not called since no new traces are available.
-        writer_put.assert_called_once()
+            # 50% of traces were dropped historically.
+            # 4 successfully written before and 4 dropped now.
+            assert 0.5 == writer._drop_sma.get()
+            # put not called since no new traces are available.
+            writer_put.assert_called_once()
 
-        # 3. We write 2 traces successfully.
-        for trace in traces[:2]:
-            writer.write(trace)
-        writer.flush_queue()
+            # 3. We write 2 traces successfully.
+            for trace in traces[:2]:
+                writer.write(trace)
+            writer.flush_queue()
 
-        payload = msgpack.unpackb(writer_put.call_args.args[0])
-        # 40% of traces were dropped historically.
-        assert 0.4 == writer._drop_sma.get()
-        # 2 traces written.
-        assert 2 == len(payload)
-        # 50% of traces kept (refers to the past).
-        # We had 4 successfully written and 4 dropped.
-        for trace in payload:
-            assert 0.5 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+            payload = msgpack.unpackb(writer_put.call_args.args[0])
+            # 40% of traces were dropped historically.
+            assert 0.4 == writer._drop_sma.get()
+            # 2 traces written.
+            assert 2 == len(payload)
+            # 50% of traces kept (refers to the past).
+            # We had 4 successfully written and 4 dropped.
+            for trace in payload:
+                assert 0.5 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
 
-        # 4. We write 1 trace successfully and fail to write 3.
-        writer.write(traces[0])
-        for trace in traces_too_big[:3]:
-            writer.write(trace)
-        writer.flush_queue()
+            # 4. We write 1 trace successfully and fail to write 3.
+            writer.write(traces[0])
+            for trace in traces_too_big[:3]:
+                writer.write(trace)
+            writer.flush_queue()
 
-        payload = msgpack.unpackb(writer_put.call_args.args[0])
-        # 50% of traces were dropped historically.
-        assert 0.5 == writer._drop_sma.get()
-        # 1 trace written.
-        assert 1 == len(payload)
-        # 60% of traces kept (refers to the past).
-        # We had 4 successfully written, then 4 dropped, then 2 written.
-        for trace in payload:
-            assert 0.6 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+            payload = msgpack.unpackb(writer_put.call_args.args[0])
+            # 50% of traces were dropped historically.
+            assert 0.5 == writer._drop_sma.get()
+            # 1 trace written.
+            assert 1 == len(payload)
+            # 60% of traces kept (refers to the past).
+            # We had 4 successfully written, then 4 dropped, then 2 written.
+            for trace in payload:
+                assert 0.6 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
 
 
 class LogWriterTests(BaseTestCase):
@@ -550,6 +578,86 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+@pytest.mark.parametrize(
+    "sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected",
+    [
+        # -- win32
+        # Defaults on windows
+        ("win32", None, None, None, False, "v0.3"),
+        # Default with priority sampler
+        ("win32", None, None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly passed in API version is always used
+        ("win32", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
+        ("win32", "v0.3", "v0.4", None, False, "v0.3"),
+        ("win32", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        # Env variable is used if explicit value is not given
+        ("win32", None, "v0.4", None, False, "v0.4"),
+        ("win32", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        # v0.5 is not supported on windows
+        ("win32", "v0.5", None, None, True, None),
+        ("win32", "v0.5", None, RateByServiceSampler(), True, None),
+        ("win32", "v0.5", "v0.4", RateByServiceSampler(), True, None),
+        ("win32", None, "v0.5", RateByServiceSampler(), True, None),
+        # -- cygwin
+        # Defaults on windows
+        ("cygwin", None, None, None, False, "v0.3"),
+        # Default with priority sampler
+        ("cygwin", None, None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly passed in API version is always used
+        ("cygwin", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", None, False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        # Env variable is used if explicit value is not given
+        ("cygwin", None, "v0.4", None, False, "v0.4"),
+        ("cygwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        # v0.5 is not supported on windows
+        ("cygwin", "v0.5", None, None, True, None),
+        ("cygwin", "v0.5", None, RateByServiceSampler(), True, None),
+        ("cygwin", "v0.5", "v0.4", RateByServiceSampler(), True, None),
+        ("cygwin", None, "v0.5", RateByServiceSampler(), True, None),
+        # -- Non-windows
+        # defaults
+        ("darwin", None, None, None, False, "v0.3"),
+        # Default with priority sample
+        ("darwin", None, None, RateByServiceSampler(), False, "v0.5"),
+        # Explicitly setting api version
+        ("darwin", "v0.4", None, RateByServiceSampler(), False, "v0.4"),
+        # Explicitly set version takes precedence
+        ("darwin", "v0.4", "v0.5", RateByServiceSampler(), False, "v0.4"),
+        # Via env variable
+        ("darwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        ("darwin", None, "v0.5", RateByServiceSampler(), False, "v0.5"),
+    ],
+)
+def test_writer_api_version_selection(
+    sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected, monkeypatch
+):
+    """test to verify that we are unable to select v0.5 api version when on a windows machine.
+
+    https://docs.python.org/3/library/sys.html#sys.platform
+
+    The possible ``sys.platform`` values when on windows are ``win32`` or ``cygwin``.
+    """
+
+    # Mock the value of `sys.platform` to be a specific value
+    with mock_sys_platform(sys_platform):
+
+        # If desired, set the DD_TRACE_API_VERSION env variable
+        if ddtrace_api_version is not None:
+            monkeypatch.setenv("DD_TRACE_API_VERSION", ddtrace_api_version)
+
+        try:
+            # Create a new writer
+            writer = AgentWriter(
+                agent_url="http://dne:1234", api_version=api_version, priority_sampler=priority_sampler
+            )
+            assert writer._api_version == expected
+        except RuntimeError:
+            # If we were not expecting a RuntimeError, then cause the test to fail
+            if not raises_error:
+                pytest.fail("Raised RuntimeError when it was not expected")
 
 
 def test_writer_reuse_connections_envvar(monkeypatch):

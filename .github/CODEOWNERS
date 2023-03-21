@@ -1,9 +1,65 @@
-* @DataDog/apm-python
+# Order matters, the last matched is what is used
 
-ddtrace/contrib/pytest/         @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/contrib/pytest-bdd/     @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/ext/ci.py               @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/ext/test.py             @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/internal/codeowners.py  @DataDog/apm-python @datadog/ci-app-tracers
-tests/contrib/pytest/           @DataDog/apm-python @DataDog/ci-app-tracers
-tests/contrib/pytest-bdd/       @DataDog/apm-python @DataDog/ci-app-tracers
+# APM Core Python is the default owner of all files
+*                                   @DataDog/apm-core-python
+
+# Files which can be approved by anyone
+# DEV: This helps not requiring apm-core-python to review new files added
+#      or files which changes often with most PRs
+releasenotes/                       @DataDog/apm-python
+tests/snapshots/                    @DataDog/apm-python
+riotfile.py                         @DataDog/apm-python
+
+# CI App
+ddtrace/contrib/pytest/             @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/contrib/pytest_bdd/         @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/contrib/pytest                @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/contrib/pytest_bdd            @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+
+# Debugger
+ddtrace/debugging/                  @DataDog/debugger-python
+ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
+ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
+tests/debugging/                    @DataDog/debugger-python
+tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
+
+# ASM
+ddtrace/appsec/                     @DataDog/asm-python
+tests/appsec/                       @DataDog/asm-python
+tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
+tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
+tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
+tests/snapshots/tests*appsec*.json  @DataDog/asm-python
+tests/contrib/*/test*appsec*.py    @DataDog/asm-python
+
+# Profiling
+ddtrace/profiling                   @DataDog/apm-core-python @DataDog/debugger-python
+tests/profiling                     @DataDog/apm-core-python @DataDog/debugger-python
+
+# Remote Config
+ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
+tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
+
+# Guild
+# Note that core is added here since 2 reviewers are required. The guild isn't
+# big enough to support if a guild member makes a change which means 2 other
+# guild members have to review.
+# We should enforce this for important files, but more frequently edited ones
+# can settle for having 1 guild member review + a core team member.
+setup.py                            @DataDog/python-guild
+setup.cfg                           @DataDog/python-guild
+pyproject.toml                      @DataDog/python-guild
+.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
+README.md                           @DataDog/python-guild  @DataDog/apm-core-python
+mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+.github/PULL_REQUEST_TEMPLATE.md    @DataDog/python-guild  @DataDog/apm-core-python
+.github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
+.github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python

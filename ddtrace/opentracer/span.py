@@ -20,7 +20,7 @@ from .span_context import SpanContext
 from .tags import Tags
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .tracer import Tracer
 
 
@@ -146,7 +146,7 @@ class Span(OpenTracingSpan):
         elif key == Tags.RESOURCE_NAME or key == OTTags.DATABASE_STATEMENT:
             self._dd_span.resource = value
         elif key == OTTags.PEER_HOSTNAME:
-            self._dd_span.set_tag(Tags.TARGET_HOST, value)
+            self._dd_span.set_tag_str(Tags.TARGET_HOST, value)
         elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:

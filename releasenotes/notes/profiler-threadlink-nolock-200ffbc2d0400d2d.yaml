@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiler: Remove lock for data structure linking threads to spans to avoid deadlocks with the trade-off of correctness of spans linked to threads by stack profiler at a given point in time.

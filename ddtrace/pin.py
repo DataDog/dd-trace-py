@@ -9,7 +9,7 @@ from .internal.logger import get_logger
 from .vendor import wrapt
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .tracer import Tracer
 
 

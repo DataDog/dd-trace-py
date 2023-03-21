@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    docs: Added troubleshooting section for missing error details in the root span of a trace.

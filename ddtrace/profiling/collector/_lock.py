@@ -6,9 +6,9 @@ import sys
 import typing
 
 import attr
+from six.moves import _thread
 
 from ddtrace.internal import compat
-from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
@@ -43,7 +43,7 @@ class LockReleaseEvent(LockEventBase):
 
 def _current_thread():
     # type: (...) -> typing.Tuple[int, str]
-    thread_id = nogevent.thread_get_ident()
+    thread_id = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
 
@@ -122,12 +122,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             except Exception:
                 pass
 
-    def release(
-        self,
-        *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
-    ):
-        # type: (...) -> None
+    def release(self, *args, **kwargs):
+        # type (typing.Any, typing.Any) -> None
         try:
             return self.__wrapped__.release(*args, **kwargs)
         finally:
@@ -145,7 +141,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                         frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                        event = self.RELEASE_EVENT_CLASS(  # type: ignore[call-arg]
+                        event = self.RELEASE_EVENT_CLASS(
                             lock_name=self._self_name,
                             frames=frames,
                             nframes=nframes,
@@ -203,13 +199,13 @@ class LockCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         pass
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start collecting lock usage."""
         self.patch()
         super(LockCollector, self)._start_service()
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: (...) -> None
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()

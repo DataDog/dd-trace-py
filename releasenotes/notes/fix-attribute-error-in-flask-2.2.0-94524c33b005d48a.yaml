@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask: add support for ``flask>=2.2.0``

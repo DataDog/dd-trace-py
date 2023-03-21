@@ -10,19 +10,24 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.settings.config import Config
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -32,7 +37,7 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 # Original botocore client class
@@ -44,7 +49,17 @@ TRACED_ARGS = {"params", "path", "verb"}
 MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
 MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
+LINE_BREAK = "\n"
+
 log = get_logger(__name__)
+
+
+if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
+    debtcollector.deprecate(
+        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
+        message="The botocore integration no longer includes all API parameters by default.",
+        removal_version="2.0.0",
+    )
 
 
 # Botocore default settings
@@ -54,6 +69,8 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
     },
 )
 
@@ -165,29 +182,49 @@ def inject_trace_to_eventbridge_detail(params, span):
         entry["Detail"] = detail_json
 
 
+def get_json_from_str(data_str):
+    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+    data_obj = json.loads(data_str)
+
+    if data_str.endswith(LINE_BREAK):
+        return LINE_BREAK, data_obj
+    return None, data_obj
+
+
 def get_kinesis_data_object(data):
-    # type: (str) -> Optional[Dict[str, Any]]
+    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
     """
     :data: the data from a kinesis stream
 
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
-    We support injecting our trace context in the following two cases:
+    We support injecting our trace context in the following three cases:
     - json string
+    - byte encoded json string
     - base64 encoded json string
     If it's neither of these, then we leave the message as it is.
     """
 
     # check if data is a json string
     try:
-        return json.loads(data)
-    except ValueError:
-        pass
+        return get_json_from_str(data)
+    except Exception:
+        log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
+
+    # check if data is an encoded json string
+    try:
+        data_str = data.decode("ascii")
+        return get_json_from_str(data_str)
+    except Exception:
+        log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
 
     # check if data is a base64 encoded json string
     try:
-        return json.loads(base64.b64decode(data).decode("ascii"))
-    except ValueError:
-        raise TraceInjectionDecodingError("Unable to parse kinesis streams data string")
+        data_str = base64.b64decode(data).decode("ascii")
+        return get_json_from_str(data_str)
+    except Exception:
+        log.error("Unable to parse payload, unable to inject trace context.")
+
+    return None, None
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
@@ -205,19 +242,24 @@ def inject_trace_to_kinesis_stream_data(record, span):
         return
 
     data = record["Data"]
-    data_obj = get_kinesis_data_object(data)
-    data_obj["_datadog"] = {}
-    HTTPPropagator.inject(span.context, data_obj["_datadog"])
-    data_json = json.dumps(data_obj)
+    line_break, data_obj = get_kinesis_data_object(data)
+    if data_obj is not None:
+        data_obj["_datadog"] = {}
+        HTTPPropagator.inject(span.context, data_obj["_datadog"])
+        data_json = json.dumps(data_obj)
 
-    # check if data size will exceed max size with headers
-    data_size = len(data_json)
-    if data_size >= MAX_KINESIS_DATA_SIZE:
-        raise TraceInjectionSizeExceed(
-            "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-        )
+        # if original string had a line break, add it back
+        if line_break is not None:
+            data_json += line_break
 
-    record["Data"] = data_json
+        # check if data size will exceed max size with headers
+        data_size = len(data_json)
+        if data_size >= MAX_KINESIS_DATA_SIZE:
+            raise TraceInjectionSizeExceed(
+                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
+            )
+
+        record["Data"] = data_json
 
 
 def inject_trace_to_kinesis_stream(params, span):
@@ -296,6 +338,11 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None
         if args:
@@ -325,18 +372,22 @@ def patched_api_call(original_func, instance, args, kwargs):
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
+            if params and not config.botocore["tag_no_params"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
+
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.botocore["tag_no_params"] and config.botocore["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
-        span._set_str_tag("aws.agent", "botocore")
+        span.set_tag_str("aws.agent", "botocore")
         if operation is not None:
-            span._set_str_tag("aws.operation", operation)
+            span.set_tag_str("aws.operation", operation)
         if region_name is not None:
-            span._set_str_tag("aws.region", region_name)
+            span.set_tag_str("aws.region", region_name)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
@@ -377,4 +428,4 @@ def _set_response_metadata_tags(span, result):
         span.set_tag("retry_attempts", response_meta["RetryAttempts"])
 
     if "RequestId" in response_meta:
-        span.set_tag("aws.requestid", response_meta["RequestId"])
+        span.set_tag_str("aws.requestid", response_meta["RequestId"])

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: make ``track_custom_event()`` also set ``appsec.events.<custom_event>.track`` which was missing.

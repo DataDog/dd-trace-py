@@ -53,6 +53,7 @@ def add_snowflake_query_response(rowtype, rows, total=None):
         "rowtype": [SNOWFLAKE_TYPES[t] for t in rowtype],
         "rowset": rows,
         "total": total,
+        "queryId": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
     }
 
     add_snowflake_response(url="https://mock-account.snowflakecomputing.com:443/queries/v1/query-request", data=data)

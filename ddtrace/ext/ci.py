@@ -1,6 +1,9 @@
 """
 Tags for common CI attributes
 """
+from collections import OrderedDict
+import json
+import logging
 import os
 import platform
 import re
@@ -60,6 +63,9 @@ RUNTIME_VERSION = "runtime.version"
 # Version of the ddtrace library
 LIBRARY_VERSION = "library_version"
 
+# CI Visibility env vars used for pipeline correlation ID
+_CI_ENV_VARS = "_dd.ci.env_vars"
+
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
@@ -97,8 +103,10 @@ def tags(env=None, cwd=None):
         git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
     except git.GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        debug_mode = log.isEnabledFor(logging.DEBUG)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
@@ -109,10 +117,17 @@ def tags(env=None, cwd=None):
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
-    tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
-    if tags.get(git.TAG) and git.BRANCH in tags:
+    # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
+    if git.is_ref_a_tag(tags.get(git.BRANCH)):
+        if not tags.get(git.TAG):
+            tags[git.TAG] = git.normalize_ref(tags.get(git.BRANCH))
+        else:
+            tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
         del tags[git.BRANCH]
-    tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
+    else:
+        tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
+        tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
+
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     workspace_path = tags.get(WORKSPACE_PATH)
@@ -140,6 +155,12 @@ def extract_appveyor(env):
     else:
         repository = commit = branch = tag = None
 
+    commit_message = env.get("APPVEYOR_REPO_COMMIT_MESSAGE")
+    if commit_message:
+        extended = env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED")
+        if extended:
+            commit_message += "\n" + extended
+
     return {
         PROVIDER_NAME: "appveyor",
         git.REPOSITORY_URL: repository,
@@ -152,7 +173,7 @@ def extract_appveyor(env):
         JOB_URL: url,
         git.BRANCH: branch,
         git.TAG: tag,
-        git.COMMIT_MESSAGE: env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED"),
+        git.COMMIT_MESSAGE: commit_message,
         git.COMMIT_AUTHOR_NAME: env.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
         git.COMMIT_AUTHOR_EMAIL: env.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
     }
@@ -172,18 +193,6 @@ def extract_azure_pipelines(env):
     else:
         pipeline_url = job_url = None
 
-    branch_or_tag = (
-        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
-        or env.get("BUILD_SOURCEBRANCH")
-        or env.get("BUILD_SOURCEBRANCHNAME")
-        or ""
-    )
-    branch = tag = None  # type: Optional[str]
-    if "tags/" in branch_or_tag:
-        tag = branch_or_tag
-    else:
-        branch = branch_or_tag
-
     return {
         PROVIDER_NAME: "azurepipelines",
         WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
@@ -194,13 +203,25 @@ def extract_azure_pipelines(env):
         JOB_URL: job_url,
         git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
-        git.BRANCH: branch,
-        git.TAG: tag,
+        git.BRANCH: env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCHNAME"),
         git.COMMIT_MESSAGE: env.get("BUILD_SOURCEVERSIONMESSAGE"),
         git.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
         JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("SYSTEM_TEAMPROJECTID", env.get("SYSTEM_TEAMPROJECTID")),
+                    ("BUILD_BUILDID", env.get("BUILD_BUILDID")),
+                    ("SYSTEM_JOBID", env.get("SYSTEM_JOBID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -245,6 +266,16 @@ def extract_buildkite(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
         git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
         git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("BUILDKITE_BUILD_ID", env.get("BUILDKITE_BUILD_ID")),
+                    ("BUILDKITE_JOB_ID", env.get("BUILDKITE_JOB_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -264,18 +295,22 @@ def extract_circle_ci(env):
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("CIRCLE_WORKFLOW_ID", env.get("CIRCLE_WORKFLOW_ID")),
+                    ("CIRCLE_BUILD_NUM", env.get("CIRCLE_BUILD_NUM")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
 def extract_github_actions(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Github environ."""
-    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF") or ""
-    branch = tag = None  # type: Optional[str]
-    if "tags/" in branch_or_tag:
-        tag = branch_or_tag
-    else:
-        branch = branch_or_tag
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
         env.get("GITHUB_SERVER_URL"),
@@ -286,11 +321,21 @@ def extract_github_actions(env):
     if run_attempt:
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
+    # OrderedDict is necessary for comparing against a fixture in testing
+    env_vars = OrderedDict(
+        [
+            ("GITHUB_SERVER_URL", env.get("GITHUB_SERVER_URL")),
+            ("GITHUB_REPOSITORY", env.get("GITHUB_REPOSITORY")),
+            ("GITHUB_RUN_ID", env.get("GITHUB_RUN_ID")),
+        ]
+    )
+    if env.get("GITHUB_RUN_ATTEMPT") is not None:
+        env_vars["GITHUB_RUN_ATTEMPT"] = env["GITHUB_RUN_ATTEMPT"]
+
     return {
-        git.BRANCH: branch,
+        git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
         git.REPOSITORY_URL: "{0}/{1}.git".format(env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY")),
-        git.TAG: tag,
         JOB_URL: "{0}/{1}/commit/{2}/checks".format(
             env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
         ),
@@ -298,8 +343,11 @@ def extract_github_actions(env):
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
         PIPELINE_URL: pipeline_url,
+        JOB_NAME: env.get("GITHUB_JOB"),
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
 
 
@@ -334,18 +382,24 @@ def extract_gitlab(env):
         git.COMMIT_AUTHOR_NAME: author_name,
         git.COMMIT_AUTHOR_EMAIL: author_email,
         git.COMMIT_AUTHOR_DATE: commit_timestamp,
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("CI_PROJECT_URL", env.get("CI_PROJECT_URL")),
+                    ("CI_PIPELINE_ID", env.get("CI_PIPELINE_ID")),
+                    ("CI_JOB_ID", env.get("CI_JOB_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
 def extract_jenkins(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Jenkins environ."""
-    branch_or_tag = env.get("GIT_BRANCH", "")
-    branch = tag = None  # type: Optional[str]
-    if "tags/" in branch_or_tag:
-        tag = branch_or_tag
-    else:
-        branch = branch_or_tag
+    branch = env.get("GIT_BRANCH", "")
     name = env.get("JOB_NAME")
     if name and branch:
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
@@ -353,16 +407,24 @@ def extract_jenkins(env):
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
 
     return {
-        git.BRANCH: branch,
+        git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
         git.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
-        git.TAG: tag,
         PIPELINE_ID: env.get("BUILD_TAG"),
         PIPELINE_NAME: name,
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",
         WORKSPACE_PATH: env.get("WORKSPACE"),
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("DD_CUSTOM_TRACE_ID", env.get("DD_CUSTOM_TRACE_ID")),
+                ]
+            ),
+            separators=(",", ":"),
+        ),
     }
 
 
@@ -370,17 +432,9 @@ def extract_teamcity(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Teamcity environ."""
     return {
-        git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
-        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
-        PIPELINE_ID: env.get("BUILD_ID"),
-        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
-        PIPELINE_URL: (
-            "{0}/viewLog.html?buildId={1}".format(env.get("SERVER_URL"), env.get("BUILD_ID"))
-            if env.get("SERVER_URL") and env.get("BUILD_ID")
-            else None
-        ),
+        JOB_URL: env.get("BUILD_URL"),
+        JOB_NAME: env.get("TEAMCITY_BUILDCONF_NAME"),
         PROVIDER_NAME: "teamcity",
-        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
     }
 
 
@@ -436,6 +490,25 @@ def extract_bitrise(env):
     }
 
 
+def extract_buddy(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Buddy environ."""
+    return {
+        PROVIDER_NAME: "buddy",
+        PIPELINE_ID: "{0}/{1}".format(env.get("BUDDY_PIPELINE_ID"), env.get("BUDDY_EXECUTION_ID")),
+        PIPELINE_NAME: env.get("BUDDY_PIPELINE_NAME"),
+        PIPELINE_NUMBER: env.get("BUDDY_EXECUTION_ID"),
+        PIPELINE_URL: env.get("BUDDY_EXECUTION_URL"),
+        git.REPOSITORY_URL: env.get("BUDDY_SCM_URL"),
+        git.COMMIT_SHA: env.get("BUDDY_EXECUTION_REVISION"),
+        git.BRANCH: env.get("BUDDY_EXECUTION_BRANCH"),
+        git.TAG: env.get("BUDDY_EXECUTION_TAG"),
+        git.COMMIT_MESSAGE: env.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
+        git.COMMIT_COMMITTER_NAME: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
+        git.COMMIT_COMMITTER_EMAIL: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
+    }
+
+
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
@@ -448,4 +521,5 @@ PROVIDERS = (
     ("TEAMCITY_VERSION", extract_teamcity),
     ("TRAVIS", extract_travis),
     ("BITRISE_BUILD_SLUG", extract_bitrise),
+    ("BUDDY", extract_buddy),
 )

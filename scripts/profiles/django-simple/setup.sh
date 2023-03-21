@@ -3,7 +3,7 @@
 set -eu
 
 PREFIX=${1}
-AUSTIN_VERSION="3.3.0"
+AUSTIN_VERSION="3.4.1"
 
 export DJANGO_SETTINGS_MODULE="config.settings.production"
 export DJANGO_ALLOWED_HOSTS="127.0.0.1"
@@ -57,4 +57,4 @@ popd
 pip install -e .
 
 # Install diff-tool dependencies
-pip install rich "austin-python~=1.0"
+pip install rich "austin-python~=1.4"

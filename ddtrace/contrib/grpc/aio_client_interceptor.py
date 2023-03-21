@@ -11,6 +11,8 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
+from ddtrace.internal.constants import COMPONENT
+
 from .. import trace_utils
 from ... import Pin
 from ... import Span
@@ -18,7 +20,9 @@ from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
 from ...propagation.http import HTTPPropagator
@@ -41,7 +45,7 @@ def _done_callback(span, code, details):
     def func(call):
         # type: (aio.Call) -> None
         try:
-            span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
 
             # Handle server-side error in unary response RPCs
             if code != grpc.StatusCode.OK:
@@ -55,17 +59,17 @@ def _done_callback(span, code, details):
 def _handle_error(span, call, code, details):
     # type: (Span, aio.Call, grpc.StatusCode, str) -> None
     span.error = 1
-    span._set_str_tag(ERROR_MSG, details)
-    span._set_str_tag(ERROR_TYPE, to_unicode(code))
+    span.set_tag_str(ERROR_MSG, details)
+    span.set_tag_str(ERROR_TYPE, to_unicode(code))
 
 
 def _handle_rpc_error(span, rpc_error):
     # type: (Span, aio.AioRpcError) -> None
     code = to_unicode(rpc_error.code())
     span.error = 1
-    span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, code)
-    span._set_str_tag(ERROR_MSG, rpc_error.details())
-    span._set_str_tag(ERROR_TYPE, code)
+    span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
+    span.set_tag_str(ERROR_MSG, rpc_error.details())
+    span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 
 
@@ -73,9 +77,9 @@ async def _handle_cancelled_error(call, span):
     # type: (aio.Call, Span) -> None
     code = to_unicode(await call.code())
     span.error = 1
-    span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, code)
-    span._set_str_tag(ERROR_MSG, await call.details())
-    span._set_str_tag(ERROR_TYPE, code)
+    span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
+    span.set_tag_str(ERROR_MSG, await call.details())
+    span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 
 
@@ -97,11 +101,17 @@ class _ClientInterceptor:
             service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
             resource=method_as_str,
         )
+
+        span.set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc_aio_client.get_analytics_sample_rate()
         if sample_rate is not None:

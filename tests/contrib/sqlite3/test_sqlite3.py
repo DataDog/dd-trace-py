@@ -1,5 +1,7 @@
 import sqlite3
+import sys
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -16,6 +18,19 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Generator
+
+
+@pytest.fixture
+def patched_conn():
+    # type: () -> Generator[sqlite3.Cursor, None, None]
+    patch()
+    conn = sqlite3.connect(":memory:")
+    yield conn
+    unpatch()
 
 
 class TestSQLite(TracerTestCase):
@@ -58,6 +73,9 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
+            self.assertEqual(root.get_tag("db.system"), "sqlite")
             assert start <= root.start <= end
             assert root.duration <= end - start
             self.reset()
@@ -73,6 +91,9 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
+            self.assertEqual(root.get_tag("db.system"), "sqlite")
             self.assertIsNotNone(root.get_tag(ERROR_STACK))
             self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
             self.assertIn("no such table", root.get_tag(ERROR_MSG))
@@ -125,6 +146,7 @@ class TestSQLite(TracerTestCase):
 
             # Assert query
             assert_is_measured(query_span)
+            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
 
             # Assert fetchone
@@ -137,6 +159,7 @@ class TestSQLite(TracerTestCase):
                     error=0,
                 ),
             )
+            self.assertEqual(fetchone_span.get_tag("db.system"), "sqlite")
             self.assertIsNone(fetchone_span.get_tag("sql.query"))
 
     def test_sqlite_fetchmany_is_traced(self):
@@ -160,6 +183,7 @@ class TestSQLite(TracerTestCase):
             # Assert query
             assert_is_measured(query_span)
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
+            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
 
             # Assert fetchmany
             assert_is_not_measured(fetchmany_span)
@@ -173,6 +197,7 @@ class TestSQLite(TracerTestCase):
                 ),
             )
             self.assertIsNone(fetchmany_span.get_tag("sql.query"))
+            self.assertEqual(fetchmany_span.get_tag("db.system"), "sqlite")
 
     def test_sqlite_ot(self):
         """Ensure sqlite works with the opentracer."""
@@ -351,3 +376,18 @@ class TestSQLite(TracerTestCase):
             cursor.fetchall()
             spans = self.get_spans()
             assert len(spans) == 1
+
+
+def test_iterator_usage(patched_conn):
+    """Ensure sqlite3 patched cursors can be used as iterators."""
+    rows = next(patched_conn.execute("select 1"))
+    assert len(rows) == 1
+
+
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="Connection.backup was added in Python 3.7")
+def test_backup(patched_conn):
+    """Ensure sqlite3 patched connections backup function can be used"""
+    destination = sqlite3.connect(":memory:")
+
+    with destination:
+        patched_conn.backup(destination, pages=1)

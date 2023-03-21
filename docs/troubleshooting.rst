@@ -2,6 +2,18 @@
 Troubleshooting
 ===============
 
+Installation failure
+====================
+
+``ModuleNotFoundError: No module named 'Cython'``
+
+pip is failing to install ``ddtrace`` and complaining about a missing module (Cython).
+``pip>=18`` is required to properly install ``ddtrace`` package.
+
+Check which version of pip you are using with ``pip --version``.
+
+Consider upgrading pip via ``pip install -U pip>=18``.
+
 Traces not showing up in the app
 ================================
 
@@ -41,6 +53,47 @@ The ``env`` tag is used for the scoping of the application's data to a specific 
 For more information about the ``version`` tag please see: https://docs.datadoghq.com/tracing/deployment_tracking/#the-version-tag
 
 To set ``service``, ``env``, and ``version`` properly for your environment, please see: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes
+
+
+Root span is missing error details
+==================================
+
+If an error is raised during the execution of instrumented code, any span from instrumented code which does not handle the exception will include error details (error flag, message, type, traceback).
+
+However, if the instrumented code for a span handles the exception, that span will not include error details as the exception is not raised from the call stack of the span's execution context.
+
+This can be a problem for users who want to see error details from a child span in the root span of a trace. An example of this is when an error is raised during the execution of view code, subsequently handled by the web framework in order to return an error page, the error details from the span for an instrumented view will not be included in the root span for the request.
+
+While this is default behavior for integrations, users can add a trace filter to propagate the error details up to the root span::
+
+  from ddtrace import Span, tracer
+  from ddtrace.filters import TraceFilter
+
+
+  class ErrorFilter(TraceFilter):
+    def process_trace(self, trace):
+        # Find first child span with an error and copy its error details to root span
+        if not trace:
+            return trace
+
+        local_root = trace[0]
+
+        for span in trace[1:]:
+            if span.error == 1:  # or any other conditional for finding the relevant child span
+                local_root.error = 1
+                local_root.set_tags({
+                    "error.msg": span.get_tag("error.msg"),
+                    "error.type": span.get_tag("error.type"),
+                    "error.stack": span.get_tag("error.stack"),
+                })
+                break
+
+        return trace
+
+
+  tracer.configure(settings={'FILTERS': [ErrorFilter()]})
+
+
 
 Still having issues?
 ====================

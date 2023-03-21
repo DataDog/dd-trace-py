@@ -1,3 +1,5 @@
+from inspect import isgeneratorfunction
+import ipaddress
 import platform
 import random
 import re
@@ -83,6 +85,27 @@ if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
+
+try:
+    from inspect import getfullargspec  # noqa
+
+    def is_not_void_function(f, argspec):
+        return (
+            argspec.args
+            or argspec.varargs
+            or argspec.varkw
+            or argspec.defaults
+            or argspec.kwonlyargs
+            or argspec.kwonlydefaults
+            or isgeneratorfunction(f)
+        )
+
+
+except ImportError:
+    from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
+
+    def is_not_void_function(f, argspec):
+        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
 
 def is_integer(obj):
@@ -245,6 +268,28 @@ else:
     CONTEXTVARS_IS_AVAILABLE = True
 
 
+try:
+    from pep562 import Pep562  # noqa
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        if sys.version_info < (3, 7):
+            Pep562(module_name)
+
+
+except ImportError:
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        pass
+
+
+try:
+    from collections.abc import Iterable  # noqa
+except ImportError:
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
+
+
 def maybe_stringify(obj):
     # type: (Any) -> Optional[str]
     if obj is not None:
@@ -252,7 +297,26 @@ def maybe_stringify(obj):
     return None
 
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+def to_bytes_py2(n, length, byteorder):
+    # type: (int, int, str) -> Text
+    """
+    Convert a string to bytes in the format expected by the remote config
+    capabilities string, considering the byteorder, which is needed
+    for Python 2.
+    """
+    if byteorder == "little":
+        order = range(length)
+    elif byteorder == "big":
+        order = reversed(range(length))  # type: ignore[assignment]
+    else:
+        raise ValueError("byteorder must be either 'little' or 'big'")
+
+    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
+
+
+NoneType = type(None)
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
@@ -288,3 +352,16 @@ except ImportError:
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
+
+
+def ip_is_global(ip):
+    # type: (str) -> bool
+    """
+    is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
+    """
+    parsed_ip = ipaddress.ip_address(six.text_type(ip))
+
+    if PY3:
+        return parsed_ip.is_global
+
+    return not (parsed_ip.is_loopback or parsed_ip.is_private)

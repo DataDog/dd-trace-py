@@ -5,7 +5,7 @@ import opentracing
 import ddtrace
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.opentracer import Tracer
 
 

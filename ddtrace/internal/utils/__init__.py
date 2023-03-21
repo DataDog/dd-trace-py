@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 
 class ArgumentError(Exception):
@@ -39,3 +40,30 @@ def get_argument_value(
             return args[pos]
         except IndexError:
             raise ArgumentError("%s (at position %d)" % (kw, pos))
+
+
+def set_argument_value(
+    args,  # type: Tuple[Any, ...]
+    kwargs,  # type: Dict[str, Any]
+    pos,  # type: int
+    kw,  # type: str
+    value,  # type: Any
+):
+    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+    """
+    Returns a new args, kwargs with the given value updated
+    :param args: Positional arguments
+    :param kwargs: Keyword arguments
+    :param pos: The positional index of the argument
+    :param kw: The name of the keyword
+    :param value: The new value of the target argument
+    :return: Updated args and kwargs
+    """
+    if len(args) > pos:
+        args = args[:pos] + (value,) + args[pos + 1 :]
+    elif kw in kwargs:
+        kwargs[kw] = value
+    else:
+        raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
+
+    return args, kwargs
