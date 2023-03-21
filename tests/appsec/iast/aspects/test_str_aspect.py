@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 import sys
+import threading
 
 import pytest
 
@@ -52,13 +53,14 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    thread_id = threading.current_thread().ident
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
     if should_be_tainted:
-        obj = taint_pyobject(obj, Input_info("test_str_aspect_tainting", obj, 0))
+        obj = taint_pyobject(obj, Input_info("test_str_aspect_tainting", obj, 0), thread_id)
 
     result = ddtrace_aspects.str_aspect(obj, **kwargs)
-    assert is_pyobject_tainted(result) == should_be_tainted
+    assert is_pyobject_tainted(result, thread_id) == should_be_tainted
 
     assert result == str(obj, **kwargs)

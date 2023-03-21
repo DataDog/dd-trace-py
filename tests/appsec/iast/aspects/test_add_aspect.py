@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 import sys
+import threading
 
 import pytest
 
@@ -72,17 +73,18 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
+    thread_id = threading.current_thread().ident
 
     if should_be_tainted:
-        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
+        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0), thread_id)
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert result == obj1 + obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
         assert result is not obj1 + obj2
-    assert is_pyobject_tainted(result) == should_be_tainted
+    assert is_pyobject_tainted(result, thread_id) == should_be_tainted
     if should_be_tainted:
-        assert get_tainted_ranges(result) == get_tainted_ranges(obj1)
+        assert get_tainted_ranges(result, thread_id) == get_tainted_ranges(obj1, thread_id)
 
 
 @pytest.mark.parametrize(
@@ -90,7 +92,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     [
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
-        (u"Hello ", u"world", True),
+        ("Hello ", "world", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
@@ -110,21 +112,24 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
+    thread_id = threading.current_thread().ident
 
     if should_be_tainted:
-        obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0))
+        obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0), thread_id)
         if len(obj2):
-            assert get_tainted_ranges(obj2)
+            assert get_tainted_ranges(obj2, thread_id)
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
 
     assert result == obj1 + obj2
 
-    assert is_pyobject_tainted(result) == should_be_tainted
+    assert is_pyobject_tainted(result, thread_id) == should_be_tainted
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
-        tainted_ranges = get_tainted_ranges(result)
+        tainted_ranges = get_tainted_ranges(result, thread_id)
         assert type(tainted_ranges) is list
         assert all(type(c) is tuple for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
-            assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
+            assert len(tainted_ranges) == len(get_tainted_ranges(obj1, thread_id)) + len(
+                get_tainted_ranges(obj2, thread_id)
+            )

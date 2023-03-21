@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import threading
+
 import mock
 import pytest
 
@@ -23,13 +25,14 @@ def test_tainted_getitem():
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     )
+    thread_id = threading.current_thread().ident
 
     # Strings are tainted, but integers are not
-    assert is_pyobject_tainted(tainted_knights["gallahad"])
-    assert not is_pyobject_tainted(tainted_knights["not string"])
+    assert is_pyobject_tainted(tainted_knights["gallahad"], thread_id)
+    assert not is_pyobject_tainted(tainted_knights["not string"], thread_id)
 
     # Regular dict is not affected
-    assert not is_pyobject_tainted(knights["gallahad"])
+    assert not is_pyobject_tainted(knights["gallahad"], thread_id)
 
     # KeyError is raised if the key is not found
     with pytest.raises(KeyError):
@@ -43,6 +46,7 @@ def test_tainted_get():
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     )
+    thread_id = threading.current_thread().ident
 
     # Not-existing key returns None or default
     arthur = knights.get("arthur")
@@ -51,57 +55,60 @@ def test_tainted_get():
     assert arthur is None
     arthur = tainted_knights.get("arthur", "default")
     assert arthur == "default"
-    assert not is_pyobject_tainted(arthur)
+    assert not is_pyobject_tainted(arthur, thread_id)
 
     # Integers are not tainted
     not_string = tainted_knights.get("not string")
-    assert not is_pyobject_tainted(not_string)
+    assert not is_pyobject_tainted(not_string, thread_id)
 
     # String-like values are tainted
     tainted_robin = tainted_knights.get("robin")
     assert tainted_robin is not None
-    assert is_pyobject_tainted(tainted_robin)
+    assert is_pyobject_tainted(tainted_robin, thread_id)
 
     # Regular dict is not affected
     robin = knights.get("robin")
-    assert not is_pyobject_tainted(robin)
+    assert not is_pyobject_tainted(robin, thread_id)
 
 
 def test_tainted_items():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    thread_id = threading.current_thread().ident
 
     # Values are tainted if string-like, keys aren't
     for k, v in tainted_knights.items():
-        assert not is_pyobject_tainted(k)
-        assert is_pyobject_tainted(v)
+        assert not is_pyobject_tainted(k, thread_id)
+        assert is_pyobject_tainted(v, thread_id)
 
     # Regular dict is not affected
     for k, v in knights.items():
-        assert not is_pyobject_tainted(k)
-        assert not is_pyobject_tainted(v)
+        assert not is_pyobject_tainted(k, thread_id)
+        assert not is_pyobject_tainted(v, thread_id)
 
 
 def test_tainted_values():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    thread_id = threading.current_thread().ident
 
     # Values are tainted if string-like
     for v in tainted_knights.values():
-        assert is_pyobject_tainted(v)
+        assert is_pyobject_tainted(v, thread_id)
 
     # Regular dict is not affected
     for v in knights.values():
-        assert not is_pyobject_tainted(v)
+        assert not is_pyobject_tainted(v, thread_id)
 
 
 def test_checked_tainted_args():
     cursor = mock.Mock()
     setattr(cursor.execute, "__name__", "execute")
     setattr(cursor.executemany, "__name__", "executemany")
+    thread_id = threading.current_thread().ident
 
     arg = "nobody expects the spanish inquisition"
-    tainted_arg = taint_pyobject(arg, Input_info("request_body", arg, 0))
+    tainted_arg = taint_pyobject(arg, Input_info("request_body", arg, 0), thread_id)
 
     untainted_arg = "gallahad the pure"
 

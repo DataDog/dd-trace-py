@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 import sys
+import threading
 
 import pytest
 
@@ -39,19 +40,20 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
+    thread_id = threading.current_thread().ident
     if should_be_tainted:
-        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0))
+        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0), thread_id)
 
     main_string = ddtrace_aspects.add_aspect(prefix, infix)
     if should_be_tainted:
-        assert len(get_tainted_ranges(main_string))
+        assert len(get_tainted_ranges(main_string, thread_id))
     main_string = ddtrace_aspects.add_aspect(main_string, suffix)
     if should_be_tainted:
-        assert len(get_tainted_ranges(main_string))
+        assert len(get_tainted_ranges(main_string, thread_id))
     ok, res = catch_all(ddtrace_aspects.decode_aspect, (main_string,) + args, kwargs)
     assert (ok, res) == catch_all(main_string.__class__.decode, (main_string,) + args, kwargs)
     if should_be_tainted and ok:
-        list_tr = get_tainted_ranges(res)
+        list_tr = get_tainted_ranges(res, thread_id)
         assert len(list_tr) == 1
         assert list_tr[0][1] == len(prefix.decode(*args, **kwargs))
         # assert length of tainted is ok. If last char was replaced due to some missing bytes, it may be shorter.
@@ -84,19 +86,20 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
+    thread_id = threading.current_thread().ident
     if should_be_tainted:
-        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0))
+        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0), thread_id)
 
     main_string = ddtrace_aspects.add_aspect(prefix, infix)
     if should_be_tainted:
-        assert len(get_tainted_ranges(main_string))
+        assert len(get_tainted_ranges(main_string, thread_id))
     main_string = ddtrace_aspects.add_aspect(main_string, suffix)
     if should_be_tainted:
-        assert len(get_tainted_ranges(main_string))
+        assert len(get_tainted_ranges(main_string, thread_id))
     ok, res = catch_all(ddtrace_aspects.encode_aspect, (main_string,) + args, kwargs)
     assert (ok, res) == catch_all(main_string.__class__.encode, (main_string,) + args, kwargs)
     if should_be_tainted and ok:
-        list_tr = get_tainted_ranges(res)
+        list_tr = get_tainted_ranges(res, thread_id)
         assert len(list_tr) == 1
         assert list_tr[0][1] == len(prefix.encode(*args, **kwargs))
         len_infix = len(infix.encode(*args, **kwargs))

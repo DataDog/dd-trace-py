@@ -2,6 +2,7 @@
 
 from builtins import str as builtin_str
 import codecs
+import threading
 
 from ddtrace.appsec.iast._input_info import Input_info
 from ddtrace.appsec.iast._taint_tracking import add_taint_pyobject  # type: ignore[attr-defined]
@@ -13,8 +14,9 @@ from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[a
 
 def str_aspect(*args, **kwargs):
     result = builtin_str(*args, **kwargs)
-    if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, Input_info("str_aspect", result, 0))
+    thread_id = threading.current_thread().ident
+    if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0], thread_id):
+        result = taint_pyobject(result, Input_info("str_aspect", result, 0), thread_id)
 
     return result
 
@@ -25,11 +27,13 @@ def add_aspect(op1, op2):
     res = getattr(op1.__class__, "__add__")(op1, op2)
     if res is op1 or res is op2:
         return res
-    return add_taint_pyobject(res, op1, op2)
+    thread_id = threading.current_thread().ident
+    return add_taint_pyobject(res, op1, op2, thread_id)
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
-    tainted_ranges = iter(get_tainted_ranges(self))
+    thread_id = threading.current_thread().ident
+    tainted_ranges = iter(get_tainted_ranges(self, thread_id))
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
@@ -57,12 +61,13 @@ def incremental_translation(self, incr_coder, funcode, empty):
     except UnicodeEncodeError:
         funcode(self)
     result = empty.join(result_list)
-    set_tainted_ranges(result, new_ranges)
+    set_tainted_ranges(result, new_ranges, thread_id)
     return result
 
 
 def decode_aspect(self, *args, **kwargs):
-    if not is_pyobject_tainted(self) or not isinstance(self, bytes):
+    thread_id = threading.current_thread().ident
+    if not isinstance(self, bytes) or not is_pyobject_tainted(self, thread_id):
         return self.decode(*args, **kwargs)
     codec = args[0] if args else "utf-8"
     inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
@@ -70,7 +75,8 @@ def decode_aspect(self, *args, **kwargs):
 
 
 def encode_aspect(self, *args, **kwargs):
-    if not is_pyobject_tainted(self) or not isinstance(self, str):
+    thread_id = threading.current_thread().ident
+    if not isinstance(self, str) or not is_pyobject_tainted(self, thread_id):
         return self.encode(*args, **kwargs)
     codec = args[0] if args else "utf-8"
     inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
