@@ -11,7 +11,7 @@ hypothesis==6.31.6
 importlib-metadata==4.8.3
 iniconfig==1.1.1
 mock==5.0.1
-mysql-connector-python==8.0.23
+mysql-connector-python==8.0.14
 opentracing==2.4.0
 packaging==21.3
 pluggy==1.0.0
