@@ -65,4 +65,10 @@ RUN \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
+COPY testrunner-requirements.txt /root/
+RUN \
+  cd /root \
+  && pip3 install -r testrunner-requirements.txt \
+  && cd -
+
 CMD ["/bin/bash"]
