@@ -172,7 +172,7 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@v3.2.6
+      - uses: actions/cache@v3.3.1
         id: cache
         with:
           path: ${{ env.pythonLocation }}
