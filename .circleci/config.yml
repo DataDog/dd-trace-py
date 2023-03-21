@@ -39,7 +39,7 @@ contrib_job_large: &contrib_job_large
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
-  parallelism: 4
+  parallelism: 2
 
 contrib_job_small: &contrib_job_small
   executor: ddtrace_dev_small
@@ -72,7 +72,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot
+      - run: pip3 install riot==0.16.0
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -369,6 +369,13 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
 
   internal:
     <<: *contrib_job
@@ -377,8 +384,7 @@ jobs:
           pattern: "internal"
 
   tracer:
-    <<: *contrib_job
-    parallelism: 8
+    <<: *contrib_job_large
     steps:
       - run_test:
           pattern: "tracer"
@@ -407,6 +413,14 @@ jobs:
     steps:
       - run_test:
           pattern: 'opentracer'
+
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
@@ -565,6 +579,7 @@ jobs:
 
   ddtracerun:
     <<: *contrib_job
+    parallelism: 4
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -587,7 +602,6 @@ jobs:
 
   asyncpg:
     <<: *machine_executor
-    parallelism: 6
     steps:
       - run_test:
           pattern: 'asyncpg'
@@ -602,7 +616,7 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
-    parallelism: 10
+    parallelism: 3
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
@@ -616,19 +630,19 @@ jobs:
           pattern: 'asgi$'
 
   tornado:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'tornado'
 
   bottle:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'bottle'
 
   cassandra:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -644,7 +658,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 13
+    parallelism: 5
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -655,14 +669,13 @@ jobs:
 
   cherrypy:
     <<: *machine_executor
-    parallelism: 6
     steps:
       - run_test:
           pattern: 'cherrypy'
           snapshot: true
 
   consul:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
@@ -671,14 +684,14 @@ jobs:
           pattern: 'consul'
 
   dogpile_cache:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'elasticsearch'
@@ -693,7 +706,7 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'django$'
@@ -709,7 +722,6 @@ jobs:
 
   djangorestframework:
     <<: *machine_executor
-    parallelism: 6
     steps:
       - run_test:
           pattern: 'djangorestframework'
@@ -718,7 +730,6 @@ jobs:
 
   fastapi:
     <<: *machine_executor
-    parallelism: 6
     steps:
       - run_test:
           pattern: "fastapi"
@@ -726,7 +737,7 @@ jobs:
 
   flask:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 4
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
@@ -738,7 +749,6 @@ jobs:
 
   gevent:
     <<: *contrib_job
-    parallelism: 8
     steps:
       - run_test:
           pattern: 'gevent'
@@ -752,7 +762,6 @@ jobs:
 
   graphql:
     <<: *machine_executor
-    parallelism: 8
     steps:
       - run_test:
           pattern: "graphql"
@@ -760,7 +769,6 @@ jobs:
 
   grpc:
     <<: *machine_executor
-    parallelism: 8
     steps:
       - run_test:
           pattern: "grpc"
@@ -789,7 +797,6 @@ jobs:
 
   httpx:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: 'httpx'
@@ -805,7 +812,7 @@ jobs:
           docker_services: "mariadb"
 
   molten:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'molten'
@@ -821,7 +828,7 @@ jobs:
           pattern: 'mysql'
 
   mysqlpython:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -831,7 +838,7 @@ jobs:
           pattern: 'mysqldb'
 
   pymysql:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -841,7 +848,7 @@ jobs:
           pattern: 'pymysql'
 
   pylibmc:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -851,7 +858,6 @@ jobs:
 
   pytest:
     executor: ddtrace_dev
-    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest$'
@@ -879,7 +885,6 @@ jobs:
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: 'mongoengine'
@@ -902,7 +907,7 @@ jobs:
           pattern: "pynamodb"
 
   pyodbc:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
     steps:
@@ -911,7 +916,6 @@ jobs:
 
   pyramid:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: 'pyramid'
@@ -928,7 +932,7 @@ jobs:
 
   sanic:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: "sanic"
@@ -936,7 +940,7 @@ jobs:
 
   snowflake:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: "snowflake"
@@ -944,14 +948,14 @@ jobs:
 
   starlette:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: "starlette"
           snapshot: true
 
   sqlalchemy:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -963,7 +967,6 @@ jobs:
 
   psycopg:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: "psycopg"
@@ -971,7 +974,7 @@ jobs:
           docker_services: "postgres"
 
   aiobotocore:
-    <<: *contrib_job_large
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
@@ -989,7 +992,7 @@ jobs:
           snapshot: true
 
   aiopg:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -1000,7 +1003,6 @@ jobs:
 
   aioredis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           docker_services: 'redis'
@@ -1009,7 +1011,6 @@ jobs:
 
   aredis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           docker_services: 'redis'
@@ -1018,7 +1019,6 @@ jobs:
 
   yaaredis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           docker_services: 'redis'
@@ -1027,16 +1027,14 @@ jobs:
 
   redis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
-          docker_services: 'redis'
+          docker_services: 'redis rediscluster'
           pattern: 'redis$'
           snapshot: true
 
   rediscluster:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: 'rediscluster'
@@ -1045,7 +1043,6 @@ jobs:
 
   rq:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           pattern: "rq"
@@ -1061,7 +1058,7 @@ jobs:
           docker_services: "httpbin_local"
 
   vertica:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *vertica_image
@@ -1082,8 +1079,7 @@ jobs:
           snapshot: true
 
   kombu:
-    <<: *contrib_job
-    parallelism: 8
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -1093,26 +1089,26 @@ jobs:
           pattern: 'kombu'
 
   benchmarks:
-    <<: *contrib_job
+    <<: *contrib_job_large
     steps:
       - run_test:
           store_coverage: false
           pattern: '^benchmarks'
 
   jinja2:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'jinja2'
 
   mako:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'mako'
 
   algoliasearch:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'algoliasearch'
@@ -1152,6 +1148,7 @@ requires_tests: &requires_tests
     - asyncpg
     - algoliasearch
     - asgi
+    - aws_lambda
     - benchmarks
     - boto
     - bottle
@@ -1189,6 +1186,7 @@ requires_tests: &requires_tests
     - mysqlconnector
     - mysqlpython
     - opentracer
+    - opentelemetry
     - psycopg
     - pylibmc
     - pylons
@@ -1253,6 +1251,7 @@ workflows:
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
@@ -1290,6 +1289,7 @@ workflows:
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
+      - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs

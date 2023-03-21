@@ -15,7 +15,9 @@ from ddtrace.internal.constants import COMPONENT
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
 from ...ext import db
@@ -181,6 +183,9 @@ def _start_span_and_set_tags(pin, query, session, cluster):
 
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
+
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)

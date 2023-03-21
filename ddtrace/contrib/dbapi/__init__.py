@@ -5,10 +5,13 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
@@ -92,6 +95,16 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(extra_tags)
 
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
+            if _is_iast_enabled():
+                from ddtrace.appsec.iast._taint_utils import check_tainted_args
+                from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+
+                if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
+                    SqlInjection.report(evidence_value=args[0])
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -282,6 +295,9 @@ class TracedConnection(wrapt.ObjectProxy):
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

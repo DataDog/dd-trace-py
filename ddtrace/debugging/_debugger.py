@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+import os
 import sys
 import threading
 from types import FunctionType
@@ -59,6 +60,7 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import Wrapper
 
 
@@ -246,6 +248,12 @@ class Debugger(Service):
             call_once=True,
             raise_on_exceed=False,
         )
+
+        # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
+        #  has been removed
+        if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
+            os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+            log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))

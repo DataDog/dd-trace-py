@@ -240,7 +240,6 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
@@ -460,7 +459,6 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
@@ -696,6 +694,9 @@ class Tracer(object):
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+
+            if config.env:
+                span.set_tag_str(ENV_KEY, config.env)  # env tag is used by _sampler.sample
             span.sampled = self._sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
