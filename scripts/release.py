@@ -176,11 +176,11 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
-    if "abort" in out_str:
-        raise ValueError(
-            """It looks like we couldn't switch over to the branch you're generating release notes for.
-                         Please commit your changes or stash them before you run this script so it can switch branches."""
-        )
+    # if "abort" in out_str:
+    #     raise ValueError(
+    #         """It looks like we couldn't switch over to the branch you're generating release notes for.
+    #                      Please commit your changes or stash them before you run this script so it can switch branches."""
+    #     )
 
     rn_raw = subprocess.check_output(
         "reno report --no-show-source | \
