@@ -15,6 +15,9 @@ from ...version import get_version
 from ..hostname import get_hostname
 
 
+_platform = platform.platform(aliased=True, terse=True)
+
+
 def _format_version_info(vi):
     # type: (sys._version_info) -> str
     """Converts sys.version_info into a string with the format x.x.x"""
@@ -110,7 +113,7 @@ def get_host_info():
     global _host_info
     if _host_info is None:
         _host_info = {
-            "os": platform.platform(aliased=True, terse=True),
+            "os": _platform,
             "hostname": get_hostname(),
             "os_version": _get_os_version(),
             "kernel_name": platform.system(),
