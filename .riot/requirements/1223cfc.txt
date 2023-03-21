@@ -25,7 +25,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 soupsieve==2.1
 toml==0.10.2
-waitress==1.4.4
+waitress==2.1.2
 webob==1.8.7
 webtest==2.0.35
 zipp==1.2.0

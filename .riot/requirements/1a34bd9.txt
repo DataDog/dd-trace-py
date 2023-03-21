@@ -24,7 +24,7 @@ sortedcontainers==2.4.0
 soupsieve==2.3.2.post1
 tomli==1.2.3
 typing-extensions==4.1.1
-waitress==2.0.0
+waitress==2.1.2
 webob==1.8.7
 webtest==3.0.0
 zipp==3.6.0

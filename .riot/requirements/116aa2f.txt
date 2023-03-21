@@ -49,7 +49,7 @@ soupsieve==1.9.6
 tempita==0.5.2
 toml==0.10.2
 typing==3.10.0.0
-waitress==1.4.4
+waitress==2.1.2
 wcwidth==0.2.6
 weberror==0.13.1
 webhelpers==1.3

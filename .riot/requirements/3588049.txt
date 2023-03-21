@@ -34,7 +34,7 @@ sortedcontainers==2.4.0
 soupsieve==1.9.6
 toml==0.10.2
 typing==3.10.0.0
-waitress==1.4.4
+waitress==2.1.2
 wcwidth==0.2.6
 webob==1.8.7
 webtest==2.0.35
