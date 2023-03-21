@@ -3,17 +3,15 @@ import os
 import re
 import subprocess
 
-from dotenv import load_dotenv
 from github import Github
 
 
 """This release notes script is built to create a release notes draft for release candidates, patches, and minor releases.
 
 Setup:
-1. Create a `.env` file in the scripts directory.
-2. Create Github token: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
-3. Give the Github token repo, user, audit_log, and project permissions.
-2. Add `export GH_TOKEN=<github token>` to the `.env` file.
+1.Create Github token: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
+2. Give the Github token repo, user, audit_log, and project permissions.
+3. Add `export GH_TOKEN=<github token>` to the `.zhrc` file.
 
 Usage:
 Required:
@@ -23,6 +21,7 @@ Required:
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
+    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
     
 Examples:
 Generate release notes for next release candidate version of 1.11: `BASE=1.11 RC=1 python release.py`
@@ -32,11 +31,6 @@ Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python
 Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 """
 
-home_dir = os.path.expanduser("~")
-env_loaded = load_dotenv(dotenv_path="%s/.env" % home_dir)
-if not env_loaded:
-    raise ValueError("No envars were loaded from .env file. Please follow the instructions in the script.")
-
 
 def create_release_draft():
     #  Figure out the version of the library that you’re working on releasing grabbed with VERSION envar
@@ -45,8 +39,13 @@ def create_release_draft():
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
 
+    if not gh_token:
+        raise ValueError(
+            "We need a Github token to generate the release notes. Please follow the instructions in the script."
+        )
+
     if base is None:
-        raise ValueError("Need to specify the base version with envar e.g. BASE=1.10.0")
+        raise ValueError("Need to specify the base version with envar e.g. BASE=1.10")
 
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
@@ -59,24 +58,24 @@ def create_release_draft():
         # figure out the rc version we want
         search = "v%s.0\.?rc((\d+$))" % base
         tags = dd_repo.get_tags()
-        rc_version = 0
+        latest_rc_version = 0
         for tag in tags:
             try:
-                rc_num = re.findall(search, tag.name)[0][0]
-                rc_num = int(rc_num)
+                other_rc_num = re.findall(search, tag.name)[0][0]
+                other_rc_num = int(other_rc_num)
             except (IndexError, ValueError, TypeError):
                 continue
-            if rc_num > rc_version:
-                rc_version = rc_num
-
+            if other_rc_num > latest_rc_version:
+                latest_rc_version = other_rc_num
+        new_rc_version = latest_rc_version + 1
         #  if this is the first rc for this base, we want to target 1.x
-        if rc_version == 0:
+        if new_rc_version == 1:
             name = "%s.0rc1" % base
             tag = "v%s" % name
             branch = "1.x"
         # if this is the rc+1 for this base
         else:
-            name = "%s.0rc%s" % (base, str(rc_version + 1))
+            name = "%s.0rc%s" % (base, str(new_rc_version))
             tag = "v%s" % name
             branch = base
         rn_raw = generate_rn(branch)
@@ -88,17 +87,18 @@ def create_release_draft():
         # figure out the patch version we want
         search = "v%s.((\d+))" % base
         tags = dd_repo.get_tags()
-        patch_version = 1
+        latest_patch_version = 1
         for tag in tags:
             try:
-                patch_num = re.findall(search, tag.name)[0][0]
-                patch_num = int(patch_num)
+                other_patch_num = re.findall(search, tag.name)[0][0]
+                other_patch_num = int(other_patch_num)
             except (IndexError, ValueError, TypeError):
                 continue
-            if patch_num > patch_version:
-                patch_version = patch_num
+            if other_patch_num > latest_patch_version:
+                latest_patch_version = other_patch_num
+        new_patch_version = latest_patch_version + 1
 
-        name = "%s.%s" % (base, str(patch_version + 1))
+        name = "%s.%s" % (base, str(new_patch_version))
         tag = "v%s" % name
         rn_raw = generate_rn(base)
         rn = clean_rn(rn_raw)
@@ -164,12 +164,13 @@ def create_release_draft():
 
 
 def clean_rn(rn_raw):
+    # remove all release notes generated except for those that haven't been released yet, which are the ones we care about
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
 def generate_rn(branch):
 
-    subprocess.run(
+    out_str = subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch}".format(
             branch=branch
@@ -177,6 +178,11 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
+    if "abort" in out_str:
+        raise ValueError(
+            """It looks like we couldn't switch over to the branch you're generating release notes for.
+                         Please commit your changes or stash them before you run this script so it can switch branches."""
+        )
 
     rn_raw = subprocess.check_output(
         "reno report --no-show-source | \
@@ -187,11 +193,26 @@ def generate_rn(branch):
     return rn_raw
 
 
-def create_draft_release(branch, name, tag, rn, prerelease, dd_repo,):
+def create_draft_release(
+    branch,
+    name,
+    tag,
+    rn,
+    prerelease,
+    dd_repo,
+):
     base_branch = dd_repo.get_branch(branch=branch)
-    dd_repo.create_git_release(
-        name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
-    )
+    print_release_notes = bool(os.getenv("PRINT"))
+    if print_release_notes:
+        print(
+            """\nName:%s\nTag:%s\nprerelease:%s\ntarget_commitish:%s\nmessage:%s
+              """
+            % (name, tag, prerelease, base_branch, rn)
+        )
+    else:
+        dd_repo.create_git_release(
+            name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
+        )
 
 
 if __name__ == "__main__":
