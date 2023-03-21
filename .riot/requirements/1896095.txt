@@ -43,5 +43,5 @@ toml==0.10.2
 typing==3.10.0.0
 urllib3==1.26.15
 wcwidth==0.2.6
-werkzeug==1.0.1
+werkzeug==2.2.3
 zipp==1.2.0

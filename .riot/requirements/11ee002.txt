@@ -27,7 +27,7 @@ python-memcached==1.59
 redis==2.10.6
 six==1.16.0
 sortedcontainers==2.4.0
-werkzeug==0.16.1
+werkzeug==2.2.3
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

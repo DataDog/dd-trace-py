@@ -29,4 +29,4 @@ requests==2.28.2
 sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==1.26.15
-werkzeug==1.0.1
+werkzeug==2.2.3
