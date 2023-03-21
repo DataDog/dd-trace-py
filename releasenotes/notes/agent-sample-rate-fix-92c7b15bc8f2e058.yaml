@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: This fix resolves an issue where making a sampling decision before the ``env`` span tag had been set caused
+    sample rate data from the Datadog Agent to be ignored.

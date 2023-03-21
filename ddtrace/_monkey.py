@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
-from .constants import IAST_ENV
 from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
@@ -201,7 +200,7 @@ def patch_iast(**patch_modules):
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    iast_enabled = config._iast_enabled
     if iast_enabled:
         # TODO: Devise the correct patching strategy for IAST
         for module in (m for m, e in patch_modules.items() if e):
