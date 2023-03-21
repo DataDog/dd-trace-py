@@ -12,7 +12,7 @@ import pytest
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.telemetry.writer import TelemetryBase
-from ddtrace.internal.telemetry.writer import TelemetryMetricsWriter
+from ddtrace.internal.telemetry.writer import TelemetryLogsMetricsWriter
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
 from tests.utils import request_token
@@ -29,7 +29,7 @@ def telemetry_writer():
 
 @pytest.fixture
 def telemetry_metrics_writer():
-    telemetry_metrics_writer = TelemetryMetricsWriter()
+    telemetry_metrics_writer = TelemetryLogsMetricsWriter()
 
     telemetry_metrics_writer._enabled = True
     return telemetry_metrics_writer
@@ -120,7 +120,7 @@ def test_agent_session(telemetry_writer, request):
 
 @pytest.fixture
 def test_agent_metrics_session(telemetry_metrics_writer, request):
-    # type: (TelemetryMetricsWriter, Any) -> Generator[TelemetryTestSession, None, None]
+    # type: (TelemetryLogsMetricsWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request)
     telemetry_metrics_writer._restart_sequence()
     telemetry_metrics_writer._client._headers["X-Datadog-Test-Session-Token"] = token
