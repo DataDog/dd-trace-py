@@ -57,12 +57,7 @@ def normalize_repository_url(url):
 
 
 def _query_git(args):
-    try:
-        p = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE)
-    except EnvironmentError:
-        print("Couldn't run git")
-        return
-    ver = p.communicate()[0]
+    ver = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE).communicate()[0]
     return ver.strip().decode("utf-8")
 
 

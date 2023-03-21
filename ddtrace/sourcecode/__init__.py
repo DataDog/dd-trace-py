@@ -21,7 +21,7 @@ Packages with ``pyproject.toml`` can update the build system requirements::
 
 
 The instrumentation of ``setuptools`` can be automatically enabled to embed the
-source code link with a one-line import::
+source code link with a one-line import in ``setup.py`` (before setuptools import)::
 
    import ddtrace.sourcecode.setuptools_auto
    from setuptools import setup
