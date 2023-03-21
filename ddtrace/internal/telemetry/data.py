@@ -9,13 +9,14 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import callonce
 
 from ...settings import _config as config
 from ...version import get_version
 from ..hostname import get_hostname
 
 
-_platform = platform.platform(aliased=True, terse=True)
+_platform = callonce(lambda: platform.platform(aliased=True, terse=True))()
 
 
 def _format_version_info(vi):
