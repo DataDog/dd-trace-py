@@ -1075,7 +1075,7 @@ jobs:
           snapshot: true
 
   kafka:
-    <<: *contrib_job
+    <<: *machine_executor
     docker:
       - image: *ddtrace_dev_image
       - image: *zookeeper_image
@@ -1093,8 +1093,8 @@ jobs:
     steps:
       - run_test:
           pattern: 'kafka'
-          docker_services: 'kafka'
           snapshot: true
+          docker_services: 'kafka'
 
   kombu:
     <<: *contrib_job_small
