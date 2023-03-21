@@ -15,6 +15,10 @@ on:
       context:
         required: true
         type: string
+      push:
+        default: true
+        type: boolean
+        required: false
     secrets:
       token:
         required: true
@@ -34,7 +38,7 @@ jobs:
     - name: Docker Build
       uses: docker/build-push-action@v4
       with:
-        push: true
+        push: ${{ inputs.push }}
         tags: ${{ inputs.tags }}
         platforms: ${{ inputs.platforms }}
         build-args: ${{ inputs.build-args }}

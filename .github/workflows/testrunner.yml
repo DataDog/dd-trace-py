@@ -4,7 +4,14 @@ on:
   push:
     branches:
       - '1.x'
-      - 'fix-testrunner'
+  workflow_dispatch:
+    inputs:
+      test-build:
+        default: 'Yes'
+        required: true
+        type: choice
+        options:
+          - 'Yes'
 
 jobs:
   build-and-publish:
@@ -14,5 +21,6 @@ jobs:
       platforms: 'linux/amd64,linux/arm64/v8'
       build-args: ''
       context: ./docker
+      push: ${{ github.event.inputs.test-build || true }}
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
