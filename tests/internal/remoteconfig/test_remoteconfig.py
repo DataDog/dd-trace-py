@@ -140,10 +140,10 @@ def test_remote_config_forksafe():
             parent_worker = RemoteConfig._worker
             assert parent_worker is not None
 
-        if os.fork() == 0:
-            assert RemoteConfig._worker is not None
-            assert RemoteConfig._worker is not parent_worker
-            exit(0)
+            if os.fork() == 0:
+                assert RemoteConfig._worker is not None
+                assert RemoteConfig._worker is not parent_worker
+                exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
