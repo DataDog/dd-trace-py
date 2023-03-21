@@ -113,6 +113,7 @@ class EventsSDKTestCase(TracerTestCase):
             root_span = self.tracer.current_root_span()
 
             assert root_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
+            assert root_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
 
     def test_set_user_blocked(self):
         tracer = self._tracer_appsec

@@ -74,7 +74,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.16.0
+      - run: pip3 install riot==0.17.1
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -371,6 +371,13 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec'
+          snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
           snapshot: true
 
   internal:
@@ -1153,6 +1160,7 @@ requires_tests: &requires_tests
     - asyncpg
     - algoliasearch
     - asgi
+    - aws_lambda
     - benchmarks
     - boto
     - bottle
@@ -1256,6 +1264,7 @@ workflows:
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
