@@ -13,7 +13,7 @@
       "component": "kafka",
       "kafka.message_key": "test_key",
       "kafka.received_message": "True",
-      "kafka.tombstone": "True",
+      "kafka.tombstone": "False",
       "kafka.topic": "test_topic",
       "language": "python",
       "messaging.system": "kafka",
