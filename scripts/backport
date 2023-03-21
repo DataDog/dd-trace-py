@@ -27,7 +27,7 @@ TO_BRANCHES="$@"
 # DEV: We might have https://github.com/DataDog/dd-trace-py, or git@github.com:DataDog/dd-trace-py.
 REMOTE=origin
 
-if git remote -v show | grep -qe "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)"
+if git remote -v show | grep -qe "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" > /dev/null
 then
     REMOTE=$(git remote -v show | grep -e "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" | awk '{print $1}')
 else
