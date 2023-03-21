@@ -938,10 +938,7 @@ def test_debugger_log_live_probe_generate_messages():
         sleep(0.5)
 
         (msgs,) = d.uploader.payloads
-        (
-            msg1,
-            msg2,
-        ) = msgs
+        msg1, msg2 = msgs
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
@@ -962,7 +959,7 @@ class SpanProbeTestCase(TracerTestCase):
         ddtrace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
-    def test_deubgger_span_probe(self):
+    def test_debugger_span_probe(self):
         from tests.submod.stuff import mutator
 
         with debugger() as d:
@@ -983,7 +980,7 @@ class SpanProbeTestCase(TracerTestCase):
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
 
-    def test_deubgger_span_not_created_when_condition_was_false(self):
+    def test_debugger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
 
         with debugger() as d:
@@ -1011,7 +1008,7 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.resource == "mutator"
             assert span.get_tags()["debugger.probeid"] == "span-probe"
 
-    def test_deubgger_snap_probe_linked_to_parent_span(self):
+    def test_debugger_snap_probe_linked_to_parent_span(self):
         from tests.submod.stuff import mutator
 
         with debugger() as d:
@@ -1023,10 +1020,7 @@ class SpanProbeTestCase(TracerTestCase):
                 mutator(arg=[])
 
             self.assert_span_count(2)
-            (
-                root,
-                span,
-            ) = self.get_spans()
+            root, span = self.get_spans()
 
             assert root.name == "parent_span"
 

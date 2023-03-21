@@ -21,7 +21,11 @@ PROBE_ID_TAG_NAME = "debugger.probeid"
 class DynamicSpan(CapturedEvent):
     """Dynamically created span"""
 
-    span = attr.ib(type=t.Optional[Span], default=None)
+    _span_cm = attr.ib(type=t.Optional[t.ContextManager[Span]], init=False)
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        self._span_cm = None
 
     def enter(self):
         # type: () -> None
@@ -30,24 +34,19 @@ class DynamicSpan(CapturedEvent):
             log.debug("Dynamic span entered with non-span probe: %s", self.probe)
             return
 
-        _args = dict(self.args) if self.args else {}
-        if not self._eval_condition(_args):
+        if not self._eval_condition(dict(self.args) if self.args else {}):
             return
 
-        tracer = ddtrace.tracer
-
-        span = tracer.start_span(
+        self._span_cm = ddtrace.tracer.trace(
             SPAN_NAME,
-            child_of=tracer.context_provider.active(),
-            service=None,  # TODO
+            service=None,  # Currently unused
             resource=probe.func_qname,
-            span_type=None,  # TODO
-            activate=True,
+            span_type=None,  # Currently unused
         )
+        span = self._span_cm.__enter__()
+
         span.set_tags(probe.tags)
         span.set_tag(PROBE_ID_TAG_NAME, probe.probe_id)
-
-        self.span = span.__enter__()
 
         self.state = CaptureState.DONE
 
@@ -57,11 +56,9 @@ class DynamicSpan(CapturedEvent):
             log.debug("Dynamic span exited with non-span probe: %s", self.probe)
             return
 
-        if not self.span:
-            log.debug("Dynamic span exited without span: %s", self.probe)
-            return
-
-        self.span.__exit__(*exc_info)
+        if self._span_cm is not None:
+            # Condition evaluated to true so we created a span. Finish it.
+            self._span_cm.__exit__(*exc_info)
 
     def line(self, _locals=None, exc_info=(None, None, None)):
         raise NotImplementedError("Dynamic line spans are not supported in Python")
