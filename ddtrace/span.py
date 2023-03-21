@@ -40,6 +40,7 @@ from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
+from .internal.utils.http import get_64_lowest_order_bits_as_int
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -48,6 +49,12 @@ _MetaDictType = Dict[_TagNameType, Text]
 _MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
+
+
+if config._128_bit_trace_id_enabled:
+    _generate_trace_id = _rand.rand128bits
+else:
+    _generate_trace_id = _rand.rand64bits
 
 
 class Span(object):
@@ -137,7 +144,7 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits()  # type: int
+        self.trace_id = trace_id or _generate_trace_id()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -175,6 +182,10 @@ class Span(object):
         if not self._store:
             return None
         return self._store.get(key)
+
+    @property
+    def _trace_id_64bits(self):
+        return get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
     def start(self):
