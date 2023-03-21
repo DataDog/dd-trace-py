@@ -111,9 +111,7 @@ def create_release_draft():
         branch = base
         rn_raw = generate_rn(branch)
         # get anything in unreleased section in case there were updates since the last RC
-        unreleased = (
-            rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
-        )
+        unreleased = clean_rn(rn_raw)
         unreleased = unreleased.split("###")
         try:
             unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
