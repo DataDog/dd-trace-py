@@ -475,7 +475,7 @@ The following environment variables for the tracer are supported:
 
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
-     default: "0"
+     default: "auto"
      description: |
         Controls whether module cloning logic is executed by ``ddtrace-run``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
         that will be unaffected by future imports of and changes to those modules by application code. Valid values for this variable are ``1``, ``0``, and ``auto``. ``1`` tells
