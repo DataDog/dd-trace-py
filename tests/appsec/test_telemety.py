@@ -17,11 +17,13 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def mock_telemetry_metrics_writer():
+    telemetry_metrics_writer.enable()
     metrics_result = telemetry_metrics_writer._namespace._metrics_data
     assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     yield telemetry_metrics_writer
     telemetry_metrics_writer._flush_namespace_metrics()
+    telemetry_metrics_writer.disable()
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
@@ -71,6 +73,7 @@ def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
 
 def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
     with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -85,6 +88,7 @@ def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
         dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
     ):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
@@ -96,6 +100,7 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
         dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
     ):
+        mock_telemetry_metrics_writer._flush_namespace_metrics()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
