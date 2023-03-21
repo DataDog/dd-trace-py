@@ -1,4 +1,7 @@
 import os
+from typing import Optional
+
+import six
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -15,15 +18,22 @@ class RemoteConfig(object):
     _worker_lock = forksafe.Lock()
 
     @classmethod
-    def enable(cls):
-        # type: () -> bool
+    def enable(cls, client_config=None):
+        # type: (Optional[dict]) -> bool
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
+        if client_config:  # JJJ
+            from pprint import pformat
+            log.warning("JJJ starting rc worker with config:\n%s", pformat(client_config))
         rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
         if rc_env_enabled:
             with cls._worker_lock:
                 if cls._worker is None:
                     cls._worker = RemoteConfigWorker()
+                    if client_config:
+                        for k, v in six.iteritems(client_config):
+                            setattr(cls._worker._client, k, v)
                     cls._worker.start()
+                    cls._worker._client.request()  # JJJ
 
                     forksafe.register(cls._restart)
                     atexit.register(cls.disable)
@@ -32,8 +42,10 @@ class RemoteConfig(object):
 
     @classmethod
     def _restart(cls):
-        cls.disable()
-        cls.enable()
+        client_config = cls.disable()
+        from pprint import pformat
+        log.warning("JJJ client_config in restart: %s", pformat(client_config))
+        cls.enable(client_config)
 
     @classmethod
     def register(cls, product, handler):
@@ -54,9 +66,12 @@ class RemoteConfig(object):
 
     @classmethod
     def disable(cls, join=False):
-        # type: (bool) -> None
+        # type: (bool) -> Optional[dict]
+        client_config = None
+
         with cls._worker_lock:
             if cls._worker is not None:
+                client_config = cls._worker.get_client_config()
                 cls._worker.stop()
                 if join:
                     cls._worker.join()
@@ -64,6 +79,8 @@ class RemoteConfig(object):
 
                 forksafe.unregister(cls._restart)
                 atexit.unregister(cls.disable)
+
+        return client_config
 
     def __enter__(self):
         # type: () -> RemoteConfig

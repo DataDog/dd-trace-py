@@ -46,6 +46,9 @@ class RemoteConfigWorker(periodic.PeriodicService):
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
         self._state = self._agent_check
 
+    def get_client_config(self):
+        return self._client.get_current_config()
+
     def _agent_check(self):
         # type: () -> None
         try:

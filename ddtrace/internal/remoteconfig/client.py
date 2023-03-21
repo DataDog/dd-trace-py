@@ -1,5 +1,6 @@
 import abc
 import base64
+import os
 from datetime import datetime
 import hashlib
 import json
@@ -30,6 +31,9 @@ from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.version import _pep440_to_semver
 
+from six.moves import cPickle
+
+from ...appsec._constants import PRODUCTS
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import MutableMapping
@@ -251,6 +255,57 @@ class RemoteConfigClient(object):
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
+
+        # JJJ try... except
+        # JJJ encrypt/unencrypt
+        # JJJ check date
+        # JJJ check product name to avoid clashes with other products on the same machine!
+        # JJJ like use DD_ENV or the server name
+        log.warning("JJJ checking file for pid %s", os.getpid())
+        if os.path.exists("/tmp/JJJfichero"):
+            ddtrace.tracer.configure(appsec_enabled=True)  # JJJ
+            ddtrace.config._appsec_enabled = True  # JJJ
+            from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+            enable_appsec_rc()  # JJJ
+
+            log.warning("JJJ file exists for pid %s", os.getpid())
+            data = open("/tmp/JJJfichero", "rb").read()
+            unserialized = cPickle.loads(data)
+            # JJJ check keys here
+            self._last_targets_version = unserialized["last_targets_version"]
+            self._applied_configs = unserialized["applied_configs"]
+            self._backend_state = unserialized["backend_state"]
+            self._last_error = unserialized["last_error"]
+            self._add_apply_config_to_cache()
+
+            from ...appsec._remoteconfiguration import RCAppSecFeaturesCallBack, RCASMDDCallBack, \
+                RCAppSecCallBack
+
+            for product_name in unserialized["products"]:
+                log.warning("JJJ registering %s for pid %s", product_name, os.getpid())
+                asm_features_callback = RCAppSecFeaturesCallBack(ddtrace.tracer)
+                asm_dd_callback = RCASMDDCallBack(ddtrace.tracer)
+                asm_callback = RCAppSecCallBack(ddtrace.tracer)
+
+                if product_name == PRODUCTS.ASM_FEATURES:
+                    self.register_product(PRODUCTS.ASM_FEATURES, asm_features_callback)
+                elif product_name == PRODUCTS.ASM_DATA:
+                    self.register_product(PRODUCTS.ASM_DATA, asm_callback)
+                elif product_name == PRODUCTS.ASM:
+                    self.register_product(PRODUCTS.ASM, asm_callback)
+                elif product_name == PRODUCTS.ASM_DD:
+                    self.register_product(PRODUCTS.ASM_DD, asm_dd_callback)
+
+            log.warning("JJJ loaded new configs from file for pid %s", os.getpid())
+            log.warning("JJJ loaded data for pid %s: %s", os.getpid(), unserialized)
+
+    def get_current_config(self):
+        return {
+            '_products': self._products,
+            '_applied_configs': self._applied_configs,
+            '_last_targets_versions': self._last_targets_version,
+            '_backend_state': self._backend_state
+        }
 
     def register_product(self, product_name, func=None):
         # type: (str, Optional[RemoteConfigCallBack]) -> None
@@ -528,16 +583,33 @@ class RemoteConfigClient(object):
 
         self._add_apply_config_to_cache()
 
+        # JJJ serialize here
+        with open("/tmp/JJJfichero", "wb") as JJJ:
+            data = {
+                "last_targets_version": last_targets_version,
+                "applied_configs": applied_configs,
+                "backend_state": backend_state,
+                "products": list(self._products.keys()),
+                "last_error": self._last_error,
+            }
+            serialized = cPickle.dumps(data)
+            JJJ.write(serialized)
+
     def request(self):
         # type: () -> bool
+        import time
+        log.warning("JJJ RemoteConfigClient.request start for pid %s at %s", os.getpid(), int(time.time()))
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
+            log.warning("JJJ RemoteConfigClient.request payload for pid %s: %s", os.getpid(), payload)
             response = self._send_request(payload)
             if response is None:
+                log.warning("JJJ request response was False!")
                 return False
             self._process_response(response)
             self._last_error = None
+            log.warning("JJJ request.response received for pid %s: %s", os.getpid(), response)
             return True
 
         except RemoteConfigError as e:
@@ -547,5 +619,9 @@ class RemoteConfigClient(object):
             log.debug("Unexpected response data", exc_info=True)
         except Exception:
             log.debug("Unexpected error", exc_info=True)
+        finally:
+            log.warning("JJJ RemoteConfigClient.request end for pid %s at %s", os.getpid(), int(time.time()))
 
+        import traceback
+        log.warning("JJJ Exit with some exception: %s", traceback.format_exc())
         return False
