@@ -71,7 +71,7 @@ def test_continue_on_early_trace_ending(context):
 
     patch()
 
-    datadog(finishing_spans_early_handler)({}, context())
+    datadog(finishing_spans_early_handler)({}, context)
 
 
 @pytest.mark.snapshot
