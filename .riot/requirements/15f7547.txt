@@ -14,7 +14,7 @@ contextlib2==21.6.0
 contextvars==2.4
 coverage[toml]==6.2
 dataclasses==0.8
-fastapi==0.83.0
+fastapi==0.65.2
 h11==0.12.0
 httpcore==0.14.7
 httpx==0.22.0
