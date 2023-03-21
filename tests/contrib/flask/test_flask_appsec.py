@@ -507,7 +507,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/do_exist.php")
             assert resp.status_code == 200
-        # ppsec disabled must not block
+        # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(
             dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
         ):
