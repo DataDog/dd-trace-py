@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Adds source code integration with setuptools build metadata.
+    Adds source code integration with setuptools build metadata. This enables traces to be automatically tagged with version information to track deployments in Datadog... and more...
