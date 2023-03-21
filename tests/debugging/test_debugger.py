@@ -9,6 +9,7 @@ from mock.mock import call
 import pytest
 
 import ddtrace
+from ddtrace.debugging._capture.dynamic_span import SPAN_NAME
 from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
@@ -974,7 +975,7 @@ class SpanProbeTestCase(TracerTestCase):
             self.assert_span_count(1)
             (span,) = self.get_spans()
 
-            assert span.name == "dd.dynamic.span"
+            assert span.name == SPAN_NAME
             assert span.resource == "mutator"
             tags = span.get_tags()
             assert tags["debugger.probeid"] == "span-probe"
@@ -1004,7 +1005,7 @@ class SpanProbeTestCase(TracerTestCase):
             self.assert_span_count(1)
             (span,) = self.get_spans()
 
-            assert span.name == "dd.dynamic.span"
+            assert span.name == SPAN_NAME
             assert span.resource == "mutator"
             assert span.get_tags()["debugger.probeid"] == "span-probe"
 
@@ -1024,8 +1025,35 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert root.name == "parent_span"
 
-            assert span.name == "dd.dynamic.span"
+            assert span.name == SPAN_NAME
             assert span.resource == "mutator"
-            assert span.get_tags()["debugger.probeid"] == "exit-probe"
+            assert span.get_tag("debugger.probeid") == "exit-probe"
 
             assert span.parent_id == root.span_id
+
+    def test_debugger_snap_probe_root(self):
+        from tests.submod.stuff import caller
+
+        @self.tracer.wrap("child")
+        def child():
+            pass
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="root-dynamic-span-probe", module="tests.submod.stuff", func_qname="caller"
+                )
+            )
+
+            caller(child)
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == SPAN_NAME
+            assert root.resource == "caller"
+            assert root.get_tag("debugger.probeid") == "root-dynamic-span-probe"
+
+            assert span.name == "child"
+
+            assert span.parent_id is root.span_id
