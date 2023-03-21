@@ -202,8 +202,10 @@ def test_resource_name_too_large(monkeypatch):
     assert t._writer._buffer_size == SIZE
     s = t.trace("operation", service="foo")
     s.resource = "B" * (SIZE + 1)
-    with pytest.raises(ValueError):
+    try:
         s.finish()
+    except ValueError:
+        pytest.fail()
 
 
 @allencodings

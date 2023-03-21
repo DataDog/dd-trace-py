@@ -244,6 +244,9 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
+        if len(string) > self.max_size:
+            string = string[:10] + "<truncated in ddtrace.internal._encoding.pyx due to buffer overrun"
+
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
                 "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
