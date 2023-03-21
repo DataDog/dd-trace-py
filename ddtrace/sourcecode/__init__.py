@@ -10,7 +10,7 @@ setuptools
 ----------
 
 The ``ddtrace`` provides automatic instrumentation of ``setuptools`` to embed
-the source code link into the project metadata. The package has to be installed
+the source code link into the project metadata. ``ddtrace`` has to be installed
 as a build dependency.
 
 Packages with ``pyproject.toml`` can update the build system requirements::
