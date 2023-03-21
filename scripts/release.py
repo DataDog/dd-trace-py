@@ -110,37 +110,7 @@ def create_release_draft():
         tag = "v%s" % name
         branch = base
         rn_raw = generate_rn(branch)
-        # get anything in unreleased section in case there were updates since the last RC
-        unreleased = clean_rn(rn_raw)
-        unreleased = unreleased.split("###")
-        try:
-            unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
-        except ValueError:
-            unreleased_sections = {}
-        relevant_rns = []
-        if unreleased_sections:
-            relevant_rns.append(unreleased_sections)
-
-        rns = rn_raw.decode().split("## v")
-        split_str = "## v%s" % base
-        for rn in rns:
-            if rn.startswith("%s.0" % base):
-                # cut out the version section
-                sections = rn.split("###")[1:]
-                prelude_section = {}
-                # if there is a prelude, we need to grab that separately since it has different syntax
-                if sections[0].startswith(" Prelude\n\n"):
-                    prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
-                    sections = sections[1:]
-                sections_dict = {**dict(section.split("\n\n", 1) for section in sections), **prelude_section}
-                relevant_rns.append(sections_dict)
-        # join all the sections from different relevant RCs together
-        keys = set().union(*relevant_rns)
-        rns_dict = {k: "".join(dic.get(k, "") for dic in relevant_rns) for k in keys}
-        rns_dict_clean = {}
-        for key in rns_dict.keys():
-            rns_dict_clean[key.lstrip()] = rns_dict[key]
-
+        rn_sections_clean = create_release_notes_sections(rn_raw, branch)
         # combine the release note sections into a string in the correct order
         rn_clean = ""
         rn_key_order = [
@@ -154,7 +124,7 @@ def create_release_draft():
         ]
         for key in rn_key_order:
             try:
-                rn_clean += "### %s\n\n%s" % (key, rns_dict_clean[key])
+                rn_clean += "### %s\n\n%s" % (key, rn_sections_clean[key])
             except KeyError:
                 continue
 
@@ -176,11 +146,6 @@ def generate_rn(branch):
         shell=True,
         cwd=os.pardir,
     )
-    # if "abort" in out_str:
-    #     raise ValueError(
-    #         """It looks like we couldn't switch over to the branch you're generating release notes for.
-    #                      Please commit your changes or stash them before you run this script so it can switch branches."""
-    #     )
 
     rn_raw = subprocess.check_output(
         "reno report --no-show-source | \
@@ -189,6 +154,39 @@ def generate_rn(branch):
         cwd=os.pardir,
     )
     return rn_raw
+
+
+def create_release_notes_sections(rn_raw, branch):
+    # get anything in unreleased section in case there were updates since the last RC
+    unreleased = clean_rn(rn_raw)
+    unreleased = unreleased.split("###")
+    try:
+        unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
+    except ValueError:
+        unreleased_sections = {}
+    relevant_rns = []
+    if unreleased_sections:
+        relevant_rns.append(unreleased_sections)
+
+    rns = rn_raw.decode().split("## v")
+    for rn in rns:
+        if rn.startswith("%s.0" % branch):
+            # cut out the version section
+            sections = rn.split("###")[1:]
+            prelude_section = {}
+            # if there is a prelude, we need to grab that separately since it has different syntax
+            if sections[0].startswith(" Prelude\n\n"):
+                prelude_section[" Prelude"] = sections[0].split("\n\n", 1)[1]
+                sections = sections[1:]
+            sections_dict = {**dict(section.split("\n\n", 1) for section in sections), **prelude_section}
+            relevant_rns.append(sections_dict)
+    # join all the sections from different relevant RCs together
+    keys = set().union(*relevant_rns)
+    rns_dict = {k: "".join(dic.get(k, "") for dic in relevant_rns) for k in keys}
+    rn_sections_clean = {}
+    for key in rns_dict.keys():
+        rn_sections_clean[key.lstrip()] = rns_dict[key]
+    return rn_sections_clean
 
 
 def create_draft_release(
