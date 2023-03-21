@@ -6,6 +6,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_LOGS
 from ddtrace.internal.telemetry.metrics_namespaces import TelemetryTypeError
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
@@ -33,6 +34,19 @@ def _assert_metric(
     assert events[0]["request_type"] == type_paypload
 
     assert events[0] == _get_request_body(payload, type_paypload, seq_id)
+
+
+def _assert_logs(
+    test_agent,
+    expected_payload,
+    seq_id=1,
+):
+    test_agent.telemetry_writer.periodic()
+    events = test_agent.get_events()
+
+    assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_LOGS]) == seq_id
+
+    assert events[0] == _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
@@ -312,3 +326,61 @@ def test_send_metric_flush_and_distributions_series_is_restarted(test_agent_metr
             type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
             seq_id=2,
         )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
+def test_send_log_metric_simple(test_agent_metrics_session, mock_time):
+    """Check the queue of metrics is empty after run periodic method of PeriodicService"""
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        telemetry_writer = test_agent_metrics_session.telemetry_writer
+        telemetry_writer.add_log("WARNING", "test error 1")
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "tracer_time": 1642544540,
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
+def test_send_log_metric_simple_tags(test_agent_metrics_session, mock_time):
+    """Check the queue of metrics is empty after run periodic method of PeriodicService"""
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        telemetry_writer = test_agent_metrics_session.telemetry_writer
+        telemetry_writer.add_log("WARNING", "test error 1", tags={"a": "b", "c": "d"})
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "tracer_time": 1642544540,
+                "tags": "a:b,c:d",
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
+def test_send_multiple_log_metric(test_agent_metrics_session, mock_time):
+    """Check the queue of metrics is empty after run periodic method of PeriodicService"""
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        telemetry_writer = test_agent_metrics_session.telemetry_writer
+        telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "stack_trace": "Traceback:\nValueError",
+                "tracer_time": 1642544540,
+                "tags": "a:b",
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+        telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+
+        _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
