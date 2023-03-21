@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: Fixes a ``RecursionError`` which is raised when aws lambda signal handlers are wrapped infinitely. This caused lambdas to crash on startup.

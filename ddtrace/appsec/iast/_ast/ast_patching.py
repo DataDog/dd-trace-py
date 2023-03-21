@@ -7,13 +7,23 @@ from types import ModuleType
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)
+IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
+IAST_DENYLIST = ("ddtrace",)  # type: tuple[str, ...]
+
+
+if IAST.PATCH_MODULES in os.environ:
+    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
+
+if IAST.DENY_MODULES in os.environ:
+    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
+
 
 ENCODING = ""
 
@@ -35,7 +45,13 @@ def get_encoding(module_path):  # type: (str) -> str
 
 
 def _should_iast_patch(module_name):
-    return not module_name.startswith("ddtrace") and module_name.startswith(IAST_ALLOWLIST)
+    """
+    select if module_name should be patch from the longuest prefix that match in allow or deny list.
+    if a prefix is in both list, deny is selected.
+    """
+    max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
+    max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
+    return max_allow > max_deny
 
 
 def visit_ast(
