@@ -7,11 +7,11 @@ import pytest
 from six import ensure_binary
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import _transform_headers
-from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -115,7 +115,7 @@ def test_valid_json(tracer_appsec):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+    assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
 def test_header_attack(tracer_appsec):
@@ -133,7 +133,7 @@ def test_header_attack(tracer_appsec):
                 },
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
         assert span.get_tag("actor.ip") == "8.8.8.8"
 
 
@@ -185,7 +185,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
                 request_cookies={"cookie1": "im the cookie1"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
 @snapshot(
@@ -207,7 +207,7 @@ def test_appsec_body_no_collection_snapshot(tracer):
                 request_body={"somekey": "somekey value"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
 _BLOCKED_IP = "8.8.4.4"
@@ -224,7 +224,7 @@ def test_ip_block(tracer):
                     Config(),
                 )
 
-            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
             assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
             assert _context.get_item("http.request.blocked", span)
 
@@ -311,7 +311,7 @@ def test_appsec_span_tags_snapshot(tracer):
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
 @snapshot(
@@ -330,7 +330,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
                 span.set_tag("http.url", "http://example.com/.git")
                 set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert span.get_tag(APPSEC_JSON) is None
+        assert span.get_tag(APPSEC.JSON) is None
 
 
 def test_appsec_span_rate_limit(tracer):
@@ -347,9 +347,9 @@ def test_appsec_span_rate_limit(tracer):
             set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 2
 
-        assert span1.get_tag(APPSEC_JSON) is not None
-        assert span2.get_tag(APPSEC_JSON) is None
-        assert span3.get_tag(APPSEC_JSON) is None
+        assert span1.get_tag(APPSEC.JSON) is not None
+        assert span2.get_tag(APPSEC.JSON) is None
+        assert span3.get_tag(APPSEC.JSON) is None
 
 
 def test_ddwaf_not_raises_exception():
@@ -482,6 +482,23 @@ def test_ddwaf_run():
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
+        assert res.timeout is False
+
+
+def test_ddwaf_run_timeout():
+    with open(RULES_GOOD_PATH) as rules:
+        rules_json = json.loads(rules.read())
+        _ddwaf = DDWaf(rules_json, b"", b"")
+        data = {
+            "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
+            "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
+        }
+        ctx = _ddwaf._at_request_start()
+        res = _ddwaf.run(ctx, data, 0.001)  # res is a serialized json
+        assert res.runtime > 0
+        assert res.total_runtime > 0
+        assert res.total_runtime > res.runtime
+        assert res.timeout is True
 
 
 def test_ddwaf_info():
@@ -593,7 +610,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
                 request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
-    assert span.get_tag(APPSEC_JSON) is None
+    assert span.get_tag(APPSEC.JSON) is None
     assert "TypeError: expected c_long instead of int" in caplog.text
 
 
@@ -631,5 +648,5 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
                 request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
-    assert span.get_tag(APPSEC_JSON) is None
+    assert span.get_tag(APPSEC.JSON) is None
     assert "OSError: ddwaf run failed" in caplog.text
