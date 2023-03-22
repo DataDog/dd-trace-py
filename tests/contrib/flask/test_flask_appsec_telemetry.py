@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from ddtrace.constants import APPSEC_JSON
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
@@ -50,7 +50,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
         _assert_generate_metrics(
