@@ -33,16 +33,16 @@ class Vulnerability(object):
     evidence = attr.ib(type=Evidence)
     location = attr.ib(type=Location)
     span_id = attr.ib(type=int)
-    hash = attr.field(init=False)
+
+    @property
+    def hash(self):
+        return hash(self)
 
     def __eq__(self, other):
         return self.type == other.type and self.evidence == other.evidence and self.location == other.location
 
     def __hash__(self):
         return hash(self.type) ^ hash(self.evidence) ^ hash(self.location)
-
-    def __attrs_post_init__(self):
-        self.hash = hash(self)
 
 
 @attr.s(eq=False)
