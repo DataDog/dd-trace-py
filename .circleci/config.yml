@@ -369,6 +369,13 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
 
   internal:
     <<: *contrib_job
@@ -1133,6 +1140,7 @@ requires_tests: &requires_tests
     - asyncpg
     - algoliasearch
     - asgi
+    - aws_lambda
     - benchmarks
     - boto
     - bottle
@@ -1234,6 +1242,7 @@ workflows:
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
