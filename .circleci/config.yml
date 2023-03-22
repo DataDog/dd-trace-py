@@ -393,6 +393,12 @@ jobs:
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
 
+  sourcecode:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "sourcecode"
+
   telemetry:
     <<: *machine_executor
     steps:
@@ -1208,6 +1214,7 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
+    - sourcecode 
     - starlette
     - stdlib
     - test_logging
@@ -1313,6 +1320,7 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
