@@ -19,6 +19,12 @@ from .signals import trace_prerun
 from .signals import trace_retry
 
 
+try:
+    import redbeat
+except ImportError:
+    redbeat = None
+
+
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
@@ -41,6 +47,29 @@ def patch_app(app, pin=None):
     )
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     pin.onto(celery.beat.Scheduler)
+
+    if redbeat:
+        scheduler_module_name = "redbeat.schedulers"
+        trace_utils.wrap(
+            "redbeat.schedulers",
+            "RedBeatScheduler.maybe_due",
+            _traced_beat_function(
+                config.celery,
+                "maybe_due",
+                scheduler_module_name=scheduler_module_name,
+                resource_fn=lambda args: args[0].name,
+            ),
+        )
+        trace_utils.wrap(
+            "redbeat.schedulers",
+            "RedBeatScheduler.tick",
+            _traced_beat_function(
+                config.celery,
+                "tick",
+                scheduler_module_name=scheduler_module_name,
+            ),
+        )
+        pin.onto(redbeat.schedulers.RedBeatScheduler)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
@@ -66,6 +95,9 @@ def unpatch_app(app):
 
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
+    if redbeat:
+        trace_utils.unwrap(redbeat.schedulers.RedBeatScheduler, "maybe_due")
+        trace_utils.unwrap(redbeat.schedulers.RedBeatScheduler, "tick")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -75,14 +107,14 @@ def unpatch_app(app):
     signals.task_retry.disconnect(trace_retry)
 
 
-def _traced_beat_function(integration_config, fn_name, resource_fn=None):
+def _traced_beat_function(integration_config, fn_name, scheduler_module_name="celery.beat", resource_fn=None):
     def _traced_beat_inner(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
         with pin.tracer.trace(
-            "celery.beat.{}".format(fn_name),
+            "{}.{}".format(scheduler_module_name, fn_name),
             span_type=SpanTypes.WORKER,
             service=trace_utils.ext_service(pin, integration_config),
         ) as span:
