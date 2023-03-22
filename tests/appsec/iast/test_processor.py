@@ -4,8 +4,7 @@ import pytest
 
 from ddtrace._monkey import IAST_PATCH
 from ddtrace._monkey import patch_iast
-from ddtrace.constants import IAST_CONTEXT_KEY
-from ddtrace.constants import IAST_JSON
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
@@ -37,8 +36,8 @@ def test_appsec_iast_processor():
         span = traced_function(tracer)
         tracer._on_span_finish(span)
 
-        span_report = _context.get_item(IAST_CONTEXT_KEY, span=span)
-        result = span.get_tag(IAST_JSON)
+        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        result = span.get_tag(IAST.JSON)
 
         assert len(span_report.vulnerabilities) == 1
         assert len(json.loads(result)["vulnerabilities"]) == 1
@@ -54,7 +53,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(sampling_rate):
         span = traced_function(tracer)
         tracer._on_span_finish(span)
 
-        result = span.get_tag(IAST_JSON)
+        result = span.get_tag(IAST.JSON)
 
         assert len(json.loads(result)["vulnerabilities"]) == 1
         assert span.get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
