@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 
@@ -163,6 +164,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, trac
         assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
     with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
         span_processor = AppSecSpanProcessor()
