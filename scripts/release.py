@@ -169,7 +169,6 @@ def create_release_notes_sections(rn_raw, branch):
             unreleased_sections[key] = "-" + unreleased_sections[key][:-2]
     except ValueError:
         unreleased_sections = {}
-    import pdb; pdb.set_trace()
     relevant_rns = []
     if unreleased_sections:
         relevant_rns.append(unreleased_sections)
