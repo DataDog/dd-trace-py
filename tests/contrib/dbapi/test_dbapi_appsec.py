@@ -1,3 +1,5 @@
+import threading
+
 import mock
 import pytest
 
@@ -31,7 +33,7 @@ class TestTracedCursor(TracerTestCase):
         ) as mock_sql_injection_report:
 
             query = "SELECT * FROM db;"
-            query = taint_pyobject(query, Input_info("query", query, 0))
+            query = taint_pyobject(query, Input_info("query", query, 0), threading.current_thread().ident)
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
@@ -52,7 +54,9 @@ class TestTracedCursor(TracerTestCase):
 
             query = "SELECT ? FROM db;"
             query_arg = "something"
-            query_arg = taint_pyobject(query_arg, Input_info("query_arg", query_arg, 0))
+            query_arg = taint_pyobject(
+                query_arg, Input_info("query_arg", query_arg, 0), threading.current_thread().ident
+            )
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
@@ -105,7 +109,7 @@ class TestTracedCursor(TracerTestCase):
         ) as mock_sql_injection_report:
 
             query = "SELECT * FROM db;"
-            query = taint_pyobject(query, Input_info("query", query, 0))
+            query = taint_pyobject(query, Input_info("query", query, 0), threading.current_thread().ident)
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
