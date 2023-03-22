@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-
+import mock
 import pytest
 
 
 try:
+    from ddtrace.appsec.iast._input_info import Input_info
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup  # type: ignore[attr-defined]
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+    from ddtrace.appsec.iast._taint_utils import check_tainted_args
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -90,3 +93,57 @@ def test_tainted_values():
     # Regular dict is not affected
     for v in knights.values():
         assert not is_pyobject_tainted(v)
+
+
+def test_checked_tainted_args():
+    cursor = mock.Mock()
+    setattr(cursor.execute, "__name__", "execute")
+    setattr(cursor.executemany, "__name__", "executemany")
+
+    arg = "nobody expects the spanish inquisition"
+    tainted_arg = taint_pyobject(arg, Input_info("request_body", arg, 0))
+
+    untainted_arg = "gallahad the pure"
+
+    # Returns False: Untainted first argument
+    assert not check_tainted_args(
+        args=(untainted_arg,), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
+    )
+
+    # Returns False: Untainted first argument
+    assert not check_tainted_args(
+        args=(untainted_arg, tainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
+    )
+
+    # Returns False: Integration name not in list
+    assert not check_tainted_args(
+        args=(tainted_arg,),
+        kwargs=None,
+        tracer=None,
+        integration_name="nosqlite",
+        method=cursor.execute,
+    )
+
+    # Returns False: Wrong function name
+    assert not check_tainted_args(
+        args=(tainted_arg,),
+        kwargs=None,
+        tracer=None,
+        integration_name="sqlite",
+        method=cursor.executemany,
+    )
+
+    # Returns True:
+    assert check_tainted_args(
+        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
+    )
+
+    # Returns True:
+    assert check_tainted_args(
+        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="mysql", method=cursor.execute
+    )
+
+    # Returns True:
+    assert check_tainted_args(
+        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="psycopg", method=cursor.execute
+    )

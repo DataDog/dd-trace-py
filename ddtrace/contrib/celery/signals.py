@@ -134,9 +134,7 @@ def trace_before_publish(*args, **kwargs):
         trace_headers = {}
         propagator.inject(span.context, trace_headers)
 
-        # This weirdness is due to yet another Celery bug concerning
-        # how headers get propagated in async flows
-        # https://github.com/celery/celery/issues/4875
+        # put distributed trace headers where celery will propagate them
         task_headers = kwargs.get("headers") or {}
         task_headers.setdefault("headers", {})
         task_headers["headers"].update(trace_headers)
