@@ -615,7 +615,9 @@ class _TraceContext:
     def _get_tracestate_values(ts_l):
         # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
-        # tracestate list parsing, example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
+        # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
+        # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
+
         dd = None
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
