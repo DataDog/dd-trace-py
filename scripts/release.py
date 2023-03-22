@@ -109,6 +109,7 @@ def create_release_draft():
         name = "%s.0" % base
         tag = "v%s" % name
         branch = base
+
         rn_raw = generate_rn(branch)
         rn_sections_clean = create_release_notes_sections(rn_raw, branch)
         # combine the release note sections into a string in the correct order
@@ -134,7 +135,6 @@ def create_release_draft():
 def clean_rn(rn_raw):
     # remove all release notes generated,
     # except for those that haven't been released yet, which are the ones we care about
-    import pdb; pdb.set_trace()
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
@@ -160,6 +160,7 @@ def generate_rn(branch):
 
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
+    import pdb; pdb.set_trace()
     unreleased = clean_rn(rn_raw)
     unreleased = unreleased.split("###")
     try:
