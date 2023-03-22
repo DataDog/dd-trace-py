@@ -245,7 +245,7 @@ cdef class MsgpackStringTable(StringTable):
         cdef int ret
 
         if len(string) > self.max_size:
-            string = string[:10] + "<truncated in ddtrace.internal._encoding.pyx due to buffer overrun"
+            string = "<dropped in ddtrace.internal._encoding.pyx due to buffer overrun>"
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
