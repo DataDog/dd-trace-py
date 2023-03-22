@@ -61,7 +61,7 @@ class TraceMiddleware(object):
         status = resp.status.partition(" ")[0]
 
         # falcon does not map errors or unmatched routes
-        # to proper status codes, so we we have to try to infer them
+        # to proper status codes, so we have to try to infer them
         # here.
         if resource is None:
             status = "404"
