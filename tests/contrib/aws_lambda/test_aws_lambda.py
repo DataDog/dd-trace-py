@@ -106,6 +106,7 @@ async def test_module_patching(mocker, context):
         }
     )
 
+    os.environ.pop("DD_LAMBDA_HANDLER")
     patch()
 
     result = manually_wrapped_handler({}, context())
