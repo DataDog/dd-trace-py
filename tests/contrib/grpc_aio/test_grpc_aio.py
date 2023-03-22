@@ -29,7 +29,7 @@ from tests.utils import override_config
 _GRPC_PORT = 50531
 
 
-class _HelloServicer(HelloServicer):
+class _CoroHelloServicer(HelloServicer):
     async def SayHello(self, request, context):
         if request.name == "propogator":
             metadata = context.invocation_metadata()
@@ -43,12 +43,12 @@ class _HelloServicer(HelloServicer):
         return HelloReply(message="Hello {}".format(request.name))
 
     async def SayHelloTwice(self, request, context):
-        yield HelloReply(message="first response")
+        await context.write(HelloReply(message="first response"))
 
         if request.name == "exception":
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
 
-        yield HelloReply(message="second response")
+        await context.write(HelloReply(message="second response"))
 
     async def SayHelloLast(self, request_iterator, context):
         names = []
@@ -63,6 +63,26 @@ class _HelloServicer(HelloServicer):
     async def SayHelloRepeatedly(self, request_iterator, context):
         async for request in request_iterator:
             if request.name == "exception":
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
+            else:
+                await context.write(HelloReply(message=f"Hello {request.name}"))
+        await context.write(HelloReply(message="Good bye"))
+
+
+class _AsyncGenHelloServicer(HelloServicer):
+    async def SayHelloTwice(self, request, context):
+        # Read/Write API can be used together with yield statements.
+        await context.write(HelloReply(message="first response"))
+
+        if request.name == "exception":
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
+
+        yield HelloReply(message="second response")
+
+    async def SayHelloRepeatedly(self, request_iterator, context):
+        async for request in request_iterator:
+            if request.name == "exception":
+                # Read/Write API can be used together with yield statements.
                 await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
             else:
                 yield HelloReply(message=f"Hello {request.name}")
@@ -146,7 +166,7 @@ def tracer():
 
 # `pytest_asyncio.fixture` cannot be used
 # with pytest-asyncio 0.16.0 which is the latest version available for Python3.6.
-@pytest.fixture(params=[_HelloServicer(), _SyncHelloServicer()])
+@pytest.fixture
 async def server_info(request, tracer, event_loop):
     """Configures grpc server and starts it in pytest-asyncio event loop.
     tracer fixture is imported to make sure the tracer is pinned to the modules.
@@ -157,7 +177,7 @@ async def server_info(request, tracer, event_loop):
     target = f"localhost:{_GRPC_PORT}"
     _server = _create_server(_servicer, target)
     # interceptor can not catch AbortError for sync servicer
-    abort_supported = isinstance(_servicer, (_HelloServicer,))
+    abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
     await _server.start()
     wait_task = event_loop.create_task(_server.wait_for_termination())
@@ -213,6 +233,7 @@ def _check_server_span(span, service, method_name, method_kind):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_insecure_channel(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -227,6 +248,7 @@ async def test_insecure_channel(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_secure_channel(server_info, tracer):
     credentials = grpc.ChannelCredentials(None)
     async with aio.secure_channel(server_info.target, credentials) as channel:
@@ -242,6 +264,7 @@ async def test_secure_channel(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_invalid_target(server_info, tracer):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
@@ -264,6 +287,7 @@ async def test_invalid_target(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_not_activated(server_info, tracer):
     tracer.configure(enabled=False)
     async with aio.insecure_channel(server_info.target) as channel:
@@ -277,7 +301,7 @@ async def test_pin_not_activated(server_info, tracer):
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "servicer",
-    [_HelloServicer(), _SyncHelloServicer()],
+    [_CoroHelloServicer(), _SyncHelloServicer()],
 )
 async def test_pin_tags_put_in_span(servicer, tracer):
     Pin.override(GRPC_AIO_PIN_MODULE_SERVER, service="server1")
@@ -308,6 +332,7 @@ async def test_pin_tags_put_in_span(servicer, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_can_be_defined_per_channel(server_info, tracer):
     Pin.override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
     channel1 = aio.insecure_channel(server_info.target)
@@ -339,6 +364,7 @@ async def test_pin_can_be_defined_per_channel(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_analytics_default(server_info, tracer):
     credentials = grpc.ChannelCredentials(None)
     async with aio.secure_channel(server_info.target, credentials) as channel:
@@ -356,6 +382,7 @@ async def test_analytics_default(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_analytics_with_rate(server_info, tracer):
     with override_config("grpc_aio_client", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         with override_config("grpc_aio_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
@@ -372,6 +399,7 @@ async def test_analytics_with_rate(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_priority_sampling(server_info, tracer):
     # DEV: Priority sampling is enabled by default
     # Setting priority sampling reset the writer, we need to re-override it
@@ -389,6 +417,7 @@ async def test_priority_sampling(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_analytics_without_rate(server_info, tracer):
     with override_config("grpc_aio_client", dict(analytics_enabled=True)):
         with override_config("grpc_aio_server", dict(analytics_enabled=True)):
@@ -410,6 +439,7 @@ async def test_analytics_without_rate(server_info, tracer):
     sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_unary_exception(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -450,6 +480,7 @@ async def test_unary_exception(server_info, tracer):
     sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_unary_cancellation(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -462,6 +493,9 @@ async def test_unary_cancellation(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_server_streaming(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -483,6 +517,9 @@ async def test_server_streaming(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_server_streaming_exception(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
@@ -527,6 +564,9 @@ async def test_server_streaming_exception(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_server_streaming_cancelled_before_rpc(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -542,6 +582,9 @@ async def test_server_streaming_cancelled_before_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
@@ -576,6 +619,9 @@ async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_server_streaming_cancelled_after_rpc(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -600,6 +646,7 @@ async def test_server_streaming_cancelled_after_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming(server_info, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
     async with aio.insecure_channel(server_info.target) as channel:
@@ -619,6 +666,7 @@ async def test_client_streaming(server_info, tracer):
     sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming_exception(server_info, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["exception", "test"])
     async with aio.insecure_channel(server_info.target) as channel:
@@ -656,6 +704,7 @@ async def test_client_streaming_exception(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming_cancelled_before_rpc(server_info, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
     async with aio.insecure_channel(server_info.target) as channel:
@@ -671,6 +720,7 @@ async def test_client_streaming_cancelled_before_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming_cancelled_after_rpc(server_info, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
     async with aio.insecure_channel(server_info.target) as channel:
@@ -689,6 +739,9 @@ async def test_client_streaming_cancelled_after_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_bidi_streaming(server_info, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
@@ -715,6 +768,9 @@ async def test_bidi_streaming(server_info, tracer):
     sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
 )
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_bidi_streaming_exception(server_info, tracer):
     names = ["Alice", "exception", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
@@ -754,6 +810,9 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_bidi_streaming_cancelled_before_rpc(server_info, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
@@ -771,6 +830,9 @@ async def test_bidi_streaming_cancelled_before_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
@@ -813,6 +875,9 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
+)
 async def test_bidi_streaming_cancelled_after_rpc(server_info, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
