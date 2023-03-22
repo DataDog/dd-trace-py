@@ -72,7 +72,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.16.0
+      - run: pip3 install riot==0.17.1
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -369,6 +369,13 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
 
   internal:
     <<: *contrib_job
@@ -385,6 +392,12 @@ jobs:
           # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
+
+  sourcecode:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "sourcecode"
 
   telemetry:
     <<: *machine_executor
@@ -1141,6 +1154,7 @@ requires_tests: &requires_tests
     - asyncpg
     - algoliasearch
     - asgi
+    - aws_lambda
     - benchmarks
     - boto
     - bottle
@@ -1200,6 +1214,7 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
+    - sourcecode 
     - starlette
     - stdlib
     - test_logging
@@ -1243,6 +1258,7 @@ workflows:
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
@@ -1304,6 +1320,7 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs

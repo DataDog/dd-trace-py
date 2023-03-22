@@ -1,7 +1,10 @@
+import os
+
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -13,14 +16,19 @@ class RemoteConfig(object):
 
     @classmethod
     def enable(cls):
-        # type: () -> None
-        with cls._worker_lock:
-            if cls._worker is None:
-                cls._worker = RemoteConfigWorker()
-                cls._worker.start()
+        # type: () -> bool
+        # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        if rc_env_enabled:
+            with cls._worker_lock:
+                if cls._worker is None:
+                    cls._worker = RemoteConfigWorker()
+                    cls._worker.start()
 
-                forksafe.register(cls._restart)
-                atexit.register(cls.disable)
+                    forksafe.register(cls._restart)
+                    atexit.register(cls.disable)
+            return True
+        return False
 
     @classmethod
     def _restart(cls):
@@ -32,8 +40,8 @@ class RemoteConfig(object):
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            cls.enable()
-            cls._worker._client.register_product(product, handler)
+            if cls.enable():
+                cls._worker._client.register_product(product, handler)
         except Exception:
             log.warning("error starting the RCM client", exc_info=True)
 
