@@ -5,10 +5,10 @@ from flask import Response
 from flask import request
 import pytest
 
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
-from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
@@ -54,7 +54,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.data is not None
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
             query = dict(_context.get_item("http.request.query", span=root_span))
@@ -91,7 +91,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
             query = dict(_context.get_item("http.request.path_params", span=root_span))
@@ -116,7 +116,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 404
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert _context.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
             query = dict(_context.get_item("http.request.cookies", span=root_span))
@@ -132,7 +132,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.data is not None
             root_span = self.pop_spans()[0]
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert (
                 _context.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
             )
@@ -169,7 +169,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_urlencoded_appsec_disabled_then_no_body(self):
@@ -188,7 +188,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json(self):
@@ -206,7 +206,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_json_attack(self):
@@ -216,7 +216,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", json=payload, content_type="application/json")
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_xml(self):
@@ -235,7 +235,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_xml_attack(self):
@@ -246,7 +246,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json_empty_body_logs_warning(self):
@@ -422,7 +422,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=xtrace"
@@ -455,7 +455,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/.git"
@@ -517,7 +517,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                         assert resp.status_code == 403, (payload, content_type, appsec)
                         assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
                         root_span = self.pop_spans()[0]
-                        loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+                        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
                         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
                     else:
                         assert resp.status_code == 200
@@ -536,7 +536,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
         # other values must not be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
@@ -564,7 +564,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
         # 200 must not be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
@@ -594,7 +594,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
         # POST must not be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
@@ -621,7 +621,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
         # other value must not be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
@@ -650,7 +650,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             flask_args = root_span.get_tag("flask.view_args.item")
             assert flask_args == "AiKfOeRcvG45"
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
@@ -680,7 +680,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
