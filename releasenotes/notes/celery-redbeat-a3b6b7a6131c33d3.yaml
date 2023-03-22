@@ -1,0 +1,3 @@
+features:
+  - |
+    tracing: This introduces automatic instrumentation for the celery-redbeat celery task scheduler.
