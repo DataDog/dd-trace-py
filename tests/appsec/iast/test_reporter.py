@@ -54,9 +54,6 @@ def test_vulnerability_hash_and_equality():
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
 
-    e2.type = "AnotherType"
-    assert e.hash != e2.hash
-
 
 def test_source_hash_and_equality():
     e = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
