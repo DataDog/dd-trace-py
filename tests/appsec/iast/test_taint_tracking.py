@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
+from multiprocessing import Process
 import threading
 
 import pytest
 
-
-# import time
 
 try:
     from ddtrace.appsec.iast._input_info import Input_info
@@ -28,7 +27,7 @@ tainted_arg = None
 
 
 def _in_second_thread(tainted_knights, main_thread_id):
-    second_thread_id = threading.current_thread().ident  # get_native_id()
+    second_thread_id = threading.current_thread().ident
     assert second_thread_id != main_thread_id
     for v in tainted_knights.values():
         assert is_pyobject_tainted(v, second_thread_id)
@@ -70,7 +69,34 @@ def test_two_threads():
 
     clear_taint_mapping_thread(main_thread_id)
 
-    # time.sleep(2)
+    assert not is_pyobject_tainted(tainted_scratch, main_thread_id)
+
+    for v in tainted_knights.values():
+        assert is_pyobject_tainted(v, main_thread_id)
+
+
+def test_multi_processing():
+    main_thread_id = threading.current_thread().ident
+
+    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+
+    for v in tainted_knights.values():
+        assert is_pyobject_tainted(v, main_thread_id)
+
+    t = Process(target=_in_second_thread, args=(tainted_knights, main_thread_id))
+    t.start()
+
+    scratch = "Tis but a scratch."
+    tainted_scratch = taint_pyobject(scratch, Input_info("request_body", scratch, 0), main_thread_id)
+
+    global tainted_arg
+    for v in tainted_knights.values():
+        assert is_pyobject_tainted(v, main_thread_id)
+
+    t.join()
+    assert tainted_arg is None
+
+    clear_taint_mapping_thread(main_thread_id)
 
     assert not is_pyobject_tainted(tainted_scratch, main_thread_id)
 
