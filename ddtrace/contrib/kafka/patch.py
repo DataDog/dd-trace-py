@@ -97,10 +97,12 @@ class TracedConsumer(ObjectProxy):
             span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
             if message is not None:
                 message_key = message.key() or ""
+                message_offset = message.offset() or -1
                 span.set_tag_str(kafkax.TOPIC, message.topic())
                 span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
                 span.set_tag(kafkax.PARTITION, message.partition())
                 span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
+                span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.kafka.get_analytics_sample_rate()
             if rate is not None:
