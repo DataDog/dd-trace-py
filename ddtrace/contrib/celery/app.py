@@ -51,7 +51,7 @@ def patch_app(app, pin=None):
     if redbeat:
         scheduler_module_name = "redbeat.schedulers"
         trace_utils.wrap(
-            "redbeat.schedulers",
+            scheduler_module_name,
             "RedBeatScheduler.maybe_due",
             _traced_beat_function(
                 config.celery,
@@ -61,7 +61,7 @@ def patch_app(app, pin=None):
             ),
         )
         trace_utils.wrap(
-            "redbeat.schedulers",
+            scheduler_module_name,
             "RedBeatScheduler.tick",
             _traced_beat_function(
                 config.celery,
