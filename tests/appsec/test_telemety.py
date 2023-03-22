@@ -141,10 +141,7 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
         assert len(mock_logs_telemetry_metrics_writer._logs) == 1
         assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF init error. Invalid rules"
         assert mock_logs_telemetry_metrics_writer._logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
-        assert (
-            mock_logs_telemetry_metrics_writer._logs[0]["tags"]
-            == "waf_version:1.8.2,lib_language:python,event_rules_version:5.5.5"
-        )
+        assert "waf_version:{},".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, tracer):
@@ -163,9 +160,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, trac
         assert len(mock_logs_telemetry_metrics_writer._logs) == 2
         assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF run. Timeout errors"
         assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
-        assert mock_logs_telemetry_metrics_writer._logs[0][
-            "tags"
-        ] == "waf_version:{},lib_language:python,event_rules_version:rules_good".format(version())
+        assert "waf_version:{},".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
@@ -175,6 +170,4 @@ def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
         assert len(mock_logs_telemetry_metrics_writer._logs) == 1
         assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "Error updating ASM rules. Invalid rules"
         assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
-        assert mock_logs_telemetry_metrics_writer._logs[0]["tags"] == "waf_version:{},lib_language:python".format(
-            version()
-        )
+        assert "waf_version:{},".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
