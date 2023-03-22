@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import subprocess
@@ -6,10 +5,12 @@ import subprocess
 from github import Github
 
 
-"""This release notes script is built to create a release notes draft for release candidates, patches, and minor releases.
+"""This release notes script is built to create a release notes draft 
+for release candidates, patches, and minor releases.
 
 Setup:
-1.Create Github token: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
+1.Create Github token: 
+https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
 2. Give the Github token repo, user, audit_log, and project permissions.
 3. Add `export GH_TOKEN=<github token>` to the `.zhrc` file.
 
@@ -21,8 +22,7 @@ Required:
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
-    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
-    
+    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0    
 Examples:
 Generate release notes for next release candidate version of 1.11: `BASE=1.11 RC=1 python release.py`
 
@@ -56,7 +56,7 @@ def create_release_draft():
 
     if rc:
         # figure out the rc version we want
-        search = "v%s.0\.?rc((\d+$))" % base
+        search = r"v%s.0\.?rc((\d+$))" % base
         tags = dd_repo.get_tags()
         latest_rc_version = 0
         for tag in tags:
@@ -85,7 +85,7 @@ def create_release_draft():
     # patch release
     elif patch:
         # figure out the patch version we want
-        search = "v%s.((\d+))" % base
+        search = r"v%s.((\d+))" % base
         tags = dd_repo.get_tags()
         latest_patch_version = 1
         for tag in tags:
@@ -132,13 +132,14 @@ def create_release_draft():
 
 
 def clean_rn(rn_raw):
-    # remove all release notes generated except for those that haven't been released yet, which are the ones we care about
+    # remove all release notes generated,
+    # except for those that haven't been released yet, which are the ones we care about
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
 def generate_rn(branch):
 
-    out_str = subprocess.check_output(
+    subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch}".format(
             branch=branch
