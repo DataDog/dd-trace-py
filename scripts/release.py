@@ -162,7 +162,7 @@ def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
     import pdb; pdb.set_trace()
     unreleased = clean_rn(rn_raw)
-    unreleased = unreleased.split("###")
+    unreleased = unreleased.split("###")[1:]
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
     except ValueError:
