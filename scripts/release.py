@@ -165,7 +165,8 @@ def create_release_notes_sections(rn_raw, branch):
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
         for key in unreleased_sections.keys():
-            unreleased_sections[key] = "-" + unreleased_sections[key]
+            # add back in the "-" bullet point, and remove the extra newline
+            unreleased_sections[key] = "-" + unreleased_sections[key][:-2]
     except ValueError:
         unreleased_sections = {}
     import pdb; pdb.set_trace()
