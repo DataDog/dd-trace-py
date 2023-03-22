@@ -30,14 +30,36 @@ static PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args) {
   Py_RETURN_NONE;
 }
 
+static PyObject *print_taint_mapping(PyObject *Py_UNUSED(module),
+                                     PyObject *Py_UNUSED(args)) {
+  for (auto const &pair : TaintMapping) {
+    std::cout << "{" << pair.first << ": \n";
+    std::cout << "\t[\n";
+    for (auto const &inner_pair : pair.second) {
+      std::cout << "\t" << inner_pair.first << ", \n";
+    }
+    std::cout << "\t]\n";
+    std::cout << "}\n";
+  }
+  Py_RETURN_NONE;
+}
+
 static PyObject *clear_taint_mapping(PyObject *Py_UNUSED(module),
                                      PyObject *Py_UNUSED(args)) {
-  // TODO: Not sure this is really necessary
-  for (auto &[key, value] : TaintMapping) {
-    value.clear();
-  }
 
   TaintMapping.clear();
+  print_taint_mapping(NULL, NULL);
+  Py_RETURN_NONE;
+}
+
+static PyObject *clear_taint_mapping_thread(PyObject *Py_UNUSED(module),
+                                            PyObject *args) {
+  long long thread_id = 0;
+  PyArg_ParseTuple(args, "L", &thread_id);
+
+  TaintMapping[thread_id].clear();
+  TaintMapping.erase(thread_id);
+
   Py_RETURN_NONE;
 }
 
@@ -165,8 +187,12 @@ static PyObject *set_tainted_ranges(PyObject *Py_UNUSED(module),
 }
 
 static PyMethodDef TaintTrackingMethods[] = {
+    {"print_taint_mapping", (PyCFunction)print_taint_mapping, METH_NOARGS,
+     "print taint mappings"},
     {"clear_taint_mapping", (PyCFunction)clear_taint_mapping, METH_NOARGS,
      "clear taint mappings"},
+    {"clear_taint_mapping_thread", (PyCFunction)clear_taint_mapping_thread,
+     METH_VARARGS, "clear taint mappings for thread id"},
     // We are using  METH_VARARGS because we need compatibility with
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7

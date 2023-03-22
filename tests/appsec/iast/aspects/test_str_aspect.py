@@ -34,7 +34,7 @@ def test_str_aspect(obj, kwargs):
     "obj, kwargs, should_be_tainted",
     [
         (3.5, {}, False),
-        (u"Hi", {}, True),
+        ("Hi", {}, True),
         ("🙀", {}, True),
         (b"Hi", {}, True),
         (bytearray(b"Hi"), {}, True),
@@ -53,6 +53,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
     thread_id = threading.current_thread().ident
 
     setup(bytes.join, bytearray.join)
