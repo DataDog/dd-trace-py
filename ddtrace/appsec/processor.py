@@ -283,10 +283,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
-        log.debug("[DDAS-001-00] Executing ASM In-App WAF")
         waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
         if waf_results and waf_results.data:
-            log.debug("[DDAS-011-00] ASM In-App WAF returned: %s", waf_results.data)
+            log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)

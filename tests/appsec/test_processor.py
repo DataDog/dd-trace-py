@@ -482,6 +482,23 @@ def test_ddwaf_run():
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
+        assert res.timeout is False
+
+
+def test_ddwaf_run_timeout():
+    with open(RULES_GOOD_PATH) as rules:
+        rules_json = json.loads(rules.read())
+        _ddwaf = DDWaf(rules_json, b"", b"")
+        data = {
+            "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
+            "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
+        }
+        ctx = _ddwaf._at_request_start()
+        res = _ddwaf.run(ctx, data, 0.001)  # res is a serialized json
+        assert res.runtime > 0
+        assert res.total_runtime > 0
+        assert res.total_runtime > res.runtime
+        assert res.timeout is True
 
 
 def test_ddwaf_info():
