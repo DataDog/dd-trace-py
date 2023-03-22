@@ -46,3 +46,10 @@ Dynamic Instrumentation
 
 .. automodule:: ddtrace.debugging
     :members:
+
+
+Source Code Integration
+=======================
+
+.. automodule:: ddtrace.sourcecode
+    :members:
