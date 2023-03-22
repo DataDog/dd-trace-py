@@ -210,8 +210,8 @@ def create_draft_release(
         dd_repo.create_git_release(
             name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
         )
+        print("Please review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
 
 if __name__ == "__main__":
     create_release_draft()
-    print("Please review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
