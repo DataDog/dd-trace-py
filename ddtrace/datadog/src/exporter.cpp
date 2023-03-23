@@ -358,7 +358,7 @@ Datadog::Profile *g_profile;
 Datadog::Profile *g_profile_real[2];
 bool g_prof_flag;
 
-void uploader_init(const char *service, const char *env, const char *version) {
+void ddup_uploader_init(const char *service, const char *env, const char *version) {
   if (!is_initialized) {
     g_profile_real[0] = new Datadog::Profile();
     g_profile_real[1] = new Datadog::Profile();
@@ -368,55 +368,55 @@ void uploader_init(const char *service, const char *env, const char *version) {
   }
 }
 
-void start_sample() {
+void ddup_start_sample() {
   g_profile->start_sample();
 }
 
-void push_walltime(int64_t walltime, int64_t count){
+void ddup_push_walltime(int64_t walltime, int64_t count){
   g_profile->push_walltime(walltime, count);
 }
 
-void push_cputime(int64_t cputime, int64_t count){
+void ddup_push_cputime(int64_t cputime, int64_t count){
   g_profile->push_cputime(cputime, count);
 }
 
-void push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
+void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
   if (!thread_name)
     return;
   g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
-void push_taskinfo(int64_t task_id, const char *task_name){
+void ddup_push_taskinfo(int64_t task_id, const char *task_name){
   if (!task_name)
     return;
   g_profile->push_taskinfo(task_id, task_name);
 }
 
-void push_spaninfo(int64_t span_id, int64_t local_root_span_id){
+void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id){
   g_profile->push_spaninfo(span_id, local_root_span_id);
 }
 
-void push_traceinfo(const char *trace_type, const char *trace_resource_container){
+void ddup_push_traceinfo(const char *trace_type, const char *trace_resource_container){
   if (!trace_type || !trace_resource_container)
     return;
   g_profile->push_traceinfo(trace_type, trace_resource_container);
 }
 
-void push_exceptioninfo(const char *exception_type, int64_t count) {
+void ddup_push_exceptioninfo(const char *exception_type, int64_t count) {
   if (!exception_type || !count)
     return;
   return;
   g_profile->push_exceptioninfo(exception_type, count);
 }
 
-void push_classinfo(const char *class_name) {
+void ddup_push_classinfo(const char *class_name) {
   if (!class_name)
     return;
   g_profile->push_classinfo(class_name);
 
 }
 
-void push_frame(const char *_name, const char *_fname, uint64_t address, int64_t line) {
+void ddup_push_frame(const char *_name, const char *_fname, uint64_t address, int64_t line) {
   if (!_name || !*_name)
     _name = "NONAME";
 
@@ -434,16 +434,16 @@ void push_frame(const char *_name, const char *_fname, uint64_t address, int64_t
   g_profile->push_frame(name, fname, address, line);
 }
 
-void flush_sample() {
+void ddup_flush_sample() {
   g_profile->flush_sample();
 }
 
-void upload_impl(Datadog::Profile *prof) {
+void ddup_upload_impl(Datadog::Profile *prof) {
   g_uploader->upload(prof);
 }
 
-void upload() {
-  new std::thread(upload_impl, g_profile); // set it and forget it
+void ddup_upload() {
+  new std::thread(ddup_upload_impl, g_profile); // set it and forget it
   g_profile = g_profile_real[g_prof_flag];
   g_prof_flag ^= true;
   g_profile->zero_stats();

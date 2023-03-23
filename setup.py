@@ -47,12 +47,12 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.6.1"
 
-LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog"))
+LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog", "libdatadog"))
 
-LIBDATADOGPROF_VERSION = "2.0"
+LIBDATADOGPROF_VERSION = "v2.0.0"
 
 
-def verify_libddwaf_checksum(sha256_filename, filename, current_os):
+def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
@@ -65,6 +65,17 @@ def verify_libddwaf_checksum(sha256_filename, filename, current_os):
         print("actual checksum: %s" % actual_checksum)
         print("expected filename: %s" % expected_filename)
         print("actual filename: %s" % filename)
+        sys.exit(1)
+
+def verify_checksum_from_hash(expected_checksum, filename):
+    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
+    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
+    try:
+        assert expected_checksum == actual_checksum
+    except AssertionError:
+        print("Checksum verification error: Checksum mismatch:")
+        print("expected checksum: %s" % expected_checksum)
+        print("actual checksum: %s" % actual_checksum)
         sys.exit(1)
 
 
@@ -122,25 +133,20 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
-class Library_Download(BuildPyCommand):
+class Library_Download():
     name = None
     download_dir = None
     version = None
     url_root = None
+    available_releases = None
+    expected_checksums = None
 
     @classmethod
     def download_dynamic_library(cls):
-        TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
-        AVAILABLE_RELEASES = {
-            "Windows": ["win32", "x64"],
-            "Darwin": ["arm64", "x86_64"],
-            "Linux": ["aarch64", "x86_64"],
-        }
-        SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
+        suffix = cls.get_suffix(CURRENT_OS)
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
-        print("ddir is " + cls.download_dir)
         if os.path.isdir(cls.download_dir) and len(os.listdir(cls.download_dir)):
             return
 
@@ -148,7 +154,7 @@ class Library_Download(BuildPyCommand):
             os.makedirs(cls.download_dir)
 
         build_platform = get_build_platform()
-        for arch in AVAILABLE_RELEASES[CURRENT_OS]:
+        for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Darwin" and not build_platform.endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
@@ -159,7 +165,7 @@ class Library_Download(BuildPyCommand):
             if os.path.isdir(arch_dir):
                 continue
 
-            archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, CURRENT_OS.lower(), arch)
+            archive_dir = cls.get_package_name(arch, CURRENT_OS)
             archive_name = archive_dir + ".tar.gz"
 
             download_address = "%s/%s/%s" % (
@@ -167,23 +173,31 @@ class Library_Download(BuildPyCommand):
                 cls.version,
                 archive_name,
             )
-            sha256_address = download_address + ".sha256"
 
             try:
                 filename, http_response = urlretrieve(download_address, archive_name)
-                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
             except HTTPError as e:
                 print("No archive found for dynamic library " + cls.name + ": " + archive_dir)
                 raise e
+            print("Checking checksum")
 
+
+            # TODO tighten this before distribution
             # Verify checksum of downloaded file
-            verify_libddwaf_checksum(sha256_filename, filename, CURRENT_OS)
+            if cls.expected_checksums is None:
+                sha256_address = download_address + ".sha256"
+                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
+                verify_checksum_from_file(sha256_filename, filename)
+            else:
+                expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
+                verify_checksum_from_hash(expected_checksum, filename)
 
+            print("Opening tarball")
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffix)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 print("extracting files:", [c.name for c in dynfiles])
@@ -191,21 +205,33 @@ class Library_Download(BuildPyCommand):
                 os.rename(os.path.join(HERE, archive_dir), arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
-            original_file = os.path.join(arch_dir, "lib", cls.name + SUFFIX)
+            original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
             if os.path.exists(original_file):
-                renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + SUFFIX)
+                renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
                 os.rename(original_file, renamed_file)
 
             os.remove(filename)
-
-    def run(self):
-        pass
 
 class LibDDWaf_Download(Library_Download):
     name = "ddwaf"
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
-    url_root = "https://github.com/DataDog/libddwaf/releases/download/"
+    url_root = "https://github.com/DataDog/libddwaf/releases/download"
+    available_releases = {
+        "Windows": ["win32", "x64"],
+        "Darwin": ["arm64", "x86_64"],
+        "Linux": ["aarch64", "x86_64"],
+    }
+
+    @classmethod
+    def get_package_name(cls, arch, os):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+        return archive_dir
+
+    @classmethod
+    def get_suffix(cls, os):
+        TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
+        return TRANSLATE_SUFFIX[os]
 
     def run(self):
         LibDDWaf_Download.download_dynamic_library()
@@ -215,11 +241,39 @@ class LibDatadog_Download(Library_Download):
     name = "datadog"
     download_dir = LIBDATADOGPROF_DOWNLOAD_DIR
     version = LIBDATADOGPROF_VERSION
-    url_root = "https://github.com/DataDog/libdatadog/releases/download/"
+    url_root = "https://github.com/DataDog/libdatadog/releases/download"
+    expected_checksums = {
+        "Linux": {
+            "x86_64" : "faca4ac2af0a9ecc150e9dbf6a21336afa43bcbb75a33765818bc3e0c0c9e00a",
+        },
+    }
+    available_releases = {
+        "Linux": ["x86_64"],
+    }
+
+    @classmethod
+    def get_package_name(cls, arch, os):
+        osnames = {
+            "Linux": "unknown-linux-gnu",
+        }
+        tar_osname = osnames[os]
+        archive_dir = "lib%s-%s-%s" % (cls.name, arch, tar_osname)
+        return archive_dir
+
+    @classmethod
+    def get_suffix(cls, os):
+        TRANSLATE_SUFFIX = {"Windows": ".lib", "Darwin": ".a", "Linux": ".a"}
+        return TRANSLATE_SUFFIX[os]
 
     def run(self):
         LibDatadog_Download.download_dynamic_library()
         BuildPyCommand.run(self)
+
+
+class Library_Downloader(BuildPyCommand):
+    def run(self):
+        LibDatadog_Download.run(self)
+        LibDDWaf_Download.run(self)
 
 
 class CleanLibraries(CleanCommand):
@@ -274,6 +328,7 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
+# TODO can we specify the exact compiler version less literally?
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -354,7 +409,6 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={
-        "ddtrace": ["py.typed", "libddupload/libddupload.so"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },
@@ -397,7 +451,7 @@ setup(
     cmdclass={
         "test": Tox,
         "build_ext": BuildExtCommand,
-        "build_py": LibDDWaf_Download,
+        "build_py": Library_Downloader,
         "clean": CleanLibraries,
     },
     entry_points={
@@ -475,6 +529,22 @@ setup(
                 "ddtrace.profiling._build",
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
+            ),
+            Extension(
+                "ddtrace.datadog.ddup",
+                sources=[
+                    "ddtrace/datadog/ddup.pyx",
+                    "ddtrace/datadog/src/exporter.cpp"
+                ],
+                include_dirs=[
+                    "ddtrace/datadog/include",
+                    "ddtrace/datadog/libdatadog-x86_64-unknown-linux-gnu/include",
+                ],
+                extra_objects=[
+                    "ddtrace/datadog/libdatadog-x86_64-unknown-linux-gnu/lib/libdatadog_profiling.a"
+                ],
+                extra_compile_args=["-std=c++17"],
+                language='c++',
             ),
         ],
         compile_time_env={

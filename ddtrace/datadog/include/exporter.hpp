@@ -129,17 +129,17 @@ public:
 } // namespace Datadog
 
 extern "C" {
-  void uploader_init(const char *_service, const char *_env, const char *_version);
-  void start_sample();
-  void push_walltime(int64_t walltime, int64_t count);
-  void push_cputime(int64_t cputime, int64_t count);
-  void push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name);
-  void push_taskinfo(int64_t task_id, const char *task_name);
-  void push_spaninfo(int64_t span_id, int64_t local_root_span_id);
-  void push_traceinfo(const char *trace_type, const char *trace_resource_container);
-  void push_exceptioninfo(const char *exception_type, int64_t count);
-  void push_classinfo(const char *class_name);
-  void push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line);
-  void flush_sample();
-  void upload();
+  void ddup_uploader_init(const char *_service, const char *_env, const char *_version);
+  void ddup_start_sample();
+  void ddup_push_walltime(int64_t walltime, int64_t count);
+  void ddup_push_cputime(int64_t cputime, int64_t count);
+  void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name);
+  void ddup_push_taskinfo(int64_t task_id, const char *task_name);
+  void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id);
+  void ddup_push_traceinfo(const char *trace_type, const char *trace_resource_container);
+  void ddup_push_exceptioninfo(const char *exception_type, int64_t count);
+  void ddup_push_classinfo(const char *class_name);
+  void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line);
+  void ddup_flush_sample();
+  void ddup_upload();
 } // extern "C"
