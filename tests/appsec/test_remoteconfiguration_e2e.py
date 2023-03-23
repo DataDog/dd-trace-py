@@ -9,6 +9,7 @@ from typing import Optional  # noqa
 
 import tenacity
 
+from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from tests.webclient import Client
@@ -33,6 +34,7 @@ def gunicorn_server():
     env = _build_env()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL")
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -69,7 +71,7 @@ def gunicorn_server():
         server_process.wait()
 
 
-def _get_agent_client(tracer):
+def _get_agent_client():
     parsed = parse.urlparse(tracer._writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     return conn
@@ -82,8 +84,8 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def _block_ip(tracer):
-    client = _get_agent_client(tracer)
+def _block_ip():
+    client = _get_agent_client()
     client.request(
         "POST",
         "/test/session/responses/config/path",
@@ -106,8 +108,8 @@ def _block_ip(tracer):
     assert resp.status == 202
 
 
-def _unblock_ip(tracer):
-    client = _get_agent_client(tracer)
+def _unblock_ip():
+    client = _get_agent_client()
     client.request(
         "POST",
         "/test/session/responses/config/path",
@@ -143,13 +145,13 @@ def _request_403(client):
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
 
-def test_no_known_errors_occur(tracer):
+def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
     with gunicorn_server() as context:
         _, gunicorn_client = context
 
         _request_200(gunicorn_client)
 
-        _block_ip(tracer)
+        _block_ip()
 
         _request_200(gunicorn_client)
 
@@ -157,8 +159,8 @@ def test_no_known_errors_occur(tracer):
 
         _request_403(gunicorn_client)
 
-        _unblock_ip(tracer)
+        _unblock_ip()
 
-        time.sleep(3)
+        time.sleep(9)
 
         _request_200(gunicorn_client)
