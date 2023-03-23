@@ -756,7 +756,6 @@ class Tracer(object):
         if self.enabled:
             for p in self._span_processors:
                 p.on_span_start(span)
-
         self._hooks.emit(self.__class__.start_span, span)
 
         return span
