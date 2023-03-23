@@ -260,7 +260,7 @@ class Config(object):
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
-            self._waf_timeout = int(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
+            self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
         except (TypeError, ValueError):
             pass
 

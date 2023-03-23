@@ -143,7 +143,7 @@ class AppSecSpanProcessor(SpanProcessor):
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
-    _waf_timeout = attr.ib(type=int, default=None)
+    _waf_timeout = attr.ib(type=float, default=None)
 
     @property
     def enabled(self):
