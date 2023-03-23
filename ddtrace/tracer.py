@@ -725,13 +725,6 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        # Only call span processors if the tracer is enabled
-        if self.enabled:
-            for p in self._span_processors:
-                p.on_span_start(span)
-
-        self._hooks.emit(self.__class__.start_span, span)
-
         if not trace_id:
             span.sampled = self._sampler.sample(span)
             # Old behavior
@@ -758,6 +751,13 @@ class Tracer(object):
             else:
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
+
+        # Only call span processors if the tracer is enabled
+        if self.enabled:
+            for p in self._span_processors:
+                p.on_span_start(span)
+
+        self._hooks.emit(self.__class__.start_span, span)
 
         return span
 
