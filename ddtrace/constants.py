@@ -1,14 +1,32 @@
 from ddtrace.vendor.debtcollector import deprecate
 
 
+deprecated_names = {
+    "APPSEC_ENABLED": "_dd.appsec.enabled",
+    "APPSEC_JSON": "_dd.appsec.json",
+    "APPSEC_EVENT_RULE_VERSION": "_dd.appsec.event_rules.version",
+    "APPSEC_EVENT_RULE_ERRORS": "_dd.appsec.event_rules.errors",
+    "APPSEC_EVENT_RULE_LOADED": "_dd.appsec.event_rules.loaded",
+    "APPSEC_EVENT_RULE_ERROR_COUNT": "_dd.appsec.event_rules.error_count",
+    "APPSEC_WAF_DURATION": "_dd.appsec.waf.duration",
+    "APPSEC_WAF_DURATION_EXT": "_dd.appsec.waf.duration_ext",
+    "APPSEC_WAF_TIMEOUTS": "_dd.appsec.waf.timeouts",
+    "APPSEC_WAF_VERSION": "_dd.appsec.waf.version",
+    "APPSEC_ORIGIN_VALUE": "appsec",
+    "APPSEC_BLOCKED": "appsec.blocked",
+    "IAST_JSON": "_dd.iast.json",
+    "IAST_ENABLED": "_dd.iast.enabled",
+    "IAST_CONTEXT_KEY": "_iast_data",
+}
+
+
 def __getattr__(name):
-    if name.startswith("APPSEC") and not name.endswith("_ENV"):
+    if name in deprecated_names:
         deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
             removal_version="2.0.0",
         )
-    if name in globals():
-        return globals()[name]
+        return deprecated_names[name]
     raise AttributeError("'%s' has no attribute '%s'", __name__, name)
 
 
@@ -37,23 +55,8 @@ KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
-APPSEC_ENABLED = "_dd.appsec.enabled"
-APPSEC_JSON = "_dd.appsec.json"
-APPSEC_EVENT_RULE_VERSION = "_dd.appsec.event_rules.version"
-APPSEC_EVENT_RULE_ERRORS = "_dd.appsec.event_rules.errors"
-APPSEC_EVENT_RULE_LOADED = "_dd.appsec.event_rules.loaded"
-APPSEC_EVENT_RULE_ERROR_COUNT = "_dd.appsec.event_rules.error_count"
-APPSEC_WAF_DURATION = "_dd.appsec.waf.duration"
-APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
-APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
-APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
-APPSEC_ORIGIN_VALUE = "appsec"
-APPSEC_BLOCKED = "appsec.blocked"
 
 IAST_ENV = "DD_IAST_ENABLED"
-IAST_JSON = "_dd.iast.json"
-IAST_ENABLED = "_dd.iast.enabled"
-IAST_CONTEXT_KEY = "_iast_data"
 
 MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"
