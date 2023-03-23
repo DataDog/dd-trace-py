@@ -147,7 +147,7 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
 
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True, _waf_timeout=0.001)
+        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True, _waf_timeout=0.0)
     ):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
