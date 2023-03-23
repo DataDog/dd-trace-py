@@ -155,7 +155,7 @@ def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
 
         _request_200(gunicorn_client)
 
-        time.sleep(12)
+        time.sleep(17)
 
         _request_403(gunicorn_client)
 
