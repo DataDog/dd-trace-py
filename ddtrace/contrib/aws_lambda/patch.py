@@ -165,23 +165,37 @@ def patch():
     if not in_aws_lambda() and not _has_patch_module():
         return
 
-    handler, handler_module, wrapper = _get_handler_and_module()
+    try:
+        handler, handler_module, wrapper = _get_handler_and_module()
 
-    if getattr(handler_module, "_datadog_patch", False):
+        if getattr(handler_module, "_datadog_patch", False):
+            return
+        setattr(handler_module, "_datadog_patch", True)
+
+        wrap(handler, wrapper)
+    except AttributeError:
+        # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
+        # which might cause a circular dependency. Skipping.
         return
-    setattr(handler_module, "_datadog_patch", True)
-
-    wrap(handler, wrapper)
+    except Exception as e:
+        log.debug("Error patching AWS Lambda: %s", e)
+        return
 
 
 def unpatch():
     if not in_aws_lambda() and not _has_patch_module():
         return
 
-    handler, handler_module, wrapper = _get_handler_and_module()
+    try:
+        handler, handler_module, wrapper = _get_handler_and_module()
 
-    if not getattr(handler_module, "_datadog_patch", False):
+        if not getattr(handler_module, "_datadog_patch", False):
+            return
+        setattr(handler_module, "_datadog_patch", False)
+
+        unwrap(handler, wrapper)
+    except AttributeError:
         return
-    setattr(handler_module, "_datadog_patch", False)
-
-    unwrap(handler, wrapper)
+    except Exception as e:
+        log.debug("Error unpatching AWS Lambda: %s", e)
+        return
