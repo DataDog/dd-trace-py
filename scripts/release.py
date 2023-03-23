@@ -104,7 +104,7 @@ def create_release_draft():
         rn = clean_rn(rn_raw)
         create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
 
-    # minor release
+    # official minor release
     else:
         name = "%s.0" % base
         tag = "v%s" % name
