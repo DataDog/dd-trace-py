@@ -143,7 +143,6 @@ class AppSecSpanProcessor(SpanProcessor):
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
-    _waf_timeout = attr.ib(type=float, default=None)
 
     @property
     def enabled(self):
@@ -151,7 +150,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __attrs_post_init__(self):
         # type: () -> None
-        self._waf_timeout = config._waf_timeout
         if self._ddwaf is None:
             try:
                 with open(self.rules, "r") as f:
@@ -214,7 +212,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
-
         if span.span_type != SpanTypes.WEB:
             return
         ctx = self._ddwaf._at_request_start()
@@ -288,7 +285,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
-        waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
