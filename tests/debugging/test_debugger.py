@@ -171,63 +171,6 @@ def test_debugger_probe_new_delete(probe, trigger):
         assert snapshot["debugger.snapshot"]["probe"]["id"] == probe_id
 
 
-@pytest.mark.parametrize(
-    "probe, trigger",
-    [
-        (
-            create_snapshot_function_probe(
-                probe_id="probe-instance-method",
-                module="tests.submod.stuff",
-                func_qname="Stuff.instancestuff",
-                rate=1000.0,
-            ),
-            lambda: Stuff().instancestuff(42),
-        ),
-        (
-            create_snapshot_line_probe(
-                probe_id="probe-instance-method",
-                source_file="tests/submod/stuff.py",
-                line=36,
-                rate=1000.0,
-            ),
-            lambda: Stuff().instancestuff(42),
-        ),
-    ],
-)
-def test_debugger_probe_active_inactive(probe, trigger):
-    global Stuff
-
-    with debugger() as d:
-        probe_id = probe.probe_id
-
-        d.add_probes(probe)
-        sleep(0.5)
-
-        assert probe in d._probe_registry
-        assert all(e["debugger"]["diagnostics"] for _ in d.uploader.payloads for e in _)
-        d.uploader.queue[:] = []
-        trigger()
-
-        probe.active = False
-
-        sleep(0.5)
-
-        # Test that the probe was ejected
-        assert probe in d._probe_registry
-
-        assert d.uploader.queue
-
-        trigger()
-
-        assert d.uploader.queue
-        (payload,) = d.uploader.payloads
-        assert payload
-
-        (snapshot,) = payload
-        assert snapshot
-        assert snapshot["debugger.snapshot"]["probe"]["id"] == probe_id
-
-
 def test_debugger_function_probe_on_instance_method():
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(
@@ -733,6 +676,68 @@ def test_probe_status_logging(monkeypatch):
         RemoteConfigClient.request = old_request
 
 
+def test_probe_status_logging_reemit_on_modify(monkeypatch):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
+    RemoteConfig.disable()
+
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    old_request = RemoteConfigClient.request
+
+    def request(self, *args, **kwargs):
+        for cb in self._products.values():
+            cb(None, None)
+
+    RemoteConfigClient.request = request
+
+    try:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+            d.add_probes(
+                create_snapshot_line_probe(
+                    version=1,
+                    probe_id="line-probe-ok",
+                    source_file="tests/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                ),
+            )
+            d.modify_probes(
+                create_snapshot_line_probe(
+                    version=2,
+                    probe_id="line-probe-ok",
+                    source_file="tests/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                ),
+            )
+
+            queue = d.probe_status_logger.queue
+
+            def count_status(queue):
+                return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
+
+            def versions(queue, status):
+                return [
+                    _["debugger"]["diagnostics"]["probeVersion"]
+                    for _ in queue
+                    if _["debugger"]["diagnostics"]["status"] == status
+                ]
+
+            sleep(0.2)
+            assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
+            assert versions(queue, "INSTALLED") == [1, 2]
+            assert versions(queue, "RECEIVED") == [1]
+
+            queue[:] = []
+
+            sleep(0.5)
+            assert count_status(queue) == {"INSTALLED": 1}
+            assert versions(queue, "INSTALLED") == [2]
+
+    finally:
+        RemoteConfigClient.request = old_request
+
+
 @pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
@@ -947,3 +952,44 @@ def test_debugger_log_live_probe_generate_messages():
         assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger.snapshot"]["captures"]
+
+
+def test_debugger_modified_probe():
+    from tests.submod.stuff import Stuff
+
+    with debugger(upload_flush_interval=0.1) as d:
+        d.add_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                version=1,
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template("hello word")
+            )
+        )
+
+        Stuff().instancestuff()
+
+        sleep(0.2)
+
+        ((msg,),) = d.uploader.payloads
+        assert "hello word" == msg["message"], msg
+        assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
+
+        d.modify_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                version=2,
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template("hello world")
+            )
+        )
+
+        Stuff().instancestuff()
+
+        sleep(0.2)
+
+        _, (msg,) = d.uploader.payloads
+        assert "hello world" == msg["message"], msg
+        assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg

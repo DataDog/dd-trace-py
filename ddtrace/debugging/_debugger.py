@@ -600,6 +600,7 @@ class Debugger(Service):
                         # We didn't have the probe. This shouldn't have happened!
                         log.error("Modified probe %r was not found in registry.", probe)
                         continue
+                    self._probe_registry.update(probe)
 
             return
 

@@ -205,6 +205,7 @@ def test_multiple_configs():
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
+                "version": 1,
                 "type": ProbeType.METRIC_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
@@ -223,6 +224,7 @@ def test_multiple_configs():
             config_metadata("logProbe_probe3"),
             {
                 "id": "probe3",
+                "version": 1,
                 "type": ProbeType.LOG_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
@@ -341,3 +343,57 @@ def test_parse_log_probe_default_rates():
     )
 
     assert probe.rate == DEFAULT_PROBE_RATE
+
+
+def test_modified_probe_events(mock_config):
+    events = []
+
+    def cb(e, ps):
+        events.append((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
+
+    mock_config.add_probes(
+        [
+            create_snapshot_line_probe(
+                probe_id="probe1",
+                version=1,
+                source_file="tests/debugger/submod/stuff.py",
+                line=36,
+                condition=None,
+            ),
+        ]
+    )
+
+    metadata = config_metadata()
+    old_interval = config.diagnostics_interval
+    config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter(metadata, {})
+
+        mock_config.add_probes(
+            [
+                create_snapshot_line_probe(
+                    probe_id="probe1",
+                    version=2,
+                    source_file="tests/debugger/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                )
+            ]
+        )
+        adapter(metadata, {})
+
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter(metadata, {})
+
+        assert events == [
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
+            (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
+        ]
+    finally:
+        config.diagnostics_interval = old_interval

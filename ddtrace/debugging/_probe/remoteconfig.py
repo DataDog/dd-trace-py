@@ -143,6 +143,7 @@ def probe_factory(attribs):
 
         args = dict(
             probe_id=_id,
+            version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             rate=rate,
@@ -170,6 +171,7 @@ def probe_factory(attribs):
     elif _type == ProbeType.METRIC_PROBE:
         args = dict(
             probe_id=_id,
+            version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
@@ -221,9 +223,10 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         self._status_timestamp = time.time() + config.diagnostics_interval
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
+        # type: (Dict[str, Probe], Dict[str, Probe]) -> None
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
-        modified_probes = []  # DEV: Probes are currently immutable
+        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
