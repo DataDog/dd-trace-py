@@ -1,8 +1,10 @@
+import sys
 import warnings
 
 import pytest
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7))
 def test_deprecated():
     import ddtrace.constants
 
