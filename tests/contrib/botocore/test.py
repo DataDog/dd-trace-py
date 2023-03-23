@@ -1414,200 +1414,205 @@ class BotocoreTest(TracerTestCase):
             msg_attr = msg_body["MessageAttributes"]
             assert msg_attr.get("_datadog") is None
 
-    # NOTE: commenting out the tests below because localstack has a bug where messages
-    # published to SNS via publish_batch and retrieved via SQS are missing MessageAttributes
-    # Reported a bug here: https://github.com/localstack/localstack/issues/5395
+    @mock_sns
+    @mock_sqs
+    def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        entries = [
+            {
+                "Id": "1",
+                "Message": "ironmaiden",
+            },
+            {
+                "Id": "2",
+                "Message": "megadeth",
+            },
+        ]
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
-    #     entries = [
-    #         {
-    #             "Id": "1",
-    #             "Message": "ironmaiden",
-    #         },
-    #         {
-    #             "Id": "2",
-    #             "Message": "megadeth",
-    #         },
-    #     ]
-    #     sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "PublishBatch"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publishbatch"
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is not None
-    #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     assert headers is not None
-    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+    @mock_sns
+    @mock_sqs
+    def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+        }
+        entries = [
+            {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
+            {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
+        ]
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     message_attributes = {
-    #         "one": {"DataType": "String", "StringValue": "one"},
-    #         "two": {"DataType": "String", "StringValue": "two"},
-    #         "three": {"DataType": "String", "StringValue": "three"},
-    #         "four": {"DataType": "String", "StringValue": "four"},
-    #         "five": {"DataType": "String", "StringValue": "five"},
-    #         "six": {"DataType": "String", "StringValue": "six"},
-    #         "seven": {"DataType": "String", "StringValue": "seven"},
-    #         "eight": {"DataType": "String", "StringValue": "eight"},
-    #         "nine": {"DataType": "String", "StringValue": "nine"},
-    #     }
-    #     entries = [
-    #         {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
-    #         {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
-    #     ]
-    #     sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "PublishBatch"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publishbatch"
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is not None
-    #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     assert headers is not None
-    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+    @mock_sns
+    @mock_sqs
+    def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+            "ten": {"DataType": "String", "StringValue": "ten"},
+        }
+        entries = [
+            {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
+            {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
+        ]
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     message_attributes = {
-    #         "one": {"DataType": "String", "StringValue": "one"},
-    #         "two": {"DataType": "String", "StringValue": "two"},
-    #         "three": {"DataType": "String", "StringValue": "three"},
-    #         "four": {"DataType": "String", "StringValue": "four"},
-    #         "five": {"DataType": "String", "StringValue": "five"},
-    #         "six": {"DataType": "String", "StringValue": "six"},
-    #         "seven": {"DataType": "String", "StringValue": "seven"},
-    #         "eight": {"DataType": "String", "StringValue": "eight"},
-    #         "nine": {"DataType": "String", "StringValue": "nine"},
-    #         "ten": {"DataType": "String", "StringValue": "ten"},
-    #     }
-    #     entries = [
-    #         {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
-    #         {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
-    #     ]
-    #     sns.publish(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "Publish"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publish"
-    #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-    #     assert trace_json is None
-
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is None
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is None
 
     def _kinesis_get_shard_iterator(self, client, stream_name, shard_id):
         response = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
