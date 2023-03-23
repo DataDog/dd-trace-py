@@ -1176,7 +1176,9 @@ class BotocoreTest(TracerTestCase):
 
         topic_arn = topic["TopicArn"]
         sqs_url = queue["QueueUrl"]
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -1228,7 +1230,9 @@ class BotocoreTest(TracerTestCase):
 
             topic_arn = topic["TopicArn"]
             sqs_url = queue["QueueUrl"]
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -1353,15 +1357,18 @@ class BotocoreTest(TracerTestCase):
         # DEV: This test expects MessageAttributes to be included as span tags which has been deprecated.
         # TODO: Move away from inspecting MessageAttributes using span tag
         with self.override_config("botocore", dict(tag_all_params=True)):
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            region = "us-east-1"
+            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+            sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
             topic = sns.create_topic(Name="testTopic")
             queue = sqs.create_queue(QueueName="test")
 
             topic_arn = topic["TopicArn"]
             sqs_url = queue["QueueUrl"]
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
