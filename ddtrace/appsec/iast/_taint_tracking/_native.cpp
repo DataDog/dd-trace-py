@@ -52,10 +52,10 @@ static PyMethodDef TaintTrackingMethods[] = {
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef taint_tracking = {
-    PyModuleDef_HEAD_INIT, "ddtrace.appsec.iast._taint_tracking",
+    PyModuleDef_HEAD_INIT, "ddtrace.appsec.iast._taint_tracking._native",
     "taint tracking module", -1, TaintTrackingMethods};
 
-PyMODINIT_FUNC PyInit__taint_tracking(void) {
+PyMODINIT_FUNC PyInit__native(void) {
   PyObject *m;
   m = PyModule_Create(&taint_tracking);
   if (m == NULL)

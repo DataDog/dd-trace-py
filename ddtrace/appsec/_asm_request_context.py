@@ -90,11 +90,11 @@ def taint_pyobject(pyobject, input_info):
 
 
 def is_pyobject_tainted(pyobject):
-    return id(pyobject) in _DD_IAST_TAINT_DICT.get().keys()
+    return id(pyobject) in _DD_IAST_TAINT_DICT.get()
 
 
 def set_tainted_ranges(pyobject, ranges):
-    assert pyobject not in _DD_IAST_TAINT_DICT.get().keys()
+    assert pyobject not in _DD_IAST_TAINT_DICT.get()
     taint_dict = _DD_IAST_TAINT_DICT.get()
     taint_dict[id(pyobject)] = ranges
     _DD_IAST_TAINT_DICT.set(taint_dict)

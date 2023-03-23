@@ -353,7 +353,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             from flask import request
 
-            from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
             assert is_pyobject_tainted(request.headers["User-Agent"])
             assert is_pyobject_tainted(request.query_string)
@@ -385,7 +385,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             from flask import request
 
-            from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)

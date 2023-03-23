@@ -237,7 +237,7 @@ def checkuser_view(request, user_id):
 
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
-        from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     else:
 
         def is_pyobject_tainted(x):
@@ -255,7 +255,7 @@ def taint_checking_enabled_view(request):
 
 def taint_checking_disabled_view(request):
     if python_supported_by_iast():
-        from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     else:
 
         def is_pyobject_tainted(x):

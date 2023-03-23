@@ -11,8 +11,8 @@ from tests.utils import TracerTestCase
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        from ddtrace.appsec.iast._new_taint_tracking import clear_taint_mapping
-        from ddtrace.appsec.iast._new_taint_tracking import setup
+        from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+        from ddtrace.appsec.iast._taint_tracking import setup
 
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
@@ -24,7 +24,7 @@ class TestTracedCursor(TracerTestCase):
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):
         from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
             "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
@@ -44,7 +44,7 @@ class TestTracedCursor(TracerTestCase):
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_args(self):
         from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
             "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
@@ -98,7 +98,7 @@ class TestTracedCursor(TracerTestCase):
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_iast_disabled(self):
         from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=False), mock.patch(
             "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"

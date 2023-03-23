@@ -64,11 +64,11 @@ def test_add_aspect_type_error(obj1, obj2):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._new_taint_tracking import clear_taint_mapping
-    from ddtrace.appsec.iast._new_taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._new_taint_tracking import setup
-    from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import setup
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
@@ -102,11 +102,11 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._new_taint_tracking import clear_taint_mapping
-    from ddtrace.appsec.iast._new_taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._new_taint_tracking import setup
-    from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import setup
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()

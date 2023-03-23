@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from ddtrace.appsec.iast._input_info import Input_info
-from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")

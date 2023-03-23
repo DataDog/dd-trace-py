@@ -136,7 +136,7 @@ def patch_builtins(klass, attr, value):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         value = wrapped(*args, **kwargs)
 

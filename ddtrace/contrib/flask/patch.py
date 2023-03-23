@@ -109,7 +109,7 @@ def taint_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         taint_pyobject(
             instance.query_string,
