@@ -4,11 +4,11 @@ from builtins import str as builtin_str
 import codecs
 
 from ddtrace.appsec.iast._input_info import Input_info
-from ddtrace.appsec.iast._new_taint_tracking import add_taint_pyobject  # type: ignore[attr-defined]
-from ddtrace.appsec.iast._new_taint_tracking import get_tainted_ranges  # type: ignore[attr-defined]
-from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted  # type: ignore[attr-defined]
-from ddtrace.appsec.iast._new_taint_tracking import set_tainted_ranges  # type: ignore[attr-defined]
-from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+from ddtrace.appsec.iast._new_taint_tracking import add_taint_pyobject
+from ddtrace.appsec.iast._new_taint_tracking import get_tainted_ranges
+from ddtrace.appsec.iast._new_taint_tracking import is_pyobject_tainted
+from ddtrace.appsec.iast._new_taint_tracking import set_tainted_ranges
+from ddtrace.appsec.iast._new_taint_tracking import taint_pyobject
 
 
 def str_aspect(*args, **kwargs):
