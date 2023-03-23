@@ -694,6 +694,9 @@ class Tracer(object):
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+
+            if config.env:
+                span.set_tag_str(ENV_KEY, config.env)  # env tag is used by _sampler.sample
             span.sampled = self._sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
