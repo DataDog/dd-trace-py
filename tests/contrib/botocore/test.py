@@ -33,6 +33,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -1421,6 +1422,10 @@ class BotocoreTest(TracerTestCase):
             msg_attr = msg_body["MessageAttributes"]
             assert msg_attr.get("_datadog") is None
 
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
@@ -1448,6 +1453,7 @@ class BotocoreTest(TracerTestCase):
                 "Message": "megadeth",
             },
         ]
+
         sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
         spans = self.get_spans()
 
@@ -1484,6 +1490,10 @@ class BotocoreTest(TracerTestCase):
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
@@ -1555,6 +1565,10 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
     def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
         region = "us-east-1"
         sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
