@@ -181,6 +181,7 @@ submodule
 submodules
 substring
 timestamp
+tracestate
 tweens
 uWSGI
 unbuffered
@@ -200,6 +201,7 @@ versioned
 vertica
 w3c
 whitelist
+whitespace
 workflow
 wsgi
 xfail
