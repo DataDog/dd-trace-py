@@ -206,6 +206,8 @@ def test_resource_name_too_large(monkeypatch):
         s.finish()
     except ValueError:
         pytest.fail()
+    encoded_spans = t._writer._encoder.encode()
+    assert b"<dropped string of length 4097 because it's too long (max allowed length 4096)>" in encoded_spans
 
 
 @allencodings
