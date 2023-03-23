@@ -21,7 +21,7 @@ class Vulnerability(object):
     evidence = attr.ib(type=Evidence)
     location = attr.ib(type=Location)
     span_id = attr.ib(type=int, eq=False, hash=False)
-    hash = attr.field(init=False, eq=False, hash=False)
+    hash = attr.ib(init=False, eq=False, hash=False)
 
     def __attrs_post_init__(self):
         self.hash = hash(self.type) ^ hash(self.evidence) ^ hash(self.location)
