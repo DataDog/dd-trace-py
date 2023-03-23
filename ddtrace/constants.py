@@ -1,3 +1,4 @@
+from ddtrace.internal.compat import ensure_pep562
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -75,3 +76,5 @@ AUTO_REJECT = 0
 AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
+
+ensure_pep562(__name__)
