@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
+from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -132,11 +133,6 @@ def _get_rate_limiter():
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
-def _get_waf_timeout():
-    # type: () -> int
-    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT.WAF_TIMEOUT))
-
-
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
@@ -145,7 +141,7 @@ class AppSecSpanProcessor(SpanProcessor):
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
-    _waf_timeout = attr.ib(type=int, factory=_get_waf_timeout)
+    _waf_timeout = attr.ib(type=int, default=config._waf_timeout)
 
     @property
     def enabled(self):
@@ -177,6 +173,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
+                self._ddwaf_timeout = config._waf_timeout
                 info = self._ddwaf.info
                 version = None
                 if info:
