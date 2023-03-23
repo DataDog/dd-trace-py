@@ -24,7 +24,6 @@ contextvars. When using this, note that context vars are always thread-local so 
 thread will have a different context.
 """
 
-
 # FIXME: remove these and use the new context API once implemented and allowing
 # contexts without spans
 
@@ -36,6 +35,7 @@ _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
 _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
 _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
+_DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default={})
 
 
 def reset():  # type: () -> None
@@ -43,6 +43,7 @@ def reset():  # type: () -> None
     _DD_EARLY_HEADERS_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
     _DD_BLOCK_REQUEST_CALLABLE.set(None)
+    _DD_IAST_TAINT_DICT.set({})
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None
@@ -51,6 +52,60 @@ def set_ip(ip):  # type: (Optional[str]) -> None
 
 def get_ip():  # type: () -> Optional[str]
     return _DD_EARLY_IP_CONTEXTVAR.get()
+
+
+def add_taint_pyobject(pyobject, op1, op2):
+    from ddtrace.appsec.iast._taint_tracking import new_pyobject_id
+
+    if not (is_pyobject_tainted(op1) or is_pyobject_tainted(op2)):
+        return pyobject
+
+    pyobject = new_pyobject_id(pyobject, len(pyobject))
+    taint_dict = _DD_IAST_TAINT_DICT.get()
+    new_ranges = []
+    if is_pyobject_tainted(op1):
+        new_ranges = list(taint_dict[id(op1)])
+    if is_pyobject_tainted(op2):
+        offset = len(op1)
+        for input_info, start, size in taint_dict[id(op2)]:
+            new_ranges.append((input_info, start + offset, size))
+
+    taint_dict[id(pyobject)] = tuple(new_ranges)
+    _DD_IAST_TAINT_DICT.set(taint_dict)
+    return pyobject
+
+
+def taint_pyobject(pyobject, input_info):
+    from ddtrace.appsec.iast._taint_tracking import new_pyobject_id
+
+    if not pyobject:  # len(pyobject) < 1
+        return pyobject
+    assert input_info is not None
+    len_pyobject = len(pyobject)
+    pyobject = new_pyobject_id(pyobject, len_pyobject)
+    taint_dict = _DD_IAST_TAINT_DICT.get()
+    taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
+    _DD_IAST_TAINT_DICT.set(taint_dict)
+    return pyobject
+
+
+def is_pyobject_tainted(pyobject):
+    return id(pyobject) in _DD_IAST_TAINT_DICT.get().keys()
+
+
+def set_tainted_ranges(pyobject, ranges):
+    assert pyobject not in _DD_IAST_TAINT_DICT.get().keys()
+    taint_dict = _DD_IAST_TAINT_DICT.get()
+    taint_dict[id(pyobject)] = ranges
+    _DD_IAST_TAINT_DICT.set(taint_dict)
+
+
+def get_tainted_ranges(pyobject):
+    return _DD_IAST_TAINT_DICT.get().get(id(pyobject), tuple())
+
+
+def clear_taint_mapping():
+    _DD_IAST_TAINT_DICT.set({})
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
