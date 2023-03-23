@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: Fix AttributeError raised when `ddtrace.patch_all()`, or `ddtrace.patch(aws_lambda=True)`, is set on user handler.
