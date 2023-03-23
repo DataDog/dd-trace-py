@@ -12,7 +12,7 @@ Setup:
 1.Create Github token: 
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
 2. Give the Github token repo, user, audit_log, and project permissions.
-3. Add `export GH_TOKEN=<github token>` to the `.zhrc` file.
+3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
 
 Usage:
 Required:
