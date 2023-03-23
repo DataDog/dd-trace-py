@@ -245,7 +245,7 @@ cdef class MsgpackStringTable(StringTable):
         cdef int ret
 
         if len(string) > self.max_size:
-            string = "<dropped string of length %d due to overrun of msgpack string table of length %d>" % (
+            string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
                 len(string), self.max_size
             )
 
