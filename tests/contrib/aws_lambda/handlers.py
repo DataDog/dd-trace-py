@@ -7,11 +7,8 @@ from ddtrace import tracer
 
 @datadog_lambda_wrapper
 def manually_wrapped_handler(event, context):
-    @tracer.wrap("result-trace")
-    def get_result():
+    with tracer.trace("result-trace"):
         return {"success": True}
-
-    return get_result()
 
 
 def handler(event, context):
@@ -41,11 +38,8 @@ class CallableHandler:
     """Mocks a callable handler. Used in frameworks like Chalice."""
 
     def __call__(self, event, context):
-        @tracer.wrap("result-trace")
-        def get_result():
+        with tracer.trace("result-trace"):
             return {"success": True}
-
-        return get_result()
 
 
 callable_handler = CallableHandler()
