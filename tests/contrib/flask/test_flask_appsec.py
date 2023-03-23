@@ -5,13 +5,13 @@ from flask import Response
 from flask import request
 import pytest
 
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
-from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
-from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
@@ -28,13 +28,20 @@ _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 
 
+def get_response_body(response):
+    if hasattr(response, "text"):
+        return response.text
+    return response.data.decode("utf-8")
+
+
 class FlaskAppSecTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, caplog):
         self._caplog = caplog
 
-    def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
+    def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
         self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -47,7 +54,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.data is not None
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
             query = dict(_context.get_item("http.request.query", span=root_span))
@@ -84,7 +91,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
             query = dict(_context.get_item("http.request.path_params", span=root_span))
@@ -109,7 +116,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 404
             root_span = self.pop_spans()[0]
 
-            appsec_json = root_span.get_tag(APPSEC_JSON)
+            appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert _context.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
             query = dict(_context.get_item("http.request.cookies", span=root_span))
@@ -125,7 +132,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.data is not None
             root_span = self.pop_spans()[0]
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert (
                 _context.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
             )
@@ -162,7 +169,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_urlencoded_appsec_disabled_then_no_body(self):
@@ -181,7 +188,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json(self):
@@ -199,7 +206,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_json_attack(self):
@@ -209,7 +216,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", json=payload, content_type="application/json")
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_xml(self):
@@ -228,7 +235,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert root_span.get_tag(APPSEC_JSON) is None
+            assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
     def test_flask_body_xml_attack(self):
@@ -239,7 +246,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
-            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json_empty_body_logs_warning(self):
@@ -283,10 +290,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/foobar", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/foobar"
@@ -308,10 +312,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
@@ -331,10 +332,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
@@ -344,170 +342,330 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_HTML
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
 
-    def test_request_suspicious_request_block_match_query_value(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_simple_iast_path_header_and_querystring_tainted(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            from flask import request
 
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
+            assert is_pyobject_tainted(request.headers["User-Agent"])
+            assert is_pyobject_tainted(request.query_string)
+            # TODO: Taint extracted path parameters
+            # assert is_pyobject_tainted(param_str)
+            assert is_pyobject_tainted(request.path)
+            assert is_pyobject_tainted(request.form.get("name"))
+            return request.query_string, 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
+            assert resp.status_code == 200
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == "select%20from%20table"
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            from flask import request
+
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
+            assert not is_pyobject_tainted(request.headers["User-Agent"])
+            assert not is_pyobject_tainted(request.query_string)
+            assert not is_pyobject_tainted(param_str)
+            assert not is_pyobject_tainted(request.path)
+            assert not is_pyobject_tainted(request.form.get("name"))
+            return request.query_string, 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
+            assert resp.status_code == 200
+            if hasattr(resp, "text"):
+                # not all flask versions have r.text
+                assert resp.text == "select%20from%20table"
+
+    def test_request_suspicious_request_block_match_query_value(self):
+        @self.app.route("/index.html")
+        def test_route():
+            return "Ok: %s" % request.args.get("toto", ""), 200
+
+        # value xtrace must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
-
             resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=xtrace"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+        # other values must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=ytrace")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Ok: ytrace"
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=xtrace")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Ok: xtrace"
 
     def test_request_suspicious_request_block_match_uri(self):
-        @self.app.route("/")
+        @self.app.route("/.git")
         def test_route():
-            return "Ok", 200
+            return "git file", 200
 
+        # value .git must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/.git")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/.git"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
-
-    def test_request_suspicious_request_block_match_body(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
+        # other values must not be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.post(
-                "/index.html",
-                data='{"key": "yqrweytqwreasldhkuqwgervflnmlnli"}',
-                content_type="application/json",
-            )
-            assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
-            root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
-            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
+            resp = self.client.get("/legit")
+            assert resp.status_code == 404
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/.git")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "git file"
+
+    def test_request_suspicious_request_block_match_body(self):
+        @self.app.route("/index.html", methods=["POST", "GET"])
+        def test_route():
+            return request.get_data(), 200
+
+        for appsec in (True, False):
+            for payload, content_type, blocked in [
+                # json body must be blocked
+                ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", True),
+                ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "text/json", True),
+                # xml body must be blocked
+                (
+                    '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                    "text/xml",
+                    True,
+                ),
+                # form body must be blocked
+                ("attack=yqrweytqwreasldhkuqwgervflnmlnli", "application/x-url-encoded", True),
+                (
+                    '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                    'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                    "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                    "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                    True,
+                ),
+                # raw body must not be blocked
+                ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
+                # other values must not be blocked
+                ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
+            ]:
+                with override_global_config(dict(_appsec_enabled=appsec)), override_env(
+                    dict(DD_APPSEC_RULES=RULES_SRB)
+                ):
+                    self._aux_appsec_prepare_tracer()
+                    resp = self.client.post(
+                        "/index.html?args=test",
+                        data=payload,
+                        content_type=content_type,
+                    )
+                    if appsec and blocked:
+                        assert resp.status_code == 403, (payload, content_type, appsec)
+                        assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+                        root_span = self.pop_spans()[0]
+                        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+                        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
+                    else:
+                        assert resp.status_code == 200
+                        assert get_response_body(resp) == payload
 
     def test_request_suspicious_request_block_match_header(self):
         @self.app.route("/")
         def test_route():
             return "Ok", 200
 
+        # value 01972498723465 must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
+        # other values must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/", headers={"User-Agent": "31972498723467"})
+            assert resp.status_code == 200
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
+            assert resp.status_code == 200
 
     def test_request_suspicious_request_block_match_response_code(self):
-        @self.app.route("/")
+        @self.app.route("/do_exist.php")
         def test_route():
             return "Ok", 200
 
+        # 404 must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/do_not_exist.php")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
+        # 200 must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+            self._aux_appsec_prepare_tracer()
 
-    def test_request_suspicious_request_block_match_method(self):
-        @self.app.route("/")
-        def test_route():
-            return "Ok", 200
-
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            resp = self.client.get("/do_exist.php")
+            assert resp.status_code == 200
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(
+            dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
+        ):
             self._aux_appsec_prepare_tracer()
 
             resp = self.client.get("/do_not_exist.php")
+            assert resp.status_code == 404
+
+    def test_request_suspicious_request_block_match_method(self):
+        @self.app.route("/", methods=["GET", "POST"])
+        def test_route():
+            return "Ok", 200
+
+        # GET must be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
+        # POST must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.post("/", data="post data")
+            assert resp.status_code == 200
+        # GET must pass if appsec disabled
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/")
+            assert resp.status_code == 200
 
     def test_request_suspicious_request_block_match_cookies(self):
         @self.app.route("/")
         def test_route():
             return "Ok", 200
 
+        # value jdfoSDGFkivRG_234 must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
             resp = self.client.get("/")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
+        # other value must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+            self._aux_appsec_prepare_tracer()
+            self.client.set_cookie("localhost", "keyname", "jdfoSDGFHappykivRG_234")
+            resp = self.client.get("/")
+            assert resp.status_code == 200
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(
+            dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
+        ):
+            self._aux_appsec_prepare_tracer()
+            self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
+            resp = self.client.get("/")
+            assert resp.status_code == 200
 
     def test_request_suspicious_request_block_match_path_params(self):
         @self.app.route("/params/<item>")
         def dynamic_url(item):
             return item
 
+        # value AiKfOeRcvG45 must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/params/AiKfOeRcvG45")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             flask_args = root_span.get_tag("flask.view_args.item")
             assert flask_args == "AiKfOeRcvG45"
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
+        # other values must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/params/Anything")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Anything"
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/params/AiKfOeRcvG45")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "AiKfOeRcvG45"
 
     def test_request_suspicious_request_block_match_response_headers(self):
         @self.app.route("/response-header/")
@@ -520,10 +678,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/response-header/")
             assert resp.status_code == 403
-            if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
-            else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC_JSON))
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/response-header/")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Foo bar baz"

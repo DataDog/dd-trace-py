@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING
 
 from ddtrace import tracer
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._overhead_control_engine import Operation
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 
@@ -64,13 +64,14 @@ class VulnerabilityBase(Operation):
             if frame_info:
                 file_name, line_number = frame_info
                 if cls.is_not_reported(file_name, line_number):
-                    report = _context.get_item(IAST_CONTEXT_KEY, span=span)
+                    report = _context.get_item(IAST.CONTEXT_KEY, span=span)
                     if report:
                         report.vulnerabilities.add(
                             Vulnerability(
                                 type=cls.vulnerability_type,
                                 evidence=Evidence(type=cls.evidence_type, value=evidence_value),
                                 location=Location(path=file_name, line=line_number),
+                                span_id=span.span_id,
                             )
                         )
 
@@ -81,7 +82,8 @@ class VulnerabilityBase(Operation):
                                     type=cls.vulnerability_type,
                                     evidence=Evidence(type=cls.evidence_type, value=evidence_value),
                                     location=Location(path=file_name, line=line_number),
+                                    span_id=span.span_id,
                                 )
                             }
                         )
-                    _context.set_item(IAST_CONTEXT_KEY, report, span=span)
+                    _context.set_item(IAST.CONTEXT_KEY, report, span=span)
