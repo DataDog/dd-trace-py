@@ -222,6 +222,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
+                "requests": latest,
                 "gunicorn": latest,
                 "flask": latest,
                 "pycryptodome": latest,
