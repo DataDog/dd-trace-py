@@ -146,7 +146,7 @@ def _request_403(client):
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Run this tests in python 3.10 and 3.11")
+@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Run this tests in python 3.10 and 3.11")
 def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
     with gunicorn_server() as context:
         _, gunicorn_client = context
