@@ -168,10 +168,11 @@ def patch():
     try:
         handler, handler_module, wrapper = _get_handler_and_module()
 
-        wrap(handler, wrapper)
-
         if getattr(handler_module, "_datadog_patch", False):
             return
+
+        wrap(handler, wrapper)
+
         setattr(handler_module, "_datadog_patch", True)
     except AttributeError:
         # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
@@ -189,10 +190,11 @@ def unpatch():
     try:
         handler, handler_module, wrapper = _get_handler_and_module()
 
-        unwrap(handler, wrapper)
-
         if not getattr(handler_module, "_datadog_patch", False):
             return
+
+        unwrap(handler, wrapper)
+
         setattr(handler_module, "_datadog_patch", False)
     except AttributeError:
         return
