@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from six import text_type
 
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.internal.logger import get_logger
 
 
@@ -38,8 +39,6 @@ except OSError:
 #
 # Interface as Cython
 #
-
-DEFAULT_DDWAF_TIMEOUT_MS = 2
 
 
 class DDWaf_result(object):
@@ -138,7 +137,7 @@ if _DDWAF_LOADED:
             self,  # type: DDWaf
             ctx,  # type: ddwaf_context_capsule
             data,  # type: DDWafRulesType
-            timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:float
+            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
         ):
             # type: (...) -> DDWaf_result
             start = time.time()
@@ -179,7 +178,7 @@ else:
             self,  # type: DDWaf
             ctx,  # type: ddwaf_context_capsule
             data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
-            timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
+            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
         ):
             # type: (...) -> DDWaf_result
             LOGGER.warning("DDWaf features disabled. dry run")
