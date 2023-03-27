@@ -1103,3 +1103,24 @@ def test_debugger_modified_probe():
         _, (msg,) = d.uploader.payloads
         assert "hello world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
+
+
+def test_debugger_continue_wrapping_after_first_failure():
+    with debugger() as d:
+        probe_nok = create_snapshot_function_probe(
+            probe_id="function-probe-nok",
+            module="tests.submod.stuff",
+            func_qname="nonsense",
+        )
+        probe_ok = create_snapshot_function_probe(
+            probe_id="function-probe-ok",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+        )
+        d.add_probes(probe_nok, probe_ok)
+
+        assert probe_nok in d._probe_registry
+        assert probe_ok in d._probe_registry
+
+        assert not d._probe_registry[probe_nok.probe_id].installed
+        assert d._probe_registry[probe_ok.probe_id].installed
