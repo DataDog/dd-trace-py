@@ -284,8 +284,10 @@ venv = Venv(
         Venv(
             name="profiler",
             pkgs={
+                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
+                # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
-                "py-cpuinfo": latest,
+                "py-cpuinfo": "~=8.0.0",
                 **({} if sys.platform == "win32" else {"uwsgi": latest}),
             },
             env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"},
