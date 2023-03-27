@@ -3,6 +3,8 @@
 import ast
 import codecs
 import os
+from sys import builtin_module_names
+from sys import stdlib_module_names
 from typing import NamedTuple
 from typing import TYPE_CHECKING
 
@@ -77,15 +79,24 @@ def _build_package_file_mapping():
 
     for ilmd_d in il_md.distributions():
         if ilmd_d is not None and ilmd_d.files is not None:
-            d = Distribution(ilmd_d.metadata["name"], ilmd_d.version)
+            _name = ilmd_d.metadata["name"]
+            d = Distribution(_name, ilmd_d.version)
             for f in ilmd_d.files:
                 if _is_python_source_file(f):
-                    mapping[os.fspath(f.locate())] = d
+                    mapping[_name] = d
 
     return mapping
 
 
 _FILE_PACKAGE_MAPPING = _build_package_file_mapping()
+
+
+def _in_python_stdlib_or_third_party(module_name):
+    module_name_prefix = module_name.split(".")[0].lower()
+    for module_names in (builtin_module_names, stdlib_module_names, _FILE_PACKAGE_MAPPING.keys()):
+        if module_name_prefix in [x.lower() for x in module_names]:
+            return True
+    return False
 
 
 def _should_iast_patch(module_name):
@@ -96,7 +107,7 @@ def _should_iast_patch(module_name):
     max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
     max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     diff = max_allow - max_deny
-    return diff > 0 or (diff == 0 and module_name not in _FILE_PACKAGE_MAPPING)
+    return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
 
 
 def visit_ast(
@@ -115,6 +126,7 @@ def visit_ast(
     if not visitor.ast_modified:
         return None
 
+    ast.fix_missing_locations(modified_ast)
     return modified_ast
 
 
