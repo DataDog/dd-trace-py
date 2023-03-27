@@ -229,10 +229,21 @@ class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditi
     pass
 
 
+@attr.s
+class SpanProbeMixin(object):
+    pass
+
+
+@attr.s
+class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
+    pass
+
+
 LineProbe = Union[LogLineProbe, MetricLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe]
+FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe]
 
 
 class ProbeType(object):
     LOG_PROBE = "LOG_PROBE"
     METRIC_PROBE = "METRIC_PROBE"
+    SPAN_PROBE = "SPAN_PROBE"
