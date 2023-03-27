@@ -20,6 +20,8 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -638,6 +640,17 @@ def _patch(django):
     if config.django.instrument_middleware:
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
+    if "django.core.handlers.wsgi" not in sys.modules:
+        import django.core.handlers.wsgi
+
+        trace_utils.wrap(django, "core.handlers.wsgi.WSGIRequest.__init__", wrap_wsgi_environ)
+
+    trace_utils.wrap(
+        django,
+        "http.request.QueryDict.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+    )
+
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
     if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
@@ -687,6 +700,15 @@ def _patch(django):
             trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
     except ImportError:
         pass  # channels is not installed
+
+
+def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
+
+    return wrapped(*args, **kwargs)
 
 
 def patch():
