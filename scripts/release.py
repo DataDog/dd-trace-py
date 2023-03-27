@@ -9,12 +9,21 @@ from github import Github
 for release candidates, patches, and minor releases.
 
 Setup:
-1.Create Github token: 
+1. Create Github token: 
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
 2. Give the Github token repo, user, audit_log, and project permissions.
 3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
 
+4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
+5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
+
+6. Create and activate a virtual environment, and install PyGithub: 
+`python -m venv venv && source venv/bin/activate && pip install pygithub`
+
+
 Usage:
+The script should be run from the `scripts` directory
+
 Required:
     BASE - The base branch you are building your release candidate, patch, or minor release off of.
         If this is a rc1, then just specify the branch you'll create after the release is published. e.g. BASE=1.9
@@ -218,4 +227,17 @@ def create_draft_release(
 
 
 if __name__ == "__main__":
+    start_branch = subprocess.check_output(
+        "git rev-parse --abbrev-ref HEAD && git stash",
+        shell=True,
+        cwd=os.pardir,
+    ).decode()
+
     create_release_draft()
+
+    # switch back to original git branch
+    current_branch = subprocess.check_output(
+        "git checkout {start_branch} && git stash pop".format(start_branch=start_branch),
+        shell=True,
+        cwd=os.pardir,
+    )
