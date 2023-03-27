@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
+import sys
+
 import pytest
-from six import PY2
 
 
-if not PY2:
+PY36 = sys.version_info >= (3, 6, 0)
+
+if PY36:
     import astunparse
 
+    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
-
-from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
 
 
 @pytest.mark.parametrize(
@@ -20,7 +22,7 @@ from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
         ("str", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_visit_ast_unchanged(source_text, module_path, module_name):
     """
     Source texts not containing:
@@ -39,7 +41,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
         ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_visit_ast_changed(source_text, module_path, module_name):
     """
     Source texts containing:
@@ -57,7 +59,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
         ("tests.appsec.iast.fixtures.aspects.str.function_str"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_astpatch_module_changed(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -72,7 +74,7 @@ def test_astpatch_module_changed(module_name):
         ("tests.appsec.iast.fixtures.aspects.add_operator.basic"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_astpatch_module_changed_add_operator(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -88,7 +90,7 @@ def test_astpatch_module_changed_add_operator(module_name):
         ("tests.appsec.iast.fixtures.aspects.str.future_import_function_str"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_astpatch_source_changed_with_future_imports(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -115,12 +117,12 @@ import html"""
         ("tests.appsec.iast.fixtures.aspects.str.empty_file"),
     ],
 )
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_astpatch_source_unchanged(module_name):
     assert ("", "") == astpatch_module(__import__(module_name, fromlist=[None]))
 
 
-@pytest.mark.skipif(PY2, reason="Python 3 only")
+@pytest.mark.skipif(PY36, reason="Python 3.6+ only")
 def test_module_should_iast_patch():
     assert not _should_iast_patch("ddtrace.internal.module")
     assert not _should_iast_patch("ddtrace.appsec.iast")
