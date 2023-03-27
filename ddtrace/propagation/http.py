@@ -238,7 +238,7 @@ class _DatadogMultiHeader:
             headers,
         )
 
-        meta = {}
+        meta = None
         tags_value = _extract_header_value(
             _POSSIBLE_HTTP_HEADER_TAGS,
             headers,

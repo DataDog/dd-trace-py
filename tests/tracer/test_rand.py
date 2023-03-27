@@ -46,7 +46,7 @@ def test_rand128bit():
     zeros2 = int(val2_as_binary[-96:-64], 2)
     unix_time2 = int(val2_as_binary[:-96], 2)
 
-    # Assert that 64 lowst order bits of the 128 bit integers are random
+    # Assert that 64 lowest order bits of the 128 bit integers are random
     assert 0 <= rand_64bit1 <= 2 ** 64 - 1
     assert 0 <= rand_64bit2 <= 2 ** 64 - 1
     assert rand_64bit1 != rand_64bit2

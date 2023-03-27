@@ -90,7 +90,7 @@ cpdef rand64bits():
 
 
 cpdef rand128bits():
-    # Returns an 128bit integer with the following format -> <32-bit unix seconds><32 bits of zero><64 random bits>
+    # Returns a 128bit integer with the following format -> <32-bit unix seconds><32 bits of zero><64 random bits>
     return int(time(NULL)) << 96 | rand64bits()
 
 

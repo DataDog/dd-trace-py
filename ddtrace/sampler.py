@@ -45,7 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
-# MAX_TRACE_ID is no longer used. It should deprecated and removed.
+# TODO: deprecate and remove MAX_TRACE_ID, it is no longer used.
 MAX_TRACE_ID = _MAX_UINT_64BITS
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
