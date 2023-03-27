@@ -202,7 +202,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd)
+            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
