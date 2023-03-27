@@ -28,7 +28,7 @@ pytest-cov==2.3.0
 pytest-mock==2.0.0
 pytest==3.10.1
 pytz==2022.7.1
-redis==3.5.3
+redis==4.5.3
 scandir==1.10.0
 six==1.16.0
 sortedcontainers==2.4.0

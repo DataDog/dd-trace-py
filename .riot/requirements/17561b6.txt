@@ -18,6 +18,6 @@ pytest==7.2.2
 pytest-asyncio==0.20.3
 pytest-cov==4.0.0
 pytest-mock==3.10.0
-redis==4.5.1
+redis==4.5.3
 sortedcontainers==2.4.0
 tomli==2.0.1
