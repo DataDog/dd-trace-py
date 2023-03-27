@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import PurePath
+    from types import ModuleType
     from typing import Dict
-    from typing import ModuleType
     from typing import Optional
     from typing import Tuple
 
