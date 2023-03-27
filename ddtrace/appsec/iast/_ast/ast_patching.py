@@ -3,9 +3,16 @@
 import ast
 import codecs
 import os
-from types import ModuleType
-from typing import Optional
-from typing import Tuple
+from typing import NamedTuple
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from pathlib import PurePath
+    from typing import Dict
+    from typing import ModuleType
+    from typing import Optional
+    from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
@@ -44,6 +51,43 @@ def get_encoding(module_path):  # type: (str) -> str
     return ENCODING
 
 
+try:
+    import importlib.metadata as il_md
+except ImportError:
+    import importlib_metadata as il_md  # type: ignore[no-redef]
+
+
+# We don't store every file of every package but filter commonly used extensions
+SUPPORTED_EXTENSIONS = (".py", ".so", ".dll", ".pyc")
+
+
+Distribution = NamedTuple("Distribution", [("name", str), ("version", str)])
+
+
+def _is_python_source_file(
+    path,  # type: PurePath
+):
+    # type: (...) -> bool
+    return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
+
+
+def _build_package_file_mapping():
+    # type: (...) -> Dict[str, Distribution]
+    mapping = {}
+
+    for ilmd_d in il_md.distributions():
+        if ilmd_d is not None and ilmd_d.files is not None:
+            d = Distribution(ilmd_d.metadata["name"], ilmd_d.version)
+            for f in ilmd_d.files:
+                if _is_python_source_file(f):
+                    mapping[os.fspath(f.locate())] = d
+
+    return mapping
+
+
+_FILE_PACKAGE_MAPPING = _build_package_file_mapping()
+
+
 def _should_iast_patch(module_name):
     """
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
@@ -51,7 +95,8 @@ def _should_iast_patch(module_name):
     """
     max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
     max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
-    return max_allow > max_deny
+    diff = max_allow - max_deny
+    return diff > 0 or (diff == 0 and module_name not in _FILE_PACKAGE_MAPPING)
 
 
 def visit_ast(
