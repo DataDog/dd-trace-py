@@ -227,16 +227,25 @@ def create_draft_release(
 
 
 if __name__ == "__main__":
-    start_branch = subprocess.check_output(
-        "git rev-parse --abbrev-ref HEAD && git stash",
+    subprocess.check_output(
+        "git stash",
         shell=True,
         cwd=os.pardir,
-    ).decode()
+    )
+    start_branch = (
+        subprocess.check_output(
+            "git rev-parse --abbrev-ref HEAD",
+            shell=True,
+            cwd=os.pardir,
+        )
+        .decode()
+        .strip()
+    )
 
     create_release_draft()
 
     # switch back to original git branch
-    current_branch = subprocess.check_output(
+    subprocess.check_output(
         "git checkout {start_branch} && git stash pop".format(start_branch=start_branch),
         shell=True,
         cwd=os.pardir,
