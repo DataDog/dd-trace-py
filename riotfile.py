@@ -283,12 +283,9 @@ venv = Venv(
         ),
         Venv(
             name="profiler",
-            # unpin py-cpuinfo after issue is closed https://github.com/workhorsy/py-cpuinfo/issues/177
-            # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
             pkgs={
-                "py": latest,
                 "pytest-benchmark": latest,
-                "py-cpuinfo": "==8.0.0",
+                "py-cpuinfo": latest,
                 **({} if sys.platform == "win32" else {"uwsgi": latest}),
             },
             env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"},
