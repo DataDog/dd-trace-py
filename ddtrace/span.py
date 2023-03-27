@@ -28,7 +28,8 @@ from .constants import VERSION_KEY
 from .context import Context
 from .ext import http
 from .ext import net
-from .internal import _rand
+from .internal._rand import rand64bits as _rand64bits
+from .internal._rand import rand128bits as _rand128bits
 from .internal.compat import NumericType
 from .internal.compat import StringIO
 from .internal.compat import ensure_text
@@ -49,12 +50,6 @@ _MetaDictType = Dict[_TagNameType, Text]
 _MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
-
-
-if config._128_bit_trace_id_enabled:
-    _generate_trace_id = _rand.rand128bits
-else:
-    _generate_trace_id = _rand.rand64bits
 
 
 class Span(object):
@@ -144,8 +139,13 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _generate_trace_id()  # type: int
-        self.span_id = span_id or _rand.rand64bits()  # type: int
+        if trace_id is not None:
+            self.trace_id = trace_id  # type: int
+        elif config._128_bit_trace_id_enabled:
+            self.trace_id = _rand128bits()
+        else:
+            self.trace_id = _rand64bits()
+        self.span_id = span_id or _rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 

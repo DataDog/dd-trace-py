@@ -94,6 +94,7 @@ def override_global_config(values):
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
+        "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_propagate_service",
         "env",
