@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
@@ -259,6 +260,11 @@ class Config(object):
         )
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._waf_timeout = DEFAULT.WAF_TIMEOUT
+        try:
+            self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
+        except (TypeError, ValueError):
+            pass
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT

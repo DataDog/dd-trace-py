@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
+from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -134,11 +135,6 @@ def _get_rate_limiter():
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
-def _get_waf_timeout():
-    # type: () -> float
-    return float(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT.WAF_TIMEOUT))
-
-
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
@@ -147,7 +143,6 @@ class AppSecSpanProcessor(SpanProcessor):
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
-    _waf_timeout = attr.ib(type=float, factory=_get_waf_timeout)
 
     @property
     def enabled(self):
@@ -217,7 +212,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
-
         if span.span_type != SpanTypes.WEB:
             return
         ctx = self._ddwaf._at_request_start()
@@ -291,7 +285,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 else:
                     log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
-        waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
