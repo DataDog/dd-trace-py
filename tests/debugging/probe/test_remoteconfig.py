@@ -205,6 +205,7 @@ def test_multiple_configs():
             config_metadata("spanProbe_probe1"),
             {
                 "id": "probe1",
+                "version": 0,
                 "type": ProbeType.SPAN_PROBE,
                 "active": True,
                 "tags": ["foo:bar"],

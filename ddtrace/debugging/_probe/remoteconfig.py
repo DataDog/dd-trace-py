@@ -191,6 +191,7 @@ def probe_factory(attribs):
     elif _type == ProbeType.SPAN_PROBE:
         args = dict(
             probe_id=_id,
+            version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?

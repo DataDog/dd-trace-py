@@ -1074,24 +1074,6 @@ def test_debugger_modified_probe():
                 version=1,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello word")
-            )
-        )
-
-        Stuff().instancestuff()
-
-        sleep(0.2)
-
-        ((msg,),) = d.uploader.payloads
-        assert "hello word" == msg["message"], msg
-        assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
-
-        d.modify_probes(
-            create_log_line_probe(
-                probe_id="foo",
-                version=2,
-                source_file="tests/submod/stuff.py",
-                line=36,
                 **compile_template("hello world")
             )
         )
@@ -1100,8 +1082,26 @@ def test_debugger_modified_probe():
 
         sleep(0.2)
 
-        _, (msg,) = d.uploader.payloads
+        ((msg,),) = d.uploader.payloads
         assert "hello world" == msg["message"], msg
+        assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
+
+        d.modify_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                version=2,
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template("hello brave new world")
+            )
+        )
+
+        Stuff().instancestuff()
+
+        sleep(0.2)
+
+        _, (msg,) = d.uploader.payloads
+        assert "hello brave new world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
 
 
