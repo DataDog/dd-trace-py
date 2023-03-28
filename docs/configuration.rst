@@ -70,8 +70,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-         Historically datadog trace ids were 64 bit integers. This configuration enables the generation of 128 bit trace ids to better align
-         with industry standards (ex: `OpenTelemetry <https://opentelemetry.io/docs/reference/specification/trace/api/>`_).
+         This configuration enables the generation of 128 bit trace ids to better align with industry standards (ex: `OpenTelemetry <https://opentelemetry.io/docs/reference/specification/trace/api/>`_).
 
    DD_TRACE_DEBUG:
      type: Boolean

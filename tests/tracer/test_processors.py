@@ -17,7 +17,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import _HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
@@ -343,7 +343,7 @@ def test_trace_128bit_processor(trace_id):
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2 ** 64
-    assert chunk_root._meta[_HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
+    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
 def test_span_truncator():

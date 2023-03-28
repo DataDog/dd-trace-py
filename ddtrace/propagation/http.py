@@ -21,20 +21,20 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
-from ..internal.constants import _HIGHER_ORDER_TRACE_ID_BITS
-from ..internal.constants import _MAX_UINT_64BITS
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
-from ..internal.utils.http import get_64_highest_order_bits_as_hex
-from ..internal.utils.http import get_64_lowest_order_bits_as_int
 from ..span import _MetaDictType
+from ..span import _get_64_highest_order_bits_as_hex
+from ..span import _get_64_lowest_order_bits_as_int
 from ._utils import get_wsgi_header
 
 
@@ -161,10 +161,10 @@ class _DatadogMultiHeader:
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
             # bits should be converted to a base 10 integer.
-            headers[HTTP_HEADER_TRACE_ID] = str(get_64_lowest_order_bits_as_int(span_context.trace_id))
+            headers[HTTP_HEADER_TRACE_ID] = str(_get_64_lowest_order_bits_as_int(span_context.trace_id))
             # set higher order 64 bits in `_dd.p.tid` to propagate the full 128 bit trace id.
             # Note - The higher order bits must be encoded in hex
-            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = get_64_highest_order_bits_as_hex(span_context.trace_id)
+            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = _get_64_highest_order_bits_as_hex(span_context.trace_id)
         else:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
 
@@ -219,7 +219,7 @@ class _DatadogMultiHeader:
             trace_id = 0
 
         if trace_id == 0 or trace_id > _MAX_UINT_64BITS:
-            log.debug(
+            log.warning(
                 "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64", trace_id_str
             )
             return None

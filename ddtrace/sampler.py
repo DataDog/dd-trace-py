@@ -25,7 +25,7 @@ from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
 from .internal.compat import pattern_type
-from .internal.constants import _MAX_UINT_64BITS
+from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism

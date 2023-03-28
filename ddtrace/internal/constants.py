@@ -18,8 +18,8 @@ W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
-_HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
-_MAX_UINT_64BITS = (1 << 64) - 1
+HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
+MAX_UINT_64BITS = (1 << 64) - 1
 
 APPSEC_BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"

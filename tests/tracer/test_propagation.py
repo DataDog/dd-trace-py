@@ -6,10 +6,10 @@ import os
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.constants import _HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
@@ -79,7 +79,7 @@ def test_inject_128bit_trace_id(tracer, trace_id):
         assert trace_id_64bit == int(headers[HTTP_HEADER_TRACE_ID]) == span._trace_id_64bits, headers
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert "=".join([_HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]) in tags
+        assert "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]) in tags
 
 
 def test_inject_tags_unicode(tracer):
@@ -232,7 +232,7 @@ def test_extract(tracer):
 def test_extract_128bit_trace_ids():
     import os
 
-    from ddtrace.internal.constants import _HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -245,7 +245,7 @@ def test_extract_128bit_trace_ids():
 
     headers = {
         "x-datadog-trace-id": str(trace_id_64bit),
-        "x-datadog-tags": "=".join([_HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+        "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
     }
 
     context = HTTPPropagator.extract(headers)
@@ -254,7 +254,7 @@ def test_extract_128bit_trace_ids():
 
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == trace_id
-        assert _HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
+        assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
         with tracer.trace("child_span") as child_span:
             assert child_span.trace_id == trace_id
 
