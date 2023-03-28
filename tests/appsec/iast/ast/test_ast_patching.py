@@ -9,6 +9,7 @@ PY36 = sys.version_info >= (3, 6, 0)
 if PY36:
     import astunparse
 
+    from ddtrace.appsec.iast._ast.ast_patching import _in_python_stdlib_or_third_party
     from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
@@ -133,3 +134,22 @@ def test_module_should_iast_patch():
     assert not _should_iast_patch("http")
     assert _should_iast_patch("tests.appsec.iast.integration.main")
     assert _should_iast_patch("tests.appsec.iast.integration.print_str")
+
+
+@pytest.mark.parametrize(
+    "module_name, result",
+    [
+        ("Envier", True),
+        ("iterTools", True),
+        ("functooLs", True),
+        ("django.core.exceptions", True),
+        ("FLASK", True),
+        ("datetime", True),
+        ("posiX", True),
+        ("app", False),
+        ("my_app", False),
+    ],
+)
+@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+def test_module_in_python_stdlib_or_third_party(module_name, result):
+    assert _in_python_stdlib_or_third_party(module_name) == result
