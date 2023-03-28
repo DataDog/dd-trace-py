@@ -271,7 +271,7 @@ class AppSecSpanProcessor(SpanProcessor):
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
         data_already_sent = _asm_request_context.get_data_sent()
         if data_already_sent is None:
-            data_already_sent = {}
+            data_already_sent = set()
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
