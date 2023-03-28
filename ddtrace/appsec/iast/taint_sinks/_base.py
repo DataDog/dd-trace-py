@@ -70,8 +70,7 @@ class VulnerabilityBase(Operation):
                             Vulnerability(
                                 type=cls.vulnerability_type,
                                 evidence=Evidence(type=cls.evidence_type, value=evidence_value),
-                                location=Location(path=file_name, line=line_number),
-                                span_id=span.span_id,
+                                location=Location(path=file_name, line=line_number, spanId=span.span_id),
                             )
                         )
 
@@ -81,8 +80,7 @@ class VulnerabilityBase(Operation):
                                 Vulnerability(
                                     type=cls.vulnerability_type,
                                     evidence=Evidence(type=cls.evidence_type, value=evidence_value),
-                                    location=Location(path=file_name, line=line_number),
-                                    span_id=span.span_id,
+                                    location=Location(path=file_name, line=line_number, spanId=span.span_id),
                                 )
                             }
                         )
