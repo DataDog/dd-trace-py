@@ -126,8 +126,10 @@ def _get_handler_and_module():
     if path is None:
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
-        handler_module = datadog_lambda_wrapper
-        handler = getattr(datadog_lambda_wrapper, "__call__")
+        wrapper_module = datadog_lambda_wrapper
+        wrapper_handler = getattr(datadog_lambda_wrapper, "__call__")
+
+        return wrapper_handler, wrapper_module, _datadog_instrumentation
     else:
         parts = path.rsplit(".", 1)
         (mod_name, handler_name) = parts
@@ -135,13 +137,24 @@ def _get_handler_and_module():
         handler_module = import_module(modified_mod_name)
         handler = getattr(handler_module, handler_name)
 
-        # Check if handler is a class instance that can be called.
-        if not hasattr(handler, "__code__") and hasattr(handler, "__call__"):
-            class_name = type(handler).__name__
-            handler_module = getattr(handler_module, class_name)
-            handler = getattr(handler_module, "__call__")
+        if callable(handler):
+            # handler is a function
+            if not isinstance(handler, type) and hasattr(handler, "__code__"):
+                return handler, handler_module, _datadog_instrumentation
 
-    return handler, handler_module, _datadog_instrumentation
+            # handler must be either a class or an instance of a class
+            class_name = type(handler).__name__
+            class_module = getattr(handler_module, class_name)
+            class_handler = getattr(class_module, "__call__")
+
+            if isinstance(handler, type):
+                # class handler is a metaclass
+                if hasattr(class_handler, "__func__"):
+                    class_handler = class_handler.__func__
+
+            return class_handler, class_module, _datadog_instrumentation
+        else:
+            raise TypeError("Handler is not callable")
 
 
 def _has_patch_module():
