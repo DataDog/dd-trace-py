@@ -22,7 +22,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
 
 6. Create and activate a virtual environment, and install PyGithub, requests, and : 
-`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client json`
+`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client`
 
 
 Usage:
@@ -109,7 +109,7 @@ def create_release_draft(dd_repo, base, rc, patch):
         rn_raw = generate_rn(branch)
         rn_sections_clean = create_release_notes_sections(rn_raw, branch)
         # combine the release note sections into a string in the correct order
-        rn_clean = ""
+        rn = ""
         rn_key_order = [
             "Prelude",
             "New Features",
@@ -121,11 +121,13 @@ def create_release_draft(dd_repo, base, rc, patch):
         ]
         for key in rn_key_order:
             try:
-                rn_clean += "### %s\n\n%s" % (key, rn_sections_clean[key])
+                rn += "### %s\n\n%s" % (key, rn_sections_clean[key])
             except KeyError:
                 continue
 
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn_clean, prerelease=False)
+        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
+    
+    return name, rn
 
 
 def clean_rn(rn_raw):
