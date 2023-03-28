@@ -179,7 +179,7 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception as e:
-        log.debug("Error patching AWS Lambda: %s", e)
+        log.exception("Error patching AWS Lambda", exc_info=True)
         return
 
 
@@ -199,5 +199,5 @@ def unpatch():
     except AttributeError:
         return
     except Exception as e:
-        log.debug("Error unpatching AWS Lambda: %s", e)
+        log.exception("Error unpatching AWS Lambda", exc_info=True)
         return
