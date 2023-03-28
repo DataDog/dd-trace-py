@@ -73,5 +73,6 @@ exclude-modules = '''
   | ddtrace.profiling.exporter.pprof_pre319_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
+  | ddtrace.appsec.ddwaf.ddwaf_types
 )
 '''
