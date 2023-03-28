@@ -178,7 +178,7 @@ def patch():
         # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
         # which might cause a circular dependency. Skipping.
         return
-    except Exception as e:
+    except Exception:
         log.exception("Error patching AWS Lambda", exc_info=True)
         return
 
@@ -198,6 +198,6 @@ def unpatch():
         setattr(handler_module, "_datadog_patch", False)
     except AttributeError:
         return
-    except Exception as e:
+    except Exception:
         log.exception("Error unpatching AWS Lambda", exc_info=True)
         return
