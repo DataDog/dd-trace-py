@@ -356,6 +356,8 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
 
 
     configuration = Configuration()
+    configuration.api_key["apiKeyAuth"] = dd_api_key
+    configuration.api_key["appKeyAuth"] = dd_app_key
     with ApiClient(configuration) as api_client:
         api_instance = NotebooksApi(api_client)
         response = api_instance.list_notebooks(query=nb_name)
