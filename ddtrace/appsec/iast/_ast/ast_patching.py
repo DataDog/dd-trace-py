@@ -4,7 +4,6 @@ import ast
 import codecs
 import os
 from sys import builtin_module_names
-from sys import stdlib_module_names
 from typing import TYPE_CHECKING
 
 
@@ -15,6 +14,7 @@ if TYPE_CHECKING:
     from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
@@ -63,7 +63,9 @@ def _build_installed_package_names_list():  # type: (...) -> List[str]
     ]
 
 
-_NOT_PATCH_MODULE_NAMES = _build_installed_package_names_list() + list(builtin_module_names) + list(stdlib_module_names)
+_NOT_PATCH_MODULE_NAMES = (
+    _build_installed_package_names_list() + _stdlib_for_python_version() + list(builtin_module_names)
+)
 
 
 def _in_python_stdlib_or_third_party(module_name):  # type: (str) -> bool
