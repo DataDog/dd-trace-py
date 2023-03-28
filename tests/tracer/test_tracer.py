@@ -127,6 +127,27 @@ class TracerTestCases(TracerTestCase):
             meta=dict(a="b"),
         )
 
+    def test_tracer_wrap_generator(self):
+        @self.tracer.wrap_generator("decorated_generator", service="s", resource="r", span_type="t")
+        def f(tag_name, tag_value):
+            # make sure we can still set tags
+            span = self.tracer.current_span()
+            span.set_tag(tag_name, tag_value)
+            yield 1
+
+        result = list(f("a", "b"))
+        assert result == [1]
+
+        self.assert_span_count(1)
+        span = self.get_root_span()
+        span.assert_matches(
+            name="decorated_generator",
+            service="s",
+            resource="r",
+            span_type="t",
+            meta=dict(a="b"),
+        )
+
     def test_tracer_pid(self):
         with self.trace("root") as root_span:
             with self.trace("child") as child_span:

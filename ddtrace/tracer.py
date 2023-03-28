@@ -890,6 +890,63 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._writer.flush_queue()
 
+    def wrap_generator(
+        self,
+        name=None,  # type: Optional[str]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+    ):
+        def wrap_decorator(f):
+            # type: (AnyCallable) -> AnyCallable
+            # FIXME[matt] include the class name for methods.
+            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+
+            # detect if the the given function is a coroutine to use the
+            # right decorator; this initial check ensures that the
+            # evaluation is done only once for each @tracer.wrap
+            if compat.iscoroutinefunction(f):
+                # call the async factory that creates a tracing decorator capable
+                # to await the coroutine execution before finishing the span. This
+                # code is used for compatibility reasons to prevent Syntax errors
+                # in Python 2
+                func_wrapper = compat.make_async_decorator(
+                    self,
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            else:
+
+                @functools.wraps(f)
+                def func_wrapper(*args, **kwargs):
+                    # if a wrap executor has been configured, it is used instead
+                    # of the default tracing function
+                    if getattr(self, "_wrap_executor", None):
+                        for item in self._wrap_executor(
+                            self,
+                            f,
+                            args,
+                            kwargs,
+                            span_name,
+                            service=service,
+                            resource=resource,
+                            span_type=span_type,
+                        ):
+                            yield item
+
+                    # otherwise fallback to a default tracing
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        # yield from syntax not supported in python 2
+                        for item in f(*args, **kwargs):
+                            yield item
+
+            return func_wrapper
+
+        return wrap_decorator
+
     def wrap(
         self,
         name=None,  # type: Optional[str]
