@@ -2599,8 +2599,7 @@ venv = Venv(
                         Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.10"),
-                            # pkgs={"confluent-kafka": ["~=1.9.2", latest]},
-                            pkgs={"confluent-kafka": ["~=1.2.0"]},
+                            pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(pys="3.11", pkgs={"confluent-kafka": latest}),
