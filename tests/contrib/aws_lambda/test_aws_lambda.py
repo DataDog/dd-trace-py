@@ -115,16 +115,15 @@ async def test_module_patching(mocker, context):
 
     assert result == {"success": True}
 
-@pytest.mark.parametrize("handler", [({
-    "function_name": "static_handler",
-    "value": static_handler
-}), ({
-    "function_name": "class_handler",
-    "value": class_handler
-}), ({
-    "function_name": "instance_handler",
-    "value": instance_handler
-})])
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        ({"function_name": "static_handler", "value": static_handler}),
+        ({"function_name": "class_handler", "value": class_handler}),
+        ({"function_name": "instance_handler", "value": instance_handler}),
+    ],
+)
 @pytest.mark.snapshot
 def test_class_based_handlers(context, handler):
     function_name = handler["function_name"]
