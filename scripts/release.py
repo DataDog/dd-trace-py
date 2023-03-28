@@ -39,7 +39,7 @@ Optional:
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
     NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.    
 Examples:
-Generate release notes for next release candidate version of 1.11: `BASE=1.11 RC=1 python release.py`
+Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
 
 Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python release.py`
 
@@ -214,7 +214,7 @@ def create_draft_release(
         dd_repo.create_git_release(
             name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
         )
-        print("Please review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
+        print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
     return name, rn
 
@@ -370,7 +370,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
     nb_id = response._data_store["data"][0]["id"]
     nb_url = "https://ddstaging.datadoghq.com/notebook/%s" % (nb_id)
 
-    print("Notebook created at %s\n" % nb_url)
+    print("\nNotebook created at %s\n" % nb_url)
 
     author_slack_handles = " ".join(author_slack_handles)
 
@@ -416,7 +416,16 @@ if __name__ == "__main__":
     name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if os.getenv("NOTEBOOK"):
-        create_notebook(dd_repo, name, rn, base, rc, patch)
+        if rc:
+            print("Creating Notebook")
+            create_notebook(dd_repo, name, rn, base, rc, patch)
+        else:
+            print(
+                (
+                    "Currently the release script only supports making notebooks for RC1s."
+                    "No notebook will be created at this time."
+                )
+            )
 
     # switch back to original git branch
     subprocess.check_output(
