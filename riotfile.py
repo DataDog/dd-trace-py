@@ -2190,6 +2190,7 @@ venv = Venv(
         Venv(
             name="futures",
             command="pytest {cmdargs} tests/contrib/futures",
+            pkgs={"gevent": latest},
             venvs=[
                 # futures is backported for 2.7
                 Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
