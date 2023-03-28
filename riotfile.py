@@ -1146,7 +1146,7 @@ venv = Venv(
         Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
-            pkgs={"psycopg2-binary": latest},
+            pkgs={"psycopg2-binary": latest, "pytest-asyncio": latest},
             venvs=[
                 # Venv(
                 #     pys=select_pys(min_version="3.6", max_version="3.11"),
