@@ -372,7 +372,8 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
 
     print("\nNotebook created at %s\n" % nb_url)
 
-    author_slack_handles = " ".join(author_slack_handles)
+    # eliminate duplicates of handles for the slack message
+    author_slack_handles = " ".join(set(author_slack_handles))
 
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
