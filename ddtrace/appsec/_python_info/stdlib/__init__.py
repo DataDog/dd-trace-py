@@ -2,8 +2,19 @@
 
 from sys import version_info
 
-from .module_names import STDLIB_MODULE_NAMES
+if version_info < (3, 7, 0):
+    from .module_names_py36 import STDLIB_MODULE_NAMES
+elif version_info < (3, 8, 0):
+    from .module_names_py37 import STDLIB_MODULE_NAMES
+elif version_info < (3, 9, 0):
+    from .module_names_py38 import STDLIB_MODULE_NAMES
+elif version_info < (3, 10, 0):
+    from .module_names_py39 import STDLIB_MODULE_NAMES
+elif version_info < (3, 11, 0):
+    from .module_names_py310 import STDLIB_MODULE_NAMES
+else:
+    from .module_names_py311 import STDLIB_MODULE_NAMES
 
 
 def _stdlib_for_python_version():  # type: () -> list
-    return STDLIB_MODULE_NAMES[(version_info[0], version_info[1])]
+    return STDLIB_MODULE_NAMES
