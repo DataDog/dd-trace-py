@@ -2588,6 +2588,26 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="kafka",
+            venvs=[
+                Venv(
+                    command="pytest {cmdargs} tests/contrib/kafka",
+                    venvs=[
+                        # confluent-kafka dropped official wheels for Python 2.7 in 1.8.2
+                        Venv(pys="2.7", pkgs={"confluent-kafka": "~=1.7.0"}),
+                        # confluent-kafka>=1.7 has issues building on linux with Python 3.5
+                        Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
+                        Venv(
+                            pys=select_pys(min_version="3.6", max_version="3.10"),
+                            pkgs={"confluent-kafka": ["~=1.9.2", latest]},
+                        ),
+                        # confluent-kafka added support for Python 3.11 in 2.0.2
+                        Venv(pys="3.11", pkgs={"confluent-kafka": latest}),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="aws_lambda",
             command="pytest {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.7", max_version="3.9"),
