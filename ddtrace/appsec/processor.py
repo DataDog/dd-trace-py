@@ -269,11 +269,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
         data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
+        data_already_sent = _asm_request_context.get_data_sent()
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
-            if self._is_needed(waf_name):
+            if self._is_needed(waf_name) and key not in data_already_sent:
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
                 else:
@@ -281,9 +282,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
+                    data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES[key])
-                else:
-                    log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
         waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
         if waf_results and waf_results.data:
