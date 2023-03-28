@@ -1,8 +1,12 @@
 import os
 import re
 import subprocess
-
+import json
 from github import Github
+import requests
+from datadog_api_client import ApiClient
+from datadog_api_client import Configuration
+from datadog_api_client.v1.api.notebooks_api import NotebooksApi
 
 
 """This release notes script is built to create a release notes draft 
@@ -17,8 +21,8 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
 5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
 
-6. Create and activate a virtual environment, and install PyGithub: 
-`python -m venv venv && source venv/bin/activate && pip install pygithub`
+6. Create and activate a virtual environment, and install PyGithub, requests, and : 
+`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client json`
 
 
 Usage:
@@ -222,34 +226,24 @@ def setup_gh():
 
 
 def create_notebook(dd_repo, name, rn, base, rc, patch):
-    # need to figure out which versions to compare in order to get commits
-    # 1. RC: compare release before base and 1.x, or if there's already an RC and branch, compare before base and branch
+    dd_api_key = os.getenv("DD_API_KEY_STAGING")
+    dd_app_key = os.getenv("DD_APP_KEY_STAGING")
     if rc:
-        # if this is not the first rc
-        if int(name[-1]) != 1:
-            # need to grab the last released version branch e.g base = 1.19, compare = 1.18
-            compare_1 = base[:-1] + str(int(base[-1]) - 1)
-            # compare the last released version to 1.x to see what changes have occurred since the last release
-            compare_2 = "1.x"
+        # need to figure out which versions to compare in order to get commits
+        # if this is the first RC need to grab the last released version branch e.g base = 1.19, compare = 1.18
+        if int(name[-1]) == 1:
+            last_version = base[:-1] + str(int(base[-1]) - 1)
+        # this script does not currently create notebooks for anything other than RC1 versions
         else:
-            compare_1 = name
-            compare_2 = base
-    
-    # 2. Patch: compare latest patch tag and base branch
-    
-    # 3. Minor release: compare latest minor version and 1.x
-    
-    diff_raw = subprocess.check_output(
-        "git cherry -v {compare_1} {compare_2}".format(compare_1=compare_1, compare_2=compare_2),
-        shell=True,
-        cwd=os.pardir,
-    ).decode("utf8")
+            print("Since this is not the RC1 for this release. Please add the release notes for this release to the notebook.")
+            return
     
     diff_raw = subprocess.check_output(
         "git cherry -v {last_version} 1.x".format(last_version=last_version),
         shell=True,
         cwd=os.pardir,
     ).decode("utf8")
+    
     commit_hashes = re.findall("[0-9a-f]{5,40}", diff_raw)
     commits = []
     # get the commit objects
@@ -287,7 +281,6 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
                     continue
                 author = commit.author.name
                 if author:
-                    # only grab first and last name of author
                     author = author.split(" ")
                     author_slack = "@" + author[0] + "." + author[-1]
                     author_slack_handles.append(author_slack)
@@ -329,9 +322,13 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         "#  Release notes to test\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"
         % (rn)
     )
-    # grab the cells out to be transferred into a new notebook
+    # grab the latest commit id on 1.x to mark the rc notebook with
+    main_branch = dd_repo.get_branch(branch="1.x")
+    commit_id = main_branch.commit
+    
+    # pull the cells out to be transferred into a new notebook
     cells = data["data"]["attributes"]["cells"]
-    nb_name = "ddtrace-py testing %s commit %s" % (version, commit_id.sha)
+    nb_name = "ddtrace-py testing %s commit %s" % (name, commit_id.sha)
     interpolated_notebook = {
         "data": {
             "attributes": {
@@ -354,10 +351,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
     # create new release notebook
     resp_create = requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers)
 
-    # get notebook url for slack announcement
-    from datadog_api_client import ApiClient
-    from datadog_api_client import Configuration
-    from datadog_api_client.v1.api.notebooks_api import NotebooksApi
+
 
     configuration = Configuration()
     with ApiClient(configuration) as api_client:
@@ -379,7 +373,7 @@ Everyone mentioned here: before the end of the day tomorrow, please ensure that 
 You can start doing your tests immediately, using {version}. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.
 
 Check the release notebook {nb_url} for asynchronous updates on the release process. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.""".format(
-            version=version, author_slack_handles=author_slack_handles, nb_url=nb_url
+            version=name, author_slack_handles=author_slack_handles, nb_url=nb_url
         )
     )
 
