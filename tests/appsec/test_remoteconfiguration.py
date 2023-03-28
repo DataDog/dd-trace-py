@@ -48,7 +48,7 @@ def remote_config_worker(tracer):
 
 
 def _set_and_get_appsec_tags(tracer):
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(
             span,
             {},

@@ -188,6 +188,8 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
+    timeout = marker.kwargs.get("timeout", None)
+
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
         args.insert(0, "ddtrace-run")
@@ -222,7 +224,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
 
         def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd)
+            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
             if status != expected_status:
                 raise AssertionError(
