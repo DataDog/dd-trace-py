@@ -36,6 +36,7 @@ _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
 _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
 _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
+_DD_WAF_SENT = contextvars.ContextVar("datadog_waf_adress_sent", default=None)
 
 
 def reset():  # type: () -> None
@@ -43,6 +44,7 @@ def reset():  # type: () -> None
     _DD_EARLY_HEADERS_CONTEXTVAR.set(None)
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
     _DD_BLOCK_REQUEST_CALLABLE.set(None)
+    _DD_WAF_SENT.set(set())
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None
@@ -110,12 +112,17 @@ def call_waf_callback(custom_data=None):
         log.warning("WAF callback called but not set")
 
 
+def get_data_sent():  # type: () -> set[str]
+    return _DD_WAF_SENT.get()
+
+
 def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
     # type: (Optional[str], Any, bool, Optional[Callable]) -> None
     set_ip(remote_ip)
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
     set_block_request_callable(block_request_callable)
+    _DD_WAF_SENT.set(set())
 
 
 def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, bool) -> None
