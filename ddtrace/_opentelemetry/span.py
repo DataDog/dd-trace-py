@@ -5,6 +5,8 @@ from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
+from opentelemetry.trace.span import TraceFlags
+from opentelemetry.trace.span import TraceState
 
 from ddtrace.constants import SPAN_KIND
 
@@ -92,8 +94,15 @@ class Span(OtelSpan):
         """Returns an Open Telemetry SpanContext"""
         # Returns a SpanContext with the current trace id, span id and is_remote flag.
         # This is the bare minimum to get current context.
-        # TODO: Support propagating TraceState and TraceFlag
-        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False)
+        tf = TraceFlags.DEFAULT
+        if self._ddspan.sampled:
+            tf = TraceFlags.SAMPLED
+
+        ts = None
+        if self._ddspan.context:
+            ts = TraceState.from_header([self._ddspan.context._tracestate])
+
+        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
     def set_attributes(self, attributes):
         # type: (Mapping[str, AttributeValue]) -> None

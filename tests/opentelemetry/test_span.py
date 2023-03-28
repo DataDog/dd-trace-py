@@ -1,5 +1,6 @@
 # Opentelemetry Tracer shim Unit Tests
 from opentelemetry.trace import SpanKind as OtelSpanKind
+from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
@@ -113,3 +114,18 @@ def test_otel_span_exception_handling(oteltracer):
     assert span._ddspan._meta["error.message"] == "Sorry Friend, I failed you"
     assert span._ddspan._meta["error.type"] == "builtins.Exception"
     assert span._ddspan._meta["error.stack"] is not None
+
+
+def test_otel_get_span_context(oteltracer):
+    otelspan = oteltracer.start_span("otel-server")
+
+    span_context = otelspan.get_span_context()
+    assert span_context.trace_id == otelspan._ddspan.trace_id
+    assert span_context.span_id == otelspan._ddspan.span_id
+    # An ddtrace._opentelemetry.Span can never be remote.
+    # opentelemetry.trace.NonRecordingSpan is used to represent a "remote span".
+    assert span_context.is_remote is False
+    # By default ddtrace set sampled=True for all spans
+    assert span_context.trace_flags == TraceFlags.SAMPLED
+    # Default tracestate values set on all Datadog Spans (Note - these values may change)
+    assert span_context.trace_state.to_header() == "dd=s:1;t.dm:-0"
