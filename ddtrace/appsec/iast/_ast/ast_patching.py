@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import PurePath
     from types import ModuleType
-    from typing import Dict
+    from typing import List
     from typing import Optional
     from typing import Tuple
 
@@ -73,30 +73,22 @@ def _is_python_source_file(
     return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
 
 
-def _build_package_file_mapping():
-    # type: (...) -> Dict[str, Distribution]
-    mapping = {}
+def _build_installed_package_names_list():
+    # type: (...) -> List[str]
+    installed_packages_list = []
 
     for ilmd_d in il_md.distributions():
         if ilmd_d is not None and ilmd_d.files is not None:
-            _name = ilmd_d.metadata["name"]
-            d = Distribution(_name, ilmd_d.version)
-            for f in ilmd_d.files:
-                if _is_python_source_file(f):
-                    mapping[_name] = d
+            installed_packages_list.append(ilmd_d.metadata["name"])
 
-    return mapping
+    return installed_packages_list
 
 
-_FILE_PACKAGE_MAPPING = _build_package_file_mapping()
+_NOT_PATCH_MODULE_NAMES = _build_installed_package_names_list() + list(builtin_module_names) + list(stdlib_module_names)
 
 
 def _in_python_stdlib_or_third_party(module_name):
-    module_name_prefix = module_name.split(".")[0].lower()
-    for module_names in (builtin_module_names, stdlib_module_names, _FILE_PACKAGE_MAPPING.keys()):
-        if module_name_prefix in [x.lower() for x in module_names]:
-            return True
-    return False
+    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
 def _should_iast_patch(module_name):
