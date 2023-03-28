@@ -66,9 +66,10 @@ class CaptureLimits(object):
     max_fields = attr.ib(type=int, default=MAXFIELDS)  # type: int
 
 
-@attr.s(hash=True)
+@attr.s
 class Probe(six.with_metaclass(abc.ABCMeta)):
     probe_id = attr.ib(type=str)
+    version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
     rate = attr.ib(type=float, eq=False)
     limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
@@ -82,6 +83,22 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
             call_once=True,
             raise_on_exceed=False,
         )
+
+    def update(self, other):
+        # type: (Probe) -> None
+        """Update the mutable fields from another probe."""
+        if self.probe_id != other.probe_id:
+            log.error("Probe ID mismatch when updating mutable fields")
+            return
+
+        if self.version == other.version:
+            return
+
+        for attrib in (_.name for _ in self.__attrs_attrs__ if _.eq):
+            setattr(self, attrib, getattr(other, attrib))
+
+    def __hash__(self):
+        return hash(self.probe_id)
 
 
 @attr.s
@@ -119,8 +136,8 @@ class ProbeLocationMixin(object):
 
 @attr.s
 class LineLocationMixin(ProbeLocationMixin):
-    source_file = attr.ib(type=str, converter=_resolve_source_file)  # type: ignore[misc]
-    line = attr.ib(type=int)
+    source_file = attr.ib(type=str, converter=_resolve_source_file, eq=False)  # type: ignore[misc]
+    line = attr.ib(type=int, eq=False)
 
     def location(self):
         return (self.source_file, self.line)
@@ -135,8 +152,8 @@ class ProbeEvaluateTimingForMethod(object):
 
 @attr.s
 class FunctionLocationMixin(ProbeLocationMixin):
-    module = attr.ib(type=str)
-    func_qname = attr.ib(type=str)
+    module = attr.ib(type=str, eq=False)
+    func_qname = attr.ib(type=str, eq=False)
     evaluate_at = attr.ib(type=ProbeEvaluateTimingForMethod)
 
     def location(self):
