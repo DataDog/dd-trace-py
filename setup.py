@@ -143,7 +143,7 @@ class Library_Download():
 
     @classmethod
     def download_artifacts(cls):
-        suffix = cls.get_suffix(CURRENT_OS)
+        suffixes = cls.get_suffixes(CURRENT_OS)
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
@@ -195,7 +195,7 @@ class Library_Download():
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffix)]
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 print("extracting files:", [c.name for c in dynfiles])
@@ -203,10 +203,11 @@ class Library_Download():
                 os.rename(os.path.join(HERE, archive_dir), arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
-            original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
-            if os.path.exists(original_file):
-                renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
-                os.rename(original_file, renamed_file)
+            for suffix in suffixes:
+              original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
+              if os.path.exists(original_file):
+                  renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
+                  os.rename(original_file, renamed_file)
 
             os.remove(filename)
 
@@ -227,8 +228,8 @@ class LibDDWaf_Download(Library_Download):
         return archive_dir
 
     @classmethod
-    def get_suffix(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
+    def get_suffixes(cls, os):
+        TRANSLATE_SUFFIX = {"Windows": (".dll"), "Darwin": (".dylib"), "Linux": (".so")}
         return TRANSLATE_SUFFIX[os]
 
     def run(self):
@@ -259,7 +260,7 @@ class LibDatadog_Download(Library_Download):
         return archive_dir
 
     @classmethod
-    def get_suffix(cls, os):
+    def get_suffixes(cls, os):
         TRANSLATE_SUFFIX = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
         return TRANSLATE_SUFFIX[os]
 
