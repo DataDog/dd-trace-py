@@ -24,7 +24,6 @@ contextvars. When using this, note that context vars are always thread-local so 
 thread will have a different context.
 """
 
-
 # FIXME: remove these and use the new context API once implemented and allowing
 # contexts without spans
 
@@ -37,6 +36,7 @@ _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_calla
 _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
 _DD_WAF_SENT = contextvars.ContextVar("datadog_waf_adress_sent", default=None)
+_DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default={})
 
 
 def reset():  # type: () -> None
@@ -45,6 +45,7 @@ def reset():  # type: () -> None
     _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
     _DD_BLOCK_REQUEST_CALLABLE.set(None)
     _DD_WAF_SENT.set(set())
+    _DD_IAST_TAINT_DICT.set({})
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None
@@ -53,6 +54,14 @@ def set_ip(ip):  # type: (Optional[str]) -> None
 
 def get_ip():  # type: () -> Optional[str]
     return _DD_EARLY_IP_CONTEXTVAR.get()
+
+
+def set_taint_dict(taint_dict):  # type: (dict) -> None
+    _DD_IAST_TAINT_DICT.set(taint_dict)
+
+
+def get_taint_dict():  # type: () -> dict
+    return _DD_IAST_TAINT_DICT.get()
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
