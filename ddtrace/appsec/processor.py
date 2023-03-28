@@ -2,12 +2,14 @@ import errno
 import json
 import os
 import os.path
+import traceback
 from typing import Set
 from typing import TYPE_CHECKING
 
 import attr
 from six import ensure_binary
 
+from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -15,6 +17,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
@@ -132,11 +135,6 @@ def _get_rate_limiter():
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
-def _get_waf_timeout():
-    # type: () -> int
-    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT.WAF_TIMEOUT))
-
-
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
@@ -145,7 +143,6 @@ class AppSecSpanProcessor(SpanProcessor):
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
-    _waf_timeout = attr.ib(type=int, factory=_get_waf_timeout)
 
     @property
     def enabled(self):
@@ -177,11 +174,15 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                info = self._ddwaf.info
-                version = None
-                if info:
-                    version = info.version
-                _set_waf_init_metric(version)
+                if not self._ddwaf._handle or self._ddwaf.info.failed:
+                    stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
+                        rules,
+                        self._ddwaf.info.loaded,
+                        self._ddwaf.info.errors,
+                    )
+                    _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
+
+                _set_waf_init_metric(self._ddwaf.info)
             except ValueError:
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
@@ -198,18 +199,19 @@ class AppSecSpanProcessor(SpanProcessor):
         result = False
         try:
             result = self._ddwaf.update_rules(new_rules)
-            info = self._ddwaf.info
-            version = None
-            if info:
-                version = info.version
-            _set_waf_updates_metric(version)
+            _set_waf_updates_metric(self._ddwaf.info)
         except TypeError:
-            log.debug("Error updating ASM rules", exc_info=True)
+            error_msg = "Error updating ASM rules. TypeError exception "
+            log.debug(error_msg, exc_info=True)
+            _set_waf_error_metric(error_msg, traceback.format_exc(), self._ddwaf.info)
+        if not result:
+            error_msg = "Error updating ASM rules. Invalid rules"
+            log.debug(error_msg)
+            _set_waf_error_metric(error_msg, "", self._ddwaf.info)
         return result
 
     def on_span_start(self, span):
         # type: (Span) -> None
-
         if span.span_type != SpanTypes.WEB:
             return
         ctx = self._ddwaf._at_request_start()
@@ -267,11 +269,14 @@ class AppSecSpanProcessor(SpanProcessor):
 
         data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
+        data_already_sent = _asm_request_context.get_data_sent()
+        if data_already_sent is None:
+            data_already_sent = set()
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
-            if self._is_needed(waf_name):
+            if self._is_needed(waf_name) and key not in data_already_sent:
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
                 else:
@@ -279,11 +284,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
+                    data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES[key])
-                else:
-                    log.debug("[action] WAF missing value %s", SPAN_DATA_NAMES[key])
 
-        waf_results = self._ddwaf.run(ctx, data, self._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
@@ -295,7 +299,11 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             info = self._ddwaf.info
             if info.errors:
-                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, json.dumps(info.errors))
+                errors = json.dumps(info.errors)
+                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
+                _set_waf_error_metric("WAF run. Error", errors, info)
+            if waf_results.timeout:
+                _set_waf_error_metric("WAF run. Timeout errors", "", info)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
             span.set_tag_str(APPSEC.WAF_VERSION, version())
 
@@ -371,6 +379,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.call_waf_callback()
         _set_waf_request_metrics()
         self._ddwaf._at_request_end()
+
         # Force to set respond headers at the end
         headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
         if headers_req:

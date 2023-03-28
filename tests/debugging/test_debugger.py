@@ -8,6 +8,8 @@ import mock
 from mock.mock import call
 import pytest
 
+import ddtrace
+from ddtrace.debugging._capture.dynamic_span import SPAN_NAME
 from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
@@ -22,9 +24,11 @@ from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import create_span_function_probe
 from tests.internal.remoteconfig import rcm_endpoint
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
+from tests.utils import TracerTestCase
 from tests.utils import call_program
 
 
@@ -935,10 +939,7 @@ def test_debugger_log_live_probe_generate_messages():
         sleep(0.5)
 
         (msgs,) = d.uploader.payloads
-        (
-            msg1,
-            msg2,
-        ) = msgs
+        msg1, msg2 = msgs
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
@@ -947,3 +948,133 @@ def test_debugger_log_live_probe_generate_messages():
         assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger.snapshot"]["captures"]
+
+
+class SpanProbeTestCase(TracerTestCase):
+    def setUp(self):
+        super(SpanProbeTestCase, self).setUp()
+        self.backup_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
+
+    def tearDown(self):
+        ddtrace.tracer = self.backup_tracer
+        super(SpanProbeTestCase, self).tearDown()
+
+    def test_debugger_span_probe(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags={"tag": "value"}
+                )
+            )
+
+            mutator(arg=[])
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            tags = span.get_tags()
+            assert tags["debugger.probeid"] == "span-probe"
+            assert tags["tag"] == "value"
+
+    def test_debugger_span_not_created_when_condition_was_false(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="span-probe",
+                    module="tests.submod.stuff",
+                    func_qname="mutator",
+                    condition=DDExpression(
+                        dsl="not(contains(arg,42))", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
+                    ),
+                )
+            )
+
+            mutator(arg=[42])  # should not trigger span
+
+            self.assert_span_count(0)
+
+            mutator(arg=[])  # should trigger span
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tags()["debugger.probeid"] == "span-probe"
+
+    def test_debugger_snap_probe_linked_to_parent_span(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span"):
+                mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == "parent_span"
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tag("debugger.probeid") == "exit-probe"
+
+            assert span.parent_id == root.span_id
+
+    def test_debugger_snap_probe_root(self):
+        from tests.submod.stuff import caller
+
+        @self.tracer.wrap("child")
+        def child():
+            pass
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="root-dynamic-span-probe", module="tests.submod.stuff", func_qname="caller"
+                )
+            )
+
+            caller(child)
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == SPAN_NAME
+            assert root.resource == "caller"
+            assert root.get_tag("debugger.probeid") == "root-dynamic-span-probe"
+
+            assert span.name == "child"
+
+            assert span.parent_id is root.span_id
+
+
+def test_debugger_continue_wrapping_after_first_failure():
+    with debugger() as d:
+        probe_nok = create_snapshot_function_probe(
+            probe_id="function-probe-nok",
+            module="tests.submod.stuff",
+            func_qname="nonsense",
+        )
+        probe_ok = create_snapshot_function_probe(
+            probe_id="function-probe-ok",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+        )
+        d.add_probes(probe_nok, probe_ok)
+
+        assert probe_nok in d._probe_registry
+        assert probe_ok in d._probe_registry
+
+        assert not d._probe_registry[probe_nok.probe_id].installed
+        assert d._probe_registry[probe_ok.probe_id].installed

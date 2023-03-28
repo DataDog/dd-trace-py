@@ -100,6 +100,14 @@ def is_module_installed(module_name):
 
 
 def cleanup_loaded_modules():
+    def drop(module_name):
+        # type: (str) -> None
+        if PY2:
+            # Store a reference to deleted modules to avoid them being garbage
+            # collected
+            _unloaded_modules.append(sys.modules[module_name])
+        del sys.modules[module_name]
+
     MODULES_REQUIRING_CLEANUP = ("gevent",)
     do_cleanup = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
     if do_cleanup == "auto":
@@ -114,27 +122,34 @@ def cleanup_loaded_modules():
     # gets when it does `import threading`. The same applies to every module
     # not in `KEEP_MODULES`.
     KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing", "logging", "attr"])
+    if PY2:
+        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
 
         if PY2:
-            KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
             if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES_PY2):
                 continue
-            # Store a reference to deleted modules to avoid them being garbage
-            # collected
-            _unloaded_modules.append(sys.modules[m])
 
-        del sys.modules[m]
+        drop(m)
 
     # TODO: The better strategy is to identify the core modues in LOADED_MODULES
     # that should not be unloaded, and then unload as much as possible.
-    UNLOAD_MODULES = frozenset(["time"])
+    UNLOAD_MODULES = frozenset(
+        [
+            # imported in Python >= 3.10 and patched by gevent
+            "time",
+            # we cannot unload the whole concurrent hierarchy, but this
+            # submodule makes use of threading so it is critical to unload when
+            # gevent is used.
+            "concurrent.futures",
+        ]
+    )
     for u in UNLOAD_MODULES:
         for m in list(sys.modules):
             if m == u or m.startswith(u + "."):
-                del sys.modules[m]
+                drop(m)
 
 
 try:
