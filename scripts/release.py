@@ -416,7 +416,8 @@ if __name__ == "__main__":
 
     # switch back to original git branch
     subprocess.check_output(
-        "git checkout {start_branch} && git stash pop".format(start_branch=start_branch),
+        "git checkout {start_branch}".format(start_branch=start_branch),
         shell=True,
         cwd=os.pardir,
     )
+    print("\nYou've been switch back to your original branch, if you had uncomitted changes before running this command, run `git stash pop` to get them back.")
