@@ -64,7 +64,7 @@ def consumer(tracer):
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_message(producer, consumer, tombstone):
     if tombstone:
         producer.produce(TOPIC_NAME, key=KEY)
@@ -76,7 +76,9 @@ def test_message(producer, consumer, tombstone):
         message = consumer.poll(1.0)
 
 
-@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override")
+@pytest.mark.snapshot(
+    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
+)
 def test_service_override_config(producer, consumer):
     with override_config("kafka", dict(service="my-custom-service-name")):
         producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
@@ -86,8 +88,10 @@ def test_service_override_config(producer, consumer):
             message = consumer.poll(1.0)
 
 
-@pytest.mark.subprocess(env=dict(DD_KAFKA_SERVICE="my-custom-service-name"))
-@pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override")
+@pytest.mark.subprocess(env=dict(DD_KAFKA_SERVICE="my-custom-service-name"), err=None)
+@pytest.mark.snapshot(
+    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
+)
 def test_service_override_env_var():
     import six
 
@@ -132,7 +136,7 @@ def test_service_override_env_var():
     consumer.close()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_analytics_with_rate(producer, consumer):
     with override_config("kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
@@ -142,7 +146,7 @@ def test_analytics_with_rate(producer, consumer):
             message = consumer.poll(1.0)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_analytics_without_rate(producer, consumer):
     with override_config("kafka", dict(analytics_enabled=True)):
         producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)

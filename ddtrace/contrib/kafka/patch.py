@@ -74,9 +74,13 @@ class TracedProducer(ObjectProxy):
 
 
 class TracedConsumer(ObjectProxy):
+
+    __slots__ = "_group_id"
+
     def __init__(self, *args, **kwargs):
         consumer = _Consumer(*args, **kwargs)
         super(TracedConsumer, self).__init__(consumer)
+        self._group_id = get_argument_value(args, kwargs, 0, "config")["group.id"]
         Pin().onto(self)
 
     def poll(self, *args, **kwargs):
@@ -95,6 +99,7 @@ class TracedConsumer(ObjectProxy):
             span.set_tag_str(COMPONENT, config.kafka.integration_name)
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
+            span.set_tag_str(kafkax.GROUP_ID, self._group_id)
             if message is not None:
                 message_key = message.key() or ""
                 message_offset = message.offset() or -1

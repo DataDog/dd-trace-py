@@ -11,13 +11,14 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "kafka",
+      "kafka.group_id": "test_group",
       "kafka.message_key": "test_key",
       "kafka.received_message": "True",
       "kafka.tombstone": "False",
       "kafka.topic": "test_topic",
       "language": "python",
       "messaging.system": "kafka",
-      "runtime-id": "822fbbb16b8848438153b1e6aa0249a9",
+      "runtime-id": "5b3c44e99f134672b64de5b1f6276287",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -26,11 +27,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "kafka.message_offset": 102,
       "kafka.partition": 0,
-      "process_id": 149
+      "process_id": 91013
     },
-    "duration": 57595000,
-    "start": 1679350373015170000
+    "duration": 68950000,
+    "start": 1680013650580628000
   }],
 [
   {
@@ -50,7 +52,7 @@
       "kafka.topic": "test_topic",
       "language": "python",
       "messaging.system": "kafka",
-      "runtime-id": "822fbbb16b8848438153b1e6aa0249a9",
+      "runtime-id": "5b3c44e99f134672b64de5b1f6276287",
       "span.kind": "producer"
     },
     "metrics": {
@@ -60,8 +62,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 149
+      "process_id": 91013
     },
-    "duration": 63000,
-    "start": 1679350368978340000
+    "duration": 162000,
+    "start": 1680013644551010000
   }]]
