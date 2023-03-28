@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "6038276d1328481da76ef1d1091f9066"
+      "runtime-id": "c94dcc5e66ef4c6396c23ca97f202d53"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 61301
+      "process_id": 92581
     },
-    "duration": 111000,
-    "start": 1678917410692834000
+    "duration": 1096000,
+    "start": 1680038992138816000
   },
      {
        "name": "result-trace",
@@ -32,6 +32,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 11000,
-       "start": 1678917410692910000
+       "duration": 40000,
+       "start": 1680038992139793000
      }]]

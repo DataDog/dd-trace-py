@@ -4,12 +4,13 @@ import pytest
 
 from ddtrace.contrib.aws_lambda import patch
 from ddtrace.contrib.aws_lambda import unpatch
-from tests.contrib.aws_lambda.handlers import callable_handler
+from tests.contrib.aws_lambda.handlers import class_handler
 from tests.contrib.aws_lambda.handlers import datadog
 from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler
 from tests.contrib.aws_lambda.handlers import handler
-from tests.contrib.aws_lambda.handlers import manually_wrapped_callable_handler
+from tests.contrib.aws_lambda.handlers import instance_handler
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
+from tests.contrib.aws_lambda.handlers import static_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
 
 
@@ -114,37 +115,28 @@ async def test_module_patching(mocker, context):
 
     assert result == {"success": True}
 
-
+@pytest.mark.parametrize("handler", [({
+    "function_name": "static_handler",
+    "value": static_handler
+}), ({
+    "function_name": "class_handler",
+    "value": class_handler
+}), ({
+    "function_name": "instance_handler",
+    "value": instance_handler
+})])
 @pytest.mark.snapshot
-async def test_callable_handler_patching(context):
+def test_class_based_handlers(context, handler):
+    function_name = handler["function_name"]
+    _handler = handler["value"]
     os.environ.update(
         {
-            "AWS_LAMBDA_FUNCTION_NAME": "callable_handler",
-            "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.callable_handler",
+            "AWS_LAMBDA_FUNCTION_NAME": function_name,
+            "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers." + function_name,
         }
     )
 
     patch()
 
-    result = datadog(callable_handler)({}, context())
-
-    assert result == {"success": True}
-
-
-@pytest.mark.snapshot
-async def test_callable_manually_wrapped_callable_handler_patching(mocker, context):
-    mocker.patch("datadog_lambda.wrapper._LambdaDecorator._before")
-    mocker.patch("datadog_lambda.wrapper._LambdaDecorator._after")
-
-    os.environ.update(
-        {
-            "AWS_LAMBDA_FUNCTION_NAME": "manually_wrapped_callable_handler",
-        }
-    )
-    os.environ.pop("DD_LAMBDA_HANDLER")
-
-    patch()
-
-    result = manually_wrapped_callable_handler({}, context())
-
+    result = datadog(_handler)({}, context())
     assert result == {"success": True}

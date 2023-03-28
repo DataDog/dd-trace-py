@@ -34,16 +34,37 @@ def finishing_spans_early_handler(event, context):
     return {"success": False}
 
 
-class CallableHandler:
-    """Mocks a callable handler. Used in frameworks like Chalice."""
+class StaticMeta(type):
+    @staticmethod
+    def __call__(event, context):
+        with tracer.trace("result-trace"):
+            return {"success": True}
 
+
+class ClassMeta(type):
+    @classmethod
+    def __call__(cls, event, context):
+        with tracer.trace("result-trace"):
+            return {"success": True}
+
+
+class ClassHandler(metaclass=ClassMeta):
+    pass
+
+
+class StaticHandler(metaclass=StaticMeta):
+    pass
+
+
+class InstanceHandler:
     def __call__(self, event, context):
         with tracer.trace("result-trace"):
             return {"success": True}
 
 
-callable_handler = CallableHandler()
-manually_wrapped_callable_handler = datadog_lambda_wrapper(callable_handler)
+static_handler = StaticHandler
+class_handler = ClassHandler
+instance_handler = InstanceHandler()
 
 
 def datadog(_handler):
