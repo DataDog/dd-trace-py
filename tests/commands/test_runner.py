@@ -379,7 +379,7 @@ def test_info_no_configs():
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: False
-    Remote Configuration enabled: true
+    Remote Configuration enabled: False
     IAST enabled (experimental): False
     Debug logging: False
     Writing traces to: http://localhost:8126
@@ -449,9 +449,9 @@ def test_info_w_configs():
         (stdout)
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
-    Application Security enabled: true
-    Remote Configuration enabled: true
-    IAST enabled (experimental): true
+    Application Security enabled: True
+    Remote Configuration enabled: True
+    IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
     Agent error: Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out
