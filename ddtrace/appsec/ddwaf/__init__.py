@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from six import text_type
 
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.internal.logger import get_logger
 
 
@@ -38,8 +39,6 @@ except OSError:
 #
 # Interface as Cython
 #
-
-DEFAULT_DDWAF_TIMEOUT_MS = 2
 
 
 class DDWaf_result(object):
@@ -87,7 +86,7 @@ if _DDWAF_LOADED:
             if not self._handle or self._info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
                 # at the same time some invalid ones are rejected
-                LOGGER.error(
+                LOGGER.debug(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
                     ruleset_map_object.struct,
                     self._info.loaded,
@@ -127,7 +126,7 @@ if _DDWAF_LOADED:
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
             if not ctx:
-                LOGGER.error("DDWaf._at_request_start: failure to create the context.")
+                LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
             return ctx
 
         def _at_request_end(self):
@@ -138,20 +137,20 @@ if _DDWAF_LOADED:
             self,  # type: DDWaf
             ctx,  # type: ddwaf_context_capsule
             data,  # type: DDWafRulesType
-            timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:float
+            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
         ):
             # type: (...) -> DDWaf_result
             start = time.time()
 
             if not ctx:
-                LOGGER.error("DDWaf.run: dry run. no context created.")
+                LOGGER.debug("DDWaf.run: dry run. no context created.")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False)
 
             result = ddwaf_result()
             wrapper = ddwaf_object(data)
             error = ddwaf_run(ctx.ctx, wrapper, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
-                LOGGER.warning("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
+                LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
                 result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
                 [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
@@ -179,15 +178,15 @@ else:
             self,  # type: DDWaf
             ctx,  # type: ddwaf_context_capsule
             data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
-            timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
+            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
         ):
             # type: (...) -> DDWaf_result
-            LOGGER.warning("DDWaf features disabled. dry run")
+            LOGGER.debug("DDWaf features disabled. dry run")
             return DDWaf_result(None, [], 0.0, 0.0, False)
 
         def update_rules(self, _):
             # type: (dict[text_type, DDWafRulesType]) -> bool
-            LOGGER.warning("DDWaf features disabled. dry update")
+            LOGGER.debug("DDWaf features disabled. dry update")
             return False
 
         def _at_request_start(self):
@@ -198,5 +197,5 @@ else:
 
     def version():
         # type: () -> text_type
-        LOGGER.warning("DDWaf features disabled. null version")
+        LOGGER.debug("DDWaf features disabled. null version")
         return "0.0.0"

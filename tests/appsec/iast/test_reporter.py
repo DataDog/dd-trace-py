@@ -28,10 +28,10 @@ def test_evidence_hash_and_equality():
 
 
 def test_location_hash_and_equality():
-    e = Location(path="foobar.py", line=35)
-    f = Location(path="foobar2.py", line=35)
-    g = Location(path="foobar.py", line=36)
-    e2 = Location(path="foobar.py", line=35)
+    e = Location(path="foobar.py", line=35, spanId=123)
+    f = Location(path="foobar2.py", line=35, spanId=123)
+    g = Location(path="foobar.py", line=36, spanId=123)
+    e2 = Location(path="foobar.py", line=35, spanId=123)
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
@@ -42,12 +42,12 @@ def test_vulnerability_hash_and_equality():
     ev1bis = Evidence(type="SomeEvidenceType", value="SomeEvidenceValue")
     ev2 = Evidence(type="SomeOtherEvidenceType", value="SomeEvidenceValue")
 
-    loc = Location(path="foobar.py", line=35)
+    loc = Location(path="foobar.py", line=35, spanId=123)
 
-    e = Vulnerability(type="VulnerabilityType", evidence=ev1, location=loc, span_id=123)
-    f = Vulnerability(type="VulnerabilityType", evidence=ev2, location=loc, span_id=123)
-    g = Vulnerability(type="OtherVulnerabilityType", evidence=ev1, location=loc, span_id=123)
-    e2 = Vulnerability(type="VulnerabilityType", evidence=ev1bis, location=loc, span_id=123)
+    e = Vulnerability(type="VulnerabilityType", evidence=ev1, location=loc)
+    f = Vulnerability(type="VulnerabilityType", evidence=ev2, location=loc)
+    g = Vulnerability(type="OtherVulnerabilityType", evidence=ev1, location=loc)
+    e2 = Vulnerability(type="VulnerabilityType", evidence=ev1bis, location=loc)
 
     assert e.hash
 

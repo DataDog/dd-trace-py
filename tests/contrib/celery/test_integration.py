@@ -13,7 +13,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
@@ -650,7 +649,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
                 self.assertEqual(1, len(trace))
                 self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 8), reason="opentracing is not supported python<3.8")
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""
         ot_tracer = init_tracer("celery_svc", self.tracer)
@@ -664,15 +662,13 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
             assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        traces = self.pop_traces()
+        ot_span = self.find_span(name="celery_op")
+        assert ot_span.parent_id is None
+        assert ot_span.name == "celery_op"
+        assert ot_span.service == "celery_svc"
 
         if self.ASYNC_USE_CELERY_FIXTURES:
-            assert 2 == len(traces)
-            assert 1 == len(traces[0])
-            assert 2 == len(traces[1])
-            run_span = traces[0][0]
-            ot_span, async_span = traces[1]
-
+            async_span = self.find_span(name="celery.apply")
             self.assert_is_measured(async_span)
             assert async_span.error == 0
 
@@ -686,22 +682,20 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-        else:
-            assert 1 == len(traces)
-            assert 2 == len(traces[0])
-            ot_span, run_span = traces[0]
 
-        assert ot_span.parent_id is None
-        assert ot_span.name == "celery_op"
-        assert ot_span.service == "celery_svc"
-
+        run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"
+        assert run_span.parent_id is None
         assert run_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
         assert run_span.service == "celery-worker"
         assert run_span.get_tag("celery.id") == t.task_id
         assert run_span.get_tag("celery.action") == "run"
         assert run_span.get_tag("component") == "celery"
         assert run_span.get_tag("span.kind") == "consumer"
+
+        traces = self.pop_traces()
+        assert len(traces) == 2
+        assert len(traces[0]) + len(traces[1]) == 3
 
     def test_beat_scheduler_tracing(self):
         @self.app.task
