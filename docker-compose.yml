@@ -146,23 +146,18 @@ services:
           - ./.ddriot:/root/project/.riot
 
     localstack:
-        image: localstack/localstack:0.14.1
-        network_mode: bridge
+        image: localstack/localstack:1.4.0
         ports:
           - "127.0.0.1:4566:4566"
           - "127.0.0.1:4571:4571"
         environment:
           - SERVICES=${SERVICES- }
           - DEBUG=${DEBUG- }
-          - DATA_DIR=${DATA_DIR- }
-          - PORT_WEB_UI=${PORT_WEB_UI- }
           - LAMBDA_EXECUTOR=local
           - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
           - DOCKER_HOST=unix:///var/run/docker.sock
-          - HOST_TMP_FOLDER=${TMPDIR}
-          - INIT_SCRIPTS_PATH=/setup
         volumes:
-          - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+          - "${TMPDIR:-/var/lib/localstack}:/var/lib/localstack"
           - "/var/run/docker.sock:/var/run/docker.sock"
 
     httpbin_local:
