@@ -427,6 +427,7 @@ def test_info_w_configs():
         dict(
             DD_SERVICE="tester",
             DD_APPSEC_ENABLED="true",
+            DD_REMOTE_CONFIGURATION_ENABLED="true",
             DD_IAST_ENABLED="true",
             DD_ENV="dev",
             DD_VERSION="0.45",
