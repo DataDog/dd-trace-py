@@ -2270,6 +2270,7 @@ venv = Venv(
         Venv(
             name="futures",
             command="pytest {cmdargs} tests/contrib/futures",
+            pkgs={"gevent": latest},
             venvs=[
                 # futures is backported for 2.7
                 Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
@@ -2614,6 +2615,14 @@ venv = Venv(
                 "boto3": latest,
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
+            name="sourcecode",
+            command="pytest {cmdargs} tests/sourcecode",
+            pys=select_pys(),
+            pkgs={
+                "setuptools": ["<=67.6.0"],
             },
         ),
     ],

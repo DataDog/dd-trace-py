@@ -8,6 +8,8 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
@@ -103,6 +105,19 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
+def taint_request_init(wrapped, instance, args, kwargs):
+    wrapped(*args, **kwargs)
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject  # type: ignore[attr-defined]
+
+        taint_pyobject(
+            instance.query_string,
+            Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+        )
+        taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+
+
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = "flask.request"
     _application_span_name = "flask.application"
@@ -183,7 +198,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
             try:
                 if content_type == "application/json" or content_type == "text/json":
-                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
+                    if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                         req_body = request.json
                     else:
                         req_body = json.loads(request.data.decode("UTF-8"))
@@ -241,6 +256,30 @@ def patch():
     setattr(flask, "_datadog_patch", True)
 
     Pin().onto(flask.Flask)
+
+    # IAST
+    _w(
+        "werkzeug.datastructures",
+        "EnvironHeaders.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, "http.request.header"),
+    )
+    _w(
+        "werkzeug.datastructures",
+        "ImmutableMultiDict.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+    )
+    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
+    _w(
+        "werkzeug.wrappers.request",
+        "Request.get_data",
+        functools.partial(if_iast_taint_returned_object_for, "http.request.body"),
+    )
+    if flask_version < (2, 0, 0):
+        _w(
+            "werkzeug._internal",
+            "_DictAccessorProperty.__get__",
+            functools.partial(if_iast_taint_returned_object_for, "http.request.querystring"),
+        )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)

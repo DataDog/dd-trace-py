@@ -116,7 +116,7 @@ _MODULES_FOR_CONTRIB = {
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
-    "futures": ("concurrent.futures",),
+    "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("httplib" if PY2 else "http.client",),

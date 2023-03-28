@@ -3,7 +3,7 @@ version: 2.1
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python310_image: &python310_image cimg/python:3.10
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
@@ -392,6 +392,12 @@ jobs:
           # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
+
+  sourcecode:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "sourcecode"
 
   telemetry:
     <<: *machine_executor
@@ -1218,6 +1224,7 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
+    - sourcecode 
     - starlette
     - stdlib
     - test_logging
@@ -1324,6 +1331,7 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs

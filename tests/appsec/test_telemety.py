@@ -1,6 +1,11 @@
+import os
+import sys
+
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec.ddwaf import version
+from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry import telemetry_metrics_writer
@@ -8,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.test_processor import Config
+from tests.appsec.test_processor import ROOT_DIR
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.appsec.test_processor import _enable_appsec
@@ -23,6 +29,16 @@ def mock_telemetry_metrics_writer():
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     yield telemetry_metrics_writer
     telemetry_metrics_writer._flush_namespace_metrics()
+    telemetry_metrics_writer.disable()
+
+
+@pytest.fixture
+def mock_logs_telemetry_metrics_writer():
+    telemetry_metrics_writer.enable()
+    metrics_result = telemetry_metrics_writer._logs
+    assert len(metrics_result) == 0
+    yield telemetry_metrics_writer
+    telemetry_metrics_writer.reset_queues()
     telemetry_metrics_writer.disable()
 
 
@@ -115,3 +131,45 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
     _assert_distributions_metrics(
         mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
     )
+
+
+def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
+    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)), override_env(
+        dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))
+    ):
+        AppSecSpanProcessor()
+
+        assert len(mock_logs_telemetry_metrics_writer._logs) == 1
+        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF init error. Invalid rules"
+        assert mock_logs_telemetry_metrics_writer._logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
+        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
+
+
+def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, tracer):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
+        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True, _waf_timeout=0.0)
+    ):
+        _enable_appsec(tracer)
+        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                set_http_meta(
+                    span,
+                    Config(),
+                )
+
+        print(mock_logs_telemetry_metrics_writer._logs)
+        assert len(mock_logs_telemetry_metrics_writer._logs) == 2
+        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF run. Timeout errors"
+        assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
+        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
+    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+        span_processor = AppSecSpanProcessor()
+        span_processor._update_rules("{}")
+        assert len(mock_logs_telemetry_metrics_writer._logs) == 1
+        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "Error updating ASM rules. Invalid rules"
+        assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
+        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]

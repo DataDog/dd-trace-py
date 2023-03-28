@@ -16,6 +16,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
@@ -102,6 +103,7 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_waf_timeout",
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
@@ -1029,9 +1031,14 @@ class AnyFloat(object):
 
 
 def call_program(*args, **kwargs):
+    timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    stdout, stderr = subp.communicate()
+    if PY2:
+        # Python 2 doesn't support timeout
+        stdout, stderr = subp.communicate()
+    else:
+        stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
 
