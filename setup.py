@@ -308,7 +308,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         if sys.version_info >= (3, 6, 0):
             ext_modules.append(
                 Extension(
-                    "ddtrace.appsec.iast._taint_tracking",
+                    "ddtrace.appsec.iast._taint_tracking._native",
                     # Sort source files for reproducibility
                     sources=sorted(
                         glob.glob(
