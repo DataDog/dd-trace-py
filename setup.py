@@ -128,7 +128,7 @@ class Tox(TestCommand):
         if args:
             args = shlex.split(self.tox_args)
 
-        LibDDWaf_Download.download_dynamic_library()
+        LibDDWaf_Download.download_artifacts()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
@@ -142,7 +142,7 @@ class Library_Download():
     expected_checksums = None
 
     @classmethod
-    def download_dynamic_library(cls):
+    def download_artifacts(cls):
         suffix = cls.get_suffix(CURRENT_OS)
 
         # If the directory exists and it is not empty, assume the right files are there.
@@ -179,11 +179,9 @@ class Library_Download():
             except HTTPError as e:
                 print("No archive found for dynamic library " + cls.name + ": " + archive_dir)
                 raise e
-            print("Checking checksum")
 
-
-            # TODO tighten this before distribution
             # Verify checksum of downloaded file
+            print("Checking checksum")
             if cls.expected_checksums is None:
                 sha256_address = download_address + ".sha256"
                 sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
@@ -234,7 +232,7 @@ class LibDDWaf_Download(Library_Download):
         return TRANSLATE_SUFFIX[os]
 
     def run(self):
-        LibDDWaf_Download.download_dynamic_library()
+        LibDDWaf_Download.download_artifacts()
         BuildPyCommand.run(self)
 
 class LibDatadog_Download(Library_Download):
@@ -262,11 +260,11 @@ class LibDatadog_Download(Library_Download):
 
     @classmethod
     def get_suffix(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": ".lib", "Darwin": ".a", "Linux": ".a"}
+        TRANSLATE_SUFFIX = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
         return TRANSLATE_SUFFIX[os]
 
     def run(self):
-        LibDatadog_Download.download_dynamic_library()
+        LibDatadog_Download.download_artifacts()
         BuildPyCommand.run(self)
 
 
@@ -538,10 +536,10 @@ setup(
                 ],
                 include_dirs=[
                     "ddtrace/datadog/include",
-                    "ddtrace/datadog/libdatadog-x86_64-unknown-linux-gnu/include",
+                    "ddtrace/datadog/libdatadog/x86_64/include",
                 ],
                 extra_objects=[
-                    "ddtrace/datadog/libdatadog-x86_64-unknown-linux-gnu/lib/libdatadog_profiling.a"
+                    "ddtrace/datadog/libdatadog/x86_64/lib/libdatadog_profiling.a",
                 ],
                 extra_compile_args=["-std=c++17"],
                 language='c++',
