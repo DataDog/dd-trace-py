@@ -1,12 +1,13 @@
+import json
 import os
 import re
 import subprocess
-import json
-from github import Github
-import requests
+
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
+from github import Github
+import requests
 
 
 """This release notes script is built to create a release notes draft 
@@ -35,7 +36,8 @@ Required:
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
-    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0    
+    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
+    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.    
 Examples:
 Generate release notes for next release candidate version of 1.11: `BASE=1.11 RC=1 python release.py`
 
@@ -126,7 +128,7 @@ def create_release_draft(dd_repo, base, rc, patch):
                 continue
 
         create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
-    
+
     return name, rn
 
 
@@ -204,7 +206,7 @@ def create_draft_release(
     print_release_notes = bool(os.getenv("PRINT"))
     if print_release_notes:
         print(
-            """\nName:%s\nTag:%s\nprerelease:%s\ntarget_commitish:%s\nmessage:%s
+            """RELEASE NOTES INFO:\nName:%s\nTag:%s\nprerelease:%s\ntarget_commitish:%s\nmessage:%s
               """
             % (name, tag, prerelease, base_branch, rn)
         )
@@ -213,8 +215,9 @@ def create_draft_release(
             name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
         )
         print("Please review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
-    
+
     return name, rn
+
 
 def setup_gh():
     # get dd-trace-py repo
@@ -237,15 +240,18 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             last_version = base[:-1] + str(int(base[-1]) - 1)
         # this script does not currently create notebooks for anything other than RC1 versions
         else:
-            print("Since this is not the RC1 for this release. Please add the release notes for this release to the notebook.")
+            print(
+                "Since this is not the RC1 for this release."
+                "Please add the release notes for this release to the notebook."
+            )
             return
-    
+
     diff_raw = subprocess.check_output(
         "git cherry -v {last_version} 1.x".format(last_version=last_version),
         shell=True,
         cwd=os.pardir,
     ).decode("utf8")
-    
+
     commit_hashes = re.findall("[0-9a-f]{5,40}", diff_raw)
     commits = []
     # get the commit objects
@@ -266,17 +272,18 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             if "releasenotes/notes/" in filename:
                 # we need to make another api call to get ContentFile object so we can see what's in there
                 rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                # try to grab a good portion of the release note for us to later use to insert in our reno release notes
-                # this is a bit hacky and will only attatch to one section if you have multiple sections in a release note
+                # try to grab a good portion of the release note for us to use to insert in our reno release notes
+                # this is a bit hacky, will only attach to one section if you have multiple sections in a release note
                 # (e.g. a features and a fix section):
-                # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml
+                # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
                 try:
                     rn_piece = re.findall(
-                        "  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
+                        r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
                         rn_file_content,
                     )[0][0].strip()
                     rn_piece = re.sub("\n    ", " ", rn_piece)
-                    # if you use the pattern  \s\n\s\s\s\s (which you shouldn't) then the sub above will leave a double space
+                    # if you use the pattern  \s\n\s\s\s\s (which you shouldn't)
+                    # then the sub above will leave a double space
                     rn_piece = re.sub("  ", " ", rn_piece)
                     rn_piece = re.sub("``", "`", rn_piece)
                 except Exception:
@@ -287,7 +294,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
                     author_slack = "@" + author[0] + "." + author[-1]
                     author_slack_handles.append(author_slack)
                     author_dd = author_slack + "@datadoghq.com"
-                pr_num = re.findall("\(#(\d{4})\)", commit.commit.message)[0]
+                pr_num = re.findall(r"\(#(\d{4})\)", commit.commit.message)[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
                 prs_details.append({"author_dd": author_dd, "url": url, "rn_piece": rn_piece})
 
@@ -321,13 +328,13 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
     data = json.loads(data)
     # change the text inside of our template to include release notes
     data["data"]["attributes"]["cells"][1]["attributes"]["definition"]["text"] = (
-        "#  Release notes to test\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"
+        "#  Release notes to test\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
         % (rn)
     )
     # grab the latest commit id on 1.x to mark the rc notebook with
     main_branch = dd_repo.get_branch(branch="1.x")
     commit_id = main_branch.commit
-    
+
     # pull the cells out to be transferred into a new notebook
     cells = data["data"]["attributes"]["cells"]
     nb_name = "ddtrace-py testing %s commit %s" % (name, commit_id.sha)
@@ -351,9 +358,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         "DD-APPLICATION-KEY": dd_app_key,
     }
     # create new release notebook
-    resp_create = requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers)
-
-
+    requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers)
 
     configuration = Configuration()
     configuration.api_key["apiKeyAuth"] = dd_api_key
@@ -362,30 +367,28 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         api_instance = NotebooksApi(api_client)
         response = api_instance.list_notebooks(query=nb_name)
 
-    id = response._data_store["data"][0]["id"]
-    nb_url = "https://ddstaging.datadoghq.com/notebook/%s" % (id)
+    nb_id = response._data_store["data"][0]["id"]
+    nb_url = "https://ddstaging.datadoghq.com/notebook/%s" % (nb_id)
 
-    print("Notebook created at %s\n" % url)
+    print("Notebook created at %s\n" % nb_url)
 
     author_slack_handles = " ".join(author_slack_handles)
-    print("Release note draft created at: https://github.com/DataDog/dd-trace-py/releases\n")
 
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
         """It's time to test the {version} release candidate! The owners of pull requests with release notes in version are {author_slack_handles}. 
-Everyone mentioned here: before the end of the day tomorrow, please ensure that you've filled in the testing strategy in the release notebook {nb_url} on all release notes you're the owner of, according to the expectations here. Please also note when you expect the testing itself to be completed (ASAP preferred).
+Everyone mentioned here: before the end of the day tomorrow, please ensure that you've filled in the testing strategy in the release notebook {nb_url} on all release notes you're the owner of, according to the expectations here. 
+Please also note when you expect the testing itself to be completed (ASAP preferred).
 You can start doing your tests immediately, using {version}. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.
 
-Check the release notebook {nb_url} for asynchronous updates on the release process. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.""".format(
+Check the release notebook {nb_url} for asynchronous updates on the release process. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.""".format(  # noqa
             version=name, author_slack_handles=author_slack_handles, nb_url=nb_url
         )
     )
 
 
-
-
 if __name__ == "__main__":
-    
+
     subprocess.check_output(
         "git stash",
         shell=True,
@@ -400,7 +403,7 @@ if __name__ == "__main__":
         .decode()
         .strip()
     )
-    
+
     #  Figure out the version of the library that you’re working on releasing grabbed with VERSION envar
     base = os.getenv("BASE")
     rc = bool(os.getenv("RC"))
@@ -408,11 +411,10 @@ if __name__ == "__main__":
 
     if base is None:
         raise ValueError("Need to specify the base version with envar e.g. BASE=1.10")
-        
 
     dd_repo = setup_gh()
     name, rn = create_release_draft(dd_repo, base, rc, patch)
-    
+
     if os.getenv("NOTEBOOK"):
         create_notebook(dd_repo, name, rn, base, rc, patch)
 
@@ -422,4 +424,9 @@ if __name__ == "__main__":
         shell=True,
         cwd=os.pardir,
     )
-    print("\nYou've been switch back to your original branch, if you had uncomitted changes before running this command, run `git stash pop` to get them back.")
+    print(
+        (
+            "\nYou've been switch back to your original branch, if you had uncomitted changes before"
+            "running this command, run `git stash pop` to get them back."
+        )
+    )
