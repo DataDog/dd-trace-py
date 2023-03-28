@@ -57,14 +57,14 @@ except ImportError:
     import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
-def _build_installed_package_names_list():  # type: (...) -> List[str]
-    return [
+def _build_installed_package_names_list():  # type: (...) -> set[str]
+    return {
         ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
-    ]
+    }
 
 
 _NOT_PATCH_MODULE_NAMES = (
-    _build_installed_package_names_list() + _stdlib_for_python_version() + list(builtin_module_names)
+    _build_installed_package_names_list() | _stdlib_for_python_version() | set(builtin_module_names)
 )
 
 

@@ -1,4 +1,4 @@
-STDLIB_MODULE_NAMES = [
+STDLIB_MODULE_NAMES = {
     "_ast",
     "_dummy_thread",
     "_thread",
@@ -215,4 +215,4 @@ STDLIB_MODULE_NAMES = [
     "zipfile",
     "zipimport",
     "zlib",
-]
+}
