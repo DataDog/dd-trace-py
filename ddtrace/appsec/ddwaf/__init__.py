@@ -34,7 +34,7 @@ try:
     _DDWAF_LOADED = True
 except OSError:
     _DDWAF_LOADED = False
-    LOGGER.debug("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
+    LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 
 #
 # Interface as Cython
