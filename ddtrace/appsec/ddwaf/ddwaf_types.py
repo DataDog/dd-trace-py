@@ -125,7 +125,7 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct)
+            ddwaf_object_string(self, struct[: max_string_length - 1])
         elif isinstance(struct, float):
             res = unicode(struct).encode("UTF-8", errors="ignore")[: max_string_length - 1]
             ddwaf_object_string(self, res)
@@ -161,7 +161,11 @@ class ddwaf_object(ctypes.Structure):
                     ddwaf_object_map_add(map_o, res_key, obj)
         else:
             if struct is not None:
-                log.debug("DDWAF object init called with unknown data structure: %s", repr(type(struct)))
+                struct = str(struct)
+                if isinstance(struct, bytes):  # Python 2
+                    ddwaf_object_string(self, struct[: max_string_length - 1])
+                else:  # Python 3
+                    ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
 
             ddwaf_object_invalid(self)
 
