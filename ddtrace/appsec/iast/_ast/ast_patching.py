@@ -5,12 +5,10 @@ import codecs
 import os
 from sys import builtin_module_names
 from sys import stdlib_module_names
-from typing import NamedTuple
 from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from pathlib import PurePath
     from types import ModuleType
     from typing import List
     from typing import Optional
@@ -59,39 +57,20 @@ except ImportError:
     import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
-# We don't store every file of every package but filter commonly used extensions
-SUPPORTED_EXTENSIONS = (".py", ".so", ".dll", ".pyc")
-
-
-Distribution = NamedTuple("Distribution", [("name", str), ("version", str)])
-
-
-def _is_python_source_file(
-    path,  # type: PurePath
-):
-    # type: (...) -> bool
-    return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
-
-
-def _build_installed_package_names_list():
-    # type: (...) -> List[str]
-    installed_packages_list = []
-
-    for ilmd_d in il_md.distributions():
-        if ilmd_d is not None and ilmd_d.files is not None:
-            installed_packages_list.append(ilmd_d.metadata["name"])
-
-    return installed_packages_list
+def _build_installed_package_names_list():  # type: (...) -> List[str]
+    return [
+        ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
+    ]
 
 
 _NOT_PATCH_MODULE_NAMES = _build_installed_package_names_list() + list(builtin_module_names) + list(stdlib_module_names)
 
 
-def _in_python_stdlib_or_third_party(module_name):
+def _in_python_stdlib_or_third_party(module_name):  # type: (str) -> bool
     return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
-def _should_iast_patch(module_name):
+def _should_iast_patch(module_name):  # type: (str) -> bool
     """
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
