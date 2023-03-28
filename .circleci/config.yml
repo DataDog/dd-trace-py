@@ -3,7 +3,7 @@ version: 2.1
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python310_image: &python310_image cimg/python:3.10
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
@@ -72,7 +72,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot
+      - run: pip3 install riot==0.17.1
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -369,6 +369,13 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
 
   internal:
     <<: *contrib_job
@@ -385,6 +392,12 @@ jobs:
           # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
+
+  sourcecode:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "sourcecode"
 
   telemetry:
     <<: *machine_executor
@@ -406,6 +419,14 @@ jobs:
     steps:
       - run_test:
           pattern: 'opentracer'
+
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
@@ -1023,7 +1044,7 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-          docker_services: 'redis'
+          docker_services: 'redis rediscluster'
           pattern: 'redis$'
           snapshot: true
 
@@ -1142,6 +1163,7 @@ requires_tests: &requires_tests
     - asyncpg
     - algoliasearch
     - asgi
+    - aws_lambda
     - benchmarks
     - boto
     - bottle
@@ -1179,6 +1201,7 @@ requires_tests: &requires_tests
     - mysqlconnector
     - mysqlpython
     - opentracer
+    - opentelemetry
     - psycopg
     - psycopg2
     - pylibmc
@@ -1201,6 +1224,7 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
+    - sourcecode 
     - starlette
     - stdlib
     - test_logging
@@ -1244,6 +1268,7 @@ workflows:
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
@@ -1281,6 +1306,7 @@ workflows:
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
+      - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
       - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
@@ -1305,6 +1331,7 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs

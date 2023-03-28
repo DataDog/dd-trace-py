@@ -91,15 +91,32 @@ def get_mock_encoded_msg(msg):
 
 def test_remote_config_register_auto_enable():
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        assert RemoteConfig._worker is None
+
+        RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
+
+        assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
+
+        RemoteConfig.disable()
+
+
+def test_remote_config_register_validate_rc_disabled():
     assert RemoteConfig._worker is None
 
-    RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
 
-    assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
+        assert RemoteConfig._worker is None
 
-    RemoteConfig.disable()
 
+def test_remote_config_enable_validate_rc_disabled():
     assert RemoteConfig._worker is None
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        RemoteConfig.enable()
+
+        assert RemoteConfig._worker is None
 
 
 @pytest.mark.subprocess
@@ -107,16 +124,18 @@ def test_remote_config_forksafe():
     import os
 
     from ddtrace.internal.remoteconfig import RemoteConfig
+    from tests.utils import override_env
 
-    RemoteConfig.enable()
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        RemoteConfig.enable()
 
-    parent_worker = RemoteConfig._worker
-    assert parent_worker is not None
+        parent_worker = RemoteConfig._worker
+        assert parent_worker is not None
 
-    if os.fork() == 0:
-        assert RemoteConfig._worker is not None
-        assert RemoteConfig._worker is not parent_worker
-        exit(0)
+        if os.fork() == 0:
+            assert RemoteConfig._worker is not None
+            assert RemoteConfig._worker is not parent_worker
+            exit(0)
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
@@ -128,13 +147,13 @@ def test_remote_configuration_1_click(mock_send_request):
             self.features = features
 
     callback = Callback()
-
-    with RemoteConfig() as rc:
-        mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        rc._worker._online()
-        mock_send_request.assert_called()
-        assert callback.features == {"asm": {"enabled": True}}
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        with RemoteConfig() as rc:
+            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+            rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+            rc._worker._online()
+            mock_send_request.assert_called()
+            assert callback.features == {"asm": {"enabled": True}}
 
 
 def test_remote_configuration_check_deprecated_var():
@@ -170,7 +189,7 @@ def test_remote_configuration_ip_blocking(mock_send_request):
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         mock_send_request.return_value = get_mock_encoded_msg(
             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '

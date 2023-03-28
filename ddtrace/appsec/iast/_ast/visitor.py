@@ -21,6 +21,8 @@ class AstVisitor(ast.NodeTransformer):
             "alias_module": "ddtrace_aspects",
             "functions": {
                 "str": "ddtrace_aspects.str_aspect",
+                "decode": "ddtrace_aspects.decode_aspect",
+                "encode": "ddtrace_aspects.encode_aspect",
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",

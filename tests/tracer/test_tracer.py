@@ -46,6 +46,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
+from ..appsec.test_processor import tracer_appsec
 from ..utils import override_env
 
 
@@ -53,6 +54,7 @@ class TracerTestCases(TracerTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, caplog):
         self._caplog = caplog
+        self._tracer_appsec = tracer_appsec
 
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")

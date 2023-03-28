@@ -61,7 +61,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
 
 
 @contextmanager
-def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
+def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, is_cluster=False):
     """Create a span for the execute pipeline method and tag it"""
     with pin.tracer.trace(
         redisx.CMD,
@@ -74,7 +74,8 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(redisx.RAWCMD, resource)
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+        if not is_cluster:
+            span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())

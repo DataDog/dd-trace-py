@@ -98,7 +98,7 @@ target/
 .python-version
 
 # celery beat schedule file
-celerybeat-schedule
+celerybeat-schedule*
 
 # docker-compose env file
 # it must be versioned to keep track of backing services defaults
@@ -123,7 +123,8 @@ ENV/
 .vscode/
 
 # Riot
-.riot/
+.riot/venv*
+.riot/requirements/*.in
 
 # Auto-generated version file
 ddtrace/_version.py

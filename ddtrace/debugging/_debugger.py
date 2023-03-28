@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+import os
 import sys
 import threading
 from types import FunctionType
@@ -18,6 +19,7 @@ from six import PY3
 
 import ddtrace
 from ddtrace.debugging._capture.collector import CapturedEventCollector
+from ddtrace.debugging._capture.dynamic_span import DynamicSpan
 from ddtrace.debugging._capture.metric_sample import MetricSample
 from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config
@@ -36,6 +38,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
@@ -57,6 +60,7 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import Wrapper
 
 
@@ -245,6 +249,12 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
+        # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
+        #  has been removed
+        if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
+            os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+            log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
+
         # Register the debugger with the RCM client.
         RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
@@ -340,6 +350,15 @@ class Debugger(Service):
                         context=trace_context,
                     )
                     open_contexts.append(self._collector.attach(snapshot))
+                elif isinstance(probe, SpanFunctionProbe):
+                    span = DynamicSpan(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
+                        context=trace_context,
+                    )
+                    open_contexts.append(self._collector.attach(span))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)
@@ -506,7 +525,7 @@ class Debugger(Service):
                 )
                 self._probe_registry.set_error(probe, message)
                 log.error(message)
-                return
+                continue
 
             if hasattr(function, "__dd_wrappers__"):
                 # TODO: Check if this can be made into a set instead

@@ -252,7 +252,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
-        report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -328,7 +327,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
-        self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -395,7 +393,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
-            report_metrics=self._report_metrics,
             sync_mode=self._sync_mode,
             api_version=self._api_version,
         )
@@ -606,7 +603,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                         e.last_attempt.exception(),
                     )
             finally:
-                if self._report_metrics and self.dogstatsd:
+                if config.health_metrics_enabled and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439

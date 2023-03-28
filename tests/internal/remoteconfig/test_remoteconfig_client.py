@@ -5,6 +5,7 @@ from mock.mock import MagicMock
 import pytest
 
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBackAfterMerge
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import RemoteConfigError
@@ -47,7 +48,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
         def __call__(self, payload, target, config):
             self.counter += 1
-            result = {"test{}".format(self.counter): target}
+            result = {"test{}".format(self.counter): [target]}
             expected_results.update(result)
             return result
 
@@ -72,7 +73,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
-    mock_callback.assert_called_once_with(None, expected_results)
+    mock_callback.assert_called_once_with("", expected_results)
     assert applied_configs == client_configs
     rc_client._products = {}
 
@@ -139,7 +140,9 @@ def test_load_new_configurations_error_callback(mock_extract_target_file):
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    assert applied_configs != client_configs
+
+    # An exception prevents the configuration from being applied
+    assert applied_configs["mock/ASM_FEATURES"].apply_state in (1, 3)
 
 
 @pytest.mark.parametrize(
@@ -265,3 +268,137 @@ def test_remote_config_client_tags_override():
 
     assert tags["env"] == "foo"
     assert tags["version"] == "bar"
+
+
+def test_apply_default_callback():
+    class callbackClass(RemoteConfigCallBack):
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    callback = callbackClass()
+    callback_content = {"a": 1}
+    target = "1/ASM/2"
+    config = {"Config": "data"}
+    test_list_callbacks = []
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
+
+    assert callback.result == ({"Config": "data"}, {"a": 1})
+    assert test_list_callbacks == []
+
+
+def test_apply_merge_callback():
+    class callbackClass(RemoteConfigCallBackAfterMerge):
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    callback = callbackClass()
+    callback_content = {"a": [1]}
+    target = "1/ASM/2"
+    config = {"Config": "data"}
+    test_list_callbacks = []
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
+
+    assert len(test_list_callbacks) == 1
+    test_list_callbacks[0].dispatch()
+
+    assert callback.result == ("", {"a": [1]})
+
+
+def test_apply_merge_multiple_callback():
+    class callbackClass(RemoteConfigCallBackAfterMerge):
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    callback1 = callbackClass()
+    callback2 = callbackClass()
+    callback_content1 = {"a": [1]}
+    callback_content2 = {"b": [2]}
+    target = "1/ASM/2"
+    config = {"Config": "data"}
+    test_list_callbacks = []
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback2, callback_content2, target, config)
+
+    assert len(test_list_callbacks) == 1
+    test_list_callbacks[0].dispatch()
+
+    assert callback1.result == ("", {"a": [1], "b": [2]})
+    assert callback2.result is None
+
+
+def test_apply_merge_different_callback():
+    class callback1And2Class(RemoteConfigCallBackAfterMerge):
+        configs = {}
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    class callback3Class(RemoteConfigCallBackAfterMerge):
+        configs = {}
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    callback1 = callback1And2Class()
+    callback2 = callback1And2Class()
+    callback3 = callback3Class()
+    callback_content1 = {"a": [1]}
+    callback_content2 = {"b": [2]}
+    target = "1/ASM/2"
+    config = {"Config": "data"}
+    test_list_callbacks = []
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback2, callback_content2, target, config)
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content2, target, config)
+
+    assert len(test_list_callbacks) == 2
+    test_list_callbacks[0].dispatch()
+    test_list_callbacks[1].dispatch()
+
+    assert callback1.result == ("", {"a": [1], "b": [2]})
+    assert callback2.result is None
+    assert callback3.result == ("", {"b": [2]})
+
+
+def test_apply_merge_different_target_callback():
+    class callback1And2Class(RemoteConfigCallBackAfterMerge):
+        configs = {}
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    class callback3Class(RemoteConfigCallBackAfterMerge):
+        configs = {}
+        result = None
+
+        def __call__(self, *args, **kwargs):
+            self.result = args
+
+    callback1 = callback1And2Class()
+    callback2 = callback1And2Class()
+    callback3 = callback3Class()
+    callback_content1 = {"a": [1]}
+    callback_content2 = {"b": [2]}
+    callback_content3 = {"b": [3]}
+    config = {"Config": "data"}
+    test_list_callbacks = []
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, "1/ASM/1", config)
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback2, callback_content2, "1/ASM/2", config)
+    RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, "1/ASM/3", config)
+
+    assert len(test_list_callbacks) == 2
+    test_list_callbacks[0].dispatch()
+    test_list_callbacks[1].dispatch()
+
+    assert callback1.result == ("", {"a": [1], "b": [2]})
+    assert callback2.result is None
+    assert callback3.result == ("", {"b": [3]})
