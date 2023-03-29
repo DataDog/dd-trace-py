@@ -22,6 +22,7 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
@@ -108,12 +109,16 @@ def _filter_by_env_and_version(f):
 
 
 def _create_probe_based_on_location(args, attribs, line_class, function_class):
-    # type: (Dict[str, Any], Dict[str, Any], Type, Type) -> Any
+    # type: (Dict[str, Any], Dict[str, Any], Optional[Type], Optional[Type]) -> Any
     if attribs["where"].get("sourceFile", None):
+        if line_class is None:
+            raise TypeError("Line probe type is not supported")
         ProbeType = line_class
         args["source_file"] = attribs["where"]["sourceFile"]
         args["line"] = int(attribs["where"]["lines"][0])
     else:
+        if function_class is None:
+            raise TypeError("Function probe type is not supported")
         ProbeType = function_class
         args["module"] = attribs["where"].get("type") or attribs["where"]["typeName"]
         args["func_qname"] = attribs["where"].get("method") or attribs["where"]["methodName"]
@@ -143,6 +148,7 @@ def probe_factory(attribs):
 
         args = dict(
             probe_id=_id,
+            version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             rate=rate,
@@ -170,6 +176,7 @@ def probe_factory(attribs):
     elif _type == ProbeType.METRIC_PROBE:
         args = dict(
             probe_id=_id,
+            version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
@@ -180,6 +187,18 @@ def probe_factory(attribs):
         )
 
         return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
+
+    elif _type == ProbeType.SPAN_PROBE:
+        args = dict(
+            probe_id=_id,
+            version=attribs.get("version", 0),
+            condition=_compile_expression(attribs.get("when")),
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
+        )
+
+        return _create_probe_based_on_location(args, attribs, None, SpanFunctionProbe)
 
     raise ValueError("Unknown probe type: %s" % _type)
 
@@ -221,9 +240,10 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         self._status_timestamp = time.time() + config.diagnostics_interval
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
+        # type: (Dict[str, Probe], Dict[str, Probe]) -> None
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
-        modified_probes = []  # DEV: Probes are currently immutable
+        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
@@ -258,7 +278,7 @@ class ProbeRCAdapter(RemoteConfigCallBack):
             self._next_status_update_timestamp()
 
         if metadata is None:
-            log.warning("no metadata was provided")
+            log.debug("no RCM metadata")
             return
 
         self._update_probes_for_config(metadata.id, config)

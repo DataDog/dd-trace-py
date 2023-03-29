@@ -57,7 +57,6 @@ DDWAF_MAX_CONTAINER_DEPTH = 20
 DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
 DDWAF_DEPTH_NO_LIMIT = 1000
-DDWAF_RUN_TIMEOUT = 5000
 
 
 class DDWAF_OBJ_TYPE(IntEnum):
@@ -126,7 +125,7 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct)
+            ddwaf_object_string(self, struct[: max_string_length - 1])
         elif isinstance(struct, float):
             res = unicode(struct).encode("UTF-8", errors="ignore")[: max_string_length - 1]
             ddwaf_object_string(self, res)
@@ -160,10 +159,13 @@ class ddwaf_object(ctypes.Structure):
                 )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_map_add(map_o, res_key, obj)
+        elif struct is not None:
+            struct = str(struct)
+            if isinstance(struct, bytes):  # Python 2
+                ddwaf_object_string(self, struct[: max_string_length - 1])
+            else:  # Python 3
+                ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
         else:
-            if struct is not None:
-                log.warning("DDWAF object init called with unknown data structure: %s", repr(type(struct)))
-
             ddwaf_object_invalid(self)
 
     @classmethod
@@ -192,7 +194,7 @@ class ddwaf_object(ctypes.Structure):
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
-        log.warning("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
+        log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
     def __repr__(self):
