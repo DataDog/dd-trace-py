@@ -17,6 +17,15 @@ from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
+def assert_encoded_format(wrapped):
+    def wrap_test_function(*args, **kwargs):
+        result = wrapped(*args, **kwargs)
+        assert len(result) > 0
+        return result
+
+    return wrap_test_function
+
+
 class TestPytest(TracerTestCase):
     def setUp(self):
         self.tracer = DummyTracer(writer=DummyCIAppWriter())
@@ -113,6 +122,7 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
 
+    @assert_encoded_format
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
@@ -138,6 +148,7 @@ class TestPytest(TracerTestCase):
                 "arguments": {"item": str(expected_params[i])},
                 "metadata": {},
             }
+        return spans
 
     def test_parameterize_case_complex_objects(self):
         """Test parametrize case with complex objects."""
