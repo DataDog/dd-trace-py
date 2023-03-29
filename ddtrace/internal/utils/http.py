@@ -14,7 +14,6 @@ import six
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
-from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
@@ -210,15 +209,3 @@ def w3c_encode_tag(args):
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
     return tag_val.replace("=", "~")
-
-
-def _get_64_lowest_order_bits_as_int(large_int):
-    # type: (int) -> int
-    """Get the 64 lowest order bits from a 128bit integer"""
-    return MAX_UINT_64BITS & large_int
-
-
-def _get_64_highest_order_bits_as_hex(large_int):
-    # type: (int) -> str
-    """Get the 64 highest order bits from a 128bit integer"""
-    return "{:032x}".format(large_int)[:16]
