@@ -4,6 +4,9 @@ Add all monkey-patching that needs to run by default here
 """
 import sys
 
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
@@ -51,6 +54,7 @@ if not debug_mode and call_basic_config:
         logging.basicConfig()
 
 log = get_logger(__name__)
+
 
 if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
     deprecate(
@@ -264,6 +268,10 @@ try:
             log.debug("additional sitecustomize not found")
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
+
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+        remoteconfig_poller.enable()
+        enable_appsec_rc()
 
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module

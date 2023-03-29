@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import time
+from unittest.mock import MagicMock
 
 import mock
 
-from ddtrace.appsec._remoteconfiguration import RCASMDDCallBack
 from ddtrace.internal import runtime
-from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.v2.client import PublisherListenerProxy
+from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisher
+from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisherAfterMerge
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
 
@@ -68,22 +72,27 @@ def _assert_response(mock_send_request, expected_response):
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.internal.remoteconfig.v2.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
-    class RCAppSecMockCallBack(RCASMDDCallBack):
-        def __call__(self, metadata, features):
-            mock_callback(metadata, features)
+    mock_callback = MagicMock()
+    mock_preprocess_results = MagicMock()
+
+    def _mock_appsec_callback(features):
+        mock_callback(dict(features))
+
+    def _mock_mock_preprocess_results(features):
+        mock_preprocess_results(features)
+        return features
 
     mock_appsec_rc_capabilities.return_value = "Ag=="
 
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    callback = RCAppSecMockCallBack(mock.mock.MagicMock())
-
-    rc_client.register_product("ASM_FEATURES", callback)
+    asm_callback = PublisherListenerProxy(RemoteConfigPublisher, _mock_mock_preprocess_results, _mock_appsec_callback)
+    rc_client.register_product("ASM_FEATURES", asm_callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
@@ -92,8 +101,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
         mock_callback.assert_not_called()
+
         mock_send_request.reset_mock()
+        mock_preprocess_results.reset_mock()
         mock_callback.reset_mock()
 
         # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
@@ -104,8 +119,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
         mock_send_request.reset_mock()
+        mock_preprocess_results.reset_mock()
         mock_callback.reset_mock()
 
         # 2. A single configuration for the product is added. (“base”)
@@ -132,8 +153,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": False}})
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
         mock_send_request.reset_mock()
+        mock_preprocess_results.reset_mock()
         mock_callback.reset_mock()
 
         # 3. The “base” configuration is modified.
@@ -160,8 +187,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, False)
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with(False)
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
         mock_send_request.reset_mock()
+        mock_preprocess_results.reset_mock()
         mock_callback.reset_mock()
 
         # 4. The “base” configuration is removed.
@@ -177,8 +210,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
+
         mock_send_request.reset_mock()
+        mock_preprocess_results.reset_mock()
         mock_callback.reset_mock()
 
         # 5. The “base” configuration is added along with the “second” configuration.
@@ -218,7 +257,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -259,7 +304,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called()
         mock_callback.assert_called()
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -311,7 +362,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -352,7 +409,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -395,7 +458,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -437,7 +506,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": True}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": True}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -490,7 +565,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error is None
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_called_with(mock.ANY, {"asm": {"enabled": False}})
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": False}})
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -544,7 +625,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         assert rc_client._last_error == "Not all client configurations have target files"
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -604,7 +691,13 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             "not exists in client_config and signed targets"
         )
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
@@ -664,38 +757,35 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
             "not exists in client_config and signed targets"
         )
         _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
+
+        asm_callback.listener._exec_callback()
+
+        mock_preprocess_results.assert_not_called()
+        mock_callback.assert_called_with({"asm": {"enabled": False}})
+
+        mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
         mock_callback.reset_mock()
 
 
-@mock.patch.object(RemoteConfigClient, "_apply_callback")
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.internal.remoteconfig.v2.client._appsec_rc_capabilities")
 def test_remote_config_client_callback_error(
     mock_appsec_rc_capabilities,
     mock_send_request,
-    mock_apply_callback,
 ):
-    def callback_with_exception():
-        raise Exception("fake error")
-
-    mock_apply_callback.side_effect = callback_with_exception
-
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
-    class RCAppSecMockCallBack(RCASMDDCallBack):
-        def __call__(self, metadata, features):
-            mock_callback(metadata, features)
+    def callback_with_exception():
+        raise Exception("fake error")
 
     mock_appsec_rc_capabilities.return_value = "Ag=="
 
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    callback = RCAppSecMockCallBack(mock.mock.MagicMock())
+    rc_client.register_product("ASM_FEATURES", callback_with_exception)
 
-    rc_client.register_product("ASM_FEATURES", callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
