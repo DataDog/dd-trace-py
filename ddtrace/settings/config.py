@@ -218,8 +218,8 @@ class Config(object):
             del self.tags["service"]
 
         # The version tag should not be included on all spans.
-        # if self.version and "version" in self.tags:
-        # del self.tags["version"]
+        if self.version and "version" in self.tags:
+            del self.tags["version"]
 
         self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
 
