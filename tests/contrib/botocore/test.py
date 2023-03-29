@@ -33,6 +33,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -1176,7 +1177,9 @@ class BotocoreTest(TracerTestCase):
 
         topic_arn = topic["TopicArn"]
         sqs_url = queue["QueueUrl"]
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -1228,7 +1231,9 @@ class BotocoreTest(TracerTestCase):
 
             topic_arn = topic["TopicArn"]
             sqs_url = queue["QueueUrl"]
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -1353,15 +1358,18 @@ class BotocoreTest(TracerTestCase):
         # DEV: This test expects MessageAttributes to be included as span tags which has been deprecated.
         # TODO: Move away from inspecting MessageAttributes using span tag
         with self.override_config("botocore", dict(tag_all_params=True)):
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            region = "us-east-1"
+            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+            sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
             topic = sns.create_topic(Name="testTopic")
             queue = sqs.create_queue(QueueName="test")
 
             topic_arn = topic["TopicArn"]
             sqs_url = queue["QueueUrl"]
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -1414,566 +1422,443 @@ class BotocoreTest(TracerTestCase):
             msg_attr = msg_body["MessageAttributes"]
             assert msg_attr.get("_datadog") is None
 
-    # NOTE: commenting out the tests below because localstack has a bug where messages
-    # published to SNS via publish_batch and retrieved via SQS are missing MessageAttributes
-    # Reported a bug here: https://github.com/localstack/localstack/issues/5395
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
+    @mock_sns
+    @mock_sqs
+    def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        entries = [
+            {
+                "Id": "1",
+                "Message": "ironmaiden",
+            },
+            {
+                "Id": "2",
+                "Message": "megadeth",
+            },
+        ]
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
-    #     entries = [
-    #         {
-    #             "Id": "1",
-    #             "Message": "ironmaiden",
-    #         },
-    #         {
-    #             "Id": "2",
-    #             "Message": "megadeth",
-    #         },
-    #     ]
-    #     sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "PublishBatch"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publishbatch"
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
 
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is not None
-    #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     assert headers is not None
-    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
+    @mock_sns
+    @mock_sqs
+    def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-    #     message_attributes = {
-    #         "one": {"DataType": "String", "StringValue": "one"},
-    #         "two": {"DataType": "String", "StringValue": "two"},
-    #         "three": {"DataType": "String", "StringValue": "three"},
-    #         "four": {"DataType": "String", "StringValue": "four"},
-    #         "five": {"DataType": "String", "StringValue": "five"},
-    #         "six": {"DataType": "String", "StringValue": "six"},
-    #         "seven": {"DataType": "String", "StringValue": "seven"},
-    #         "eight": {"DataType": "String", "StringValue": "eight"},
-    #         "nine": {"DataType": "String", "StringValue": "nine"},
-    #     }
-    #     entries = [
-    #         {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
-    #         {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
-    #     ]
-    #     sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+        }
+        entries = [
+            {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
+            {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
+        ]
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "PublishBatch"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publishbatch"
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
 
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is not None
-    #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     assert headers is not None
-    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    # @mock_sns
-    # @mock_sqs
-    # def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
-    #     sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
-    #     sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+    @mock_sns
+    @mock_sqs
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
+    def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        sqs = self.session.create_client("sqs", region_name=region, endpoint_url="http://localhost:4566")
 
-    #     topic = sns.create_topic(Name="testTopic")
-    #     queue = sqs.create_queue(QueueName="test")
+        topic = sns.create_topic(Name="testTopic")
+        queue = sqs.create_queue(QueueName="test")
 
-    #     topic_arn = topic["TopicArn"]
-    #     sqs_url = queue["QueueUrl"]
-    #     sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        topic_arn = topic["TopicArn"]
+        sqs_url = queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-    #     message_attributes = {
-    #         "one": {"DataType": "String", "StringValue": "one"},
-    #         "two": {"DataType": "String", "StringValue": "two"},
-    #         "three": {"DataType": "String", "StringValue": "three"},
-    #         "four": {"DataType": "String", "StringValue": "four"},
-    #         "five": {"DataType": "String", "StringValue": "five"},
-    #         "six": {"DataType": "String", "StringValue": "six"},
-    #         "seven": {"DataType": "String", "StringValue": "seven"},
-    #         "eight": {"DataType": "String", "StringValue": "eight"},
-    #         "nine": {"DataType": "String", "StringValue": "nine"},
-    #         "ten": {"DataType": "String", "StringValue": "ten"},
-    #     }
-    #     entries = [
-    #         {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
-    #         {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
-    #     ]
-    #     sns.publish(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-    #     spans = self.get_spans()
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+            "ten": {"DataType": "String", "StringValue": "ten"},
+        }
+        entries = [
+            {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
+            {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
+        ]
+        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+        spans = self.get_spans()
 
-    #     # get SNS messages via SQS
-    #     response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        # get SNS messages via SQS
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
 
-    #     # clean up resources
-    #     sqs.delete_queue(QueueUrl=sqs_url)
-    #     sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sqs.delete_queue(QueueUrl=sqs_url)
+        sns.delete_topic(TopicArn=topic_arn)
 
-    #     # check if the appropriate span was generated
-    #     assert spans
-    #     span = spans[0]
-    #     assert len(spans) == 2
-    #     assert span.get_tag("aws.region") == "us-east-1"
-    #     assert span.get_tag("aws.operation") == "Publish"
-    #     assert span.get_tag("params.MessageBody") is None
-    #     assert_is_measured(span)
-    #     assert_span_http_status_code(span, 200)
-    #     assert span.service == "test-botocore-tracing.sns"
-    #     assert span.resource == "sns.publish"
-    #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-    #     assert trace_json is None
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == region
+        assert span.get_tag("aws.operation") == "PublishBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publishbatch"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
 
-    #     # receive message using SQS and ensure headers are present
-    #     assert len(response["Messages"]) == 1
-    #     msg = response["Messages"][0]
-    #     assert msg is not None
-    #     msg_body = json.loads(msg["Body"])
-    #     msg_str = msg_body["Message"]
-    #     assert msg_str == "test"
-    #     msg_attr = msg_body["MessageAttributes"]
-    #     assert msg_attr.get("_datadog") is None
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "ironmaiden"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is None
 
-    @mock_kinesis
-    def test_kinesis_put_record_json_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+    def _kinesis_get_shard_iterator(self, client, stream_name, shard_id):
+        response = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = response["ShardIterator"]
 
-        stream_name = "test"
+        return shard_iterator
+
+    def _kinesis_create_stream(self, client, stream_name):
         client.create_stream(StreamName=stream_name, ShardCount=1)
         stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
         shard_id = stream["Shards"][0]["ShardId"]
 
-        data = json.dumps({"Hello": "World"})
-        partition_key = "1234"
+        return shard_id
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
+    def _kinesis_get_records(self, client, shard_iterator):
+        response = client.get_records(ShardIterator=shard_iterator)
+        records = response["Records"]
 
-        # check if the appropriate span was generated
+        return records
+
+    def _kinesis_assert_spans(self):
         spans = self.get_spans()
         assert spans
-        span = spans[0]
         assert len(spans) == 1
+
+        span = spans[0]
         assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecord"
+        assert span.get_tag("params.MessageBody") is None
+
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.kinesis"
+
+        return span
+
+    def _kinesis_assert_records(self, records, span):
+        record = records[0]
+        record_data = record["Data"]
+        assert record_data is not None
+
+        decoded_record_data = {}
+        try:
+            decoded_record_data = record_data.decode("ascii")
+            decoded_record_data_json = json.loads(decoded_record_data)
+            headers = decoded_record_data_json["_datadog"]
+            assert headers is not None
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        except Exception:
+            # injection was not successful, so record should be exceeding 1MB in size
+            decoded_record_data = json.loads(base64.b64decode(record_data).decode("ascii"))
+            assert "_datadog" not in decoded_record_data
+
+        return decoded_record_data
+
+    def _test_kinesis_put_record_trace_injection(self, test_name, data):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_record_" + test_name
+        shard_id = self._kinesis_create_stream(client, stream_name)
+
+        partition_key = "1234"
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
+
+        # assert commons for span
+        span = self._kinesis_assert_spans()
+
+        # assert operation specifics for span
+        assert span.get_tag("aws.operation") == "PutRecord"
         assert span.resource == "kinesis.putrecord"
 
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        records = self._kinesis_get_records(client, shard_iterator)
 
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 1
-        record = resp["Records"][0]
-        assert record["Data"] is not None
-        data = json.loads(record["Data"].decode("ascii"))
-        headers = data["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # assert commons for records
+        decoded_record_data = self._kinesis_assert_records(records, span)
+
+        # assert operation specifics for records
+        assert len(records) == 1
 
         client.delete_stream(StreamName=stream_name)
+
+        return decoded_record_data
+
+    def _test_kinesis_put_records_trace_injection(self, test_name, data):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_" + test_name
+        shard_id = self._kinesis_create_stream(client, stream_name)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=data)
+
+        # assert commons for span
+        span = self._kinesis_assert_spans()
+
+        # assert operation specifics for span
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.resource == "kinesis.putrecords"
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        records = self._kinesis_get_records(client, shard_iterator)
+
+        # assert commons for records
+        decoded_record_data = self._kinesis_assert_records(records, span)
+
+        # assert operation specifics for records
+        assert len(records) == len(data)
+
+        # assert operation specifics for records
+        # make sure there's no trace context in the next record
+        record = records[1]
+
+        next_decoded_record = {}
+        try:
+            next_decoded_record = json.loads(record["Data"].decode("ascii"))
+        except Exception:
+            # next records are not affected, therefore, if the first decoding
+            # fails, it must be base64, since it should be untouched
+            next_decoded_record = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
+
+        assert "_datadog" not in next_decoded_record
+
+        client.delete_stream(StreamName=stream_name)
+
+        return decoded_record_data
+
+    def _kinesis_generate_records(self, data, n):
+        return [{"Data": data, "PartitionKey": "1234"} for _ in range(n)]
+
+    @mock_kinesis
+    def test_kinesis_put_record_json_string_trace_injection(self):
+        # dict -> json string
+        data = json.dumps({"json": "string"})
+
+        self._test_kinesis_put_record_trace_injection("json_string", data)
+
+    @mock_kinesis
+    def test_kinesis_put_record_bytes_trace_injection(self):
+        # dict -> json string -> bytes
+        json_string = json.dumps({"json-string": "bytes"})
+        data = json_string.encode()
+
+        self._test_kinesis_put_record_trace_injection("json_string_bytes", data)
 
     @mock_kinesis
     def test_kinesis_put_record_base64_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # dict -> json string -> bytes -> base64
+        json_string = json.dumps({"json-string": "bytes-base64"})
+        string_bytes = json_string.encode()
+        data = base64.b64encode(string_bytes)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
-
-        sample_string = json.dumps({"Hello": "World"})
-        sample_string_bytes = sample_string.encode("ascii")
-        base64_bytes = base64.b64encode(sample_string_bytes)
-        data = base64_bytes.decode("ascii")
-
-        partition_key = "1234"
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
-
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecord"
-        assert span.get_tag("component") == "botocore"
-        assert span.get_tag("span.kind"), "client"
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecord"
-
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 1
-        record = resp["Records"][0]
-        assert record["Data"] is not None
-        data = json.loads(record["Data"].decode("ascii"))
-        headers = data["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        client.delete_stream(StreamName=stream_name)
+        self._test_kinesis_put_record_trace_injection("json_string_bytes_base64", data)
 
     @mock_kinesis
     def test_kinesis_put_record_base64_max_size(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # dict -> json string -> bytes -> base64
+        json_string = json.dumps({"json-string": "x" * (1 << 20)})
+        string_bytes = json_string.encode()
+        data = base64.b64encode(string_bytes)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
-
-        sample_string = json.dumps({"Hello": "x" * (1 << 20)})
-        sample_string_bytes = sample_string.encode("ascii")
-        base64_bytes = base64.b64encode(sample_string_bytes)
-        data = base64_bytes.decode("ascii")
-
-        partition_key = "1234"
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
-
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecord"
-        assert span.get_tag("params.MessageBody") is None
-        assert span.get_tag("component") == "botocore"
-        assert span.get_tag("span.kind"), "client"
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecord"
-
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 1
-        record = resp["Records"][0]
-        assert record["Data"] is not None
-        data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-        assert "_datadog" not in data
-
-        client.delete_stream(StreamName=stream_name)
+        self._test_kinesis_put_record_trace_injection("json_string_bytes_base64_max_size", data)
 
     @mock_kinesis
     def test_kinesis_put_records_json_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # (dict -> json string)[]
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 2)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
+        self._test_kinesis_put_records_trace_injection("json_string", records)
 
-        partition_key = "1234"
-        data = [
-            {"Data": json.dumps({"Hello": "World"}), "PartitionKey": partition_key},
-            {"Data": json.dumps({"foo": "bar"}), "PartitionKey": partition_key},
-        ]
+    @mock_kinesis
+    def test_kinesis_put_records_bytes_trace_injection(self):
+        # dict -> json string -> bytes
+        json_string = json.dumps({"json-string": "bytes"})
+        data = json_string.encode()
+        records = self._kinesis_generate_records(data, 2)
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_records(StreamName=stream_name, Records=data)
-
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecords"
-        assert span.get_tag("params.MessageBody") is None
-        assert span.get_tag("component") == "botocore"
-        assert span.get_tag("span.kind"), "client"
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecords"
-
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 2
-        records = resp["Records"]
-        record = records[0]
-        headers = json.loads(record["Data"].decode("ascii"))["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data = json.loads(record["Data"].decode("ascii"))
-        assert "_datadog" not in data
-
-        client.delete_stream(StreamName=stream_name)
+        self._test_kinesis_put_records_trace_injection("json_string_bytes", records)
 
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # dict -> json string -> bytes
+        json_string = json.dumps({"json-string": "bytes-base64"})
+        string_bytes = json_string.encode()
+        data = base64.b64encode(string_bytes)
+        records = self._kinesis_generate_records(data, 2)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
-
-        partition_key = "1234"
-        sample_string = json.dumps({"Hello": "World"})
-        sample_string_bytes = sample_string.encode("ascii")
-        base64_bytes = base64.b64encode(sample_string_bytes)
-        data_str = base64_bytes.decode("ascii")
-        data = [
-            {"Data": data_str, "PartitionKey": partition_key},
-            {"Data": data_str, "PartitionKey": partition_key},
-        ]
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_records(StreamName=stream_name, Records=data)
-
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecords"
-        assert span.get_tag("component") == "botocore"
-        assert span.get_tag("span.kind"), "client"
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecords"
-
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 2
-        records = resp["Records"]
-        record = records[0]
-        headers = json.loads(record["Data"].decode("ascii"))["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-        assert "_datadog" not in data
-
-        client.delete_stream(StreamName=stream_name)
+        self._test_kinesis_put_records_trace_injection("json_string_bytes_base64", records)
 
     @mock_kinesis
     def test_kinesis_put_records_newline_json_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # (dict -> json string + new line)[]
+        data = json.dumps({"json": "string"}) + "\n"
+        records = self._kinesis_generate_records(data, 2)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
+        decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
-        partition_key = "1234"
-        data = [
-            {"Data": json.dumps({"Hello": "World"}) + "\n", "PartitionKey": partition_key},
-            {"Data": json.dumps({"foo": "bar"}) + "\n", "PartitionKey": partition_key},
-        ]
+        assert decoded_record_data.endswith("\n")
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_records(StreamName=stream_name, Records=data)
+    @mock_kinesis
+    def test_kinesis_put_records_newline_bytes_trace_injection(self):
+        # (dict -> json string -> bytes + new line)[]
+        json_string = json.dumps({"json-string": "bytes"}) + "\n"
+        data = json_string.encode()
+        records = self._kinesis_generate_records(data, 2)
 
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecords"
-        assert span.get_tag("params.MessageBody") is None
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecords"
-        records = span.get_tag("params.Records")
-        assert records is None
+        decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
 
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 2
-        records = resp["Records"]
-        record = records[0]
-        data_str = record["Data"].decode("ascii")
-        assert data_str.endswith("\n")
-        data = json.loads(data_str)
-        headers = data["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data_str = record["Data"].decode("ascii")
-        assert data_str.endswith("\n")
-        data = json.loads(data_str)
-        assert "_datadog" not in data
-
-        client.delete_stream(StreamName=stream_name)
+        assert decoded_record_data.endswith("\n")
 
     @mock_kinesis
     def test_kinesis_put_records_newline_base64_trace_injection(self):
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        # (dict -> json string -> bytes -> base64 + new line)[]
+        json_string = json.dumps({"json-string": "bytes-base64"}) + "\n"
+        string_bytes = json_string.encode("ascii")
+        data = base64.b64encode(string_bytes)
+        records = self._kinesis_generate_records(data, 2)
 
-        stream_name = "test"
-        client.create_stream(StreamName=stream_name, ShardCount=1)
-        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
-        shard_id = stream["Shards"][0]["ShardId"]
-
-        partition_key = "1234"
-        sample_string = json.dumps({"Hello": "World"}) + "\n"
-        sample_string_bytes = sample_string.encode("ascii")
-        base64_bytes = base64.b64encode(sample_string_bytes)
-        data_str = base64_bytes.decode("ascii")
-        data = [
-            {"Data": data_str, "PartitionKey": partition_key},
-            {"Data": data_str, "PartitionKey": partition_key},
-        ]
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_records(StreamName=stream_name, Records=data)
-
-        # check if the appropriate span was generated
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("aws.operation") == "PutRecords"
-        assert span.get_tag("params.MessageBody") is None
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
-        assert span.resource == "kinesis.putrecords"
-        records = span.get_tag("params.Records")
-        assert records is None
-
-        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
-        shard_iterator = resp["ShardIterator"]
-
-        # ensure headers are present in received message
-        resp = client.get_records(ShardIterator=shard_iterator)
-        assert len(resp["Records"]) == 2
-        records = resp["Records"]
-        record = records[0]
-        data_str = record["Data"].decode("ascii")
-        assert data_str.endswith("\n")
-        data = json.loads(data_str)
-        headers = data["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data_str = base64.b64decode(record["Data"]).decode("ascii")
-        assert data_str.endswith("\n")
-        data = json.loads(data_str)
-        assert "_datadog" not in data
-
-        client.delete_stream(StreamName=stream_name)
+        decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
+        assert decoded_record_data.endswith("\n")
 
     @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager(self):

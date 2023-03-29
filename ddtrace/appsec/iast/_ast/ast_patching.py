@@ -3,17 +3,33 @@
 import ast
 import codecs
 import os
-from types import ModuleType
-from typing import Optional
-from typing import Tuple
+from sys import builtin_module_names
+from typing import TYPE_CHECKING
 
+
+if TYPE_CHECKING:
+    from types import ModuleType
+    from typing import Optional
+    from typing import Tuple
+
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.appsec.iast._ast.visitor import AstVisitor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)
+IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
+IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
+
+
+if IAST.PATCH_MODULES in os.environ:
+    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
+
+if IAST.DENY_MODULES in os.environ:
+    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
+
 
 ENCODING = ""
 
@@ -34,8 +50,36 @@ def get_encoding(module_path):  # type: (str) -> str
     return ENCODING
 
 
-def _should_iast_patch(module_name):
-    return not module_name.startswith("ddtrace") and module_name.startswith(IAST_ALLOWLIST)
+try:
+    import importlib.metadata as il_md
+except ImportError:
+    import importlib_metadata as il_md  # type: ignore[no-redef]
+
+
+def _build_installed_package_names_list():  # type: (...) -> set[str]
+    return {
+        ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
+    }
+
+
+_NOT_PATCH_MODULE_NAMES = (
+    _build_installed_package_names_list() | _stdlib_for_python_version() | set(builtin_module_names)
+)
+
+
+def _in_python_stdlib_or_third_party(module_name):  # type: (str) -> bool
+    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+
+
+def _should_iast_patch(module_name):  # type: (str) -> bool
+    """
+    select if module_name should be patch from the longuest prefix that match in allow or deny list.
+    if a prefix is in both list, deny is selected.
+    """
+    max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
+    max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
+    diff = max_allow - max_deny
+    return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
 
 
 def visit_ast(
@@ -54,6 +98,7 @@ def visit_ast(
     if not visitor.ast_modified:
         return None
 
+    ast.fix_missing_locations(modified_ast)
     return modified_ast
 
 

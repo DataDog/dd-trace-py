@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from _ast import Expr
 from _ast import ImportFrom
 import ast
 import sys
@@ -21,6 +22,8 @@ class AstVisitor(ast.NodeTransformer):
             "alias_module": "ddtrace_aspects",
             "functions": {
                 "str": "ddtrace_aspects.str_aspect",
+                "decode": "ddtrace_aspects.decode_aspect",
+                "encode": "ddtrace_aspects.encode_aspect",
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
@@ -77,6 +80,7 @@ class AstVisitor(ast.NodeTransformer):
     def find_insert_position(self, module_node):  # type: (ast.Module) -> int
         insert_position = 0
         from_future_import_found = False
+        import_found = False
 
         # Check all nodes that are "from __future__ import...", as we must insert after them.
         #
@@ -87,8 +91,13 @@ class AstVisitor(ast.NodeTransformer):
         for body_node in module_node.body:
             insert_position += 1
             if isinstance(body_node, ImportFrom) and body_node.module == "__future__":
+                import_found = True
                 from_future_import_found = True
             # As soon as we start a non-futuristic import we can stop looking
+            elif isinstance(body_node, ImportFrom):
+                import_found = True
+            elif isinstance(body_node, Expr) and not import_found:
+                continue
             elif from_future_import_found:
                 insert_position -= 1
                 break
@@ -98,6 +107,7 @@ class AstVisitor(ast.NodeTransformer):
         if not from_future_import_found:
             # No futuristic import found, reset the position to 0
             insert_position = 0
+
         return insert_position
 
     def visit_Module(self, module_node):  # type: (ast.Module) -> Any
@@ -152,6 +162,6 @@ class AstVisitor(ast.NodeTransformer):
         aspect = self._aspect_operators.get(operator.__class__)
         if aspect:
             self.ast_modified = True
-            return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], {})
+            return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], [])
 
         return call_node

@@ -66,6 +66,9 @@ class IAST(object):
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
+    PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
+    DENY_MODULES = "_DD_IAST_DENY_MODULES"
+    SEP_MODULES = ","
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -134,7 +137,7 @@ class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
-    WAF_TIMEOUT = 5  # ms
+    WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
         r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
         r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
