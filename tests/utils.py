@@ -24,6 +24,7 @@ from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import CIAppWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -437,19 +438,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             setattr(ddtrace, "tracer", original)
 
 
-class DummyWriter(AgentWriter):
-    """DummyWriter is a small fake writer used for tests. not thread-safe."""
-
+class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
-
-        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -457,9 +449,6 @@ class DummyWriter(AgentWriter):
             # put spans in a list like we do in the real execution path
             # with both encoders
             traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
@@ -474,6 +463,34 @@ class DummyWriter(AgentWriter):
         traces = self.traces
         self.traces = []
         return traces
+
+
+class DummyWriter(DummyWriterMixin, AgentWriter):
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
+
+    def __init__(self, *args, **kwargs):
+        # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
+
+        AgentWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+
+
+class DummyCIAppWriter(DummyWriterMixin, CIAppWriter):
+    def __init__(self, *args, **kwargs):
+        CIAppWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
 
 
 class DummyTracer(Tracer):
