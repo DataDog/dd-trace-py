@@ -1084,6 +1084,15 @@ jobs:
           pattern: "wsgi"
           snapshot: true
 
+  kafka:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'kafka'
+          snapshot: true
+          docker_services: 'kafka'
+
   kombu:
     <<: *contrib_job_small
     docker:
@@ -1184,6 +1193,7 @@ requires_tests: &requires_tests
     - vendor
     - profile
     - jinja2
+    - kafka
     - kombu
     - mako
     - mariadb
@@ -1288,6 +1298,7 @@ workflows:
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
+      - kafka: *requires_base_venvs
       - kombu: *requires_base_venvs
       - mako: *requires_base_venvs
       - mariadb: *requires_base_venvs
