@@ -5,6 +5,7 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
+from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
@@ -104,7 +105,8 @@ class TracedCursor(wrapt.ObjectProxy):
                 from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
                 if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
-                    SqlInjection.report(evidence_value=args[0])
+                    value_parts, sources = taint_ranges_as_evidence_info(args[0])
+                    SqlInjection.report(evidence_value=value_parts, sources=sources)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -135,7 +137,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def execute(self, query, *args, **kwargs):
@@ -153,7 +155,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def callproc(self, proc, *args):

@@ -10,6 +10,8 @@ from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
 
 if TYPE_CHECKING:
     from typing import Any
+    from typing import Tuple
+    from typing import Union
 
     from ddtrace.appsec.iast._input_info import Input_info
 
@@ -62,3 +64,28 @@ def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
 
 def clear_taint_mapping():  # type: () -> None
     set_taint_dict({})
+
+
+def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[list[dict[str, Union[Any, int]]], list[Input_info]]
+    value_parts = []
+    sources = []
+    current_pos = 0
+    tainted_ranges = get_tainted_ranges(pyobject)
+    if not len(tainted_ranges):
+        return ([{"value": pyobject}], [])
+
+    for _range in tainted_ranges:
+        _input_info, _pos, _length = _range
+        if _pos > current_pos:
+            value_parts.append({"value": pyobject[current_pos:_pos]})
+
+        if _input_info not in sources:
+            sources.append(_input_info)
+
+        value_parts.append({"value": pyobject[_pos : _pos + _length], "source": sources.index(_input_info)})
+        current_pos = _pos + _length
+
+    if current_pos < len(pyobject):
+        value_parts.append({"value": pyobject[current_pos:]})
+
+    return value_parts, sources
