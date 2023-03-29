@@ -21,7 +21,7 @@ from ddtrace.internal.module import origin
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
-IAST_DENYLIST = ("ddtrace",)  # type: tuple[str, ...]
+IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
 
 
 if IAST.PATCH_MODULES in os.environ:
