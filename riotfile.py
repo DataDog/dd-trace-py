@@ -273,11 +273,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
             venvs=[
                 Venv(pys=select_pys()),
-                # This test variant ensures all tracer tests are compatible with 128bit trace ids.
-                # Once DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is set to True by default this test variant
-                # should be removed (or DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED should be set to false).
+                # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
                 Venv(
-                    pys=select_pys(),
+                    pys=MAX_PYTHON_VERSION,
                     env={
                         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["false", "true"],
                     },

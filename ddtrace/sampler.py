@@ -45,7 +45,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
-# TODO: deprecate and remove MAX_TRACE_ID, it is no longer used.
+# All references to MAX_TRACE_ID were replaced with _MAX_UINT_64BITS.
+# Now that ddtrace supports generating 128bit trace_ids,
+# the max trace id should be 2**128 - 1 (not 2**64 -1)
+# MAX_TRACE_ID is no longer used and should be removed.
 MAX_TRACE_ID = _MAX_UINT_64BITS
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
