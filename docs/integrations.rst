@@ -236,6 +236,12 @@ Jinja2
 ^^^^^^
 .. automodule:: ddtrace.contrib.jinja2
 
+.. _kafka:
+
+Kafka
+^^^^^
+
+.. automodule:: ddtrace.contrib.kafka
 
 .. _kombu:
 
