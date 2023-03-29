@@ -90,7 +90,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     [
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
-        (u"Hello ", u"world", True),
+        ("Hello ", "world", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
@@ -123,7 +123,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     assert is_pyobject_tainted(result) == should_be_tainted
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
         tainted_ranges = get_tainted_ranges(result)
-        assert type(tainted_ranges) is list
+        assert type(tainted_ranges) is tuple
         assert all(type(c) is tuple for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
