@@ -116,6 +116,8 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         "please_patch.submodule",
         "please_patch.do_not.but_yes",
         "please_patch.do_not.but_yes.sub",
+        "also",
+        "anything",
         "also.that",
         "also.that.but",
         "also.that.but.not",
@@ -125,10 +127,10 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         assert ap._should_iast_patch(module_name), module_name
 
     for module_name in [
-        "please_do_not_patch",
-        "also",
-        "anything",
+        "ddtrace",
         "ddtrace.sub",
+        "hypothesis",
+        "pytest",
         "please_patch.do_not",
         "please_patch.do_not.any",
         "also.that.but.not.that",
