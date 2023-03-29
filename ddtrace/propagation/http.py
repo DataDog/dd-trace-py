@@ -110,6 +110,8 @@ def _hex_id_to_dd_id(hex_id):
     If the id is > 64 bit then truncate the trailing 64 bit.
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
     """
+    if config._128_bit_trace_id_enabled:
+        return int(hex_id, 16)
     return int(hex_id[-16:], 16)
 
 
