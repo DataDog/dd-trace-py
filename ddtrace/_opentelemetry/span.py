@@ -93,13 +93,12 @@ class Span(OtelSpan):
         # type: () -> SpanContext
         """Returns an Open Telemetry SpanContext"""
         # Returns a SpanContext with the current trace id, span id and is_remote flag.
-        tf = TraceFlags.DEFAULT
-        if self._ddspan.sampled:
-            tf = TraceFlags.SAMPLED
-
         ts = None
+        tf = TraceFlags.DEFAULT
         if self._ddspan.context:
             ts = TraceState.from_header([self._ddspan.context._tracestate])
+            if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
+                tf = TraceFlags.SAMPLED
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
