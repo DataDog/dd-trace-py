@@ -57,11 +57,11 @@ def test_small_objects(obj, res):
     [
         (324, "324"),  # integers are formatted into strings by libddwaf and are not truncated
         (True, True),
-        ("test", "te"),
-        (b"test", "te"),
+        ("toast", "to"),
+        (b"toast", "to"),
         (1.034, "1."),
         ([1, 2], ["1"]),
-        ({"test": "truc", "other": "nop"}, {"te": "tr"}),
+        ({"toast": "touch", "other": "nop"}, {"to": "to"}),
         (None, None),
         (_AnyObject(), _AnyObject.cst[:2]),
         ([[[1, 2], 3], 4], [[]]),
