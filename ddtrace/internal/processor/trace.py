@@ -12,6 +12,8 @@ import six
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -19,6 +21,7 @@ from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
 
 
@@ -127,6 +130,10 @@ class TraceTagsProcessor(TraceProcessor):
 
         ctx._update_tags(chunk_root)
         chunk_root.set_tag_str("language", "python")
+        # for 128 bit trace ids
+        if chunk_root.trace_id > MAX_UINT_64BITS:
+            trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
+            chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
         return trace
 
 
