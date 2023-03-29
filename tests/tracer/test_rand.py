@@ -31,7 +31,9 @@ def test_rand128bit():
     """This test ensures 128bit integers are generated with the following format:
     <32-bit unix seconds><32 bits of zero><64 random bits>
     """
-    t1 = int(time.time())
+    # This test validates the timestamp set in the trace id.
+    # To avoid random test failures t1 and t2 are set to an interval of 2 at least seconds.
+    t1 = int(time.time()) - 1
     val1 = _rand.rand128bits()
     val2 = _rand.rand128bits()
     t2 = int(time.time()) + 1
