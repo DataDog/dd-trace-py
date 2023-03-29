@@ -121,8 +121,6 @@ def _get_handler_and_module():
     path = os.environ.get("DD_LAMBDA_HANDLER", None)
     _datadog_instrumentation = DatadogInstrumentation()
 
-    handler, handler_module = None, None
-
     if path is None:
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
