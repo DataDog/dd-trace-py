@@ -103,6 +103,7 @@ def _probe_details(probe):
         }
     return {
         "id": probe.probe_id,
+        "version": probe.version,
         "location": location,
     }
 
