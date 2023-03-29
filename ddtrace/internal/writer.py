@@ -232,19 +232,17 @@ class LogWriter(TraceWriter):
 class CIAppWriter(periodic.PeriodicService, TraceWriter):
     def __init__(
         self,
-        out=sys.stdout,  # type: TextIO
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
     ):
         # type: (...) -> None
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self.encoder = None
-        self.out = out
+        self.encoder = []
 
     def recreate(self):
         # type: () -> CIAppWriter
-        writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
+        writer = self.__class__(sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
     def stop(self, timeout=None):
@@ -255,10 +253,6 @@ class CIAppWriter(periodic.PeriodicService, TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
-
-        encoded = self.encoder.encode_traces([spans])
-        self.out.write(encoded + "\n")
-        self.out.flush()
 
     def flush_queue(self):
         # type: () -> None
