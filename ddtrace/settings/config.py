@@ -1,6 +1,7 @@
 from copy import deepcopy
 import os
 import re
+import subprocess
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -203,6 +204,9 @@ class Config(object):
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
+
+        if self.version:
+            self.version = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode("ascii").strip()
         self.http_server = self._HTTPServerConfig()
 
         self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
@@ -213,8 +217,8 @@ class Config(object):
             del self.tags["service"]
 
         # The version tag should not be included on all spans.
-        if self.version and "version" in self.tags:
-            del self.tags["version"]
+        # if self.version and "version" in self.tags:
+        # del self.tags["version"]
 
         self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
 
