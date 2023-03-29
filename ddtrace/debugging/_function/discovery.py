@@ -139,7 +139,6 @@ def _collect_functions(module):
     """
     assert isinstance(module, ModuleType)
 
-    path = origin(module)
     containers = deque([ContainerIterator(module)])
     functions = {}
     seen_containers = set()
@@ -157,7 +156,7 @@ def _collect_functions(module):
                 o = o.__func__
 
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
-            if code is not None and abspath(code.co_filename) == path:
+            if code is not None:
                 if o not in seen_functions:
                     seen_functions.add(o)
                     o = cast(FullyNamedFunction, o)
@@ -199,10 +198,17 @@ class FunctionDiscovery(defaultdict):
 
         functions = _collect_functions(module)
         seen_functions = set()
+        module_path = origin(module)
+
         self._fullname_index = {}
 
         for fname, function in functions.items():
-            if function not in seen_functions:
+            if (
+                function not in seen_functions
+                and abspath(cast(FunctionType, function).__code__.co_filename) == module_path
+            ):
+                # We only map line numbers for functions that actually belong to
+                # the module.
                 for lineno in linenos(cast(FunctionType, function)):
                     self[lineno].append(function)
             self._fullname_index[fname] = function
