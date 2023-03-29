@@ -492,6 +492,11 @@ class DummyCIAppWriter(DummyWriterMixin, CIAppWriter):
         CIAppWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            self.encoder.extend(spans)
+
 
 class DummyTracer(Tracer):
     """
