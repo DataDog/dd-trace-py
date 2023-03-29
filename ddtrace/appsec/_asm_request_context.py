@@ -27,33 +27,44 @@ thread will have a different context.
 # FIXME: remove these and use the new context API once implemented and allowing
 # contexts without spans
 
-_DD_EARLY_IP_CONTEXTVAR = contextvars.ContextVar("datadog_early_ip_contextvar", default=None)
-_DD_EARLY_HEADERS_CONTEXTVAR = contextvars.ContextVar("datadog_early_headers_contextvar", default=None)
-_DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR = contextvars.ContextVar(
-    "datadog_early_headers_casesensitive_contextvar", default=False
-)
+_REQUEST_HTTP_IP = contextvars.ContextVar("REQUEST_HTTP_IP", default=None)
+_REQUEST_HEADERS_NO_COOKIES = contextvars.ContextVar("REQUEST_HEADERS_NO_COOKIES", default=None)
+_REQUEST_HEADERS_NO_COOKIES_CASE = contextvars.ContextVar("REQUEST_HEADERS_NO_COOKIES_CASE", default=False)
 _DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar("datadog_block_request_callable_contextvar", default=None)
 _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=None)
-_DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=([[], [], []]))
+_DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=None)
 _DD_WAF_SENT = contextvars.ContextVar("datadog_waf_adress_sent", default=None)
-_DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default={})
+_DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default=None)
+
+_CONTEXTVAR_DEFAULT_FACTORIES = [
+    (_REQUEST_HTTP_IP, lambda: None),
+    (_REQUEST_HEADERS_NO_COOKIES, lambda: None),
+    (_REQUEST_HEADERS_NO_COOKIES_CASE, lambda: False),
+    (_DD_BLOCK_REQUEST_CALLABLE, lambda: None),
+    (_DD_WAF_CALLBACK, lambda: None),
+    (_DD_WAF_RESULTS, lambda: [[], [], []]),
+    (_DD_WAF_SENT, set),
+    (_DD_IAST_TAINT_DICT, dict),
+]
 
 
-def reset():  # type: () -> None
-    _DD_EARLY_IP_CONTEXTVAR.set(None)
-    _DD_EARLY_HEADERS_CONTEXTVAR.set(None)
-    _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(False)
-    _DD_BLOCK_REQUEST_CALLABLE.set(None)
-    _DD_WAF_SENT.set(set())
-    _DD_IAST_TAINT_DICT.set({})
+class _Data_handler:
+    def __init__(self):
+        self.tokens = []
+        for var, factory in _CONTEXTVAR_DEFAULT_FACTORIES:
+            self.tokens.append(var.set(factory()))
+
+    def finalise(self):
+        for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
+            var.reset(token)
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None
-    _DD_EARLY_IP_CONTEXTVAR.set(ip)
+    _REQUEST_HTTP_IP.set(ip)
 
 
 def get_ip():  # type: () -> Optional[str]
-    return _DD_EARLY_IP_CONTEXTVAR.get()
+    return _REQUEST_HTTP_IP.get()
 
 
 def set_taint_dict(taint_dict):  # type: (dict) -> None
@@ -70,19 +81,19 @@ def get_taint_dict():  # type: () -> dict
 
 
 def set_headers(headers):  # type: (Any) -> None
-    _DD_EARLY_HEADERS_CONTEXTVAR.set(headers)
+    _REQUEST_HEADERS_NO_COOKIES.set(headers)
 
 
 def get_headers():  # type: () -> Optional[Any]
-    return _DD_EARLY_HEADERS_CONTEXTVAR.get()
+    return _REQUEST_HEADERS_NO_COOKIES.get()
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.set(case_sensitive)
+    _REQUEST_HEADERS_NO_COOKIES_CASE.set(case_sensitive)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
-    return _DD_EARLY_HEADERS_CASE_SENSITIVE_CONTEXTVAR.get()
+    return _REQUEST_HEADERS_NO_COOKIES_CASE.get()
 
 
 def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
@@ -155,8 +166,9 @@ def asm_request_context_manager(
     remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None
 ):
     # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[None, None, None]
+    resources = _Data_handler()
     asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
     try:
         yield
     finally:
-        reset()
+        resources.finalise()
