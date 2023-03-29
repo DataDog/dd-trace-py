@@ -1,7 +1,9 @@
 from gevent import monkey
 
+# Import from ddtrace before monkey patching to ensure that we grab all the
+# necessary references to the unpatched modules.
 from ddtrace.profiling import bootstrap
-import ddtrace.profiling.auto
+import ddtrace.profiling.auto  # noqa
 from ddtrace.profiling.collector import stack_event
 
 
