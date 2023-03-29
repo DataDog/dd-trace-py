@@ -12,10 +12,15 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from tests.utils import DummyCIAppWriter
+from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
 class TestPytest(TracerTestCase):
+    def setUp(self):
+        self.tracer = DummyTracer(writer=DummyCIAppWriter())
+
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir

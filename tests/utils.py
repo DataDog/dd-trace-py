@@ -522,9 +522,10 @@ class DummyTracer(Tracer):
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriter
+            kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+        if not kwargs.get("writer"):
+            kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
