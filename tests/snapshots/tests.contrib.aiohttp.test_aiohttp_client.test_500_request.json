@@ -16,7 +16,8 @@
       "http.status_msg": "INTERNAL SERVER ERROR",
       "http.url": "http://localhost:8001/status/500",
       "language": "python",
-      "runtime-id": "c110789b92224c258de3e631ca50af4f"
+      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 32687
     },
-    "duration": 12159000,
-    "start": 1666808692787339000
+    "duration": 10137000,
+    "start": 1667240261480698000
   },
      {
        "name": "TCPConnector.connect",
@@ -37,6 +38,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "aiohttp"
+       },
        "duration": 2061000,
        "start": 1646414759680240000
      }]]

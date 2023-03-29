@@ -1,5 +1,3 @@
-import sys
-
 import tornado
 from tornado.ioloop import IOLoop
 
@@ -10,7 +8,7 @@ from ...span import Span
 
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
-_USE_STACK_CONTEXT = not (sys.version_info >= (3, 7) and tornado.version_info >= (5, 0))
+_USE_STACK_CONTEXT = not tornado.version_info >= (5, 0)
 
 if _USE_STACK_CONTEXT:
     from tornado.stack_context import StackContextInconsistentError

@@ -93,6 +93,7 @@ class GrpcTestCase(TracerTestCase):
         assert span.get_tag("grpc.host") == "localhost"
         assert span.get_tag("network.destination.port") == "50531"
         assert span.get_tag("component") == "grpc"
+        assert span.get_tag("span.kind") == "client"
 
     def _check_server_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
@@ -107,6 +108,7 @@ class GrpcTestCase(TracerTestCase):
         assert span.get_tag("grpc.method.name") == method_name
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("component") == "grpc_server"
+        assert span.get_tag("span.kind") == "server"
 
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):
@@ -346,6 +348,7 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.ABORTED"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.ABORTED"
         assert client_span.get_tag("component") == "grpc"
+        assert client_span.get_tag("span.kind") == "client"
 
     def test_custom_interceptor_exception(self):
         # add an interceptor that raises a custom exception and check error tags
@@ -367,6 +370,7 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_STACK) is not None
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INTERNAL"
         assert client_span.get_tag("component") == "grpc"
+        assert client_span.get_tag("span.kind") == "client"
 
         # no exception on server end
         assert server_span.resource == "/helloworld.Hello/SayHello"
@@ -375,6 +379,7 @@ class GrpcTestCase(TracerTestCase):
         assert server_span.get_tag(ERROR_TYPE) is None
         assert server_span.get_tag(ERROR_STACK) is None
         assert server_span.get_tag("component") == "grpc_server"
+        assert server_span.get_tag("span.kind") == "server"
 
     def test_client_cancellation(self):
         # use an event to signal when the callbacks have been called from the response
@@ -411,6 +416,7 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_STACK) is None
         assert client_span.get_tag("grpc.status.code") == "StatusCode.CANCELLED"
         assert client_span.get_tag("component") == "grpc"
+        assert client_span.get_tag("span.kind") == "client"
 
     def test_unary_exception(self):
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -427,12 +433,14 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("component") == "grpc"
+        assert client_span.get_tag("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHello"
         assert server_span.error == 1
         assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert server_span.get_tag("component") == "grpc_server"
+        assert server_span.get_tag("span.kind") == "server"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
 
@@ -453,12 +461,14 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("component") == "grpc"
+        assert client_span.get_tag("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloLast"
         assert server_span.error == 1
         assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert server_span.get_tag("component") == "grpc_server"
+        assert server_span.get_tag("span.kind") == "server"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
 
@@ -485,11 +495,13 @@ class GrpcTestCase(TracerTestCase):
         assert client_span.get_tag(ERROR_MSG) == "exception"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
+        assert client_span.get_tag("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert server_span.error == 1
         assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
+        assert server_span.get_tag("span.kind") == "server"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.RESOURCE_EXHAUSTED" in server_span.get_tag(ERROR_STACK)
 

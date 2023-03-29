@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
-from .constants import IAST_ENV
+from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
@@ -40,6 +40,7 @@ PATCH_MODULES = {
     "graphql": True,
     "grpc": True,
     "httpx": True,
+    "kafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -82,6 +83,7 @@ PATCH_MODULES = {
     "dogpile_cache": True,
     "yaaredis": True,
     "asyncpg": True,
+    "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
 }
 
@@ -114,8 +116,11 @@ _MODULES_FOR_CONTRIB = {
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
-    "futures": ("concurrent.futures",),
+    "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
+    "aws_lambda": ("datadog_lambda",),
+    "httplib": ("httplib" if PY2 else "http.client",),
+    "kafka": ("confluent_kafka",),
 }
 
 IAST_PATCH = {
@@ -195,7 +200,7 @@ def patch_iast(**patch_modules):
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    iast_enabled = config._iast_enabled
     if iast_enabled:
         # TODO: Devise the correct patching strategy for IAST
         for module in (m for m, e in patch_modules.items() if e):

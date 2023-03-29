@@ -5,7 +5,6 @@ from typing import List
 from typing import Text
 from typing import Union
 
-import django
 from django.http import RawPostDataException
 from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
@@ -21,6 +20,8 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...appsec import _asm_request_context
+from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
@@ -153,7 +154,7 @@ def get_request_uri(request):
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
-    for (k, v) in urlparts.items():
+    for k, v in urlparts.items():
         if isinstance(v, SimpleLazyObject):
             if issubclass(v.__class__, str):
                 v = str(v)
@@ -186,19 +187,22 @@ def _set_resolver_tags(pin, span, request):
             resolver_match = resolver.resolve(request.path_info)
         handler = func_name(resolver_match[0])
 
+        route = None
+        # In Django >= 2.2.0 we can access the original route or regex pattern
+        # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+        if DJANGO22:
+            # Determine the resolver and resource name for this request
+            route = get_django_2_route(request, resolver_match)
+            if route:
+                span.set_tag_str("http.route", route)
+
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
             resource = handler
         else:
-            # In Django >= 2.2.0 we can access the original route or regex pattern
-            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-            if DJANGO22:
-                # Determine the resolver and resource name for this request
-                route = get_django_2_route(request, resolver_match)
-                if route:
-                    resource = " ".join((request.method, route))
-                    span.set_tag_str("http.route", route)
+            if route:
+                resource = " ".join((request.method, route))
             else:
                 if config.django.use_handler_with_url_name_resource_format:
                     # Append url name in order to distinguish different routes of the same ViewSet
@@ -259,7 +263,7 @@ def _extract_body(request):
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = request.data.dict() if rest_framework else request.POST.dict()
-            elif content_type == "application/json":
+            elif content_type in ("application/json", "text/json"):
                 req_body = (
                     json.loads(request.data.decode("UTF-8"))
                     if rest_framework
@@ -271,8 +275,10 @@ def _extract_body(request):
                     if rest_framework
                     else xmltodict.parse(request.body.decode("UTF-8"))
                 )
-            else:  # text/plain, xml, others: take them as strings
-                req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+            elif request.method == "POST" and request.POST:
+                req_body = dict(request.POST)
+            else:  # text/plain, others: don't use them
+                req_body = None
         except (
             AttributeError,
             RawPostDataException,
@@ -287,6 +293,19 @@ def _extract_body(request):
             # req_body is None
 
         return req_body
+
+
+def _get_request_headers(request):
+    if DJANGO22:
+        request_headers = request.headers
+    else:
+        request_headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                request_headers[name] = value
+
+    return request_headers
 
 
 def _after_request_tags(pin, span, request, response):
@@ -351,25 +370,22 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            if DJANGO22:
-                request_headers = request.headers
-            else:
-                request_headers = {}
-                for header, value in request.META.items():
-                    name = from_wsgi_header(header)
-                    if name:
-                        request_headers[name] = value
-
             # DEV: Resolve the view and resource name at the end of the request in case
             #      urlconf changes at any point during the request
             _set_resolver_tags(pin, span, request)
+
+            request_headers = None
+            if config._appsec_enabled:
+                request_headers = _asm_request_context.get_headers()
+
+            if not request_headers:
+                # did not go through AppSecProcessor.on_span_start
+                request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
-
-            headers_case_sensitive = django.VERSION < (2, 2)
 
             trace_utils.set_http_meta(
                 span,
@@ -385,8 +401,8 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
-                peer_ip=request.META.get("REMOTE_ADDR"),
-                headers_are_case_sensitive=headers_case_sensitive,
+                peer_ip=_context.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

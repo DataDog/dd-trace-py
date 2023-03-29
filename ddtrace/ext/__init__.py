@@ -12,3 +12,10 @@ class SpanTypes(object):
     TEST = "test"
     WEB = "web"
     WORKER = "worker"
+
+
+class SpanKind(object):
+    CLIENT = "client"
+    SERVER = "server"
+    PRODUCER = "producer"
+    CONSUMER = "consumer"

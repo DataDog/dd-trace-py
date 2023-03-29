@@ -1,5 +1,8 @@
+import logging
+
 import pytest
 
+from ddtrace.propagation._database_monitoring import default_sql_injector
 from ddtrace.settings import _database_monitoring
 from tests.utils import override_env
 
@@ -114,3 +117,24 @@ def test_dbm_propagation_full_mode():
 
     # ensure that dbm tag is set (required for full mode)
     assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+
+
+def test_default_sql_injector(caplog):
+    # test sql injection with unicode str
+    dbm_comment = "/*dddbs='orders-db'*/ "
+    str_query = "select * from table;"
+    assert default_sql_injector(dbm_comment, str_query) == "/*dddbs='orders-db'*/ select * from table;"
+
+    # test sql injection with uft-8 byte str query
+    dbm_comment = "/*dddbs='orders-db'*/ "
+    str_query = "select * from table;".encode("utf-8")
+    assert default_sql_injector(dbm_comment, str_query) == b"/*dddbs='orders-db'*/ select * from table;"
+
+    # test sql injection with a non supported type
+    with caplog.at_level(logging.INFO):
+        dbm_comment = "/*dddbs='orders-db'*/ "
+        non_string_object = object()
+        result = default_sql_injector(dbm_comment, non_string_object)
+        assert result == non_string_object
+
+    assert "Linking Database Monitoring profiles to spans is not supported for the following query type:" in caplog.text

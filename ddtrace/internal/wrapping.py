@@ -324,7 +324,10 @@ def wrap_bytecode(wrapper, wrapped):
         Instr("LOAD_CONST", wrapped, lineno=lineno),
     ]
     if sys.version_info >= (3, 11):
-        instrs.insert(0, Instr("PUSH_NULL", lineno=lineno))
+        instrs[0:0] = [
+            Instr("RESUME", 0, lineno=lineno - 1),
+            Instr("PUSH_NULL", lineno=lineno),
+        ]
 
     # Build the tuple of all the positional arguments
     if nargs:

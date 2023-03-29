@@ -166,12 +166,29 @@ class FunctionDefFinder(ast.NodeVisitor):
             return t
 
 
+def is_stream_ok(stream, expected):
+    if expected is None:
+        return True
+
+    if isinstance(expected, str):
+        ex = expected.encode("utf-8")
+    elif isinstance(expected, bytes):
+        ex = expected
+    else:
+        # Assume it's a callable condition
+        return expected(stream.decode("utf-8"))
+
+    return stream == ex
+
+
 def run_function_from_file(item, params=None):
     file, _, func = item.location
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
     args = [sys.executable]
+
+    timeout = marker.kwargs.get("timeout", None)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
@@ -188,14 +205,8 @@ def run_function_from_file(item, params=None):
         env.update(params)
 
     expected_status = marker.kwargs.get("status", 0)
-
     expected_out = marker.kwargs.get("out", "")
-    if expected_out is not None:
-        expected_out = expected_out.encode("utf-8")
-
     expected_err = marker.kwargs.get("err", "")
-    if expected_err is not None:
-        expected_err = expected_err.encode("utf-8")
 
     with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
@@ -213,7 +224,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
 
         def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd)
+            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
             if status != expected_status:
                 raise AssertionError(
@@ -222,9 +233,11 @@ def run_function_from_file(item, params=None):
                     "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                     % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
                 )
-            elif expected_out is not None and out != expected_out:
+
+            if not is_stream_ok(out, expected_out):
                 raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
-            elif expected_err is not None and err != expected_err:
+
+            if not is_stream_ok(err, expected_err):
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
         return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))

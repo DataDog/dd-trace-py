@@ -11,21 +11,22 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc",
+      "job.id": "87552b33-19cd-48d6-b843-a1600279f2ad",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "ac25dca205ac4ca6a291f3cca2df495c"
+      "runtime-id": "9879d4ea32ab476194eec38dc29d2721",
+      "span.kind": "consumer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67081
+      "process_id": 50192
     },
-    "duration": 13379000,
-    "start": 1666807177535588000
+    "duration": 17919000,
+    "start": 1672864521247662000
   },
      {
        "name": "rq.job.perform",
@@ -38,10 +39,10 @@
        "error": 0,
        "meta": {
          "component": "rq",
-         "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc"
+         "job.id": "87552b33-19cd-48d6-b843-a1600279f2ad"
        },
-       "duration": 2979000,
-       "start": 1666807177539659000
+       "duration": 3206000,
+       "start": 1672864521254859000
      }],
 [
   {
@@ -57,18 +58,19 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "d3cbb8c1-db10-43d9-8c33-79d575e055cc",
+      "job.id": "87552b33-19cd-48d6-b843-a1600279f2ad",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+      "runtime-id": "70c5dc2645ba42f4a47c8b89c961f267",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67067
+      "process_id": 50181
     },
-    "duration": 6443000,
-    "start": 1666807176897437000
+    "duration": 3606000,
+    "start": 1672864520687651000
   }]]

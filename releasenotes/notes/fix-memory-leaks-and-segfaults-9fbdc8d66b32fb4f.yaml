@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: fix memory leaks and memory corruption in the interface between ASM and the WAF library

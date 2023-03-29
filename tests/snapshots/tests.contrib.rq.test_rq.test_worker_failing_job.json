@@ -12,10 +12,11 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
-      "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
+      "job.id": "87992d85-068a-46a6-aaad-872051cf24a7",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 67067
     },
-    "duration": 3328000,
-    "start": 1666807176767771000
+    "duration": 3531000,
+    "start": 1667319043928850000
   },
      {
        "name": "rq.worker.perform_job",
@@ -39,11 +40,12 @@
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc",
+         "job.id": "87992d85-068a-46a6-aaad-872051cf24a7",
          "job.origin": "q",
          "job.status": "failed",
          "language": "python",
-         "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+         "span.kind": "consumer"
        },
        "metrics": {
          "_dd.top_level": 1,
@@ -51,8 +53,8 @@
          "_sampling_priority_v1": 1,
          "process_id": 67067
        },
-       "duration": 5097000,
-       "start": 1666807176782455000
+       "duration": 6126000,
+       "start": 1667319043949225000
      },
         {
           "name": "rq.job.perform",
@@ -68,8 +70,8 @@
             "error.message": "error",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 206, in traced_job_perform\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\ntests.contrib.rq.jobs.MyException: error\n",
             "error.type": "tests.contrib.rq.jobs.MyException",
-            "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc"
+            "job.id": "87992d85-068a-46a6-aaad-872051cf24a7"
           },
-          "duration": 833000,
-          "start": 1666807176783386000
+          "duration": 1144000,
+          "start": 1667319043950441000
         }]]
