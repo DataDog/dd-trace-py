@@ -2,6 +2,7 @@ import sys
 
 from hypothesis import given
 from hypothesis import strategies as st
+import pytest
 
 from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_object
 
@@ -23,6 +24,53 @@ def test_ddwaf_objects_wrapper(obj, kwargs):
     obj = ddwaf_object(obj, **kwargs)
     repr(obj)
     del obj
+
+
+class _AnyObject:
+    cst = "1048A9B04F0EDC"
+
+    def __str__(self):
+        return self.cst
+
+
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        (32, "32"),
+        (True, True),
+        ("test", "test"),
+        (b"test", "test"),
+        (1.0, "1.0"),
+        ([1, 2], ["1", "2"]),
+        ({"test": "truc"}, {"test": "truc"}),
+        (None, None),
+        (_AnyObject(), _AnyObject.cst),
+    ],
+)
+def test_small_objects(obj, res):
+    dd_obj = ddwaf_object(obj)
+    assert dd_obj.struct == res
+
+
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        (324, "324"),  # integers are formatted into strings by libddwaf and are not truncated
+        (True, True),
+        ("test", "te"),
+        (b"test", "te"),
+        (1.034, "1."),
+        ([1, 2], ["1"]),
+        ({"test": "truc", "other": "nop"}, {"te": "tr"}),
+        (None, None),
+        (_AnyObject(), _AnyObject.cst[:2]),
+        ([[[1, 2], 3], 4], [[]]),
+    ],
+)
+def test_limits(obj, res):
+    # truncation of max_string_length takes the last C null byte into account
+    dd_obj = ddwaf_object(obj, max_objects=1, max_depth=1, max_string_length=3)
+    assert dd_obj.struct == res
 
 
 if __name__ == "__main__":
