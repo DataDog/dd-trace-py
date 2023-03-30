@@ -5,7 +5,6 @@ import attr
 
 @attr.s(eq=True, hash=True)
 class Evidence(object):
-    type = attr.ib(type=str)
     value = attr.ib(type=str, default="")
 
 
