@@ -21,6 +21,8 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
@@ -31,6 +33,8 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
+from ..span import _get_64_highest_order_bits_as_hex
+from ..span import _get_64_lowest_order_bits_as_int
 from ._utils import get_wsgi_header
 
 
@@ -154,7 +158,16 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
+        if span_context.trace_id > _MAX_UINT_64BITS:
+            # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
+            # bits should be converted to a base 10 integer.
+            headers[HTTP_HEADER_TRACE_ID] = str(_get_64_lowest_order_bits_as_int(span_context.trace_id))
+            # set higher order 64 bits in `_dd.p.tid` to propagate the full 128 bit trace id.
+            # Note - The higher order bits must be encoded in hex
+            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = _get_64_highest_order_bits_as_hex(span_context.trace_id)
+        else:
+            headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
+
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         sampling_priority = span_context.sampling_priority
         # Propagate priority only if defined
@@ -197,11 +210,18 @@ class _DatadogMultiHeader:
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
-        trace_id = _extract_header_value(
-            POSSIBLE_HTTP_HEADER_TRACE_IDS,
-            headers,
-        )
-        if trace_id is None:
+        trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
+        if trace_id_str is None:
+            return None
+        try:
+            trace_id = int(trace_id_str)
+        except ValueError:
+            trace_id = 0
+
+        if trace_id == 0 or trace_id > _MAX_UINT_64BITS:
+            log.warning(
+                "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64", trace_id_str
+            )
             return None
 
         parent_span_id = _extract_header_value(
@@ -246,6 +266,20 @@ class _DatadogMultiHeader:
                 }
                 log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
+        if meta is not None and config._128_bit_trace_id_enabled:
+            # When 128 bit trace ids are propagated the 64 lowest order bits are encoded as an integer
+            # and set in the `x-datadog-trace-id` header (this was done for backwards compatibility).
+            # The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+            # Here we reconstruct the full 128 bit trace_id.
+            trace_id_hob_hex = meta.get(_HIGHER_ORDER_TRACE_ID_BITS)  # type: Optional[str]
+            if trace_id_hob_hex is not None:
+                # convert lowest order bits in trace_id to base 16
+                trace_id_lod_hex = "{:016x}".format(trace_id)
+                # combine highest and lowest order hex values to create a 128 bit trace_id
+                trace_id = int(trace_id_hob_hex + trace_id_lod_hex, 16)
+                # After the full trace id is reconstructed this tag is no longer required
+                del meta[_HIGHER_ORDER_TRACE_ID_BITS]
+
         # Try to parse values into their expected types
         try:
             if sampling_priority is not None:
@@ -258,7 +292,7 @@ class _DatadogMultiHeader:
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
-                trace_id=int(trace_id) or None,
+                trace_id=trace_id or None,
                 span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                 sampling_priority=sampling_priority,  # type: ignore[arg-type]
                 dd_origin=origin,
