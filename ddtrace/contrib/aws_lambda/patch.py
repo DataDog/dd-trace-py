@@ -71,7 +71,7 @@ class TimeoutChannel:
             root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
             root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
         else:
-            log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
+            log.debug("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
         current_span = tracer.current_span()
         if current_span is not None:
@@ -179,7 +179,7 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-        log.exception("Error patching AWS Lambda")
+        log.debug("Error patching AWS Lambda", exc_info=True)
         return
 
 
@@ -199,5 +199,5 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-        log.exception("Error unpatching AWS Lambda")
+        log.debug("Error patching AWS Lambda", exc_info=True)
         return
