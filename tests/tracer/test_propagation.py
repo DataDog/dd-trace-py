@@ -12,6 +12,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -456,14 +457,21 @@ def test_get_wsgi_header(tracer):
 
 # for testing with other propagation styles
 TRACECONTEXT_HEADERS_VALID_BASIC = {
-    _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
 }
 
 TRACECONTEXT_HEADERS_VALID = {
-    _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
+
+if asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")):
+    TRACE_ID = 171395628812617415352188477958425669623
+    TRACE_ID_HEX = "80f198ee56343ba864fe8b2a57d3eff7"
+else:
+    TRACE_ID = 7277407061855694839
+    TRACE_ID_HEX = "000000000000000064fe8b2a57d3eff7"
 
 
 @pytest.mark.parametrize(
@@ -492,9 +500,9 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
     "headers,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 1),
+            (TRACE_ID, 67667974448284343, 1),
             None,
             None,
         ),
@@ -505,41 +513,41 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             ValueError,
         ),
         (
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+            "00-%s-0000000000000000-01" % (TRACE_ID_HEX,),
             None,
             None,
             ValueError,
         ),
         (
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
+            "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 0),
+            (TRACE_ID, 67667974448284343, 0),
             None,
             None,
         ),
         (
-            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-what-the-future-looks-like",
+            "01-%s-00f067aa0ba902b7-01-what-the-future-looks-like" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 1),
+            (TRACE_ID, 67667974448284343, 1),
             ["unsupported traceparent version:'01', still attempting to parse"],
             None,
         ),
         (
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-v00-can-not-have-future-values",
+            "00-%s-00f067aa0ba902b7-01-v00-can-not-have-future-values" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 1),
+            (TRACE_ID, 67667974448284343, 1),
             [],
             ValueError,
         ),
         (
-            "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "0-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
             None,
             [],
             ValueError,
         ),
         (
-            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "ff-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
             None,
             [],
@@ -560,9 +568,9 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             ValueError,
         ),
         (  # we still parse the trace flag and analyze the it as a bit field
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02",
+            "00-%s-00f067aa0ba902b7-02" % (TRACE_ID_HEX,),
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 0),
+            (TRACE_ID, 67667974448284343, 0),
             [],
             None,
         ),
@@ -795,14 +803,14 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
         (
             TRACECONTEXT_HEADERS_VALID,
             {
-                "trace_id": 11803532876627986230,
+                "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
                     "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
-                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                    "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
             },
@@ -810,12 +818,12 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
         (
             TRACECONTEXT_HEADERS_VALID_BASIC,
             {
-                "trace_id": 11803532876627986230,
+                "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
                     "tracestate": "dd=s:2;o:rum",
                     "_dd.origin": "rum",
-                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                    "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
             },
@@ -829,13 +837,13 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
         ),
         (
             {
-                _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             },
             {
-                "trace_id": 11803532876627986230,
+                "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                    "traceparent": "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
                 },
                 "metrics": {"_sampling_priority_v1": 1.0},
             },
@@ -880,7 +888,7 @@ DATADOG_HEADERS_INVALID = {
     HTTP_HEADER_SAMPLING_PRIORITY: "sample",
 }
 B3_HEADERS_VALID = {
-    _HTTP_HEADER_B3_TRACE_ID: "463ac35c9f6413ad48485a3953bb6124",
+    _HTTP_HEADER_B3_TRACE_ID: "80f198ee56343ba864fe8b2a57d3eff7",
     _HTTP_HEADER_B3_SPAN_ID: "a2fb4a1d1a96d312",
     _HTTP_HEADER_B3_SAMPLED: "1",
 }
@@ -977,7 +985,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3],
         B3_HEADERS_VALID,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -988,7 +996,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3],
         {get_wsgi_header(name): value for name, value in B3_HEADERS_VALID.items()},
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1003,7 +1011,7 @@ EXTRACT_FIXTURES = [
             _HTTP_HEADER_B3_FLAGS: "1",
         },
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 2,
             "dd_origin": None,
@@ -1019,7 +1027,7 @@ EXTRACT_FIXTURES = [
             "X-B3-ParentSpanId": "05e3ac9a4f6e3b90",
         },
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 0,
             "dd_origin": None,
@@ -1033,7 +1041,7 @@ EXTRACT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_SPAN_ID],
         },
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": None,
             "dd_origin": None,
@@ -1046,7 +1054,7 @@ EXTRACT_FIXTURES = [
             _HTTP_HEADER_B3_TRACE_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_TRACE_ID],
         },
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": None,
             "sampling_priority": None,
             "dd_origin": None,
@@ -1075,7 +1083,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_HEADERS_VALID,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1087,7 +1095,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_SINGLE_HEADERS_VALID,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1100,7 +1108,7 @@ EXTRACT_FIXTURES = [
             get_wsgi_header(_HTTP_HEADER_B3_SINGLE): B3_SINGLE_HEADERS_VALID[_HTTP_HEADER_B3_SINGLE],
         },
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1113,7 +1121,7 @@ EXTRACT_FIXTURES = [
             get_wsgi_header(_HTTP_HEADER_B3_SINGLE): B3_SINGLE_HEADERS_VALID[_HTTP_HEADER_B3_SINGLE],
         },
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1139,7 +1147,7 @@ EXTRACT_FIXTURES = [
             _HTTP_HEADER_B3_SINGLE: "80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1",
         },
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": None,
             "dd_origin": None,
@@ -1156,7 +1164,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_SINGLE_HEADERS_VALID,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1167,7 +1175,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {_HTTP_HEADER_B3_SINGLE: B3_SINGLE_HEADERS_VALID[_HTTP_HEADER_B3_SINGLE] + "-05e3ac9a4f6e3b90-extra-data-here"},
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1248,7 +1256,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3],
         ALL_HEADERS,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1259,7 +1267,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1270,7 +1278,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1281,7 +1289,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1317,7 +1325,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_DATADOG],
         B3_SINGLE_HEADERS_VALID,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1328,7 +1336,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_DATADOG],
         B3_HEADERS_VALID,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1339,7 +1347,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3],
         B3_HEADERS_VALID,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1350,7 +1358,7 @@ EXTRACT_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1379,7 +1387,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
         ["b3"],
         B3_HEADERS_VALID,
         {
-            "trace_id": 5208512171318403364,
+            "trace_id": TRACE_ID,
             "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1392,7 +1400,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         TRACECONTEXT_HEADERS_VALID_BASIC,
         {
-            "trace_id": 11803532876627986230,
+            "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
@@ -1453,7 +1461,7 @@ EXTRACT_OVERRIDE_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1486,7 +1494,7 @@ EXTRACT_OVERRIDE_FIXTURES = [
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
-            "trace_id": 7277407061855694839,
+            "trace_id": TRACE_ID,
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
@@ -1782,12 +1790,12 @@ INJECT_FIXTURES = [
         "valid_tracecontext",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-            "trace_id": 11803532876627986230,
+            "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
                 "_dd.origin": "rum",
-                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
             },
             "metrics": {"_sampling_priority_v1": 2},
         },
@@ -1797,13 +1805,13 @@ INJECT_FIXTURES = [
         "only_traceparent",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-            "trace_id": 11803532876627986230,
+            "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
-                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                "traceparent": "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             },
         },
-        {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"},
+        {_HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,)},
     ),
     (
         "only_tracestate",
@@ -1812,7 +1820,7 @@ INJECT_FIXTURES = [
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
                 "_dd.origin": "rum",
-                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                "traceparent": "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             },
             "metrics": {"_sampling_priority_v1": 2},
         },
@@ -1822,7 +1830,7 @@ INJECT_FIXTURES = [
         "no_context_traceparent",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-            "trace_id": 11803532876627986230,
+            "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
@@ -1831,7 +1839,7 @@ INJECT_FIXTURES = [
             "metrics": {"_sampling_priority_v1": 2},
         },
         {
-            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
         },
     ),
@@ -1839,7 +1847,7 @@ INJECT_FIXTURES = [
         "tracestate_additional_list_members",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-            "trace_id": 11803532876627986230,
+            "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
                 "tracestate": "dd=s:2;o:rum,congo=baz123",
@@ -1848,7 +1856,7 @@ INJECT_FIXTURES = [
             "metrics": {"_sampling_priority_v1": 2},
         },
         {
-            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
         },
     ),
