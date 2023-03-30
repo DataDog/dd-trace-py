@@ -336,6 +336,7 @@ def patch_sub_modules(sub_modules):
     if isinstance(sub_modules, bool) and sub_modules:
         _PATCHED_SUB_MODULES.clear()
     elif isinstance(sub_modules, list):
+        sub_modules = [sub_module.lower() for sub_module in sub_modules]
         _PATCHED_SUB_MODULES.update(sub_modules)
 
 

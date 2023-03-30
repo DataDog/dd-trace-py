@@ -13,6 +13,11 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(botocore=True)
 
+To patch only specific botocore modules, pass a list of the module names instead::
+
+    from ddtrace import patch
+    patch(botocore=['s3', 'sns'])
+
 Configuration
 ~~~~~~~~~~~~~
 
