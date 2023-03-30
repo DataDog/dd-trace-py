@@ -69,7 +69,7 @@ class VulnerabilityBase(Operation):
                         report.vulnerabilities.add(
                             Vulnerability(
                                 type=cls.vulnerability_type,
-                                evidence=Evidence(type=cls.evidence_type, value=evidence_value),
+                                evidence=Evidence(value=evidence_value),
                                 location=Location(path=file_name, line=line_number, spanId=span.span_id),
                             )
                         )
@@ -79,7 +79,7 @@ class VulnerabilityBase(Operation):
                             vulnerabilities={
                                 Vulnerability(
                                     type=cls.vulnerability_type,
-                                    evidence=Evidence(type=cls.evidence_type, value=evidence_value),
+                                    evidence=Evidence(value=evidence_value),
                                     location=Location(path=file_name, line=line_number, spanId=span.span_id),
                                 )
                             }
