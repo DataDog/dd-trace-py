@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    aws_lambda: change logs to be debug, instead of warning or exception.
