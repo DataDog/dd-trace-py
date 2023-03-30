@@ -30,7 +30,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import patch, patch_sub_modules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -67,6 +67,7 @@ class BotocoreTest(TracerTestCase):
 
     def setUp(self):
         patch()
+        patch_sub_modules(True)
 
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
@@ -77,6 +78,27 @@ class BotocoreTest(TracerTestCase):
         super(BotocoreTest, self).tearDown()
 
         unpatch()
+
+    @mock_ec2
+    @mock_s3
+    def test_patch_submodules(self):
+        patch_sub_modules(["s3"])
+        ec2 = self.session.create_client("ec2", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
+
+        ec2.describe_instances()
+
+        spans = self.get_spans()
+        assert spans == []
+
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+        s3.list_buckets()
+        s3.list_buckets()
+
+        spans = self.get_spans()
+        assert spans
 
     @mock_ec2
     def test_traced_client(self):
