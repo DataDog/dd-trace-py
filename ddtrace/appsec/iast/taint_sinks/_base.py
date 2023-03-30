@@ -23,6 +23,7 @@ except ImportError:
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import List
     from typing import Optional
     from typing import Text
 
@@ -53,7 +54,7 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def report(cls, evidence_value="", sources=None):
-        # type: (Text, Optional[list[Input_info]]) -> None
+        # type: (Text, Optional[List[Input_info]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
@@ -68,10 +69,12 @@ class VulnerabilityBase(Operation):
             if frame_info:
                 file_name, line_number = frame_info
 
-                if isinstance(evidence_value, str):
+                if isinstance(evidence_value, (str, bytes, bytearray)):
                     evidence = Evidence(value=evidence_value)
-                else:
+                elif isinstance(evidence_value, (set, list)):
                     evidence = Evidence(valueParts=evidence_value)
+                else:
+                    log.debug("Unexpected evidence_value type: %s", type(evidence_value))
 
                 if cls.is_not_reported(file_name, line_number):
                     report = _context.get_item(IAST.CONTEXT_KEY, span=span)

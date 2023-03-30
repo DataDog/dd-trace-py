@@ -20,10 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def filter_none(attr, val):
-    return val is not None
-
-
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     def on_span_start(self, span):
@@ -49,7 +45,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         data = _context.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=filter_none)))
+            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:

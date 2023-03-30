@@ -10,6 +10,8 @@ from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
 
 if TYPE_CHECKING:
     from typing import Any
+    from typing import Dict
+    from typing import List
     from typing import Tuple
     from typing import Union
 
@@ -66,7 +68,7 @@ def clear_taint_mapping():  # type: () -> None
     set_taint_dict({})
 
 
-def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[list[dict[str, Union[Any, int]]], list[Input_info]]
+def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Input_info]]
     value_parts = []
     sources = []
     current_pos = 0
