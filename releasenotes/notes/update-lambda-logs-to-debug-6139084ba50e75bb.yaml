@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    aws_lambda: change logs to be debug, instead of warning or exception.
+    aws_lambda: Updates the level of warning and exception logs to debug. 
