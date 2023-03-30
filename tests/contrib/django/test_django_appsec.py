@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace import config
 from ddtrace._monkey import patch_iast
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -388,7 +389,9 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(
+        dict(_appsec_enabled=True, _iast_enabled=True)
+    ), _asm_request_context.asm_request_context_manager():
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)

@@ -35,6 +35,7 @@ _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=None)
 _DD_WAF_SENT = contextvars.ContextVar("datadog_waf_adress_sent", default=None)
 _DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default=None)
+_CONTEXT_CALLBACKS = contextvars.ContextVar("datadog_iast_taint_dict", default=None)
 
 _CONTEXTVAR_DEFAULT_FACTORIES = [
     (_REQUEST_HTTP_IP, lambda: None),
@@ -45,6 +46,7 @@ _CONTEXTVAR_DEFAULT_FACTORIES = [
     (_DD_WAF_RESULTS, lambda: [[], [], []]),
     (_DD_WAF_SENT, set),
     (_DD_IAST_TAINT_DICT, dict),
+    (_CONTEXT_CALLBACKS, list),
 ]
 
 
@@ -55,8 +57,14 @@ class _Data_handler:
             self.tokens.append(var.set(factory()))
 
     def finalise(self):
+        for function in _CONTEXT_CALLBACKS.get():
+            function()
         for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
             var.reset(token)
+
+
+def add_callback(function):  # type: (Any) -> None
+    _CONTEXT_CALLBACKS.get().append(function)
 
 
 def set_ip(ip):  # type: (Optional[str]) -> None

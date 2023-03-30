@@ -213,7 +213,6 @@ class _DDWSGIMiddlewareBase(object):
             resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
             self._response_span_modifier(resp_span, closing_iterator)
-
             return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
