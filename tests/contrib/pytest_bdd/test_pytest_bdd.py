@@ -3,8 +3,10 @@ import os
 
 import pytest
 
-from ddtrace import Pin
+import ddtrace
+from ddtrace.ci_visibility import CIVisibility
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -27,13 +29,14 @@ class TestPytest(TracerTestCase):
     def inline_run(self, *args):
         """Execute test script with test tracer."""
 
-        class PinTracer:
+        class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
-                if Pin.get_from(config) is not None:
-                    Pin.override(config, tracer=self.tracer)
+                assert not CIVisibility.enabled
+                if is_enabled(config):
+                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[PinTracer()])
+        return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
