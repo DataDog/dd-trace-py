@@ -28,7 +28,8 @@ from .constants import VERSION_KEY
 from .context import Context
 from .ext import http
 from .ext import net
-from .internal import _rand
+from .internal._rand import rand64bits as _rand64bits
+from .internal._rand import rand128bits as _rand128bits
 from .internal.compat import NumericType
 from .internal.compat import StringIO
 from .internal.compat import ensure_text
@@ -37,6 +38,7 @@ from .internal.compat import iteritems
 from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
+from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
@@ -48,6 +50,18 @@ _MetaDictType = Dict[_TagNameType, Text]
 _MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
+
+
+def _get_64_lowest_order_bits_as_int(large_int):
+    # type: (int) -> int
+    """Get the 64 lowest order bits from a 128bit integer"""
+    return _MAX_UINT_64BITS & large_int
+
+
+def _get_64_highest_order_bits_as_hex(large_int):
+    # type: (int) -> str
+    """Get the 64 highest order bits from a 128bit integer"""
+    return "{:032x}".format(large_int)[:16]
 
 
 class Span(object):
@@ -137,8 +151,13 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits()  # type: int
-        self.span_id = span_id or _rand.rand64bits()  # type: int
+        if trace_id is not None:
+            self.trace_id = trace_id  # type: int
+        elif config._128_bit_trace_id_enabled:
+            self.trace_id = _rand128bits()
+        else:
+            self.trace_id = _rand64bits()
+        self.span_id = span_id or _rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
@@ -175,6 +194,10 @@ class Span(object):
         if not self._store:
             return None
         return self._store.get(key)
+
+    @property
+    def _trace_id_64bits(self):
+        return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
     def start(self):
