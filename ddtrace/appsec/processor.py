@@ -217,7 +217,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if not _asm_request_context.in_context():
             new_asm_context = _asm_request_context.asm_request_context_manager()
             new_asm_context.__enter__()
-            span.context._meta["ASM_CONTEXT"] = new_asm_context  # type: ignore
+            span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
         ctx = self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
@@ -388,6 +388,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if headers_req:
             _set_headers(span, headers_req, kind="response")
 
-        new_asm_context = span.context._meta.get("ASM_CONTEXT", None)
+        new_asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
         if new_asm_context is not None:
             new_asm_context.__exit__()  # type: ignore
