@@ -15,6 +15,7 @@ import msgpack
 import pytest
 import six
 
+import ddtrace
 from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
@@ -32,6 +33,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.span import Span
 from tests.utils import DummyTracer
 
@@ -242,12 +244,16 @@ class TestEncoders(TestCase):
         ]
 
         encoder = CIAppEncoderV0()
-        payload = encoder.encode_traces(traces, config)
+        payload = encoder.encode_traces(traces, config=config, library_version=ddtrace.__version__)
         assert isinstance(payload, string_type)
         decoded = json.loads(payload)
         assert decoded["version"] == 1
-        expected_metadata = {"*": {"runtime-id": "foobar", "language": "python", "env": config.env}}
-        assert decoded["metadata"] == expected_metadata
+        assert len(decoded["metadata"]) == 1
+        star_metadata = decoded["metadata"]["*"]
+        assert star_metadata["language"] == "python"
+        assert star_metadata["env"] == config.env
+        assert star_metadata["runtime-id"] == get_runtime_id()
+        assert star_metadata["library_version"] == ddtrace.__version__
         received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
         assert len(received_events) == 6
         all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)

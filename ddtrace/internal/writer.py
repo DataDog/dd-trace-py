@@ -258,7 +258,7 @@ class CIAppWriter(periodic.PeriodicService, TraceWriter):
         self.buffer.extend(spans)
 
     def _encode_buffer(self):
-        return self.encoder.encode_traces([self.buffer])
+        return self.encoder.encode_traces([self.buffer], config=config, library_version=ddtrace.__version__)
 
     def flush_queue(self):
         # type: () -> None

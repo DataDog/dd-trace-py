@@ -12,6 +12,7 @@ from .compat import PY3
 from .compat import binary_type
 from .compat import ensure_text
 from .logger import get_logger
+from .runtime import get_runtime_id
 
 
 __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
@@ -159,12 +160,14 @@ class JSONEncoderV2(JSONEncoder):
 class CIAppEncoderV0(JSONEncoderV2):
     content_type = "application/json"
 
-    def encode_traces(self, traces, config=None):
+    def encode_traces(self, traces, config=None, library_version=None):
         # type: (List[List[Span]]) -> str
         normalized_spans = [CIAppEncoderV0._convert_span(span) for trace in traces for span in trace]
-        metadata = {"*": {"language": "python", "runtime-id": "foobar"}}
+        metadata = {"*": {"language": "python", "runtime-id": get_runtime_id()}}
         if config is not None:
             metadata["*"]["env"] = config.env
+        if library_version is not None:
+            metadata["*"]["library_version"] = library_version
         return self.encode({"version": 1, "metadata": metadata, "events": normalized_spans})
 
     @staticmethod
