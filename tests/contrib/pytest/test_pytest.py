@@ -19,7 +19,7 @@ from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
-def assert_encoded_format(wrapped):
+def assert_encoding(wrapped):
     def wrap_test_function(self, *args, **kwargs):
         spans = wrapped(self, *args, **kwargs)
         expected = CIAppEncoderV0().encode_traces([spans])
@@ -126,7 +126,7 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
 
-    @assert_encoded_format
+    @assert_encoding
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
