@@ -38,24 +38,7 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-class SubModules(object):
-    LAMBDA = "lambda"
-    SQS = "sqs"
-    EVENTS = "events"
-    KINESIS = "kinesis"
-    SNS = "sns"
-
-    @classmethod
-    def get_params(cls):
-        return [attr.lower() for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")]
-
-    @classmethod
-    def filter_params(cls, submodules):
-        available_submodules = set(cls.get_params())
-        return [submodule for submodule in submodules if submodule in available_submodules]
-
-
-_PATCHED_SUB_MODULES = set()  # type: Set[SubModules]
+_PATCHED_SUB_MODULES = set()  # type: Set[str]
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
@@ -339,7 +322,7 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
-    _PATCHED_SUB_MODULES.update(SubModules.get_params())
+    _PATCHED_SUB_MODULES.clear()
 
 
 def unpatch():
@@ -351,9 +334,9 @@ def unpatch():
 
 def patch_sub_modules(sub_modules):
     if isinstance(sub_modules, bool) and sub_modules:
-        _PATCHED_SUB_MODULES.update(SubModules.get_params())
+        _PATCHED_SUB_MODULES.clear()
     elif isinstance(sub_modules, list):
-        _PATCHED_SUB_MODULES.update(SubModules.filter_params(sub_modules))
+        _PATCHED_SUB_MODULES.update(sub_modules)
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -363,6 +346,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+
+    if _PATCHED_SUB_MODULES and endpoint_name not in _PATCHED_SUB_MODULES:
+        return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
@@ -384,19 +370,19 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             if config.botocore["distributed_tracing"]:
                 try:
-                    if endpoint_name == SubModules.LAMBDA and operation == "Invoke":
+                    if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
-                    if endpoint_name == SubModules.SQS and operation == "SendMessage":
+                    if endpoint_name == "sqs" and operation == "SendMessage":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
-                    if endpoint_name == SubModules.SQS and operation == "SendMessageBatch":
+                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
-                    if endpoint_name == SubModules.EVENTS and operation == "PutEvents":
+                    if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
-                    if endpoint_name == SubModules.KINESIS and (operation == "PutRecord" or operation == "PutRecords"):
+                    if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
-                    if endpoint_name == SubModules.SNS and operation == "Publish":
+                    if endpoint_name == "sns" and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
-                    if endpoint_name == SubModules.SNS and operation == "PublishBatch":
+                    if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
