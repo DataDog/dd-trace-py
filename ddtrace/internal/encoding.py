@@ -157,7 +157,26 @@ class JSONEncoderV2(JSONEncoder):
 
 
 class CIAppEncoderV0(JSONEncoderV2):
-    pass
+    content_type = "application/json"
+
+    def encode_traces(self, traces, config=None):
+        # type: (List[List[Span]]) -> str
+        normalized_spans = [CIAppEncoderV0._convert_span(span) for trace in traces for span in trace]
+        metadata = {"*": {"language": "python", "runtime-id": "foobar"}}
+        if config is not None:
+            metadata["*"]["env"] = config.env
+        return self.encode({"version": 1, "metadata": metadata, "events": normalized_spans})
+
+    @staticmethod
+    def _convert_span(span):
+        # type: (Span) -> Dict[str, Any]
+        sp = JSONEncoderV2._convert_span(span)
+        sp["type"] = span.span_type
+        sp["duration"] = span.duration_ns
+        sp["meta"] = dict(sorted(span._meta.items()))
+        sp["metrics"] = dict(sorted(span._metrics.items()))
+        del sp["error"]
+        return {"version": 1, "type": "span", "content": sp}
 
 
 MSGPACK_ENCODERS = {

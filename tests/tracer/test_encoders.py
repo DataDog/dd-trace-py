@@ -15,6 +15,7 @@ import msgpack
 import pytest
 import six
 
+from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -24,6 +25,7 @@ from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
+from ddtrace.internal.encoding import CIAppEncoderV0
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -222,6 +224,52 @@ class TestEncoders(TestCase):
                 assert "client.testing" == items[i][j]["name"]
                 assert isinstance(items[i][j]["span_id"], string_type)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
+
+    def test_encode_traces_ciapp_v0(self):
+        traces = [
+            [
+                Span(name="client.testing", span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
+            ],
+            [
+                Span(name="client.testing", span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
+            ],
+            [
+                Span(name=b"client.testing", span_id=0xAAAAAA),
+                Span(name=b"client.testing", span_id=0xAAAAAA),
+            ],
+        ]
+
+        encoder = CIAppEncoderV0()
+        payload = encoder.encode_traces(traces, config)
+        assert isinstance(payload, string_type)
+        decoded = json.loads(payload)
+        assert decoded["version"] == 1
+        expected_metadata = {"*": {"runtime-id": "foobar", "language": "python", "env": config.env}}
+        assert decoded["metadata"] == expected_metadata
+        received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
+        assert len(received_events) == 6
+        all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
+        for given_span, received_event in zip(all_spans, received_events):
+            expected_event = {
+                "type": "span",
+                "version": 1,
+                "content": {
+                    "name": JSONEncoder._normalize_str(given_span.name),
+                    "resource": JSONEncoder._normalize_str(given_span.resource),
+                    "service": JSONEncoder._normalize_str(given_span.service),
+                    "start": given_span.start_ns,
+                    "duration": given_span.duration_ns,
+                    "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
+                    "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
+                    "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
+                    "type": given_span.span_type,
+                    "meta": dict(sorted(given_span._meta.items())),
+                    "metrics": dict(sorted(given_span._metrics.items())),
+                },
+            }
+            assert expected_event == received_event
 
     def test_encode_traces_msgpack_v03(self):
         # test encoding for MsgPack format
@@ -650,7 +698,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     assert unpacked is not None
 
 
-@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2"]})
+@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2", "CIAppEncoderV0"]})
 def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
@@ -677,8 +725,8 @@ def test_json_encoder_traces_bytes():
         ]
     )
     traces = json.loads(data)
-    if encoder_class_name == "JSONEncoderV2":
-        traces = traces["traces"]
+    if isinstance(encoder, encoding.JSONEncoderV2):
+        traces = traces["events"]
 
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
