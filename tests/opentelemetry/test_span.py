@@ -129,7 +129,7 @@ def test_otel_get_span_context(oteltracer):
     assert span_context.is_remote is False
     # By default ddtrace set sampled=True for all spans
     assert span_context.trace_flags == TraceFlags.SAMPLED
-    # Default tracestate values set on all Datadog Spans (Note - these values may change)
+    # Default tracestate values set on all Datadog Spans
     assert span_context.trace_state.to_header() == "dd=s:1;t.dm:-0"
 
 
