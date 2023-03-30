@@ -3,7 +3,6 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import collections
-from dataclasses import dataclass
 import json
 import os
 import typing
@@ -39,21 +38,20 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-@dataclass(frozen=True)
-class SubModules:
-    LAMBDA: str = "lambda"
-    SQS: str = "sqs"
-    EVENTS: str = "events"
-    KINESIS: str = "kinesis"
-    SNS: str = "sns"
+class SubModules(object):
+    LAMBDA = "lambda"
+    SQS = "sqs"
+    EVENTS = "events"
+    KINESIS = "kinesis"
+    SNS = "sns"
 
     @classmethod
     def get_params(cls):
-        return [field.name.lower() for field in cls.__dataclass_fields__.values()]
+        return [attr.lower() for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")]
 
     @classmethod
     def filter_params(cls, submodules):
-        available_submodules = cls.get_params()
+        available_submodules = set(cls.get_params())
         return [submodule for submodule in submodules if submodule in available_submodules]
 
 
