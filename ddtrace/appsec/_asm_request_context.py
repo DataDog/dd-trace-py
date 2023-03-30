@@ -52,11 +52,13 @@ _CONTEXTVAR_DEFAULT_FACTORIES = [
 
 class _Data_handler:
     def __init__(self):
+        log.error("INIT %s", id(self))
         self.tokens = []
         for var, factory in _CONTEXTVAR_DEFAULT_FACTORIES:
             self.tokens.append(var.set(factory()))
 
     def finalise(self):
+        log.error("FINAL %s", id(self))
         for function in _CONTEXT_CALLBACKS.get():
             function()
         for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
