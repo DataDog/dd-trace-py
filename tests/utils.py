@@ -491,11 +491,13 @@ class DummyCIAppWriter(DummyWriterMixin, CIAppWriter):
     def __init__(self, *args, **kwargs):
         CIAppWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
+        self._encoded = None
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
-        if spans:
-            self.encoder.extend(spans)
+        CIAppWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        self._encoded = self._encode_buffer()
 
 
 class DummyTracer(Tracer):

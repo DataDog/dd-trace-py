@@ -156,6 +156,10 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
+class CIAppEncoderV0(JSONEncoderV2):
+    pass
+
+
 MSGPACK_ENCODERS = {
     "v0.3": MsgpackEncoderV03,
     "v0.4": MsgpackEncoderV03,

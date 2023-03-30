@@ -35,6 +35,7 @@ from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
+from .encoding import CIAppEncoderV0
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
@@ -238,7 +239,8 @@ class CIAppWriter(periodic.PeriodicService, TraceWriter):
         # type: (...) -> None
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self.encoder = []
+        self.encoder = CIAppEncoderV0()
+        self.buffer = []
 
     def recreate(self):
         # type: () -> CIAppWriter
@@ -253,10 +255,16 @@ class CIAppWriter(periodic.PeriodicService, TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
+        self.buffer.extend(spans)
+
+    def _encode_buffer(self):
+        return self.encoder.encode_traces([self.buffer])
 
     def flush_queue(self):
         # type: () -> None
-        pass
+        payload = self._encode_buffer()
+        self.buffer = []
+        return payload
 
 
 class AgentWriter(periodic.PeriodicService, TraceWriter):

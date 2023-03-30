@@ -6,22 +6,26 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.internal.encoding import CIAppEncoderV0
 from tests.utils import DummyCIAppWriter
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
 def assert_encoded_format(wrapped):
-    def wrap_test_function(*args, **kwargs):
-        result = wrapped(*args, **kwargs)
-        assert len(result) > 0
-        return result
+    def wrap_test_function(self, *args, **kwargs):
+        spans = wrapped(self, *args, **kwargs)
+        expected = CIAppEncoderV0().encode_traces([spans])
+        assert len(self.tracer._writer._encoded) == len(expected)
+        assert self.tracer._writer._encoded == expected
+        return spans
 
     return wrap_test_function
 
