@@ -117,17 +117,15 @@ async def test_module_patching(mocker, context):
 
 
 @pytest.mark.parametrize(
-    "handler",
+    "handler,function_name",
     [
-        ({"function_name": "static_handler", "value": static_handler}),
-        ({"function_name": "class_handler", "value": class_handler}),
-        ({"function_name": "instance_handler", "value": instance_handler}),
+        (static_handler, "static_handler"),
+        (class_handler, "class_handler"),
+        (instance_handler, "instance_handler"),
     ],
 )
 @pytest.mark.snapshot
-def test_class_based_handlers(context, handler):
-    function_name = handler["function_name"]
-    _handler = handler["value"]
+def test_class_based_handlers(context, handler, function_name):
     os.environ.update(
         {
             "AWS_LAMBDA_FUNCTION_NAME": function_name,
@@ -137,5 +135,5 @@ def test_class_based_handlers(context, handler):
 
     patch()
 
-    result = datadog(_handler)({}, context())
+    result = datadog(handler)({}, context())
     assert result == {"success": True}
