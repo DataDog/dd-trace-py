@@ -30,7 +30,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.botocore.patch import patch, patch_sub_modules
+from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import patch_sub_modules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
