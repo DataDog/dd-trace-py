@@ -249,13 +249,16 @@ class TestEncoders(TestCase):
         decoded = json.loads(payload)
         assert decoded["version"] == 1
         assert len(decoded["metadata"]) == 1
+
         star_metadata = decoded["metadata"]["*"]
         assert star_metadata["language"] == "python"
         assert star_metadata["env"] == config.env
         assert star_metadata["runtime-id"] == get_runtime_id()
         assert star_metadata["library_version"] == ddtrace.__version__
+
         received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
         assert len(received_events) == 6
+
         all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
         for given_span, received_event in zip(all_spans, received_events):
             expected_event = {
@@ -264,6 +267,7 @@ class TestEncoders(TestCase):
                 "content": {
                     "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
                     "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
+                    "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
                     "name": JSONEncoder._normalize_str(given_span.name),
                     "resource": JSONEncoder._normalize_str(given_span.resource),
                     "service": JSONEncoder._normalize_str(given_span.service),
@@ -272,10 +276,9 @@ class TestEncoders(TestCase):
                     "duration": given_span.duration_ns,
                     "meta": dict(sorted(given_span._meta.items())),
                     "metrics": dict(sorted(given_span._metrics.items())),
+                    "error": 0,
                 },
             }
-            if given_span.span_type != "test":
-                expected_event["content"]["parent_id"] = JSONEncoderV2._encode_id_to_hex(given_span.parent_id)
             assert expected_event == received_event
 
     def test_encode_traces_msgpack_v03(self):

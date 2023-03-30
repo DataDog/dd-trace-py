@@ -178,10 +178,8 @@ class CIAppEncoderV0(JSONEncoderV2):
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
-        del sp["error"]
         if span.span_type == "test":
             event_type = "test"
-            del sp["parent_id"]
         else:
             event_type = "span"
         return {"version": 1, "type": event_type, "content": sp}
