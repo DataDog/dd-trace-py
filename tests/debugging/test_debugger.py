@@ -457,7 +457,7 @@ def create_stuff_line_metric_probe(kind, value=None):
         kind=kind,
         name="test.counter",
         tags={"foo": "bar"},
-        value=value,
+        value=DDExpression(dsl="test", callable=dd_compile(value)) if value is not None else None,
     )
 
 
@@ -471,7 +471,7 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
 
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(40)
         assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
@@ -479,7 +479,7 @@ def test_debugger_metric_probe_count_value(mock_metrics):
 
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(41)
         assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
@@ -487,7 +487,7 @@ def test_debugger_metric_probe_guage_value(mock_metrics):
 
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(42)
         assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
@@ -495,7 +495,7 @@ def test_debugger_metric_probe_histogram_value(mock_metrics):
 
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(43)
         assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
