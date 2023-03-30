@@ -18,7 +18,7 @@ log = get_logger(__name__)
 
 
 class TracedAsyncCursor(TracedCursor):
-    async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
+    async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
@@ -60,7 +60,7 @@ class TracedAsyncCursor(TracedCursor):
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
 
-    async def executemany(self, query, *args, **kwargs):  # noqa
+    async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
         # Always return the result as-is
@@ -79,7 +79,7 @@ class TracedAsyncCursor(TracedCursor):
             **kwargs
         )
 
-    async def execute(self, query, *args, **kwargs):  # noqa
+    async def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
 
@@ -101,21 +101,21 @@ class TracedAsyncCursor(TracedCursor):
 class FetchTracedAsyncCursor(TracedAsyncCursor):
     """FetchTracedAsyncCursor for psycopg"""
 
-    async def fetchone(self, *args, **kwargs):  # noqa
+    async def fetchone(self, *args, **kwargs):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return await self._trace_method(
             self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
-    async def fetchall(self, *args, **kwargs):  # noqa
+    async def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return await self._trace_method(
             self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
-    async def fetchmany(self, *args, **kwargs):  # noqa
+    async def fetchmany(self, *args, **kwargs):
         """Wraps the cursor.fetchmany method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
         # We want to trace the information about how many rows were requested. Note that this number may be larger
@@ -137,7 +137,7 @@ class TracedAsyncConnection(TracedConnection):
     traced_cursor_cls = TracedCursor
     traced_fetch_cursor_cls = FetchTracedCursor
 
-    async def __aenter__(self):  # noqa
+    async def __aenter__(self):
         """Context management is not defined by the dbapi spec.
 
         This means unfortunately that the database clients each define their own
@@ -179,7 +179,7 @@ class TracedAsyncConnection(TracedConnection):
             # of the original.
             return r
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
@@ -188,7 +188,7 @@ class TracedAsyncConnection(TracedConnection):
         # and finally, yield the traced cursor.
         return self
 
-    async def _trace_method(self, method, name, extra_tags, *args, **kwargs):  # noqa
+    async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return await method(*args, **kwargs)
@@ -201,10 +201,10 @@ class TracedAsyncConnection(TracedConnection):
 
             return await method(*args, **kwargs)
 
-    async def commit(self, *args, **kwargs):  # noqa
+    async def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
         return await self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
-    async def rollback(self, *args, **kwargs):  # noqa
+    async def rollback(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "rollback")
         return await self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
