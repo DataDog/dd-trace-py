@@ -183,8 +183,8 @@ class LoggingTestCase(TracerTestCase):
         output, span = capture_function_log(generate_log_in_span)
         assert span.trace_id > MAX_UINT_64BITS
         assert output.startswith(
-            "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
-                "", "", "", span._trace_id_64bits, span.span_id
+            "Hello! - dd.service= dd.version= dd.env= dd.trace_id={} dd.span_id={}".format(
+                span._trace_id_64bits, span.span_id
             )
         ), output
 
