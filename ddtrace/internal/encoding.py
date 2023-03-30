@@ -179,7 +179,12 @@ class CIAppEncoderV0(JSONEncoderV2):
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
         del sp["error"]
-        return {"version": 1, "type": "span", "content": sp}
+        if span.span_type == "test":
+            event_type = "test"
+            del sp["parent_id"]
+        else:
+            event_type = "span"
+        return {"version": 1, "type": event_type, "content": sp}
 
 
 MSGPACK_ENCODERS = {

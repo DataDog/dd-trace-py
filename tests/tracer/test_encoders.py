@@ -238,8 +238,8 @@ class TestEncoders(TestCase):
                 Span(name="client.testing", span_id=0xAAAAAA),
             ],
             [
-                Span(name=b"client.testing", span_id=0xAAAAAA),
-                Span(name=b"client.testing", span_id=0xAAAAAA),
+                Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
+                Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
             ],
         ]
 
@@ -259,22 +259,23 @@ class TestEncoders(TestCase):
         all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
         for given_span, received_event in zip(all_spans, received_events):
             expected_event = {
-                "type": "span",
+                "type": "test" if given_span.span_type == "test" else "span",
                 "version": 1,
                 "content": {
+                    "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
+                    "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
                     "name": JSONEncoder._normalize_str(given_span.name),
                     "resource": JSONEncoder._normalize_str(given_span.resource),
                     "service": JSONEncoder._normalize_str(given_span.service),
+                    "type": given_span.span_type,
                     "start": given_span.start_ns,
                     "duration": given_span.duration_ns,
-                    "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
-                    "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
-                    "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
-                    "type": given_span.span_type,
                     "meta": dict(sorted(given_span._meta.items())),
                     "metrics": dict(sorted(given_span._metrics.items())),
                 },
             }
+            if given_span.span_type != "test":
+                expected_event["content"]["parent_id"] = JSONEncoderV2._encode_id_to_hex(given_span.parent_id)
             assert expected_event == received_event
 
     def test_encode_traces_msgpack_v03(self):
