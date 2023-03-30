@@ -35,7 +35,8 @@ _DD_WAF_CALLBACK = contextvars.ContextVar("datadog_early_waf_callback", default=
 _DD_WAF_RESULTS = contextvars.ContextVar("datadog_early_waf_results", default=None)
 _DD_WAF_SENT = contextvars.ContextVar("datadog_waf_adress_sent", default=None)
 _DD_IAST_TAINT_DICT = contextvars.ContextVar("datadog_iast_taint_dict", default=None)
-_CONTEXT_CALLBACKS = contextvars.ContextVar("datadog_iast_taint_dict", default=None)
+_CONTEXT_CALLBACKS = contextvars.ContextVar("asm_context_finalise_callbacks", default=None)
+_IN_CONTEXT = contextvars.ContextVar("asm_is_inside_context", default=False)
 
 _CONTEXTVAR_DEFAULT_FACTORIES = [
     (_REQUEST_HTTP_IP, lambda: None),
@@ -47,7 +48,12 @@ _CONTEXTVAR_DEFAULT_FACTORIES = [
     (_DD_WAF_SENT, set),
     (_DD_IAST_TAINT_DICT, dict),
     (_CONTEXT_CALLBACKS, list),
+    (_IN_CONTEXT, lambda: True),
 ]
+
+
+def in_context():
+    return _IN_CONTEXT.get()
 
 
 class _Data_handler:
