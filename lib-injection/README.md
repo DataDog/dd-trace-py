@@ -8,18 +8,19 @@ changes to the application image.
 
 The `Dockerfile` is the image that is published for `ddtrace` which is used
 as a Kubernetes InitContainer. It gets run before Kubernetes deployment pods
-start.
+start. The container is responsible for providing the files necessary to run
+`ddtrace` in an arbitrary downstream application container. The container also
+provides a script to copy the necessary files to a given directory.
 
-The container is responsible for providing the files necessary to run `ddtrace`
-in an arbitrary downstream application container. The container also provides a
-script to copy the necessary files to a given directory.
+To get a portable package of `ddtrace` the script `dl_megawheel.py` is used. It
+is responsible for downloading and merging the published wheels of `ddtrace` and
+its dependencies.
 
 The Datadog Admission Controller injects the InitContainer with a new volume
 mount to the application deployment. The script to copy files out of the
 InitContainer is run to copy the files to the volume. The `PYTHONPATH`
 environment variable is injected into the application container along with the
 volume mount.
-
 
 The files copied to the volume are:
 

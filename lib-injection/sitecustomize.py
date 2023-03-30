@@ -23,7 +23,7 @@ _add_to_pythonpath(bootstrap_dir)
 
 try:
     import ddtrace.bootstrap.sitecustomize  # noqa: F401
-except ImportError as e:
+except BaseException as e:
     print("datadog autoinstrumentation: ddtrace failed to install:\n %s" % str(e))
 else:
     print("datadog autoinstrumentation: ddtrace successfully installed")

@@ -70,7 +70,7 @@ jobs:
           cd lib-injection
           mkdir -p lib-injection/ddtrace_pkgs
           cp sitecustomize.py lib-injection/
-          ./dl_wheels.py \
+          ./dl_megawheel.py \
             --ddtrace-version=v1.10 \
             --python-version=3.11 \
             --python-version=3.10 \
@@ -96,6 +96,7 @@ jobs:
             -e PYTHONPATH=/lib-injection \
             -v $PWD/lib-injection:/lib-injection \
             ${{matrix.variant}}
+          # Wait for the app to start
           sleep 5
           docker logs ${{matrix.variant}}
       - name: Test the app

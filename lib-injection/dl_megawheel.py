@@ -2,7 +2,10 @@
 """
 Script to download all required wheels (including dependencies) of the ddtrace
 Python package for relevant Python versions (+ abis), C library platforms and
-architectures.
+architectures and merge them into a "megawheel" directory.
+
+This directory provides a portable installation of ddtrace which can be used
+on multiple platforms and architectures.
 
 Currently the only OS supported is Linux.
 
@@ -10,7 +13,7 @@ This script has been tested with 21.0.0 and is confirmed to not work with
 20.0.2.
 
 Usage:
-        ./dl_wheels.py --help
+        ./dl_megawheel.py --help
 
 
 The downloaded wheels can then be installed locally using:
@@ -74,8 +77,13 @@ print("saving wheels to %s" % dl_dir)
 for python_version, arch, platform in itertools.product(args.python_version, args.arch, args.platform):
     print("Downloading %s %s %s wheel" % (python_version, arch, platform))
     abi = "cp%s" % python_version.replace(".", "")
+    # Have to special-case these versions of Python for some reason.
     if python_version in ["2.7", "3.5", "3.6", "3.7"]:
         abi += "m"
+
+    # See the docs for an explanation of all the options used:
+    # https://pip.pypa.io/en/stable/cli/pip_download/
+    #   only-binary=:all: is specified to ensure we get all the dependencies of ddtrace as well.
     cmd = [
         sys.executable,
         "-m",
@@ -97,8 +105,12 @@ for python_version, arch, platform in itertools.product(args.python_version, arg
 
     if not args.dry_run:
         subprocess.run(cmd, capture_output=not args.verbose, check=True)
+
+        # Unzip all the wheels into the output directory
         wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
         for whl in wheel_files:
             wheel_file = os.path.join(dl_dir, whl)
+            # -q for quieter output, else we get all of the files being unzipped.
             subprocess.run(["unzip", "-q", "-o", wheel_file, "-d", dl_dir])
+            # Remove the wheel as it has been unpacked
             os.remove(wheel_file)
