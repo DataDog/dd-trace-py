@@ -1,3 +1,6 @@
+import base64
+import datetime
+import hashlib
 from contextlib import contextmanager
 import json
 from multiprocessing.pool import ThreadPool
@@ -32,11 +35,13 @@ def _build_env():
 
 
 @contextmanager
-def gunicorn_server():
+def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true"):
     cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
     env = _build_env()
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
+    if appsec_enabled:
+        env["DD_APPSEC_ENABLED"] = appsec_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL")
     server_process = subprocess.Popen(
         cmd,
@@ -91,25 +96,99 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def _block_ip():
+def _1_click_activation():
+    path_1 = "datadog/2/ASM_FEATURES/blocked_users/config"
+    msg_1 = {"asm": {"enabled": True}}
     client = _get_agent_client()
     client.request(
         "POST",
         "/test/session/responses/config/path",
-        json.dumps(
+        json.dumps({"path": path_1, "msg": msg_1}),
+    )
+    resp = client.getresponse()
+    assert resp.status == 202
+
+
+def _block_ip():
+    expires_date = datetime.datetime.strftime(
+        datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
+    )
+    path_1 = "datadog/2/ASM_FEATURES/blocked_users/config"
+    path_2 = "datadog/2/ASM_DATA/blocked_users/config"
+    msg_1 = {"asm": {"enabled": True}}
+    msg_2 = {
+        "rules_data": [
             {
-                "path": "datadog/2/ASM_DATA/blocked_users/config",
-                "msg": {
-                    "rules_data": [
-                        {
-                            "data": [{"expiration": int(time.time()) + 1000000, "value": "123.45.67.88"}],
-                            "id": "blocked_ips",
-                            "type": "ip_with_expiration",
-                        }
-                    ]
-                },
+                "data": [{"expiration": int(time.time()) + 1000000, "value": "123.45.67.88"}],
+                "id": "blocked_ips",
+                "type": "ip_with_expiration",
             }
-        ),
+        ]
+    }
+    msg_1_enc = bytes(json.dumps(msg_1), encoding="utf-8")
+    msg_2_enc = bytes(json.dumps(msg_2), encoding="utf-8")
+    data = {
+        "signatures": [{"keyid": "", "sig": ""}],
+        "signed": {
+            "_type": "targets",
+            "custom": {"opaque_backend_state": ""},
+            "expires": expires_date,
+            "spec_version": "1.0.0",
+            "targets": {
+                path_1: {
+                    "custom": {"c": [""], "v": 0},
+                    "hashes": {"sha256": hashlib.sha256(msg_1_enc).hexdigest()},
+                    "length": 24,
+                },
+                path_2: {
+                    "custom": {"c": [""], "v": 0},
+                    "hashes": {"sha256": hashlib.sha256(msg_2_enc).hexdigest()},
+                    "length": 24,
+                },
+            },
+            "version": 0,
+        },
+    }
+    remote_config_payload = {
+        "roots": [
+            str(
+                base64.b64encode(
+                    bytes(
+                        json.dumps(
+                            {
+                                "signatures": [],
+                                "signed": {
+                                    "_type": "root",
+                                    "consistent_snapshot": True,
+                                    "expires": "1986-12-11T00:00:00Z",
+                                    "keys": {},
+                                    "roles": {},
+                                    "spec_version": "1.0",
+                                    "version": 2,
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                ),
+                encoding="utf-8",
+            )
+        ],
+        "targets": str(base64.b64encode(bytes(json.dumps(data), encoding="utf-8")), encoding="utf-8"),
+        "target_files": [
+            {
+                "path": path_2,
+                "raw": str(base64.b64encode(msg_2_enc), encoding="utf-8"),
+            }
+        ],
+        "client_configs": [path_1, path_2],
+    }
+
+    client = _get_agent_client()
+    client.request(
+        "POST",
+        "/test/session/responses/config",
+        json.dumps(remote_config_payload),
     )
     resp = client.getresponse()
     assert resp.status == 202
@@ -131,29 +210,60 @@ def _request(client):
     return response
 
 
-def _multi_requests(client):
-    pool = ThreadPool(processes=9)
-    async_result = [pool.apply_async(_request, (client,)) for _ in range(100)]
+def _multi_requests(client, debug_mode=False):
+    if debug_mode:
+        results = [
+            _request(
+                client,
+            )
+            for _ in range(10)
+        ]
+    else:
+        pool = ThreadPool(processes=9)
+        results_async = [pool.apply_async(_request, (client,)) for _ in range(100)]
+        results = [res.get() for res in results_async]
 
-    return [res.get() for res in async_result]
+    return results
 
 
-def _request_200(client):
-    results = _multi_requests(client)
+def _request_200(client, debug_mode=False):
+    results = _multi_requests(client, debug_mode)
     for response in results:
+        print("response!!!!!!!!!!")
+        print(response)
         assert response.status_code == 200
         assert response.content == b"OK"
 
 
-def _request_403(client):
-    results = _multi_requests(client)
+def _request_403(client, debug_mode=False):
+    results = _multi_requests(client, debug_mode)
     for response in results:
+        print("response!!!!!!!!!!")
+        print(response)
         assert response.status_code == 403
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Run this tests in python 3.10 and 3.11")
-def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
+@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
+    with gunicorn_server(remote_configuration_enabled="false") as context:
+        _, gunicorn_client, pid = context
+
+        _request_200(gunicorn_client)
+
+        _block_ip()
+
+        time.sleep(3)
+
+        _request_200(gunicorn_client)
+
+        _unblock_ip()
+
+        time.sleep(2)
+
+
+@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+def test_load_testing_appsec_ip_blocking_gunicorn_block():
     with gunicorn_server() as context:
         _, gunicorn_client, pid = context
 
@@ -163,7 +273,29 @@ def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
 
         _request_200(gunicorn_client)
 
-        time.sleep(12)
+        time.sleep(3)
+
+        _request_403(gunicorn_client)
+
+        _unblock_ip()
+
+        time.sleep(2)
+
+        _request_200(gunicorn_client)
+
+
+@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
+    with gunicorn_server() as context:
+        _, gunicorn_client, pid = context
+
+        _request_200(gunicorn_client)
+
+        _block_ip()
+
+        _request_200(gunicorn_client)
+
+        time.sleep(3)
 
         _request_403(gunicorn_client)
 
@@ -173,6 +305,36 @@ def test_appsec_ip_blocking_gunicorn_many_workers_heavy_traffic():
 
         _unblock_ip()
 
-        time.sleep(3)
+        time.sleep(2)
 
         _request_200(gunicorn_client)
+
+
+@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
+    with gunicorn_server(appsec_enabled="") as context:
+        _, gunicorn_client, pid = context
+
+        _request_200(gunicorn_client, debug_mode=False)
+
+        _1_click_activation()
+
+        time.sleep(2)
+
+        _block_ip()
+
+        _request_200(gunicorn_client, debug_mode=False)
+
+        time.sleep(3)
+
+        _request_403(gunicorn_client, debug_mode=False)
+
+        os.kill(int(pid), signal.SIGTERM)
+
+        _request_403(gunicorn_client, debug_mode=False)
+
+        _unblock_ip()
+
+        time.sleep(2)
+
+        _request_200(gunicorn_client, debug_mode=False)

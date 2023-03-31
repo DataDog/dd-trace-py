@@ -3,11 +3,11 @@ Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
 import sys
-
+import logging
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 
-
+logging.basicConfig(level=logging.DEBUG)
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 import logging  # noqa

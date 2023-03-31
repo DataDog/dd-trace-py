@@ -46,24 +46,27 @@ def enable_appsec_rc(test_tracer=None):
         tracer = test_tracer
 
     asm_features_callback = PublisherListenerProxy(
-        RemoteConfigPublisher, _preprocess_results_appsec_1click_activation, _appsec_1click_activation
+        RemoteConfigPublisher, _preprocess_results_appsec_1click_activation, _appsec_1click_activation, "ASM_FEATURES"
     )
-    asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data)
-    asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data)
-
     if _appsec_rc_features_is_enabled():
         from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
+        log.info("[%s] STARTING asm_features_callback!!!!!!!!!!!!!!!!!" % os.getpid())
         asm_features_callback.listener.start()
 
     if tracer._appsec_enabled:
         from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 
+        asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data, "ASM")
+        asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data, "ASM_DD")
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
+        log.info("[%s] STARTING asm_callback!!!!!!!!!!!!!!!!!" % os.getpid())
         asm_callback.listener.start()
+        log.info("[%s] STARTING asm_dd_callback!!!!!!!!!!!!!!!!!" % os.getpid())
+        asm_dd_callback.listener.start()
 
 
 def _add_rules_to_list(features, feature, message, ruleset):
@@ -83,10 +86,10 @@ def _appsec_rules_data(features):
     # type: (Mapping[str, Any]) -> bool
     from ddtrace import tracer
 
-    print("[{}] _appsec_rules_data 1 !!!!!!!!!!!!".format(os.getpid()))
-    # print("DDWAF {}!!".format(tracer._appsec_processor._ddwaf))
+    log.info("[{}] _appsec_rules_data 1 !!!!!!!!!!!!".format(os.getpid()))
+    # log.info("DDWAF {}!!".format(tracer._appsec_processor._ddwaf))
     if features and tracer._appsec_processor:
-        print("[{}] _appsec_rules_data 2 !!!!!!!!!!!!".format(os.getpid()))
+        log.info("[{}] _appsec_rules_data 2 !!!!!!!!!!!!".format(os.getpid()))
         ruleset = {
             "rules": None,
             "rules_data": None,
@@ -98,7 +101,7 @@ def _appsec_rules_data(features):
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset)
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
-        # print("rulset rules {}!!!!".format(str(ruleset["rules"])[:100]))
+        # log.info("rulset rules {}!!!!".format(str(ruleset["rules"])[:100]))
         return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
     return False
@@ -117,15 +120,22 @@ def _preprocess_results_appsec_1click_activation(features):
         from ddtrace.appsec._constants import PRODUCTS
         from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 
-        log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
+        log.debug(
+            "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
+            os.getpid(),
+            os.getppid(),
+            rc_appsec_enabled,
+        )
 
         if rc_appsec_enabled:
-            asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data)
-            asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data)
+            asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data, "ASM PRE")
+            asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data, "ASM_DD PRE")
             remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
             remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
             remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
+            log.info("[%s][P: %s] STARTING asm_callback!!!!!!!!!!!!!!!!!", os.getpid(), os.getppid())
             asm_callback.listener.start()
+            log.info("[%s][P: %s] STARTING asm_dd_callback!!!!!!!!!!!!!!!!!", os.getpid(), os.getppid())
             asm_dd_callback.listener.start()
         else:
             remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)

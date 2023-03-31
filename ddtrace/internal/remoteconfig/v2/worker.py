@@ -52,6 +52,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
         self._state = self._agent_check
+        self._parent_id = os.getpid()
 
     def _agent_check(self):
         # type: () -> None
@@ -123,9 +124,14 @@ class RemoteConfigPoller(periodic.PeriodicService):
         by calling ``enable`` again.
         """
         self._enable = False
-        log.debug("[%s]remoteconfig_poller fork. Starting listeners", os.getpid())
+        log.debug(
+            "[%s][P: %s][P2: %s]  Remoteconfig_poller fork. Starting listeners!!!!!!!!!!!!!!!!",
+            os.getpid(),
+            os.getppid(),
+            self._parent_id,
+        )
         for listener in self._client._products.values():
-            listener.listener.start()
+            listener.listener.force_restart()
 
     def stop_listeners(self):
         # type: () -> None
@@ -133,7 +139,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
         Disable the remote config service and drop, remote config can be re-enabled
         by calling ``enable`` again.
         """
-        log.debug("[%s]remoteconfig_poller fork ends. Stopping listeners", os.getpid())
+        log.debug(
+            "[%s][P: %s][P2: %s] remoteconfig_poller fork ends. Stopping listeners",
+            os.getpid(),
+            os.getppid(),
+            self._parent_id,
+        )
         for publisher_listener_proxy in self._client._products.values():
             if hasattr(publisher_listener_proxy, "listener"):
                 publisher_listener_proxy.listener.stop()
@@ -154,6 +165,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
+        self.disable()
         self.stop(timeout)
 
     def _stop_service(

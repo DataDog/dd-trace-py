@@ -537,7 +537,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
-                    enable_appsec_rc()
+                    # enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 

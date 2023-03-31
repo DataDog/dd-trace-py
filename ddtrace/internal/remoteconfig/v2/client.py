@@ -17,7 +17,7 @@ from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 import uuid
-
+from multiprocessing import parent_process
 import attr
 import cattr
 import six
@@ -35,12 +35,7 @@ from ddtrace.internal.utils.time import parse_isoformat
 from ...compat import PY3
 from ...utils.version import _pep440_to_semver
 
-
-if PY3:
-    # For Python 3, use c_wchar_p instead of c_char_p
-    from ctypes import c_wchar_p as c_wchar_p
-else:
-    from ctypes import c_char_p as c_wchar_p
+from ctypes import c_char_p
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import MutableMapping
@@ -164,7 +159,8 @@ class RemoteConfigPublisher:
     _preprocess_results = None
 
     def __init__(self, preprocess_results):
-        self.shared_data = multiprocessing.Value(c_wchar_p, "{}")
+        self.lock = multiprocessing.Lock()
+        self.shared_data = multiprocessing.Value(c_char_p, base64.b64encode(b"{}"), lock=False)
         self._preprocess_results = preprocess_results
 
     def __call__(self, metadata, config):
@@ -173,8 +169,11 @@ class RemoteConfigPublisher:
             if self._preprocess_results:
                 config = self._preprocess_results(config)
             if type(config) == dict:
-                log.debug("[%s]: Publisher share data", os.getpid())
-                self.shared_data.value = json.dumps(config)
+                log.debug("[%s][P: %s] Publisher share data %s", os.getpid(), os.getppid(), str(config)[:100])
+                # self.shared_data.value = json.dumps(config)
+                with self.lock:
+                    self.shared_data.value = base64.b64encode(bytes(json.dumps(config), encoding="utf-8"))
+                    # self.shared_data.value = b'{"aaaa": {"bbbbb": "cccccc"}}'
         except Exception as e:
             log.debug("[%s]: Publisher error", os.getpid(), exc_info=True)
 
@@ -184,7 +183,8 @@ class RemoteConfigPublisherAfterMerge:
 
     def __init__(self, preprocess_results):
         self.configs = {}
-        self.shared_data = multiprocessing.Value(c_wchar_p, "{}")
+        self.lock = multiprocessing.Lock()
+        self.shared_data = multiprocessing.Value(c_char_p, base64.b64encode(b"{}"), lock=False)
         self._preprocess_results = preprocess_results
 
     def get_queue(self):
@@ -213,13 +213,17 @@ class RemoteConfigPublisherAfterMerge:
                     if isinstance(value, list):
                         config_result[key] = config_result.get(key, []) + value
                     else:
-                        raise ValueError("target %s key %s has type of %s.\nvalue %s" % (target, key, type(value), value))
+                        raise ValueError(
+                            "target %s key %s has type of %s.\nvalue %s" % (target, key, type(value), value)
+                        )
             if config_result:
                 result = copy.deepcopy(config_result)
                 if self._preprocess_results:
                     result = self._preprocess_results(result)
-                log.debug("[%s]: PublisherAfterMerge share data", os.getpid())
-                self.shared_data.value = json.dumps(result)
+                log.debug("[%s][P: %s] PublisherAfterMerge share data %s", os.getpid(), os.getppid(), str(result)[:100])
+                # self.shared_data.value = json.dumps(result)
+                with self.lock:
+                    self.shared_data.value = base64.b64encode(bytes(json.dumps(result), encoding="utf-8"))
         except Exception:
             log.debug("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)
 
@@ -227,31 +231,69 @@ class RemoteConfigPublisherAfterMerge:
 class Listener:
     _th_worker = None
 
-    def __init__(self, data, callback):
+    def __init__(self, data, callback, name):
         # self._queue = queue
         self.running = False
         self.shared_data = data
         self._callback = callback
+        self._name = name
+        log.debug("[%s] Listener %s init", os.getpid(), self._name)
 
     def _exec_callback(self):
-        data = json.loads(self.shared_data.value)
-        if data:
-            self._callback(data)
+        if self.shared_data.value:
+            data_raw = str(base64.b64decode(self.shared_data.value), encoding="utf-8")
+            if data_raw:
+                data = json.loads(data_raw)
+                if data:
+                    log.debug("[%s] Listener %s _exec_callback", os.getpid(), self._name)
+                    self._callback(data)
 
     def _worker(self):
         self.running = True
         checksum = 0
         while self.running:
             try:
-                last_checksum = hash(self.shared_data.value)
-                if last_checksum != checksum:
-                    checksum = hash(self.shared_data.value)
-                    self._exec_callback()
+                if self.shared_data.value:
+                    last_checksum = hash(self.shared_data.value)
+                    if last_checksum != checksum:
+                        log.debug(
+                            "[%s][P: %s] Listener %s worker ENCODED data: %s",
+                            os.getpid(),
+                            os.getppid(),
+                            self._name,
+                            self.shared_data.value,
+                        )
+                        decoded = base64.b64decode(self.shared_data.value)
+                        log.debug(
+                            "[%s][P: %s] Listener %s worker get data: %s",
+                            os.getpid(),
+                            os.getppid(),
+                            self._name,
+                            decoded[:100],
+                        )
+                        checksum = hash(self.shared_data.value)
+                        self._exec_callback()
+                    else:
+                        log.debug(
+                            "[%s][P: %s] Listener %s worker NO NEW DATA: %s",
+                            os.getpid(),
+                            os.getppid(),
+                            self._name,
+                            base64.b64decode(self.shared_data.value)[:100],
+                        )
             except Exception as e:
-                log.debug("[%s]: Listener error", os.getpid(), exc_info=True)
+                log.debug("[%s] Listener %s error", os.getpid(), self._name, exc_info=True)
             time.sleep(1)
 
     def start(self):
+        log.debug("[%s][P: %s] Listener %s start %s", os.getpid(), os.getppid(), self._name, self.running)
+        if not self.running:
+            self._th_worker = threading.Thread(target=self._worker)
+            self._th_worker.start()
+
+    def force_restart(self):
+        self.running = False
+        log.debug("[%s][P: %s] Listener %s force_restart %s", os.getpid(), os.getppid(), self._name, self.running)
         if not self.running:
             self._th_worker = threading.Thread(target=self._worker)
             self._th_worker.start()
@@ -263,9 +305,9 @@ class Listener:
 
 
 class PublisherListenerProxy:
-    def __init__(self, publisher, _preprocess_results, callback):
+    def __init__(self, publisher, _preprocess_results, callback, name="Default"):
         self.publisher = publisher(_preprocess_results)
-        self.listener = Listener(self.publisher.shared_data, callback)
+        self.listener = Listener(self.publisher.shared_data, callback, name)
 
 
 class RemoteConfigClient(object):
@@ -343,12 +385,14 @@ class RemoteConfigClient(object):
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
-            log.warning("Requesting RC data from products: %s", str(self._products))  # noqa: G200
+            log.debug(
+                "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
+            )  # noqa: G200
             self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = self._conn.getresponse()
             data = resp.read()
         except OSError as e:
-            log.warning("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
+            log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
         finally:
             self._conn.close()
@@ -358,7 +402,7 @@ class RemoteConfigClient(object):
             return None
 
         if resp.status < 200 or resp.status >= 300:
-            log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
+            log.debug("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
             return None
 
         return json.loads(data)
@@ -492,7 +536,7 @@ class RemoteConfigClient(object):
             callback = self._products.get(config.product_name)
             if callback:
                 try:
-                    log.debug("Disabling configuration: %s. ", target)
+                    log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
                     self._apply_callback(list_callbacks, callback, callback_action, target, config)
                 except Exception:
                     log.debug("error while removing product %s config %r", config.product_name, config)
@@ -516,7 +560,7 @@ class RemoteConfigClient(object):
                     continue
 
                 try:
-                    log.debug("Load new configuration: %s. content ", target)
+                    log.debug("[%s][P: %s] Load new configuration: %s. content", os.getpid(), os.getppid(), target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
                     error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
@@ -584,7 +628,13 @@ class RemoteConfigClient(object):
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug("Retrieved client configs last version %s: %s", last_targets_version, client_configs)
+        log.debug(
+            "[%s][P: %s] Retrieved client configs last version %s: %s",
+            os.getpid(),
+            os.getppid(),
+            last_targets_version,
+            client_configs,
+        )
 
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 
