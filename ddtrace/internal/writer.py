@@ -700,12 +700,11 @@ class CIAppWriter(HTTPWriter):
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
-        # Match the payload size since there is no functionality
-        # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
+        sync_mode=True,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -730,7 +729,7 @@ class CIAppWriter(HTTPWriter):
             max_payload_size=max_payload_size,
             timeout=timeout,
             dogstatsd=dogstatsd,
-            sync_mode=True,
+            sync_mode=sync_mode,
             reuse_connections=reuse_connections,
             headers=headers,
         )

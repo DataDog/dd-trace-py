@@ -70,10 +70,10 @@ class AgentWriterTests(BaseTestCase):
         statsd.increment.assert_not_called()
         statsd.distribution.assert_not_called()
 
-    def test_metrics_bad_endpoint(self, accepted_spans_factor=10):
+    def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             if writer.status != ServiceStatus.STOPPED:
@@ -82,8 +82,8 @@ class AgentWriterTests(BaseTestCase):
 
         statsd.distribution.assert_has_calls(
             [
-                mock.call("datadog.tracer.buffer.accepted.traces", 1 * accepted_spans_factor, tags=[]),
-                mock.call("datadog.tracer.buffer.accepted.spans", 5 * accepted_spans_factor, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
                 mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
@@ -117,17 +117,17 @@ class AgentWriterTests(BaseTestCase):
             any_order=True,
         )
 
-    def test_metrics_multi(self, accepted_spans_factor=10):
+    def test_metrics_multi(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.flush_queue()
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call("datadog.tracer.buffer.accepted.traces", 1 * accepted_spans_factor, tags=[]),
-                    mock.call("datadog.tracer.buffer.accepted.spans", 5 * accepted_spans_factor, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
                     mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                     mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
@@ -145,8 +145,8 @@ class AgentWriterTests(BaseTestCase):
 
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call("datadog.tracer.buffer.accepted.traces", 1 * accepted_spans_factor, tags=[]),
-                    mock.call("datadog.tracer.buffer.accepted.spans", 5 * accepted_spans_factor, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                    mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
                     mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                     mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
@@ -157,10 +157,7 @@ class AgentWriterTests(BaseTestCase):
     def test_write_sync(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            kwargs = {"dogstatsd": statsd}
-            if self.WRITER_CLASS == AgentWriter:
-                kwargs["sync_mode"] = True
-            writer = self.WRITER_CLASS("http://asdf:1234", **kwargs)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=True)
             writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
                 [
@@ -173,11 +170,11 @@ class AgentWriterTests(BaseTestCase):
                 any_order=True,
             )
 
-    def test_drop_reason_bad_endpoint(self, expected_call_count=1):
+    def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -185,9 +182,9 @@ class AgentWriterTests(BaseTestCase):
                 writer.stop()
             writer.join()
 
-            assert writer_metrics_reset.call_count == expected_call_count
+            assert writer_metrics_reset.call_count == 1
 
-            assert expected_call_count == writer._metrics["http.errors"]["count"]
+            assert 1 == writer._metrics["http.errors"]["count"]
             assert 10 == writer._metrics["http.dropped.traces"]["count"]
 
     def test_drop_reason_trace_too_big(self):
@@ -228,7 +225,7 @@ class AgentWriterTests(BaseTestCase):
             assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
             assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
-    def test_drop_reason_encoding_error(self, expected_call_count=1):
+    def test_drop_reason_encoding_error(self):
         n_traces = 10
         statsd = mock.Mock()
         writer_encoder = mock.Mock()
@@ -236,7 +233,7 @@ class AgentWriterTests(BaseTestCase):
         writer_metrics_reset = mock.Mock()
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             writer._encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
@@ -246,9 +243,9 @@ class AgentWriterTests(BaseTestCase):
                 writer.stop()
             writer.join()
 
-            assert writer_metrics_reset.call_count == expected_call_count
+            assert writer_metrics_reset.call_count == 1
 
-            assert 10 * expected_call_count == writer._metrics["encoder.dropped.traces"]["count"]
+            assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
 
     def test_keep_rate(self):
         statsd = mock.Mock()
@@ -329,18 +326,6 @@ class AgentWriterTests(BaseTestCase):
 
 class CIAppWriterTests(AgentWriterTests):
     WRITER_CLASS = CIAppWriter
-
-    def test_drop_reason_bad_endpoint(self, expected_call_count=1):
-        super(CIAppWriterTests, self).test_drop_reason_bad_endpoint(expected_call_count=10)
-
-    def test_drop_reason_encoding_error(self, expected_call_count=1):
-        super(CIAppWriterTests, self).test_drop_reason_encoding_error(expected_call_count=10)
-
-    def test_metrics_bad_endpoint(self, accepted_spans_factor=10):
-        super(CIAppWriterTests, self).test_metrics_bad_endpoint(accepted_spans_factor=1)
-
-    def test_metrics_multi(self, accepted_spans_factor=10):
-        super(CIAppWriterTests, self).test_metrics_multi(accepted_spans_factor=1)
 
     def test_drop_reason_buffer_full(self):
         pytest.skip()
