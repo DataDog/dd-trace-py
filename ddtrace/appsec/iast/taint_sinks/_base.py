@@ -1,6 +1,6 @@
+import os
 from typing import TYPE_CHECKING
 
-import os
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
@@ -71,6 +71,10 @@ class VulnerabilityBase(Operation):
             frame_info = get_info_frame(CWD)
             if frame_info:
                 file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = file_name[len(CWD) :]
 
                 if isinstance(evidence_value, (str, bytes, bytearray)):
                     evidence = Evidence(value=evidence_value)
