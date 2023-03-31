@@ -120,9 +120,10 @@ _b3_id_to_dd_id = _hex_id_to_dd_id
 
 def _dd_id_to_b3_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into hex ids"""
-    # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
-    # DEV: this gives us lowercase hex, which is what we want
+    """Helper to convert Datadog trace/span int ids into lower case hex values"""
+    if dd_id > _MAX_UINT_64BITS:
+        # b3 trace ids can be 64bit or 128bit: https://github.com/openzipkin/b3-propagation#traceid
+        return "{:032x}".format(dd_id)
     return "{:016x}".format(dd_id)
 
 
