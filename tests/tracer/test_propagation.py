@@ -1647,6 +1647,19 @@ INJECT_FIXTURES = [
         VALID_DATADOG_CONTEXT,
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1"},
     ),
+    # we want to make sure that if the Datadog trace_id or span_id is not
+    # the standard length int we'd expect, we pad the value with 0s so it's still a valid b3 header
+    (
+        "valid_b3_single_style_in_need_of_padding",
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        {
+            "trace_id": 123,
+            "span_id": 4567,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+        {_HTTP_HEADER_B3_SINGLE: "000000000000007b-00000000000011d7-1"},
+    ),
     (
         "valid_b3_single_style_user_keep",
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
