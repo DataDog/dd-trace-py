@@ -242,11 +242,45 @@ class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeCondi
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe]
+class SpanDecorationTargetSpan(object):
+    ROOT = "ROOT"
+    ACTIVE = "ACTIVE"
+
+
+@attr.s
+class SpanDecorationTag(object):
+    name = attr.ib(type=str)
+    value = attr.ib(type=DDExpression)
+
+
+@attr.s
+class SpanDecoration(object):
+    when = attr.ib(type=Optional[DDExpression])
+    tags = attr.ib(type=List[SpanDecorationTag])
+
+
+@attr.s
+class SpanDecorationMixin(object):
+    target_span = attr.ib(type=SpanDecorationTargetSpan)
+    decorations = attr.ib(type=List[SpanDecoration])
+
+
+@attr.s
+class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
+    pass
+
+
+@attr.s
+class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
+FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
 
 
 class ProbeType(object):
     LOG_PROBE = "LOG_PROBE"
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"
+    SPAN_DECORATE_PROBE = "SPAN_DECORATE_PROBE"

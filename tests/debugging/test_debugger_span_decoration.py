@@ -1,0 +1,191 @@
+import sys
+
+import ddtrace
+from ddtrace.debugging._expressions import dd_compile
+from ddtrace.debugging._probe.model import DDExpression
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import SpanDecoration
+from ddtrace.debugging._probe.model import SpanDecorationTag
+from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
+from tests.debugging.mocking import debugger
+from tests.debugging.utils import create_span_decoration_function_probe
+from tests.debugging.utils import create_span_decoration_line_probe
+from tests.utils import TracerTestCase
+
+
+class SpanDecorationProbeTestCase(TracerTestCase):
+    def setUp(self):
+        super(SpanDecorationProbeTestCase, self).setUp()
+
+        import tests.submod.traced_stuff as ts
+
+        self.traced_stuff = ts
+        self.backup_tracer = ddtrace.tracer
+        self.old_traceme = ts.traceme
+
+        ddtrace.tracer = self.tracer
+
+        ts.traceme = self.tracer.wrap(name="traceme", service="test")(ts.traceme)
+
+    def tearDown(self):
+        del sys.modules["tests.submod.traced_stuff"]
+        ddtrace.tracer = self.backup_tracer
+        super(SpanDecorationProbeTestCase, self).tearDown()
+
+    def test_debugger_span_decoration_probe_on_inner_function_active_span(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.traced_stuff",
+                    func_qname="inner",
+                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=DDExpression(dsl="test", callable=dd_compile(True)),
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "@return"}))],
+                        )
+                    ],
+                )
+            )
+
+            assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == "traceme"
+            assert span.get_tag("test.tag") == "42"
+
+    def test_debugger_span_decoration_probe_on_inner_function_active_span_unconditional(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.traced_stuff",
+                    func_qname="inner",
+                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=None,
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "@duration"}))],
+                        )
+                    ],
+                )
+            )
+
+            assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == "traceme"
+            assert int(span.get_tag("test.tag"))
+
+    def test_debugger_span_decoration_probe_in_inner_function_active_span(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_line_probe(
+                    probe_id="span-decoration",
+                    source_file="tests/submod/traced_stuff.py",
+                    line=2,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=DDExpression(dsl="test", callable=dd_compile(True)),
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                        )
+                    ],
+                )
+            )
+
+            assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == "traceme"
+            assert span.get_tag("test.tag") == "test.value"
+
+    def test_debugger_span_decoration_probe_on_traced_function_active_span(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.traced_stuff",
+                    func_qname="traceme",
+                    evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=DDExpression(dsl="test", callable=dd_compile(True)),
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                        )
+                    ],
+                )
+            )
+
+            assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == "traceme"
+            assert span.get_tag("test.tag") == "test.value"
+
+    def test_debugger_span_decoration_probe_in_traced_function_active_span(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_line_probe(
+                    probe_id="span-decoration",
+                    source_file="tests/submod/traced_stuff.py",
+                    line=7,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=DDExpression(dsl="test", callable=dd_compile(True)),
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                        )
+                    ],
+                )
+            )
+
+            assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == "traceme"
+            assert span.get_tag("test.tag") == "test.value"
+
+    def test_debugger_span_decoration_probe_in_traced_function_root_span(self):
+        with debugger() as d:
+            d.add_probes(
+                create_span_decoration_line_probe(
+                    probe_id="span-decoration",
+                    source_file="tests/submod/traced_stuff.py",
+                    line=7,
+                    target_span=SpanDecorationTargetSpan.ROOT,
+                    decorations=[
+                        SpanDecoration(
+                            when=DDExpression(dsl="test", callable=dd_compile(True)),
+                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "cake"}))],
+                        )
+                    ],
+                )
+            )
+
+            with self.tracer.trace("root") as root:
+                assert self.traced_stuff.traceme() == 42 << 1
+
+            self.assert_span_count(2)
+
+            parent, child = self.get_spans()
+
+            assert parent is root
+            assert parent.get_tag("test.tag") == "🍰"
+
+            assert child.name == "traceme"
+            assert child.get_tag("test.tag") is None
