@@ -4,10 +4,10 @@ import os
 import pytest
 
 import ddtrace
-from ddtrace.ci_visibility import CIVisibility
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility
 from tests.utils import TracerTestCase
 
 

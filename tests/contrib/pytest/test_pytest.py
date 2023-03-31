@@ -2,18 +2,16 @@ import json
 import os
 import sys
 
-import mock
 import pytest
 
 import ddtrace
-from ddtrace.ci_visibility import CIVisibility
-from ddtrace.ci_visibility._recorder import _extract_repository_name_from_url
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility
 from tests.utils import TracerTestCase
 
 
@@ -746,32 +744,3 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 2
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
-
-
-@pytest.mark.parametrize(
-    "repository_url,repository_name",
-    [
-        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
-        ("dd-trace-py", "dd-trace-py"),
-        ("git@hostname.com:org/repo-name.git", "repo-name"),
-        ("git@hostname.com:org/repo-name", "repo-name"),
-        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
-        ("git+git://github.com/org/repo-name.git", "repo-name"),
-        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
-        ("git+https://github.com/org/repo-name.git", "repo-name"),
-    ],
-)
-def test_repository_name_extracted(repository_url, repository_name):
-    assert _extract_repository_name_from_url(repository_url) == repository_name
-
-
-def test_repository_name_not_extracted_warning():
-    """If provided an invalid repository url, should raise warning and return original repository url"""
-    repository_url = "https://github.com:organ[ization/repository-name"
-    with mock.patch("ddtrace.ci_visibility._recorder.log") as mock_log:
-        extracted_repository_name = _extract_repository_name_from_url(repository_url)
-        assert extracted_repository_name == repository_url
-    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)

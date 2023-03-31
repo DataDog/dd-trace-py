@@ -1,0 +1,57 @@
+import mock
+import pytest
+
+from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
+from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from tests.utils import DummyTracer
+
+
+def test_ci_visibility_service_enable():
+    dummy_tracer = DummyTracer()
+    CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+    ci_visibility_instance = CIVisibility._instance
+    assert ci_visibility_instance is not None
+    assert CIVisibility.enabled
+    assert ci_visibility_instance.tracer == dummy_tracer
+    assert ci_visibility_instance._service == "test-service"
+    assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+    CIVisibility.disable()
+
+
+def test_ci_visibility_service_disable():
+    dummy_tracer = DummyTracer()
+    CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+    CIVisibility.disable()
+    ci_visibility_instance = CIVisibility._instance
+    assert ci_visibility_instance is None
+    assert not CIVisibility.enabled
+
+
+@pytest.mark.parametrize(
+    "repository_url,repository_name",
+    [
+        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
+        ("dd-trace-py", "dd-trace-py"),
+        ("git@hostname.com:org/repo-name.git", "repo-name"),
+        ("git@hostname.com:org/repo-name", "repo-name"),
+        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
+        ("git+git://github.com/org/repo-name.git", "repo-name"),
+        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
+        ("git+https://github.com/org/repo-name.git", "repo-name"),
+    ],
+)
+def test_repository_name_extracted(repository_url, repository_name):
+    assert _extract_repository_name_from_url(repository_url) == repository_name
+
+
+def test_repository_name_not_extracted_warning():
+    """If provided an invalid repository url, should raise warning and return original repository url"""
+    repository_url = "https://github.com:organ[ization/repository-name"
+    with mock.patch("ddtrace.internal.ci_visibility.recorder.log") as mock_log:
+        extracted_repository_name = _extract_repository_name_from_url(repository_url)
+        assert extracted_repository_name == repository_url
+    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)

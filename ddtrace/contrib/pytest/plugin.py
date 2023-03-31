@@ -6,7 +6,6 @@ from typing import Dict
 import pytest
 
 import ddtrace
-from ddtrace.ci_visibility import CIVisibility
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -15,6 +14,7 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal import compat
+from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -86,24 +86,24 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     if is_enabled(session.config):
-        CIVisibility.enable(config=ddtrace.config.pytest)
+        _CIVisibility.enable(config=ddtrace.config.pytest)
 
 
 def pytest_sessionfinish(session, exitstatus):
     if is_enabled(session.config):
-        CIVisibility.disable()
+        _CIVisibility.disable()
 
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    if CIVisibility.enabled:
+    if _CIVisibility.enabled:
         return _extract_span(request.node)
 
 
 @pytest.fixture(scope="session")
 def ddtracer():
-    if CIVisibility.enabled:
-        return CIVisibility._instance.tracer
+    if _CIVisibility.enabled:
+        return _CIVisibility._instance.tracer
     return ddtrace.tracer
 
 
@@ -115,13 +115,13 @@ def patch_all(request):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
-    if not CIVisibility.enabled:
+    if not _CIVisibility.enabled:
         yield
         return
 
-    with CIVisibility._instance.tracer.trace(
+    with _CIVisibility._instance.tracer.trace(
         ddtrace.config.pytest.operation_name,
-        service=CIVisibility._instance._service,
+        service=_CIVisibility._instance._service,
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
     ) as span:
@@ -137,7 +137,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
 
         if item.location and item.location[0]:
-            CIVisibility.set_codeowners_of(item.location[0], span=span)
+            _CIVisibility.set_codeowners_of(item.location[0], span=span)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
@@ -173,7 +173,7 @@ def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""
     outcome = yield
 
-    if not CIVisibility.enabled:
+    if not _CIVisibility.enabled:
         return
 
     span = _extract_span(item)

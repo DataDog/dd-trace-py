@@ -5,12 +5,11 @@ from typing import Optional
 
 import ddtrace
 from ddtrace import Tracer
-from ddtrace.ci_visibility._filters import TraceCiVisibilityFilter
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
+from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -71,11 +70,10 @@ class CIVisibility(Service):
             return
         log.debug("Enabling %s", cls.__name__)
 
-        cls._instance = recorder = cls(tracer=tracer, config=config, service=service)
+        cls._instance = cls(tracer=tracer, config=config, service=service)
         cls.enabled = True
 
-        recorder.start()
-        forksafe.register(cls._restart)
+        cls._instance.start()
         atexit.register(cls.disable)
 
         log.debug("%s enabled", cls.__name__)
@@ -87,8 +85,6 @@ class CIVisibility(Service):
             log.debug("%s not enabled", cls.__name__)
             return
         log.debug("Disabling %s", cls.__name__)
-
-        forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
 
         cls._instance.stop()
@@ -110,21 +106,6 @@ class CIVisibility(Service):
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
-
-    @classmethod
-    def _restart(cls):
-        # type: () -> None
-        log.info("Restarting %s in child process", cls.__name__)
-        if cls._instance is not None:
-            tracer = cls._instance.tracer
-            config = cls._instance.config
-            service = cls._instance._service
-        else:
-            tracer = None
-            config = None
-            service = None
-        cls.disable()
-        cls.enable(tracer=tracer, config=config, service=service)
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
