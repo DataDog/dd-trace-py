@@ -161,7 +161,10 @@ class CIAppEncoderV0(JSONEncoderV2):
     content_type = "application/json"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
-    def __init__(self, *args, metadata=None, max_size=-1, max_item_size=-1, **kwargs):
+    def __init__(self, *args, metadata=None, **kwargs):
+        for kwarg in ("max_size", "max_item_size"):
+            if kwarg in kwargs:
+                del kwargs[kwarg]
         super(CIAppEncoderV0, self).__init__(*args, **kwargs)
         self._init_buffer()
         self._metadata = metadata or dict()

@@ -39,8 +39,10 @@ from .agent import get_connection
 from .encoding import CIAppEncoderV0
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
+from .encoding import _EncoderBase
 from .logger import get_logger
 from .runtime import container
+from .runtime import get_runtime_id
 from .sma import SimpleMovingAverage
 
 
@@ -246,7 +248,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         endpoint,  # type: str
-        encoder_cls,  # type: Type
+        encoder,  # type: _EncoderBase
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -269,8 +271,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
-        self._buffer_size = buffer_size or get_writer_buffer_size()
-        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+        self._buffer_size = buffer_size
+        self._max_payload_size = max_payload_size
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -294,10 +296,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 }
             )
 
-        self._encoder = encoder_cls(
-            max_size=self._buffer_size,
-            max_item_size=self._max_payload_size,
-        )
+        self._encoder = encoder
         self._headers.update({"Content-Type": self._encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
@@ -622,13 +621,19 @@ class AgentWriter(HTTPWriter):
                 "Unsupported api version: '%s'. The supported versions are: %r"
                 % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
+        self._buffer_size = buffer_size or get_writer_buffer_size()
+        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+        encoder = encoder_cls(
+            max_size=self._buffer_size,
+            max_item_size=self._max_payload_size,
+        )
 
         endpoint = "%s/traces" % self._api_version
 
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             endpoint=endpoint,
-            encoder_cls=encoder_cls,
+            encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -707,10 +712,18 @@ class CIAppWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        encoder = CIAppEncoderV0(
+            metadata={
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
         super(CIAppWriter, self).__init__(
             intake_url=intake_url,
             endpoint="%s/traces",
-            encoder_cls=CIAppEncoderV0,
+            encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -730,8 +743,6 @@ class CIAppWriter(HTTPWriter):
             sampler=self._sampler,
             priority_sampler=self._priority_sampler,
             processing_interval=self._interval,
-            buffer_size=self._buffer_size,
-            max_payload_size=self._max_payload_size,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,

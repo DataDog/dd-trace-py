@@ -246,9 +246,6 @@ class TestEncoders(TestCase):
         encoder = CIAppEncoderV0(
             metadata={
                 "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
             }
         )
         for trace in traces:
@@ -261,9 +258,6 @@ class TestEncoders(TestCase):
 
         star_metadata = decoded["metadata"]["*"]
         assert star_metadata["language"] == "python"
-        assert star_metadata["env"] == config.env
-        assert star_metadata["runtime-id"] == get_runtime_id()
-        assert star_metadata["library_version"] == ddtrace.__version__
 
         received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
         assert len(received_events) == 6
