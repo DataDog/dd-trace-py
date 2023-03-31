@@ -34,7 +34,7 @@ def assert_encoding(wrapped):
 
 class TestPytest(TracerTestCase):
     def setUp(self):
-        self.tracer = DummyTracer(writer=DummyCIAppWriter())
+        self.tracer = DummyTracer(writer=DummyCIAppWriter("http://foo.bar"))
 
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch):
