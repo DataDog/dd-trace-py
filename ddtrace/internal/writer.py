@@ -707,7 +707,6 @@ class CIAppWriter(HTTPWriter):
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
-        sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
@@ -731,7 +730,7 @@ class CIAppWriter(HTTPWriter):
             max_payload_size=max_payload_size,
             timeout=timeout,
             dogstatsd=dogstatsd,
-            sync_mode=sync_mode,
+            sync_mode=True,
             reuse_connections=reuse_connections,
             headers=headers,
         )
