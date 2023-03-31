@@ -721,23 +721,23 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         _ = span._trace_id_64bits
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.span_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.parent_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.start_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.error
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
@@ -755,7 +755,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0: return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
             if ret != 0: return ret
-        
+
         ret = msgpack_pack_map(&self.pk, len(span._metrics))
         if ret != 0: return ret
         if span._metrics:
@@ -770,6 +770,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         return 0
 
+cdef class CIAppEncoderV01(MsgpackEncoderV03):
+    cpdef encode_with(self, metadata):
+        super(CIAppEncoderV01, self).encode()
+        # TODO add metadata
 
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer

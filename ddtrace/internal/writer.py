@@ -36,7 +36,7 @@ from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .encoding import CIAppEncoderV0
+from .encoding import CIAppEncoderV01
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .encoding import _EncoderBase
@@ -393,6 +393,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _downgrade(self, payload, response):
         raise NotImplementedError()
 
+    def _encode(self):
+        self._encoder.encode()
+
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
@@ -516,7 +519,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             n_traces = len(self._encoder)
             try:
-                encoded = self._encoder.encode()
+                encoded = self.encode()
                 if encoded is None:
                     return
             except Exception:
@@ -714,14 +717,17 @@ class CIAppWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
-        encoder = CIAppEncoderV0(
-            metadata={
-                "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
-            }
+        encoder = CIAppEncoderV01(
+            max_size=self._buffer_size,
+            max_item_size=self._max_payload_size,
         )
+        self._metadata = {
+            "language": "python",
+            "env": config.env,
+            "runtime-id": get_runtime_id(),
+            "library_version": ddtrace.__version__,
+        }
+
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY")
 
@@ -740,6 +746,9 @@ class CIAppWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
+
+    def _encode(self):
+        self._encoder.encode_with(self._metadata)
 
     def recreate(self):
         # type: () -> HTTPWriter

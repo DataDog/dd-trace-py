@@ -748,3 +748,10 @@ def test_trace_with_128bit_trace_ids():
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2 ** 64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
+
+
+def test_ciappwriter_metadata_included(endpoint_test_timeout_server, writer_class):
+    writer = CIAppWriter("http://localhost:9126", metadata={"*": {"language": "python"}})
+    writer._encoder.put([Span("foobar")])
+    payload = writer.encode_with_metadata()
+    assert decode(payload)["metadata"]["*"]["language"] == "python"

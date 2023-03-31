@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ._encoding import CIAppEncoderV01  # noqa
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05

@@ -26,7 +26,7 @@ from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
-from ddtrace.internal.encoding import CIAppEncoderV0
+from ddtrace.internal.encoding import CIAppEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -298,14 +298,6 @@ def decode(obj, reconstruct=True):
     return traces
 
 
-def decode_ciapp(obj, reconstruct=True):
-
-    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
-
-    if not unpacked or not unpacked[0]:
-        return unpacked
-
-
 def test_encode_traces_ciapp_v0():
     traces = [
         [
@@ -322,16 +314,16 @@ def test_encode_traces_ciapp_v0():
         ],
     ]
 
-    encoder = CIAppEncoderV0(
-        metadata={
+    encoder = CIAppEncoderV01(2 << 20, 2 << 20)
+    for trace in traces:
+        encoder.put(trace)
+    payload = encoder.encode_with(
+        {
             "language": "python",
         }
     )
-    for trace in traces:
-        encoder.put(trace)
-    payload = encoder.encode()
     assert isinstance(payload, string_type)
-    decoded = decode_ciapp(payload)
+    decoded = decode(payload)
     assert decoded["version"] == 1
     assert len(decoded["metadata"]) == 1
 
@@ -720,7 +712,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     assert unpacked is not None
 
 
-@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2", "CIAppEncoderV0"]})
+@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2", "CIAppEncoderV1"]})
 def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
