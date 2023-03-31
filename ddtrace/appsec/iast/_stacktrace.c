@@ -68,9 +68,9 @@ static PyObject *get_file_and_line(PyObject *Py_UNUSED(module),
       filename_o = GET_FILENAME(frame);
       filename = PyBytes_AsString(
           PyUnicode_AsEncodedString(filename_o, "utf-8", "surrogatepass"));
-      if (strstr(filename, cwd) == NULL &&
-          strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL &&
-          strstr(filename, TESTS_PREFIX) == NULL) {
+      if ((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL &&
+           strstr(filename, TESTS_PREFIX) == NULL) ||
+          strstr(filename, cwd) == NULL) {
         frame = GET_PREVIOUS(frame);
         continue;
       }
