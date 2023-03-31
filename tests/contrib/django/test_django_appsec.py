@@ -778,7 +778,7 @@ def test_request_suspicious_request_match_case_sensitive(client, test_spans, tra
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=query_string")
         assert root_span.get_tag(APPSEC.JSON) is None
-    # appsec disabled must not monitored
+    # appsec disabled must not be monitored
     with override_global_config(dict(_appsec_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=QUERY_STRING")
         assert root_span.get_tag(APPSEC.JSON) is None
