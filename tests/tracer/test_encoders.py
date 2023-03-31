@@ -227,63 +227,6 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], string_type)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
-    def test_encode_traces_ciapp_v0(self):
-        traces = [
-            [
-                Span(name="client.testing", span_id=0xAAAAAA),
-                Span(name="client.testing", span_id=0xAAAAAA),
-            ],
-            [
-                Span(name="client.testing", span_id=0xAAAAAA),
-                Span(name="client.testing", span_id=0xAAAAAA),
-            ],
-            [
-                Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
-                Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
-            ],
-        ]
-
-        encoder = CIAppEncoderV0(
-            metadata={
-                "language": "python",
-            }
-        )
-        for trace in traces:
-            encoder.put(trace)
-        payload = encoder.encode()
-        assert isinstance(payload, string_type)
-        decoded = json.loads(payload)
-        assert decoded["version"] == 1
-        assert len(decoded["metadata"]) == 1
-
-        star_metadata = decoded["metadata"]["*"]
-        assert star_metadata["language"] == "python"
-
-        received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
-        assert len(received_events) == 6
-
-        all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
-        for given_span, received_event in zip(all_spans, received_events):
-            expected_event = {
-                "type": "test" if given_span.span_type == "test" else "span",
-                "version": 1,
-                "content": {
-                    "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
-                    "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
-                    "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
-                    "name": JSONEncoder._normalize_str(given_span.name),
-                    "resource": JSONEncoder._normalize_str(given_span.resource),
-                    "service": JSONEncoder._normalize_str(given_span.service),
-                    "type": given_span.span_type,
-                    "start": given_span.start_ns,
-                    "duration": given_span.duration_ns,
-                    "meta": dict(sorted(given_span._meta.items())),
-                    "metrics": dict(sorted(given_span._metrics.items())),
-                    "error": 0,
-                },
-            }
-            assert expected_event == received_event
-
     def test_encode_traces_msgpack_v03(self):
         # test encoding for MsgPack format
         encoder = MsgpackEncoderV03(2 << 10, 2 << 10)
@@ -353,6 +296,72 @@ def decode(obj, reconstruct=True):
         traces = unpacked
 
     return traces
+
+
+def decode_ciapp(obj, reconstruct=True):
+
+    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+
+    if not unpacked or not unpacked[0]:
+        return unpacked
+
+
+def test_encode_traces_ciapp_v0():
+    traces = [
+        [
+            Span(name="client.testing", span_id=0xAAAAAA),
+            Span(name="client.testing", span_id=0xAAAAAA),
+        ],
+        [
+            Span(name="client.testing", span_id=0xAAAAAA),
+            Span(name="client.testing", span_id=0xAAAAAA),
+        ],
+        [
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
+        ],
+    ]
+
+    encoder = CIAppEncoderV0(
+        metadata={
+            "language": "python",
+        }
+    )
+    for trace in traces:
+        encoder.put(trace)
+    payload = encoder.encode()
+    assert isinstance(payload, string_type)
+    decoded = decode_ciapp(payload)
+    assert decoded["version"] == 1
+    assert len(decoded["metadata"]) == 1
+
+    star_metadata = decoded["metadata"]["*"]
+    assert star_metadata["language"] == "python"
+
+    received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
+    assert len(received_events) == 6
+
+    all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
+    for given_span, received_event in zip(all_spans, received_events):
+        expected_event = {
+            "type": "test" if given_span.span_type == "test" else "span",
+            "version": 1,
+            "content": {
+                "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
+                "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
+                "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
+                "name": JSONEncoder._normalize_str(given_span.name),
+                "resource": JSONEncoder._normalize_str(given_span.resource),
+                "service": JSONEncoder._normalize_str(given_span.service),
+                "type": given_span.span_type,
+                "start": given_span.start_ns,
+                "duration": given_span.duration_ns,
+                "meta": dict(sorted(given_span._meta.items())),
+                "metrics": dict(sorted(given_span._metrics.items())),
+                "error": 0,
+            },
+        }
+        assert expected_event == received_event
 
 
 def allencodings(f):
