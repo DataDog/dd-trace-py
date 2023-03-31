@@ -242,8 +242,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     should be in the same trace.
     """
 
-    RETRY_ATTEMPTS = 3
-
     def __init__(
         self,
         intake_url,  # type: str
@@ -373,7 +371,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new agent connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
-                self._conn.request("PUT", self._endpoint, data, headers)
+                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -576,6 +574,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentWriter(HTTPWriter):
+    RETRY_ATTEMPTS = 3
+    HTTP_METHOD = "PUT"
+
     def __init__(
         self,
         agent_url,  # type: str
@@ -694,6 +695,9 @@ class AgentWriter(HTTPWriter):
 
 
 class CIAppWriter(HTTPWriter):
+    RETRY_ATTEMPTS = 5
+    HTTP_METHOD = "PUT"
+
     def __init__(
         self,
         intake_url,  # type: str
@@ -718,9 +722,12 @@ class CIAppWriter(HTTPWriter):
                 "library_version": ddtrace.__version__,
             }
         )
+        headers = headers or dict()
+        headers["dd-api-key"] = os.environ.get("DD_API_KEY")
+
         super(CIAppWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="v0.5/traces",
+            endpoint="v0.5/traces",  # XXX
             encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
