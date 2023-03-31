@@ -40,8 +40,8 @@ tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py    @DataDog/asm-python
 
 # Profiling
-ddtrace/profiling                   @DataDog/apm-core-python @DataDog/debugger-python
-tests/profiling                     @DataDog/apm-core-python @DataDog/debugger-python
+ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
+tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
