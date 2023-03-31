@@ -36,6 +36,7 @@ class ProbeStatusLogger(object):
             "debugger": {
                 "diagnostics": {
                     "probeId": probe.probe_id,
+                    "probeVersion": probe.version,
                     "status": status,
                 }
             },

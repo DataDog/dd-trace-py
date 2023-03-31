@@ -6,6 +6,7 @@ import os
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -48,6 +49,37 @@ def test_inject(tracer):
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+@pytest.mark.parametrize(
+    "trace_id",
+    [
+        2 ** 128 - 1,
+        2 ** 127 + 1,
+        2 ** 65 - 1,
+        2 ** 64 + 1,
+        2 ** 127 + 2 ** 63,
+    ],
+)
+def test_inject_128bit_trace_id(tracer, trace_id):
+    # Get 64 least significant bits and convert result to a base 10 integer
+    trace_id_64bit = trace_id & 2 ** 64 - 1
+    # Get the hex representation of the 64 most signicant bits
+    trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
+
+    ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        assert span.trace_id == trace_id
+        assert span._trace_id_64bits == trace_id_64bit
+
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert trace_id_64bit == int(headers[HTTP_HEADER_TRACE_ID]) == span._trace_id_64bits, headers
+        # The ordering is non-deterministic, so compare as a list of tags
+        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+        assert "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]) in tags
 
 
 def test_inject_tags_unicode(tracer):
@@ -183,6 +215,48 @@ def test_extract(tracer):
                 "_dd.origin": "synthetics",
                 "_dd.p.test": "value",
             }
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"),
+    parametrize={
+        "TEST_TRACE_ID": [
+            str(2 ** 128 - 1),
+            str(2 ** 127 + 1),
+            str(2 ** 65 - 1),
+            str(2 ** 64 + 1),
+            str(2 ** 127 + 2 ** 63),
+        ]
+    },
+)
+def test_extract_128bit_trace_ids():
+    import os
+
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    trace_id = int(os.getenv("TEST_TRACE_ID"))
+    trace_id_64bit = trace_id & 2 ** 64 - 1
+    # Get the hex representation of the 64 most signicant bits
+    trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
+
+    headers = {
+        "x-datadog-trace-id": str(trace_id_64bit),
+        "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == trace_id
+        assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
+        with tracer.trace("child_span") as child_span:
+            assert child_span.trace_id == trace_id
 
 
 def test_extract_unicode(tracer):
