@@ -397,6 +397,9 @@ class PsycopgCore(TracerTestCase):
         # test string queries
         cursor.execute("select 'str blah'")
         cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
+        # test byte string queries
+        cursor.execute(b"select 'byte str blah'")
+        cursor.executemany(b"select %s", ((b"bstr_foo",), (b"bstr_bar",)))
         # test composed queries
         cursor.execute(SQL("select 'composed_blah'"))
         cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
@@ -418,9 +421,16 @@ class PsycopgCore(TracerTestCase):
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = "/*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
-        # test string queries
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
         cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        # test byte string queries
+        cursor.__wrapped__.reset_mock()
+        cursor.execute(b"select 'blah'")
+        cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
+        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
+        cursor.__wrapped__.executemany.assert_called_once_with(
+            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
+        )
         # test composed queries
         cursor.__wrapped__.reset_mock()
         cursor.execute(SQL("select 'blah'"))
