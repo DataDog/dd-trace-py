@@ -1,20 +1,18 @@
 from __future__ import absolute_import
 
 import sys
-import threading as ddtrace_threading
 import typing
 import weakref
 
 import attr
 from six.moves import _thread
 
+from ddtrace import _threading as ddtrace_threading
 
-cpdef get_thread_name(thread_id):
+
+cpdef get_thread_by_id(thread_id):
     # Do not force-load the threading module if it's not already loaded
-    if "threading" not in sys.modules:
-        return None
-
-    import threading
+    threading = sys.modules.get("threading", ddtrace_threading)
 
     # Look for all threads, including the ones we create
     for threading_mod in (threading, ddtrace_threading):
@@ -23,42 +21,34 @@ cpdef get_thread_name(thread_id):
         # we fail, it'll just be an anonymous thread because it's either
         # starting or dying.
         try:
-            return threading_mod._active[thread_id].name
+            return threading_mod._active[thread_id]
         except KeyError:
             try:
-                return threading_mod._limbo[thread_id].name
+                return threading_mod._limbo[thread_id]
             except KeyError:
                 pass
 
     return None
 
 
+cpdef get_thread_name(thread_id):
+    thread = get_thread_by_id(thread_id)
+    return thread.name if thread is not None else None
+
+
 cpdef get_thread_native_id(thread_id):
-    # Do not force-load the threading module if it's not already loaded
-    if "threading" not in sys.modules:
-        return None
-
-    import threading
-
-    try:
-        thread_obj = threading._active[thread_id]
-    except KeyError:
-        try:
-            thread_obj = ddtrace_threading._active[thread_id]
-        except KeyError:
-            # This should not happen, unless somebody started a thread without
-            # using the `threading` module.
-            # In that case, well… just use the thread_id as native_id 🤞
-            return thread_id
+    thread = get_thread_by_id(thread_id)
+    if thread is None:
+        return thread_id
 
     try:
         # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
         # for hashes since they are relative to the memory address which can easily be the same across different
         # objects.
-        return thread_obj.native_id
+        return thread.native_id
     except AttributeError:
         # Python < 3.8
-        return hash(thread_obj)
+        return hash(thread)
 
 
 # cython does not play well with mypy

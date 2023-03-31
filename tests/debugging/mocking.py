@@ -82,6 +82,10 @@ class TestDebugger(Debugger):
         # type: (Probe) -> None
         self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
 
+    def modify_probes(self, *probes):
+        # type: (Probe) -> None
+        self._on_configuration(ProbePollerEvent.MODIFIED_PROBES, probes)
+
     @property
     def test_queue(self):
         return self._collector.test_queue

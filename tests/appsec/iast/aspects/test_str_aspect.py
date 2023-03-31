@@ -33,7 +33,7 @@ def test_str_aspect(obj, kwargs):
     "obj, kwargs, should_be_tainted",
     [
         (3.5, {}, False),
-        (u"Hi", {}, True),
+        ("Hi", {}, True),
         ("🙀", {}, True),
         (b"Hi", {}, True),
         (bytearray(b"Hi"), {}, True),

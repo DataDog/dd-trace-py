@@ -525,7 +525,7 @@ class Debugger(Service):
                 )
                 self._probe_registry.set_error(probe, message)
                 log.error(message)
-                return
+                continue
 
             if hasattr(function, "__dd_wrappers__"):
                 # TODO: Check if this can be made into a set instead
@@ -611,6 +611,7 @@ class Debugger(Service):
                         # We didn't have the probe. This shouldn't have happened!
                         log.error("Modified probe %r was not found in registry.", probe)
                         continue
+                    self._probe_registry.update(probe)
 
             return
 
