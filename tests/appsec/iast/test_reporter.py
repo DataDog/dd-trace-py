@@ -9,19 +9,19 @@ from ddtrace.appsec.iast.reporter import Vulnerability
 
 def _do_assert_hash(e, f, g, e2):
     assert hash(e) == hash(e2)
-    assert hash(e) != hash(f) and hash(f) != hash(g) and hash(g) != hash(e)
+    assert hash(e2) != hash(g) and hash(f) != hash(g) and hash(g) != hash(e)
 
 
 def _do_assert_equality(e, f, g, e2):
     assert e == e2
-    assert e != f and f != g and g != e
+    assert e2 != g and f != g and g != e
 
 
 def test_evidence_hash_and_equality():
-    e = Evidence(type="SomeEvidenceType", value="SomeEvidenceValue")
-    f = Evidence(type="SomeOtherEvidenceType", value="SomeEvidenceValue")
-    g = Evidence(type="SomeEvidenceType", value="SomeOtherEvidenceValue")
-    e2 = Evidence(type="SomeEvidenceType", value="SomeEvidenceValue")
+    e = Evidence(value="SomeEvidenceValue")
+    f = Evidence(value="SomeEvidenceValue")
+    g = Evidence(value="SomeOtherEvidenceValue")
+    e2 = Evidence(value="SomeEvidenceValue")
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
@@ -38,9 +38,9 @@ def test_location_hash_and_equality():
 
 
 def test_vulnerability_hash_and_equality():
-    ev1 = Evidence(type="SomeEvidenceType", value="SomeEvidenceValue")
-    ev1bis = Evidence(type="SomeEvidenceType", value="SomeEvidenceValue")
-    ev2 = Evidence(type="SomeOtherEvidenceType", value="SomeEvidenceValue")
+    ev1 = Evidence(value="SomeEvidenceValue")
+    ev1bis = Evidence(value="SomeEvidenceValue")
+    ev2 = Evidence(value="SomeEvidenceValue")
 
     loc = Location(path="foobar.py", line=35, spanId=123)
 
