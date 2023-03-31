@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.contrib.aws_lambda import patch
