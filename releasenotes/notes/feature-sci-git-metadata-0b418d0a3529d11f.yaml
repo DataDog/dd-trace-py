@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    sci: Extracts and sends git metadata from environment variables ``DD_GIT_REPOSITORY_URL``, ``DD_GIT_COMMIT_SHA``,
+    or from the python package specified in the ``DD_MAIN_PACKAGE``.
+    This feature can be disabled by setting ``DD_TRACE_GIT_METADATA_ENABLED=False``.

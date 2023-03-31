@@ -6,7 +6,6 @@ from os.path import normpath
 from os.path import sep
 from os.path import splitdrive
 from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -172,7 +171,7 @@ class MetricProbeKind(object):
 class MetricProbeMixin(object):
     kind = attr.ib(type=str)
     name = attr.ib(type=str)
-    value = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]])
+    value = attr.ib(type=Optional[DDExpression])
 
 
 @attr.s
