@@ -22,7 +22,9 @@ from tests.utils import TracerTestCase
 def assert_encoding(wrapped):
     def wrap_test_function(self, *args, **kwargs):
         spans = wrapped(self, *args, **kwargs)
-        expected = CIAppEncoderV0().encode_traces([spans])
+        encoder = CIAppEncoderV0()
+        encoder.put(spans)
+        expected = encoder.encode()
         assert len(self.tracer._writer._encoded) == len(expected)
         assert self.tracer._writer._encoded == expected
         return spans

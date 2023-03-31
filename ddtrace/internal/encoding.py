@@ -159,16 +159,33 @@ class JSONEncoderV2(JSONEncoder):
 
 class CIAppEncoderV0(JSONEncoderV2):
     content_type = "application/json"
+    ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
-    def encode_traces(self, traces, config=None, library_version=None):
-        # type: (List[List[Span]]) -> str
-        normalized_spans = [CIAppEncoderV0._convert_span(span) for trace in traces for span in trace]
-        metadata = {"*": {"language": "python", "runtime-id": get_runtime_id()}}
-        if config is not None:
-            metadata["*"]["env"] = config.env
-        if library_version is not None:
-            metadata["*"]["library_version"] = library_version
-        return self.encode({"version": 1, "metadata": metadata, "events": normalized_spans})
+    def __init__(self, *args, metadata=None, max_size=-1, max_item_size=-1, **kwargs):
+        super(CIAppEncoderV0, self).__init__(*args, **kwargs)
+        self._init_buffer()
+        self._metadata = metadata or dict()
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def _init_buffer(self):
+        self.buffer = []
+
+    def put(self, spans):
+        self.buffer.extend(spans)
+
+    def encode(self):
+        payload = self._build_payload()
+        self._init_buffer()
+        return payload
+
+    def _build_payload(self):
+        normalized_spans = [CIAppEncoderV0._convert_span(span) for trace in [self.buffer] for span in trace]
+        self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
+        return super(CIAppEncoderV0, self).encode(
+            {"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans}
+        )
 
     @staticmethod
     def _convert_span(span):

@@ -243,8 +243,17 @@ class TestEncoders(TestCase):
             ],
         ]
 
-        encoder = CIAppEncoderV0()
-        payload = encoder.encode_traces(traces, config=config, library_version=ddtrace.__version__)
+        encoder = CIAppEncoderV0(
+            metadata={
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
+        for trace in traces:
+            encoder.put(trace)
+        payload = encoder.encode()
         assert isinstance(payload, string_type)
         decoded = json.loads(payload)
         assert decoded["version"] == 1

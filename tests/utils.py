@@ -497,7 +497,7 @@ class DummyCIAppWriter(DummyWriterMixin, CIAppWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIAppWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        self._encoded = self._encode_buffer()
+        self._encoded = self._encoder._build_payload()
 
 
 class DummyTracer(Tracer):

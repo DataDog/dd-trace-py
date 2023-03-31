@@ -231,43 +231,6 @@ class LogWriter(TraceWriter):
         pass
 
 
-class CIAppWriter(periodic.PeriodicService, TraceWriter):
-    def __init__(
-        self,
-        sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
-    ):
-        # type: (...) -> None
-        self._sampler = sampler
-        self._priority_sampler = priority_sampler
-        self.encoder = CIAppEncoderV0()
-        self.buffer = []
-
-    def recreate(self):
-        # type: () -> CIAppWriter
-        writer = self.__class__(sampler=self._sampler, priority_sampler=self._priority_sampler)
-        return writer
-
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
-        return
-
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
-        if not spans:
-            return
-        self.buffer.extend(spans)
-
-    def _encode_buffer(self):
-        return self.encoder.encode_traces([self.buffer], config=config, library_version=ddtrace.__version__)
-
-    def flush_queue(self):
-        # type: () -> None
-        payload = self._encode_buffer()
-        self.buffer = []
-        return payload
-
-
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to the Datadog Agent.
 
