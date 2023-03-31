@@ -156,8 +156,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, shou
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            if hasattr(imported_module, "patch_sub_modules"):
-                imported_module.patch_sub_modules(should_patch)
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_subsumodules(should_patch)
             telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import

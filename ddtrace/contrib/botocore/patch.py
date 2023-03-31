@@ -38,7 +38,7 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-_PATCHED_SUB_MODULES = set()  # type: Set[str]
+_PATCHED_SUBMODULES = set()  # type: Set[str]
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
@@ -322,22 +322,22 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
-    _PATCHED_SUB_MODULES.clear()
+    _PATCHED_SUBMODULES.clear()
 
 
 def unpatch():
-    _PATCHED_SUB_MODULES.clear()
+    _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
-def patch_sub_modules(sub_modules):
-    if isinstance(sub_modules, bool) and sub_modules:
-        _PATCHED_SUB_MODULES.clear()
-    elif isinstance(sub_modules, list):
-        sub_modules = [sub_module.lower() for sub_module in sub_modules]
-        _PATCHED_SUB_MODULES.update(sub_modules)
+def patch_submodules(submodules):
+    if isinstance(submodules, bool) and submodules:
+        _PATCHED_SUBMODULES.clear()
+    elif isinstance(submodules, list):
+        submodules = [sub_module.lower() for sub_module in submodules]
+        _PATCHED_SUBMODULES.update(submodules)
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -348,7 +348,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    if _PATCHED_SUB_MODULES and endpoint_name not in _PATCHED_SUB_MODULES:
+    if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
