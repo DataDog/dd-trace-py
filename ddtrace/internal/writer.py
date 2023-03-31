@@ -394,7 +394,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._reset_connection()
 
     def _downgrade(self, payload, response):
-        raise ValueError()
+        raise NotImplementedError()
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
