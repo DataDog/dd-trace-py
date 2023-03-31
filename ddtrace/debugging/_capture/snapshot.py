@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -145,14 +146,14 @@ class Snapshot(CapturedEvent):
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
 
-    def line(self, _locals=None, exc_info=(None, None, None)):
+    def line(self):
         if not isinstance(self.probe, LogLineProbe):
             return
 
         frame = self.frame
         probe = self.probe
 
-        if not self._eval_condition(_locals or frame.f_locals):
+        if not self._eval_condition(frame.f_locals):
             return
 
         if probe.take_snapshot:
@@ -162,10 +163,10 @@ class Snapshot(CapturedEvent):
 
             self.line_capture = _capture_context(
                 self.args or safety.get_args(frame),
-                list(_locals.items()) if _locals else safety.get_locals(frame),
-                exc_info,
+                safety.get_locals(frame),
+                sys.exc_info(),
                 limits=probe.limits,
             )
 
-        self._eval_message(_locals or frame.f_locals)
+        self._eval_message(frame.f_locals)
         self.state = CaptureState.DONE_AND_COMMIT

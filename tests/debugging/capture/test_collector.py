@@ -1,8 +1,8 @@
 import inspect
+import sys
 import threading
 from uuid import uuid4
 
-import attr
 import mock
 
 from ddtrace.debugging._capture.collector import CapturedEventCollector
@@ -10,22 +10,6 @@ from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._probe.model import DDExpression
 from tests.debugging.utils import create_snapshot_line_probe
-
-
-class MockLimiter:
-    def limit(self):
-        return
-
-
-@attr.s
-class MockFrame(object):
-    f_locals = attr.ib(type=dict)
-
-
-@attr.s
-class MockThread(object):
-    ident = attr.ib(type=int)
-    name = attr.ib(type=str)
 
 
 def mock_encoder(wraps=None):
@@ -41,33 +25,40 @@ def test_collector_cond():
 
     collector = CapturedEventCollector(encoder=encoder)
 
-    snapshot1 = Snapshot(
-        probe=create_snapshot_line_probe(
-            probe_id=uuid4(),
-            source_file="file.py",
-            line=123,
-            condition=DDExpression("a not null", lambda _: _["a"] is not None),
-        ),
-        frame=MockFrame(dict(a=42)),
-        args=[("a", 42)],
-        thread=MockThread(-1, "MainThread"),
-    )
-    snapshot1.line({"a": 42, "c": True})
-    collector.push(snapshot1)
+    def foo(a=42):
+        c = True  # noqa
+        snapshot = Snapshot(
+            probe=create_snapshot_line_probe(
+                probe_id=uuid4(),
+                source_file="file.py",
+                line=123,
+                condition=DDExpression("a not null", lambda _: _["a"] is not None),
+            ),
+            frame=sys._getframe(),
+            args=[("a", 42)],
+            thread=threading.current_thread(),
+        )
+        snapshot.line()
+        collector.push(snapshot)
 
-    snapshot2 = Snapshot(
-        probe=create_snapshot_line_probe(
-            probe_id=uuid4(),
-            source_file="file.py",
-            line=123,
-            condition=DDExpression("b not null", lambda _: _["b"] is not None),
-        ),
-        frame=MockFrame(dict(b=None)),
-        args=[("b", None)],
-        thread=MockThread(-2, "WorkerThread"),
-    )
-    snapshot2.line({"b": None, "c": True})
-    collector.push(snapshot2)
+    foo()
+
+    def bar(b=None):
+        snapshot = Snapshot(
+            probe=create_snapshot_line_probe(
+                probe_id=uuid4(),
+                source_file="file.py",
+                line=123,
+                condition=DDExpression("b not null", lambda _: _["b"] is not None),
+            ),
+            frame=sys._getframe(),
+            args=[("b", None)],
+            thread=threading.current_thread(),
+        )
+        snapshot.line()
+        collector.push(snapshot)
+
+    bar()
 
     encoder.put.assert_called_once()
 
