@@ -5,7 +5,8 @@ import attr
 
 @attr.s(eq=True, hash=True)
 class Evidence(object):
-    value = attr.ib(type=str, default="")
+    value = attr.ib(type=str, default=None)
+    valueParts = attr.ib(type=Set, default=None, hash=False)
 
 
 @attr.s(eq=True, hash=True)
@@ -23,7 +24,11 @@ class Vulnerability(object):
     hash = attr.ib(init=False, eq=False, hash=False)
 
     def __attrs_post_init__(self):
-        self.hash = hash(self.type) ^ hash(self.evidence) ^ hash(self.location)
+        if self.evidence.value is not None:
+            self.hash = hash(self.type) ^ hash(self.evidence) ^ hash(self.location)
+        else:
+            valueparts = (vp["value"] for vp in self.evidence.valueParts)
+            self.hash = hash(self.type) ^ hash(valueparts) ^ hash(self.location)
 
 
 @attr.s(eq=True, hash=True)
