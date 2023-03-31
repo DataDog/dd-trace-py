@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: add control which botocore submodules will be patched.
