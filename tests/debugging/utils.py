@@ -32,6 +32,7 @@ def compile_template(*args):
 def create_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("tags", dict())
+        kwargs.setdefault("version", 0)
         return f(*args, **kwargs)
 
     return _wrapper

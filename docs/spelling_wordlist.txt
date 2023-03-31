@@ -104,6 +104,7 @@ iterable
 JSON
 jinja
 js
+kafka
 kombu
 kubernetes
 kwarg
@@ -170,6 +171,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite
