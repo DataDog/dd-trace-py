@@ -135,7 +135,7 @@ class LoggingTestCase(TracerTestCase):
     )
     def test_log_trace(self):
         """
-        Check logging patched and formatter including trace info when 64bit trace ids are generated. 
+        Check logging patched and formatter including trace info when 64bit trace ids are generated.
         """
 
         def create_span():
