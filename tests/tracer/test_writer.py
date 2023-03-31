@@ -19,6 +19,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import CIAppWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
@@ -53,11 +54,12 @@ class DummyOutput:
 
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
+    WRITER_CLASS = AgentWriter
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
@@ -69,7 +71,7 @@ class AgentWriterTests(BaseTestCase):
     def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
@@ -89,7 +91,7 @@ class AgentWriterTests(BaseTestCase):
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write(
@@ -114,7 +116,7 @@ class AgentWriterTests(BaseTestCase):
     def test_metrics_multi(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.flush_queue()
@@ -150,7 +152,7 @@ class AgentWriterTests(BaseTestCase):
     def test_write_sync(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, sync_mode=True)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=True)
             writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
                 [
@@ -167,7 +169,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -183,7 +185,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -202,7 +204,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -223,7 +225,7 @@ class AgentWriterTests(BaseTestCase):
         writer_metrics_reset = mock.Mock()
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer._encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
@@ -242,7 +244,7 @@ class AgentWriterTests(BaseTestCase):
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer.run_periodic = writer_run_periodic
             writer._put = writer_put
 
@@ -311,6 +313,22 @@ class AgentWriterTests(BaseTestCase):
             # We had 4 successfully written, then 4 dropped, then 2 written.
             for trace in payload:
                 assert 0.6 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+
+
+class CIAppWriterTests(AgentWriterTests):
+    WRITER_CLASS = CIAppWriter
+
+    def test_drop_reason_buffer_full(self):
+        pytest.skip()
+
+    def test_drop_reason_trace_too_big(self):
+        pytest.skip()
+
+    def test_metrics_trace_too_big(self):
+        pytest.skip()
+
+    def test_keep_rate(self):
+        pytest.skip()
 
 
 class LogWriterTests(BaseTestCase):
@@ -462,27 +480,29 @@ def endpoint_assert_path():
         thread.join()
 
 
-def test_agent_url_path(endpoint_assert_path):
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_agent_url_path(endpoint_assert_path, writer_class):
     # test without base path
     endpoint_assert_path("/v0.")
-    writer = AgentWriter(agent_url="http://%s:%s/" % (_HOST, _PORT))
+    writer = writer_class("http://%s:%s/" % (_HOST, _PORT))
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
     # test without base path nor trailing slash
-    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _PORT))
+    writer = writer_class("http://%s:%s" % (_HOST, _PORT))
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
     # test with a base path
     endpoint_assert_path("/test/v0.")
-    writer = AgentWriter(agent_url="http://%s:%s/test/" % (_HOST, _PORT))
+    writer = writer_class("http://%s:%s/test/" % (_HOST, _PORT))
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
-def test_flush_connection_timeout_connect():
-    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, 2019))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_flush_connection_timeout_connect(writer_class):
+    writer = writer_class("http://%s:%s" % (_HOST, 2019))
     if PY3:
         exc_type = OSError
     else:
@@ -492,15 +512,17 @@ def test_flush_connection_timeout_connect():
         writer.flush_queue(raise_exc=True)
 
 
-def test_flush_connection_timeout(endpoint_test_timeout_server):
-    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
+    writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
         writer._encoder.put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
 
-def test_flush_connection_reset(endpoint_test_reset_server):
-    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _RESET_PORT))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
+    writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
     if PY3:
         exc_types = (httplib.BadStatusLine, ConnectionResetError)
     else:
@@ -510,14 +532,16 @@ def test_flush_connection_reset(endpoint_test_reset_server):
         writer.flush_queue(raise_exc=True)
 
 
-def test_flush_connection_uds(endpoint_uds_server):
-    writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_flush_connection_uds(endpoint_uds_server, writer_class):
+    writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
-def test_flush_queue_raise():
-    writer = AgentWriter(agent_url="http://dne:1234")
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_flush_queue_raise(writer_class):
+    writer = writer_class("http://dne:1234")
 
     # Should not raise
     writer.write([])
@@ -529,8 +553,9 @@ def test_flush_queue_raise():
         writer.flush_queue(raise_exc=True)
 
 
-def test_racing_start():
-    writer = AgentWriter(agent_url="http://dne:1234")
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_racing_start(writer_class):
+    writer = writer_class("http://dne:1234")
 
     def do_write(i):
         writer.write([Span(str(i))])
@@ -545,18 +570,20 @@ def test_racing_start():
     assert len(writer._encoder) == 100
 
 
-def test_additional_headers():
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_additional_headers(writer_class):
     with override_env(dict(_DD_TRACE_WRITER_ADDITIONAL_HEADERS="additional-header:additional-value,header2:value2")):
-        writer = AgentWriter(agent_url="http://localhost:9126")
+        writer = writer_class("http://localhost:9126")
         assert writer._headers["additional-header"] == "additional-value"
         assert writer._headers["header2"] == "value2"
 
 
-def test_bad_encoding(monkeypatch):
+@pytest.mark.parametrize("writer_class", (AgentWriter,))
+def test_bad_encoding(monkeypatch, writer_class):
     monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
 
     with pytest.raises(ValueError):
-        AgentWriter(agent_url="http://localhost:9126")
+        writer_class("http://localhost:9126")
 
 
 @pytest.mark.parametrize(
@@ -568,8 +595,9 @@ def test_bad_encoding(monkeypatch):
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],
 )
-def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
-    writer = AgentWriter(agent_url="http://dne:1234", api_version=init_api_version)
+@pytest.mark.parametrize("writer_class", (AgentWriter,))
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls, writer_class):
+    writer = writer_class("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
@@ -631,8 +659,9 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
         ("darwin", None, "v0.5", RateByServiceSampler(), False, "v0.5"),
     ],
 )
+@pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_writer_api_version_selection(
-    sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected, monkeypatch
+    sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected, monkeypatch, writer_class
 ):
     """test to verify that we are unable to select v0.5 api version when on a windows machine.
 
@@ -650,9 +679,7 @@ def test_writer_api_version_selection(
 
         try:
             # Create a new writer
-            writer = AgentWriter(
-                agent_url="http://dne:1234", api_version=api_version, priority_sampler=priority_sampler
-            )
+            writer = writer_class("http://dne:1234", api_version=api_version, priority_sampler=priority_sampler)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
@@ -660,19 +687,21 @@ def test_writer_api_version_selection(
                 pytest.fail("Raised RuntimeError when it was not expected")
 
 
-def test_writer_reuse_connections_envvar(monkeypatch):
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
-    writer = AgentWriter(agent_url="http://localhost:9126")
+    writer = writer_class("http://localhost:9126")
     assert not writer._reuse_connections
 
     monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "true")
-    writer = AgentWriter(agent_url="http://localhost:9126")
+    writer = writer_class("http://localhost:9126")
     assert writer._reuse_connections
 
 
-def test_writer_reuse_connections():
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_writer_reuse_connections(writer_class):
     # Ensure connection is not reused
-    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=True)
+    writer = writer_class("http://localhost:9126", reuse_connections=True)
     # Do an initial flush to get a connection
     writer.flush_queue()
     assert writer._conn is None
@@ -680,9 +709,10 @@ def test_writer_reuse_connections():
     assert writer._conn is None
 
 
-def test_writer_reuse_connections_false():
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+def test_writer_reuse_connections_false(writer_class):
     # Ensure connection is reused
-    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=False)
+    writer = writer_class("http://localhost:9126", reuse_connections=False)
     # Do an initial flush to get a connection
     writer.flush_queue()
     conn = writer._conn

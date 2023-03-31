@@ -722,7 +722,7 @@ class CIAppWriter(HTTPWriter):
         )
         super(CIAppWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="%s/traces",
+            endpoint="v0.5/traces",
             encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
