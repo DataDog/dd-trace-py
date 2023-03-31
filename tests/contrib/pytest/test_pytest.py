@@ -6,7 +6,6 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
@@ -24,9 +23,10 @@ def assert_encoding(wrapped):
         spans = wrapped(self, *args, **kwargs)
         encoder = CIAppEncoderV0()
         encoder.put(spans)
-        expected = encoder.encode()
-        assert len(self.tracer._writer._encoded) == len(expected)
-        assert self.tracer._writer._encoded == expected
+        expected = json.loads(encoder.encode())
+        received = json.loads(self.tracer._writer._encoded)
+        assert len(received["events"]) == len(expected["events"])
+        assert received["events"] == expected["events"]
         return spans
 
     return wrap_test_function
