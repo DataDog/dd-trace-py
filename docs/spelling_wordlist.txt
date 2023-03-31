@@ -171,6 +171,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite
