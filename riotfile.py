@@ -910,6 +910,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="django_celery",
+            command="pytest {cmdargs} tests/contrib/django_celery",
+            pkgs={
+                "django": "==2.2.1",
+                "sqlalchemy": "~=1.2.18",
+                "celery": "~=5.0.5",
+                "gevent": latest,
+                "requests": latest,
+            },
+            pys=select_pys(min_version="3.8"),
+        ),
+        Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
