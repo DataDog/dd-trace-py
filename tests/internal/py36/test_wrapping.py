@@ -159,10 +159,10 @@ async def test_wrap_async_generator_throw_close():
                 yield 1
 
     wrap(g, wrapper)
-    inspect.isasyncgenfunction(g)
+    assert inspect.isasyncgenfunction(g)
 
     gen = g()
-    inspect.isasyncgen(gen)
+    assert inspect.isasyncgen(gen)
 
     for _ in range(10):
         assert await gen.__anext__() == 0
