@@ -136,12 +136,16 @@ def _get_handler_and_module():
         handler = getattr(handler_module, handler_name)
 
         if callable(handler):
+            class_name = type(handler).__name__
+            is_function = not isinstance(handler, type) and hasattr(handler, "__code__") and class_name == "function"
             # handler is a function
-            if not isinstance(handler, type) and hasattr(handler, "__code__"):
+            if is_function:
                 return handler, handler_module, _datadog_instrumentation
 
             # handler must be either a class or an instance of a class
-            class_name = type(handler).__name__
+            #
+            # note: if a customer defines a class instance with `__code__` defined,
+            # we will prioritize the `__call__` method, ignoring `__code__`.
             class_module = getattr(handler_module, class_name)
             class_handler = getattr(class_module, "__call__")
 

@@ -62,9 +62,15 @@ class InstanceHandler:
             return {"success": True}
 
 
+class InstanceHandlerWithCode(InstanceHandler):
+    def __code__(self):
+        return
+
+
 static_handler = StaticHandler
 class_handler = ClassHandler
 instance_handler = InstanceHandler()
+instance_handler_with_code = InstanceHandlerWithCode()
 
 
 def datadog(_handler):

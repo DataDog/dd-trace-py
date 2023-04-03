@@ -7,6 +7,7 @@ from tests.contrib.aws_lambda.handlers import datadog
 from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler
 from tests.contrib.aws_lambda.handlers import handler
 from tests.contrib.aws_lambda.handlers import instance_handler
+from tests.contrib.aws_lambda.handlers import instance_handler_with_code
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
 from tests.contrib.aws_lambda.handlers import static_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
@@ -126,6 +127,7 @@ async def test_module_patching(mocker, context):
         (static_handler, "static_handler"),
         (class_handler, "class_handler"),
         (instance_handler, "instance_handler"),
+        (instance_handler_with_code, "instance_handler_with_code")
     ],
 )
 @pytest.mark.snapshot
