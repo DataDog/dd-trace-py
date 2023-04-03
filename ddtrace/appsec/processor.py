@@ -214,10 +214,15 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        if not _asm_request_context.in_context():
+
+        if _asm_request_context.free_context_available():
+            _asm_request_context.register(span)
+        else:
             new_asm_context = _asm_request_context.asm_request_context_manager()
-            new_asm_context.__enter__()
-            span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
+            resources = new_asm_context.__enter__()
+            span.context._meta["ASM_CONTEXT_%d" % id(span)] = resources  # type: ignore
+            _asm_request_context.register(span, True)
+
         ctx = self._ddwaf._at_request_start()
 
         peer_ip = _asm_request_context.get_ip()
@@ -388,6 +393,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if headers_req:
             _set_headers(span, headers_req, kind="response")
 
-        new_asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
-        if new_asm_context is not None:
-            new_asm_context.__exit__()  # type: ignore
+        resources = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
+        if resources is not None and resources.active:  # type: ignore
+            resources.finalize()  # type: ignore
