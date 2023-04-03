@@ -9,6 +9,7 @@ from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import time_ns
 
 
 if TYPE_CHECKING:
@@ -84,9 +85,9 @@ class Span(OtelSpan):
 
         :param end_time: The end time of the span, in nanoseconds. Defaults to ``now``.
         """
-        # end_time set in nanoseconds while Datadog finish_time is set in seconds
-        dd_finish_time = end_time if end_time is None else end_time / 1e9
-        self._ddspan.finish(dd_finish_time)
+        if end_time is None:
+            end_time = time_ns()
+        self._ddspan._finish_ns(end_time)
 
     @property
     def kind(self):
