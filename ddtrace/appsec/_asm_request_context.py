@@ -207,7 +207,6 @@ def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive
     set_headers(headers)
     set_headers_case_sensitive(headers_case_sensitive)
     set_block_request_callable(block_request_callable)
-    _DD_WAF_SENT.set(set())
 
 
 def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, bool) -> None
@@ -235,14 +234,7 @@ def asm_request_context_manager(
     # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[_Data_handler|None, None, None]
     if True or config._appsec_enabled:
         resources = _Data_handler()
-        # asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-        if remote_ip is not None:
-            set_ip(remote_ip)
-        if headers is not None:
-            set_headers(headers)
-        set_headers_case_sensitive(headers_case_sensitive)
-        if block_request_callable is not None:
-            set_block_request_callable(block_request_callable)
+        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         try:
             yield resources
         finally:
