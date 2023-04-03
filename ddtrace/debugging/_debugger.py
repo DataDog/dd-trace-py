@@ -398,9 +398,14 @@ class Debugger(Service):
 
         span.set_tag("has_debug_info", True)
         span.set_tag("source.file_path", filename)
-        span.set_tag("source.line_number", lineno)
-        span.set_tag("source.method_begin_line_number", first_line)
-        span.set_tag("source.method_end_line_number", last_line)
+        span.set_tag("source.line_number", str(lineno))
+        span.set_tag("source.method_begin_line_number", str(first_line))
+        span.set_tag("source.method_end_line_number", str(last_line))
+
+        for tag in ["git.repository_url", "git.commit.sha"]:
+            val = ddtrace.config.tags.get(tag)
+            if val:
+                span.set_tag(tag, val)
 
         snapshot.line(exc_info=sys.exc_info())
 

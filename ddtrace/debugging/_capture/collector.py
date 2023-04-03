@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace import config as tracer_config
 from ddtrace import tracer
 from ddtrace.debugging._capture.model import CaptureState
 from ddtrace.debugging._capture.model import CapturedEvent
@@ -112,8 +113,12 @@ class CapturedEventCollector(object):
                     last_line = first_line + sum(actual_frame.f_code.co_lnotab[1::2])
                     span.set_tag("has_debug_info", True)
                     span.set_tag("source.file_path", filename)
-                    span.set_tag("source.method_begin_line_number", first_line)
-                    span.set_tag("source.method_end_line_number", last_line)
+                    span.set_tag("source.method_begin_line_number", str(first_line))
+                    span.set_tag("source.method_end_line_number", str(last_line))
+                    for tag in ["git.repository_url", "git.commit.sha"]:
+                        val = tracer_config.tags.get(tag)
+                        if val:
+                            span.set_tag(tag, val)
             self._enqueue(event)
 
     def attach(self, event):
