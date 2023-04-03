@@ -139,12 +139,15 @@ def _get_handler_and_module():
             class_name = type(handler).__name__
             is_function = not isinstance(handler, type) and hasattr(handler, "__code__") and class_name == "function"
             # handler is a function
+            #
+            # note: this is a best effort to identify function based handlers
+            # this will not cover all cases
             if is_function:
                 return handler, handler_module, _datadog_instrumentation
 
             # handler must be either a class or an instance of a class
             #
-            # note: if a customer defines a class instance with `__code__` defined,
+            # note: if handler is a class instance with `__code__` defined,
             # we will prioritize the `__call__` method, ignoring `__code__`.
             class_module = getattr(handler_module, class_name)
             class_handler = getattr(class_module, "__call__")
@@ -156,7 +159,7 @@ def _get_handler_and_module():
 
             return class_handler, class_module, _datadog_instrumentation
         else:
-            raise TypeError("Handler is not callable")
+            raise TypeError("Handler type is not supported to patch.")
 
 
 def _has_patch_module():
