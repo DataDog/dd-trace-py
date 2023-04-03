@@ -44,8 +44,8 @@ class DDRuntimeContext:
             if isinstance(otel_span, Span):
                 self._ddcontext_provider.activate(otel_span._ddspan)
             elif isinstance(otel_span, OtelSpan):
-                trace_id, span_id, *_ = otel_span.get_span_context()
-                ddcontext = DDContext(trace_id, span_id)
+                trace_id_hex, span_id_hex, *_ = otel_span.get_span_context()
+                ddcontext = DDContext(int(trace_id_hex, 16), int(span_id_hex, 16))
                 self._ddcontext_provider.activate(ddcontext)
             else:
                 log.error(
@@ -69,7 +69,9 @@ class DDRuntimeContext:
         if isinstance(ddactive, DDSpan):
             return OtelContext({_SPAN_KEY: Span(ddactive)})
         elif isinstance(ddactive, DDContext):
-            otel_span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True)
+            trace_id_hex = "{:032x}".format(ddactive.trace_id or 0)
+            span_id_hex = "{:016x}".format(ddactive.span_id or 0)
+            otel_span_context = OtelSpanContext(trace_id_hex, span_id_hex, True)
             return OtelContext({_SPAN_KEY: OtelNonRecordingSpan(otel_span_context)})
         else:
             return OtelContext()

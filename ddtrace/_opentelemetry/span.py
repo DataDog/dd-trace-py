@@ -93,6 +93,9 @@ class Span(OtelSpan):
         # type: () -> SpanContext
         """Returns an Open Telemetry SpanContext"""
         # Returns a SpanContext with the current trace id, span id and is_remote flag.
+
+        trace_id = "{:032x}".format(self._ddspan.trace_id)
+        span_id = "{:016x}".format(self._ddspan.span_id)
         ts = None
         tf = TraceFlags.DEFAULT
         if self._ddspan.context:
@@ -100,7 +103,7 @@ class Span(OtelSpan):
             if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
                 tf = TraceFlags.SAMPLED
 
-        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
+        return SpanContext(trace_id, span_id, False, tf, ts)
 
     def set_attributes(self, attributes):
         # type: (Mapping[str, AttributeValue]) -> None

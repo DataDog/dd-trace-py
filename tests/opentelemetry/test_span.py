@@ -122,8 +122,11 @@ def test_otel_get_span_context(oteltracer):
     otelspan = oteltracer.start_span("otel-server")
 
     span_context = otelspan.get_span_context()
-    assert span_context.trace_id == otelspan._ddspan.trace_id
-    assert span_context.span_id == otelspan._ddspan.span_id
+    # Ensure span id and trace id stored in ddtrace.context.Context._traceparent is consistent
+    # with the ids returned by ddtrace._opentelemetry.span.Span.get_span_context()
+    _, trace_id_expected, span_id_expected, _ = otelspan._ddspan._context._traceparent.split("-")
+    assert span_context.trace_id == trace_id_expected
+    assert span_context.span_id == span_id_expected
     # A ddtrace._opentelemetry.Span can never be remote.
     # opentelemetry.trace.NonRecordingSpan is used to represent a "remote span".
     assert span_context.is_remote is False
