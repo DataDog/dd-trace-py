@@ -40,8 +40,8 @@ log = get_logger(__name__)
 
 class AppSecRC(PubSubMergeMergeFirst):
     __subscriber_class__ = RemoteConfigSubscriber
-    # __shared_data = ConnectorFile()
-    __shared_data = ConnectorSharedMemory()
+    __shared_data = ConnectorFile()
+    # __shared_data = ConnectorSharedMemory()
 
     def __init__(self,  _preprocess_results, callback, name="Default"):
         log.debug("[%s][P: %s] PublisherListenerProxy created!!!", os.getpid(), os.getppid())
