@@ -2,6 +2,7 @@ from importlib import import_module
 import os
 import signal
 
+from datadog_lambda.cold_start import is_cold_start
 from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -71,7 +72,8 @@ class TimeoutChannel:
             root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
             root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
         else:
-            log.debug("An impending timeout was reached, but no root span was found. No error will be tagged.")
+            if is_cold_start():
+                log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
         current_span = tracer.current_span()
         if current_span is not None:
@@ -179,7 +181,10 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-        log.debug("Error patching AWS Lambda", exc_info=True)
+
+        if is_cold_start():
+            log.exception("Error patching handler. Timeout spans will not be generated.")
+
         return
 
 
@@ -199,5 +204,8 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-        log.debug("Error patching AWS Lambda", exc_info=True)
+
+        if is_cold_start():
+            log.exception("Error unpatching handler.")
+
         return
