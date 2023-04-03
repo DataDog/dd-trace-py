@@ -127,7 +127,7 @@ async def test_module_patching(mocker, context):
         (static_handler, "static_handler"),
         (class_handler, "class_handler"),
         (instance_handler, "instance_handler"),
-        (instance_handler_with_code, "instance_handler_with_code")
+        (instance_handler_with_code, "instance_handler_with_code"),
     ],
 )
 @pytest.mark.snapshot
