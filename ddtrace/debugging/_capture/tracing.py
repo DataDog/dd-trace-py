@@ -60,5 +60,5 @@ class DynamicSpan(CapturedEvent):
             # Condition evaluated to true so we created a span. Finish it.
             self._span_cm.__exit__(*exc_info)
 
-    def line(self, _locals=None, exc_info=(None, None, None)):
+    def line(self):
         raise NotImplementedError("Dynamic line spans are not supported in Python")
