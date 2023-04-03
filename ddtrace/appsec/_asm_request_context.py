@@ -7,7 +7,7 @@ from ddtrace.internal.logger import get_logger
 
 try:
     import contextvars
-except ModuleNotFoundError:
+except ImportError:
     import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
