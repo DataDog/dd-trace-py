@@ -77,12 +77,12 @@ _CONTEXTVAR_DEFAULT_FACTORIES = [
 
 
 def free_context_available():  # type: () -> bool
-    return _IN_CONTEXT.get() and _ACTIVE_SPAN_AND_OWNERSHIP is None
+    return _IN_CONTEXT.get() and _ACTIVE_SPAN_AND_OWNERSHIP.get() is None
 
 
 def register(span, ownership=False):
     # ownership: False if context was created before span, True if the span created the context
-    # print("REGISTER", span, ownership)
+    # print("REGISTER", span, ownership, _CONTEXT_ID.get())
     _ACTIVE_SPAN_AND_OWNERSHIP.set((span, ownership))
 
 
@@ -93,7 +93,7 @@ class _Data_handler:
         _Data_handler.main_id += 1
 
         self._id = _Data_handler.main_id
-        # print("START ", id(self), asyncio.current_task().get_name())
+        # print("START ", self._id)  # , asyncio.current_task().get_name())
         self.tokens = []
         self.active = True
         for var, factory in _CONTEXTVAR_DEFAULT_FACTORIES:
@@ -102,11 +102,15 @@ class _Data_handler:
         # print(self.tokens)
 
     def finalise(self):
-        # print("END  ", id(self), asyncio.current_task().get_name())
+        pass
+
+        # print("END  ", self._id, _CONTEXT_ID.get())  # , asyncio.current_task().get_name())
         if self.active:
-            assert _CONTEXT_ID.get() == self._id
-            for function in _CONTEXT_CALLBACKS.get():
-                function()
+            # assert _CONTEXT_ID.get() == self._id
+            callbacks = _CONTEXT_CALLBACKS.get()
+            if callbacks is not None:
+                for function in _CONTEXT_CALLBACKS.get():
+                    function()
             for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
                 # print(var.name, token, var.get())
                 var.reset(token)
@@ -145,7 +149,7 @@ def set_headers(headers):  # type: (Any) -> None
 
 
 def get_headers():  # type: () -> Optional[Any]
-    return _REQUEST_HEADERS_NO_COOKIES.get()
+    return _REQUEST_HEADERS_NO_COOKIES.get() or {}
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
@@ -183,6 +187,7 @@ def set_waf_callback(callback):  # type: (Any) -> None
 
 def call_waf_callback(custom_data=None):
     # type: (dict[str, Any] | None) -> None
+    # print("WAF run", _CONTEXT_ID.get())
     if not config._appsec_enabled:
         return
     callback = _DD_WAF_CALLBACK.get()
