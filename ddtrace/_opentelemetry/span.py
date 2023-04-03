@@ -39,8 +39,8 @@ class Span(OtelSpan):
     ):
         # type: (...) -> None
         if start_time is not None:
-            # otel instrumentation tracks time in nanoseconds while ddtrace uses seconds
-            datadog_span.start = start_time / 1e9
+            # start_time should be set in nanoseconds
+            datadog_span.start_ns = start_time
 
         self._ddspan = datadog_span
         if record_exception is not None:
@@ -79,7 +79,14 @@ class Span(OtelSpan):
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None
-        self._ddspan.finish(finish_time=end_time)
+        """
+        Marks the end time of a span. This method should be called once.
+
+        :param end_time: The end time of the span, in nanoseconds. Defaults to ``now``.
+        """
+        # end_time set in nanoseconds while Datadog finish_time is set in seconds
+        dd_finish_time = end_time if end_time is None else end_time / 1e9
+        self._ddspan.finish(dd_finish_time)
 
     @property
     def kind(self):
