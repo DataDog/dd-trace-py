@@ -394,7 +394,7 @@ jobs:
           pattern: '^py.\+-tracer_test_http'
 
   ci_visibility:
-    <<: *machine_executor
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "ci_visibility"
