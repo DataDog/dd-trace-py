@@ -94,5 +94,5 @@ class CapturedEvent(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def line(self, _locals=None, exc_info=(None, None, None)):
+    def line(self):
         pass
