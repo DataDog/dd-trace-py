@@ -52,19 +52,9 @@ def test_inject(tracer):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"),
-    parametrize={
-        "DD_TRACE_PROPAGATION_STYLE": [
-            PROPAGATION_STYLE_DATADOG,
-            PROPAGATION_STYLE_B3,
-            PROPAGATION_STYLE_B3_SINGLE_HEADER,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
-        ],
-    },
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
-def test_inject_128bit_trace_id():
-    import os
-
+def test_inject_128bit_trace_id_datadog():
     from ddtrace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
@@ -75,32 +65,89 @@ def test_inject_128bit_trace_id():
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         # Get the hex representation of the 64 most signicant bits
         trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
-
         ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             assert span.trace_id == trace_id
-
             headers = {}
             HTTPPropagator.inject(span.context, headers)
+            assert headers == {
+                "x-datadog-trace-id": str(span._trace_id_64bits),
+                "x-datadog-parent-id": str(span.span_id),
+                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+            }
 
-            style = os.getenv("DD_TRACE_PROPAGATION_STYLE")
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
+)
+def test_inject_128bit_trace_id_b3multi():
+    from ddtrace.context import Context
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        ctx = Context(trace_id=trace_id)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            assert span.trace_id == trace_id
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            if style == "datadog":
-                assert headers == {
-                    "x-datadog-trace-id": str(span._trace_id_64bits),
-                    "x-datadog-parent-id": str(span.span_id),
-                    "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
-                }
-            elif style == "b3multi":
-                assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
-            elif style == "b3 single header":
-                assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
-            elif style == "tracecontext":
-                assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
-            else:
-                raise Exception("Invalid propagation style")
+            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
+        DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER,
+    ),
+)
+def test_inject_128bit_trace_id_b3_single_header():
+    from ddtrace.context import Context
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        ctx = Context(trace_id=trace_id)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            assert span.trace_id == trace_id
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+            trace_id_hex = "{:032x}".format(span.trace_id)
+            span_id_hex = "{:016x}".format(span.span_id)
+            assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
+        DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT,
+    ),
+)
+def test_inject_128bit_trace_id_tracecontext():
+    from ddtrace.context import Context
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        ctx = Context(trace_id=trace_id)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            assert span.trace_id == trace_id
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+            trace_id_hex = "{:032x}".format(span.trace_id)
+            span_id_hex = "{:016x}".format(span.span_id)
+            assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
 
 
 def test_inject_tags_unicode(tracer):
@@ -239,19 +286,9 @@ def test_extract(tracer):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"),
-    parametrize={
-        "DD_TRACE_PROPAGATION_STYLE": [
-            PROPAGATION_STYLE_B3,
-            PROPAGATION_STYLE_B3_SINGLE_HEADER,
-            PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
-        ]
-    },
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
-def test_extract_128bit_trace_ids():
-    import os
-
+def test_extract_128bit_trace_ids_datadog():
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
@@ -261,32 +298,13 @@ def test_extract_128bit_trace_ids():
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
-
-        style = os.getenv("DD_TRACE_PROPAGATION_STYLE")
-        if style == "datadog":
-            # Get the hex representation of the 64 most signicant bits
-            trace_id_64bit = trace_id & 2 ** 64 - 1
-            headers = {
-                "x-datadog-trace-id": str(trace_id_64bit),
-                "x-datadog-parent-id": str(span_id),
-                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
-            }
-        elif style == "b3multi":
-            headers = {
-                "x-b3-traceid": trace_id_hex,
-                "x-b3-spanid": span_id_hex,
-            }
-        elif style == "b3 single header":
-            headers = {
-                "b3": "%s-%s-1" % (trace_id_hex, span_id_hex),
-            }
-        elif style == "tracecontext":
-            headers = {
-                "traceparent": "00-%s-%s-01" % (trace_id_hex, span_id_hex),
-            }
-        else:
-            raise Exception("Invalid propagation style")
+        # Get the hex representation of the 64 most signicant bits
+        trace_id_64bit = trace_id & 2 ** 64 - 1
+        headers = {
+            "x-datadog-trace-id": str(trace_id_64bit),
+            "x-datadog-parent-id": str(span_id),
+            "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
+        }
 
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
@@ -294,6 +312,91 @@ def test_extract_128bit_trace_ids():
             assert span.trace_id == trace_id
             assert span.parent_id == span_id
             assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == trace_id
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
+)
+def test_extract_128bit_trace_ids_b3multi():
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        trace_id_hex = "{:032x}".format(trace_id)
+        span_id = 1
+        span_id_hex = "{:016x}".format(span_id)
+        headers = {
+            "x-b3-traceid": trace_id_hex,
+            "x-b3-spanid": span_id_hex,
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == trace_id
+            assert span.parent_id == span_id
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == trace_id
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
+        DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER,
+    ),
+)
+def test_extract_128bit_trace_ids_b3_single_header():
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        trace_id_hex = "{:032x}".format(trace_id)
+        span_id = 1
+        span_id_hex = "{:016x}".format(span_id)
+        headers = {
+            "b3": "%s-%s-1" % (trace_id_hex, span_id_hex),
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == trace_id
+            assert span.parent_id == span_id
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == trace_id
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
+        DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT,
+    ),
+)
+def test_extract_128bit_trace_ids_tracecontext():
+    from ddtrace.propagation.http import HTTPPropagator
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+        trace_id_hex = "{:032x}".format(trace_id)
+        span_id = 1
+        span_id_hex = "{:016x}".format(span_id)
+        headers = {
+            "traceparent": "00-%s-%s-01" % (trace_id_hex, span_id_hex),
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == trace_id
+            assert span.parent_id == span_id
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == trace_id
 
