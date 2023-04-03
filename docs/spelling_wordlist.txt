@@ -1,5 +1,7 @@
 AArch
 AnyCallable
+autoreload
+autoreloading
 CPython
 Fargate
 Firehose
@@ -171,6 +173,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite

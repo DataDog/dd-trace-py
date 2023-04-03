@@ -66,6 +66,12 @@ The following environment variables for the tracer are supported:
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
+   DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         This configuration enables the generation of 128 bit trace ids.
+
    DD_TRACE_DEBUG:
      type: Boolean
      default: False

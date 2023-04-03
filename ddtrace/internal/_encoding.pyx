@@ -604,7 +604,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         if ret == 0:
             ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
             if ret != 0: return ret
-            ret = pack_number(&self.pk, span.trace_id)
+            ret = pack_number(&self.pk, span._trace_id_64bits)
             if ret != 0: return ret
 
             if has_parent_id:
@@ -718,7 +718,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = self._pack_string(span.resource)
         if ret != 0: return ret
 
-        _ = span.trace_id
+        _ = span._trace_id_64bits
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         
