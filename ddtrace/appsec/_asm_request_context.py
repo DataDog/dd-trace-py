@@ -112,7 +112,7 @@ class _Data_handler:
                 for function in _CONTEXT_CALLBACKS.get():
                     function()
             for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
-                # print(var.name, token, var.get())
+                # print(var.name, token, var.get(), token.old_value)
                 var.reset(token)
             self.active = False
 
@@ -236,6 +236,13 @@ def asm_request_context_manager(
     if True or config._appsec_enabled:
         resources = _Data_handler()
         # asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        if remote_ip is not None:
+            set_ip(remote_ip)
+        if headers is not None:
+            set_headers(headers)
+        set_headers_case_sensitive(headers_case_sensitive)
+        if block_request_callable is not None:
+            set_block_request_callable(block_request_callable)
         try:
             yield resources
         finally:
