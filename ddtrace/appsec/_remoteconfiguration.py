@@ -1,4 +1,6 @@
+import multiprocessing
 import os
+from ctypes import c_char
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -6,9 +8,9 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.v2.client import PublisherListenerProxy
-from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisherAfterMerge
+from ddtrace.internal.remoteconfig.v2.connectors import ConnectorFile, ConnectorSharedMemory
+from ddtrace.internal.remoteconfig.v2.pubsub import PubSubBase, PubSubMergeMergeFirst
+from ddtrace.internal.remoteconfig.v2.subscribers import RemoteConfigSubscriber
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -36,37 +38,38 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
+class AppSecRC(PubSubMergeMergeFirst):
+    __subscriber_class__ = RemoteConfigSubscriber
+    # __shared_data = ConnectorFile()
+    __shared_data = ConnectorSharedMemory()
+
+    def __init__(self,  _preprocess_results, callback, name="Default"):
+        log.debug("[%s][P: %s] PublisherListenerProxy created!!!", os.getpid(), os.getppid())
+        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+
+
 def enable_appsec_rc(test_tracer=None):
     # type: (Optional[Tracer]) -> None
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
+    from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
     if test_tracer is None:
         from ddtrace import tracer
     else:
         tracer = test_tracer
 
-    asm_features_callback = PublisherListenerProxy(
-        RemoteConfigPublisher, _preprocess_results_appsec_1click_activation, _appsec_1click_activation, "ASM_FEATURES"
-    )
+    log.info("[%s] STARTING enable_appsec_rc!!!!!!!!!!!!!!!!!" % os.getpid())
+    asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation,
+                            _appsec_callback,
+                            "ASM")
     if _appsec_rc_features_is_enabled():
-        from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
-        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
-        log.info("[%s] STARTING asm_features_callback!!!!!!!!!!!!!!!!!" % os.getpid())
-        asm_features_callback.listener.start()
-
-    if tracer._appsec_enabled:
-        from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
-
-        asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data, "ASM")
-        asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data, "ASM_DD")
-        remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
-        remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
-        log.info("[%s] STARTING asm_callback!!!!!!!!!!!!!!!!!" % os.getpid())
-        asm_callback.listener.start()
-        log.info("[%s] STARTING asm_dd_callback!!!!!!!!!!!!!!!!!" % os.getpid())
-        asm_dd_callback.listener.start()
+    remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+    remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+    # remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+    asm_callback.start_listener()
 
 
 def _add_rules_to_list(features, feature, message, ruleset):
@@ -82,11 +85,16 @@ def _add_rules_to_list(features, feature, message, ruleset):
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
+def _appsec_callback(features):
+    _appsec_1click_activation(features)
+    _appsec_rules_data(features)
+
+
 def _appsec_rules_data(features):
     # type: (Mapping[str, Any]) -> bool
     from ddtrace import tracer
 
-    log.info("[{}] _appsec_rules_data 1 !!!!!!!!!!!!".format(os.getpid()))
+    log.info("[{}] _appsec_rules_data 1 {} {}!!!!!!!!!!!!".format(os.getpid(), features, tracer._appsec_processor))
     # log.info("DDWAF {}!!".format(tracer._appsec_processor._ddwaf))
     if features and tracer._appsec_processor:
         log.info("[{}] _appsec_rules_data 2 !!!!!!!!!!!!".format(os.getpid()))
@@ -108,42 +116,43 @@ def _appsec_rules_data(features):
 
 
 def _preprocess_results_appsec_1click_activation(features):
-    if APPSEC_ENV in os.environ:
-        # no one click activation if var env is set
-        rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
-    elif features is False:
-        rc_appsec_enabled = False
-    else:
-        rc_appsec_enabled = features.get("asm", {}).get("enabled")
-
-    if rc_appsec_enabled is not None:
-        from ddtrace.appsec._constants import PRODUCTS
-        from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
-
-        log.debug(
-            "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
-            os.getpid(),
-            os.getppid(),
-            rc_appsec_enabled,
-        )
-
-        if rc_appsec_enabled:
-            asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data, "ASM PRE")
-            asm_dd_callback = PublisherListenerProxy(RemoteConfigPublisher, None, _appsec_rules_data, "ASM_DD PRE")
-            remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
-            remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
-            remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
-            log.info("[%s][P: %s] STARTING asm_callback!!!!!!!!!!!!!!!!!", os.getpid(), os.getppid())
-            asm_callback.listener.start()
-            log.info("[%s][P: %s] STARTING asm_dd_callback!!!!!!!!!!!!!!!!!", os.getpid(), os.getppid())
-            asm_dd_callback.listener.start()
+    if features is not None:
+        rc_appsec_enabled = None
+        if APPSEC_ENV in os.environ:
+            # no one click activation if var env is set
+            rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+        elif features is False:
+            rc_appsec_enabled = False
         else:
-            remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-            remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-            remoteconfig_poller.unregister(PRODUCTS.ASM)
-            remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+            asm_features = features.get("asm", {})
+            if asm_features is not None:
+                rc_appsec_enabled = asm_features.get("enabled")
 
-    return {"asm": {"enabled": rc_appsec_enabled}}
+        if rc_appsec_enabled is not None:
+            from ddtrace.appsec._constants import PRODUCTS
+            from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+
+            log.debug(
+                "[%s][P: %s] _preprocess_results_appsec_1click_activation. Updating ASM Remote Configuration ASM_FEATURES: %s",
+                os.getpid(),
+                os.getppid(),
+                rc_appsec_enabled,
+            )
+
+            if rc_appsec_enabled:
+                # asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _appsec_rules_data, "ASM PRE")
+                # remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+                # remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+                # remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+                # asm_callback.listener.start()
+                pass
+            else:
+                remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+                remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+                remoteconfig_poller.unregister(PRODUCTS.ASM)
+                # remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+        features["asm"] = {"enabled": rc_appsec_enabled}
+        return features
 
 
 def _appsec_1click_activation(features, test_tracer=None):
@@ -168,6 +177,7 @@ def _appsec_1click_activation(features, test_tracer=None):
     else:
         tracer = test_tracer
 
+    log.debug("[%s][P: %s] ASM_FEATURES: %s", os.getpid(), os.getppid(), features)
     if APPSEC_ENV in os.environ:
         # no one click activation if var env is set
         rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
@@ -176,9 +186,10 @@ def _appsec_1click_activation(features, test_tracer=None):
     else:
         rc_appsec_enabled = features.get("asm", {}).get("enabled")
 
+    log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
     if rc_appsec_enabled is not None:
 
-        log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
+        log.debug("[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s", os.getpid(), os.getppid(), rc_appsec_enabled)
 
         if rc_appsec_enabled:
             if not tracer._appsec_enabled:

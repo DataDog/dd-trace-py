@@ -31,11 +31,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
+from .pubsub import PubSubMergeMergeFirst
 
 from ...compat import PY3
 from ...utils.version import _pep440_to_semver
 
-from ctypes import c_char_p
+from ctypes import c_char_p, c_char
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import MutableMapping
@@ -155,161 +156,6 @@ AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
 
-class RemoteConfigPublisher:
-    _preprocess_results = None
-
-    def __init__(self, preprocess_results):
-        self.lock = multiprocessing.Lock()
-        self.shared_data = multiprocessing.Value(c_char_p, base64.b64encode(b"{}"), lock=False)
-        self._preprocess_results = preprocess_results
-
-    def __call__(self, metadata, config):
-        # type: (Optional[ConfigMetadata], Any) -> None
-        try:
-            if self._preprocess_results:
-                config = self._preprocess_results(config)
-            if type(config) == dict:
-                log.debug("[%s][P: %s] Publisher share data %s", os.getpid(), os.getppid(), str(config)[:100])
-                # self.shared_data.value = json.dumps(config)
-                with self.lock:
-                    self.shared_data.value = base64.b64encode(bytes(json.dumps(config), encoding="utf-8"))
-                    # self.shared_data.value = b'{"aaaa": {"bbbbb": "cccccc"}}'
-        except Exception as e:
-            log.debug("[%s]: Publisher error", os.getpid(), exc_info=True)
-
-
-class RemoteConfigPublisherAfterMerge:
-    _preprocess_results = None
-
-    def __init__(self, preprocess_results):
-        self.configs = {}
-        self.lock = multiprocessing.Lock()
-        self.shared_data = multiprocessing.Value(c_char_p, base64.b64encode(b"{}"), lock=False)
-        self._preprocess_results = preprocess_results
-
-    def get_queue(self):
-        return self.shared_data
-
-    def append(self, target, config):
-        if not self.configs.get(target):
-            self.configs[target] = {}
-        if config is False:
-            # Remove old config from the configs dict. _remove_previously_applied_configurations function should
-            # call to this method
-            del self.configs[target]
-        elif config is not None:
-            # Append the new config to the configs dict. _load_new_configurations function should
-            # call to this method
-            if isinstance(config, dict):
-                self.configs[target].update(config)
-            else:
-                raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
-
-    def dispatch(self):
-        config_result = {}
-        try:
-            for target, config in self.configs.items():
-                for key, value in config.items():
-                    if isinstance(value, list):
-                        config_result[key] = config_result.get(key, []) + value
-                    else:
-                        raise ValueError(
-                            "target %s key %s has type of %s.\nvalue %s" % (target, key, type(value), value)
-                        )
-            if config_result:
-                result = copy.deepcopy(config_result)
-                if self._preprocess_results:
-                    result = self._preprocess_results(result)
-                log.debug("[%s][P: %s] PublisherAfterMerge share data %s", os.getpid(), os.getppid(), str(result)[:100])
-                # self.shared_data.value = json.dumps(result)
-                with self.lock:
-                    self.shared_data.value = base64.b64encode(bytes(json.dumps(result), encoding="utf-8"))
-        except Exception:
-            log.debug("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)
-
-
-class Listener:
-    _th_worker = None
-
-    def __init__(self, data, callback, name):
-        # self._queue = queue
-        self.running = False
-        self.shared_data = data
-        self._callback = callback
-        self._name = name
-        log.debug("[%s] Listener %s init", os.getpid(), self._name)
-
-    def _exec_callback(self):
-        if self.shared_data.value:
-            data_raw = str(base64.b64decode(self.shared_data.value), encoding="utf-8")
-            if data_raw:
-                data = json.loads(data_raw)
-                if data:
-                    log.debug("[%s] Listener %s _exec_callback", os.getpid(), self._name)
-                    self._callback(data)
-
-    def _worker(self):
-        self.running = True
-        checksum = 0
-        while self.running:
-            try:
-                if self.shared_data.value:
-                    last_checksum = hash(self.shared_data.value)
-                    if last_checksum != checksum:
-                        log.debug(
-                            "[%s][P: %s] Listener %s worker ENCODED data: %s",
-                            os.getpid(),
-                            os.getppid(),
-                            self._name,
-                            self.shared_data.value,
-                        )
-                        decoded = base64.b64decode(self.shared_data.value)
-                        log.debug(
-                            "[%s][P: %s] Listener %s worker get data: %s",
-                            os.getpid(),
-                            os.getppid(),
-                            self._name,
-                            decoded[:100],
-                        )
-                        checksum = hash(self.shared_data.value)
-                        self._exec_callback()
-                    else:
-                        log.debug(
-                            "[%s][P: %s] Listener %s worker NO NEW DATA: %s",
-                            os.getpid(),
-                            os.getppid(),
-                            self._name,
-                            base64.b64decode(self.shared_data.value)[:100],
-                        )
-            except Exception as e:
-                log.debug("[%s] Listener %s error", os.getpid(), self._name, exc_info=True)
-            time.sleep(1)
-
-    def start(self):
-        log.debug("[%s][P: %s] Listener %s start %s", os.getpid(), os.getppid(), self._name, self.running)
-        if not self.running:
-            self._th_worker = threading.Thread(target=self._worker)
-            self._th_worker.start()
-
-    def force_restart(self):
-        self.running = False
-        log.debug("[%s][P: %s] Listener %s force_restart %s", os.getpid(), os.getppid(), self._name, self.running)
-        if not self.running:
-            self._th_worker = threading.Thread(target=self._worker)
-            self._th_worker.start()
-
-    def stop(self):
-        self.running = False
-        if self._th_worker:
-            pass  # self._th_worker.join()
-
-
-class PublisherListenerProxy:
-    def __init__(self, publisher, _preprocess_results, callback, name="Default"):
-        self.publisher = publisher(_preprocess_results)
-        self.listener = Listener(self.publisher.shared_data, callback, name)
-
-
 class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
@@ -365,14 +211,14 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, PublisherListenerProxy]
+        self._products = dict()  # type: MutableMapping[str, PubSubMergeMergeFirst]
         self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, Optional[PublisherListenerProxy]) -> None
+        # type: (str, Optional[PubSubMergeMergeFirst]) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -512,17 +358,17 @@ class RemoteConfigClient(object):
 
     @staticmethod
     def _apply_callback(list_callbacks, callback, config_content, target, config):
-        # type: (List[RemoteConfigPublisherAfterMerge], Any, Any, str, ConfigMetadata) -> None
-        if isinstance(callback.publisher, RemoteConfigPublisherAfterMerge):
-            callback.publisher.append(target, config_content)
-            if callback.publisher not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
-                list_callbacks.append(callback.publisher)
+        # type: (List[PubSubMergeMergeFirst], Any, Any, str, ConfigMetadata) -> None
+        if isinstance(callback, PubSubMergeMergeFirst):
+            callback.append(target, config_content)
+            if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
+                list_callbacks.append(callback)
         else:
             callback.publisher(config, config_content)
 
     def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
         # type: (AppliedConfigType, TargetsType, TargetsType) -> None
-        list_callbacks = []  # type: List[RemoteConfigPublisherAfterMerge]
+        list_callbacks = []  # type: List[PubSubMergeMergeFirst]
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
@@ -543,11 +389,11 @@ class RemoteConfigClient(object):
                     continue
 
         for callback_to_dispach in list_callbacks:
-            callback_to_dispach.dispatch()
+            callback_to_dispach.publish()
 
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []  # type: List[RemoteConfigPublisherAfterMerge]
+        list_callbacks = []  # type: List[PubSubMergeMergeFirst]
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
@@ -574,7 +420,7 @@ class RemoteConfigClient(object):
                     applied_configs[target] = config
 
         for callback_to_dispach in list_callbacks:
-            callback_to_dispach.dispatch()
+            callback_to_dispach.publish()
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:

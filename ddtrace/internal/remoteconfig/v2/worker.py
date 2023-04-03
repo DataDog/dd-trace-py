@@ -130,8 +130,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
             os.getppid(),
             self._parent_id,
         )
-        for listener in self._client._products.values():
-            listener.listener.force_restart()
+        for pubsub in self._client._products.values():
+            pubsub.start_listener()
 
     def stop_listeners(self):
         # type: () -> None
@@ -145,10 +145,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
             os.getppid(),
             self._parent_id,
         )
-        for publisher_listener_proxy in self._client._products.values():
-            if hasattr(publisher_listener_proxy, "listener"):
-                publisher_listener_proxy.listener.stop()
-        # self.stop()
+        for pubsub in self._client._products.values():
+            pubsub.stop()
 
     def disable(self, join=False):
         # type: (bool) -> None
