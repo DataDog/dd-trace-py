@@ -3,6 +3,7 @@ import os
 import signal
 
 from datadog_lambda.cold_start import is_cold_start
+
 from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -181,7 +182,6 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-
         if is_cold_start():
             log.exception("Error patching handler. Timeout spans will not be generated.")
 
@@ -204,7 +204,6 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-
         if is_cold_start():
             log.exception("Error unpatching handler.")
 
