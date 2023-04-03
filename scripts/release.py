@@ -328,7 +328,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
     data = json.loads(data)
     # change the text inside of our template to include release notes
     data["data"]["attributes"]["cells"][1]["attributes"]["definition"]["text"] = (
-        "#  Release notes to test\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
+        "#  Release notes to test\n-[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
         % (rn)
     )
     # grab the latest commit id on 1.x to mark the rc notebook with
