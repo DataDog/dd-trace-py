@@ -8,8 +8,10 @@ from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import time_ns
+from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
@@ -21,6 +23,9 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes
 
     from ddtrace.span import Span as DDSpan
+
+
+log = get_logger(__name__)
 
 
 class Span(OtelSpan):
@@ -154,13 +159,18 @@ class Span(OtelSpan):
         """
         if not self.is_recording():
             return
-        elif isinstance(status, Status):
+
+        if isinstance(status, Status):
             status_code = status.status_code
+            message = status.description
+            log.warning("Description %s ignored. Use either `Status` or `(StatusCode, Description)`", description)
         else:
             status_code = status
+            message = description
 
         if status_code is StatusCode.ERROR:
             self._ddspan.error = 1
+            self.set_attribute(ERROR_MSG, message)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
