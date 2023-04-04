@@ -393,9 +393,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _downgrade(self, payload, response):
         raise NotImplementedError()
 
-    def _encode(self):
-        self._encoder.encode()
-
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
@@ -519,7 +516,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             n_traces = len(self._encoder)
             try:
-                encoded = self.encode()
+                encoded = self._encoder.encode()
                 if encoded is None:
                     return
             except Exception:
@@ -743,9 +740,6 @@ class CIAppWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
-
-    def _encode(self):
-        self._encoder.encode()
 
     def recreate(self):
         # type: () -> HTTPWriter
