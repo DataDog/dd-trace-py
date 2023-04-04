@@ -583,14 +583,6 @@ class AgentWriter(HTTPWriter):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Datadog-Client-Computed-Top-Level": "yes",
         }
-        self._container_info = container.get_container_info()
-        if self._container_info and self._container_info.container_id:
-            self._headers.update(
-                {
-                    "Datadog-Container-Id": self._container_info.container_id,
-                }
-            )
-
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             endpoint=endpoint,
@@ -606,6 +598,13 @@ class AgentWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
 
         self._headers.update({"Content-Type": self._encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
