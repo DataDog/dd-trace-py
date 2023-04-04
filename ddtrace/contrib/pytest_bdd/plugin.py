@@ -26,7 +26,6 @@ def _store_span(item, span):
 
 
 def pytest_configure(config):
-    # pass
     if config.pluginmanager.hasplugin("pytest-bdd"):
         config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
