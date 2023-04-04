@@ -16,8 +16,10 @@ def patch_psycopg():
     assert isinstance(psycopg.connect, wrapt.ObjectProxy)
     assert isinstance(psycopg.Cursor, wrapt.ObjectProxy)
     assert isinstance(psycopg.AsyncCursor, wrapt.ObjectProxy)
-    assert hasattr(psycopg.Connection.connect, '_self_wrapper') or hasattr(psycopg.Connection.connect, '__wrapped__')
-    assert hasattr(psycopg.AsyncConnection.connect, '_self_wrapper') or hasattr(psycopg.AsyncConnection.connect, '__wrapped__')
+    assert hasattr(psycopg.Connection.connect, "_self_wrapper") or hasattr(psycopg.Connection.connect, "__wrapped__")
+    assert hasattr(psycopg.AsyncConnection.connect, "_self_wrapper") or hasattr(
+        psycopg.AsyncConnection.connect, "__wrapped__"
+    )
     yield
     unpatch()
 
