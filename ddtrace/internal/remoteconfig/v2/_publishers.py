@@ -1,50 +1,57 @@
 import abc
 import copy
 import os
-from typing import Any
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import six
 
 from ddtrace.internal.logger import get_logger
 
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Optional
+
+    from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
+
 log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
-    _preprocess_results_func = None
+    _preprocess_results_func = None  # type: Optional[Callable[[Any, Optional[PubSubBase]], Any]]
 
     def __init__(self, data_connector, preprocess_results):
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_results
 
-    @abc.abstractmethod
-    def dispatch(self):
-        pass
+    def dispatch(self, pubsub_instance):
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def append(self, target, config_content):
-        pass
+        raise NotImplementedError
+
+    def __call__(self, pubsub_instance, target, config_content):
+        raise NotImplementedError
 
 
 class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_results):
         super().__init__(data_connector, preprocess_results)
 
-    def __call__(self, metadata, config):
-        # type: (Optional[Any], Any) -> None
+    def __call__(self, pubsub_instance, metadata, config):
+        # type: (Any, Optional[Any], Any) -> None
         try:
             if self._preprocess_results_func:
-                config = self._preprocess_results_func(config)
+                config = self._preprocess_results_func(config, pubsub_instance)
             if type(config) == dict:
-                log.debug("[%s][P: %s] Publisher share data %s", os.getpid(), os.getppid(), str(config)[:100])
-                self._data_connector.write(config)
-        except Exception as e:
+                log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), str(config)[:100])
+                self._data_connector.write(metadata, config)
+        except Exception:
             log.debug("[%s]: Publisher error", os.getpid(), exc_info=True)
 
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
-
     def __init__(self, data_connector, preprocess_results):
         super().__init__(data_connector, preprocess_results)
         self.configs = {}
@@ -52,6 +59,7 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
     def append(self, target, config):
         if not self.configs.get(target):
             self.configs[target] = {}
+
         if config is False:
             # Remove old config from the configs dict. _remove_previously_applied_configurations function should
             # call to this method
@@ -64,7 +72,7 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
             else:
                 raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
 
-    def dispatch(self):
+    def dispatch(self, pubsub_instance):
         config_result = {}
         try:
             for target, config in self.configs.items():
@@ -72,18 +80,13 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
                     if isinstance(value, list):
                         config_result[key] = config_result.get(key, []) + value
                     elif isinstance(value, dict):
-                        print("DISPATCH {} {}".format(key, value))
                         config_result[key] = value
                     else:
-                        pass
-                        # raise ValueError(
-                        #     "target %s key %s has type of %s.\nvalue %s" % (target, key, type(value), value)
-                        # )
-            if config_result:
-                result = copy.deepcopy(config_result)
-                if self._preprocess_results_func:
-                    result = self._preprocess_results_func(result)
-                log.debug("[%s][P: %s] PublisherAfterMerge share data %s", os.getpid(), os.getppid(), str(result)[:100])
-                self._data_connector.write(result)
+                        log.debug("[%s][P: %s] Invalid value  %s for key %s", os.getpid(), os.getppid(), value, key)
+            result = copy.deepcopy(config_result)
+            if self._preprocess_results_func:
+                result = self._preprocess_results_func(result, pubsub_instance)
+            log.debug("[%s][P: %s] PublisherAfterMerge publish %s", os.getpid(), os.getppid(), str(result)[:100])
+            self._data_connector.write("", result)
         except Exception:
             log.debug("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)

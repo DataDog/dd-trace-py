@@ -8,6 +8,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
@@ -16,7 +17,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
-
 
 DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
@@ -112,12 +112,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             if self._worker is None:
                 self._start_service()
-                forksafe.register(self.start_listeners)
+                forksafe.register(self.start_subscribers)
                 atexit.register(self.disable)
             return True
         return False
 
-    def start_listeners(self):
+    def start_subscribers(self):
         # type: () -> None
         """
         Disable the remote config service and drop, remote config can be re-enabled
@@ -125,22 +125,27 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._enable = False
         log.debug(
-            "[%s][P: %s][P2: %s]  Remoteconfig_poller fork. Starting listeners!!!!!!!!!!!!!!!!",
+            "[%s][P: %s][P2: %s]  Remote Config Poller fork. Starting Pubsub services",
             os.getpid(),
             os.getppid(),
             self._parent_id,
         )
-        for pubsub in self._client._products.values():
-            pubsub.start_listener()
+        for pubsub in set(self._client._products.values()):
+            pubsub.start_subscriber()
 
-    def stop_listeners(self):
+    def _poll_data(self, test_tracer=None):
+        """Force subscribers to poll new data. This function is only used in tests"""
+        for pubsub in set(self._client._products.values()):
+            pubsub._poll_data(test_tracer=test_tracer)
+
+    def stop_subscribers(self):
         # type: () -> None
         """
         Disable the remote config service and drop, remote config can be re-enabled
         by calling ``enable`` again.
         """
         log.debug(
-            "[%s][P: %s][P2: %s] remoteconfig_poller fork ends. Stopping listeners",
+            "[%s][P: %s][P2: %s] Remote Config Poller fork. Stopping  Pubsub services",
             os.getpid(),
             os.getppid(),
             self._parent_id,
@@ -155,10 +160,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self._worker.stop()
                 if join:
                     self._worker.join()
-                self.stop_listeners()
+                self.stop_subscribers()
                 self._worker = None
 
-                forksafe.unregister(self.start_listeners)
+                forksafe.unregister(self.start_subscribers)
                 atexit.unregister(self.disable)
 
     def shutdown(self, timeout):
@@ -171,15 +176,17 @@ class RemoteConfigPoller(periodic.PeriodicService):
         timeout=None,  # type: Optional[float]
     ):
         # type: (...) -> None
+        self.stop_subscribers()
         super(RemoteConfigPoller, self)._stop_service()
         self.join(timeout=timeout)
 
-    def register(self, product, handler):
+    def register(self, product, pubsub_instance):
+        # type: (str, PubSubBase) -> None
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
             if self.enable():
-                self._client.register_product(product, handler)
+                self._client.register_product(product, pubsub_instance)
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 

@@ -1,7 +1,7 @@
 import base64
+from contextlib import contextmanager
 import datetime
 import hashlib
-from contextlib import contextmanager
 import json
 from multiprocessing.pool import ThreadPool
 import os
@@ -66,10 +66,9 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true"):
             )
         time.sleep(1)
         parent = psutil.Process(server_process.pid)
-        childrens = parent.children(recursive=True)
-        for process in childrens:
-            print("CHILDREN!!! {} {}".format(process, process.pid))
-        yield server_process, client, childrens[1].pid
+        children = parent.children(recursive=True)
+
+        yield server_process, client, children[1].pid
         try:
             client.get_ignored("/shutdown")
         except Exception:

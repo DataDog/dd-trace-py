@@ -1,14 +1,14 @@
+"""
+
+
+"""
 import base64
-import copy
 from datetime import datetime
 import hashlib
 import json
-import multiprocessing
 import os
 import re
 import sys
-import threading
-import time
 from typing import Any
 from typing import Dict
 from typing import List
@@ -17,7 +17,7 @@ from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 import uuid
-from multiprocessing import parent_process
+
 import attr
 import cattr
 import six
@@ -31,18 +31,16 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
-from .pubsub import PubSubMergeMergeFirst
+from ddtrace.internal.utils.version import _pep440_to_semver
 
-from ...compat import PY3
-from ...utils.version import _pep440_to_semver
+from ._pubsub import PubSubBase
+from ._pubsub import PubSubMergeFirst
 
-from ctypes import c_char_p, c_char
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
-
 
 log = get_logger(__name__)
 
@@ -211,16 +209,16 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, PubSubMergeMergeFirst]
+        self._products = dict()  # type: MutableMapping[str, PubSubBase]
         self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
-    def register_product(self, product_name, func=None):
-        # type: (str, Optional[PubSubMergeMergeFirst]) -> None
-        if func is not None:
-            self._products[product_name] = func
+    def register_product(self, product_name, pubsub_instance=None):
+        # type: (str, Optional[PubSubBase]) -> None
+        if pubsub_instance is not None:
+            self._products[product_name] = pubsub_instance
         else:
             self._products.pop(product_name, None)
 
@@ -358,17 +356,17 @@ class RemoteConfigClient(object):
 
     @staticmethod
     def _apply_callback(list_callbacks, callback, config_content, target, config):
-        # type: (List[PubSubMergeMergeFirst], Any, Any, str, ConfigMetadata) -> None
-        if isinstance(callback, PubSubMergeMergeFirst):
+        # type: (List[PubSubMergeFirst], Any, Any, str, ConfigMetadata) -> None
+        if isinstance(callback, PubSubMergeFirst):
             callback.append(target, config_content)
             if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
                 list_callbacks.append(callback)
         else:
-            callback.publisher(config, config_content)
+            callback.publish(config, config_content)
 
     def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
         # type: (AppliedConfigType, TargetsType, TargetsType) -> None
-        list_callbacks = []  # type: List[PubSubMergeMergeFirst]
+        list_callbacks = []  # type: List[PubSubMergeFirst]
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
@@ -393,7 +391,7 @@ class RemoteConfigClient(object):
 
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []  # type: List[PubSubMergeMergeFirst]
+        list_callbacks = []  # type: List[PubSubMergeFirst]
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
