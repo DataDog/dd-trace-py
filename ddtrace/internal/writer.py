@@ -11,7 +11,6 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TextIO
-from typing import Type
 
 import six
 import tenacity
