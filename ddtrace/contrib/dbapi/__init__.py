@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+import inspect
 
 import six
 
@@ -46,9 +47,9 @@ class TracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
-            cfg._dbapi_span_name_prefix
+            cfg["_dbapi_span_name_prefix"]
             if cfg and "_dbapi_span_name_prefix" in cfg
-            else config.dbapi2._dbapi_span_name_prefix
+            else config.dbapi2["_dbapi_span_name_prefix"]
         )
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
@@ -75,7 +76,23 @@ class TracedCursor(wrapt.ObjectProxy):
             connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, TracedConnection)), None))
         pin = Pin.get_from(connection)
         cfg = pin._config
-        cursor = wrapped_cursor_cls(connection, *args, **kwargs)
+
+        args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
+        # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
+        if "row_factory" in args_mapping and "row_factory" not in kwargs:
+            # check for row_factory in args by checking for functions
+            row_factory = None
+            for i in range(len(args)):
+                if callable(args[i]):
+                    row_factory = args.pop(i)
+                    break
+            # else just use the connection row factory
+            if row_factory is None:
+                row_factory = connection.row_factory
+            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
+        else:
+            cursor = wrapped_cursor_cls(connection, *args, **kwargs)
+
         return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
