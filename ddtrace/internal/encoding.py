@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
-from ._encoding import packb
+from ._encoding import packb as msgpack_packb
 from .compat import PY3
 from .compat import binary_type
 from .compat import ensure_text
@@ -186,7 +186,7 @@ class CIAppEncoderV01(_EncoderBase):
     def _build_payload(self, traces=None):
         normalized_spans = [CIAppEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
-        return packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
+        return msgpack_packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 
     @staticmethod
     def _convert_span(span):
@@ -196,11 +196,7 @@ class CIAppEncoderV01(_EncoderBase):
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
-        if span.span_type == "test":
-            event_type = "test"
-        else:
-            event_type = "span"
-        return {"version": 1, "type": event_type, "content": sp}
+        return {"version": 1, "type": "span", "content": sp}
 
 
 MSGPACK_ENCODERS = {

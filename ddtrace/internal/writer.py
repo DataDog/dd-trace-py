@@ -262,11 +262,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         headers=None,  # type: Optional[Dict[str, str]]
     ):
         # type: (...) -> None
-        # Pre-conditions:
-        if buffer_size is not None and buffer_size <= 0:
-            raise ValueError("Writer buffer size must be positive")
-        if max_payload_size is not None and max_payload_size <= 0:
-            raise ValueError("Max payload size must be positive")
 
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
@@ -274,32 +269,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._max_payload_size = max_payload_size
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self._headers = {
-            "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
-            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
-            "Datadog-Client-Computed-Top-Level": "yes",
-        }
-        if headers:
-            self._headers.update(headers)
+        self._headers = headers or {}
         self._timeout = timeout
 
         self._endpoint = endpoint
 
-        self._container_info = container.get_container_info()
-        if self._container_info and self._container_info.container_id:
-            self._headers.update(
-                {
-                    "Datadog-Container-Id": self._container_info.container_id,
-                }
-            )
-
         self._encoder = encoder
-        self._headers.update({"Content-Type": self._encoder.content_type})
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
@@ -369,7 +344,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sw.start()
         with self._conn_lck:
             if self._conn is None:
-                log.debug("creating new agent connection to %s with timeout %d", self.intake_url, self._timeout)
+                log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
                 self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)
@@ -392,11 +367,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._reset_connection()
 
     def _downgrade(self, payload, response):
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    def _get_finalized_headers(self, count):
+        raise NotImplementedError
 
     def _send_payload(self, payload, count):
-        headers = self._headers.copy()
-        headers["X-Datadog-Trace-Count"] = str(count)
+        headers = self._get_finalized_headers(count)
 
         self._metrics_dist("http.requests")
 
@@ -407,22 +384,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
 
-        if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-            try:
-                payload = self._downgrade(payload, response)
-            except ValueError:
-                log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
-                    self._endpoint,
-                    response.status,
-                    self.intake_url,
-                )
-            else:
-                if payload is not None:
-                    self._send_payload(payload, count)
-        elif response.status >= 400:
-            msg = "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s"
+        if response.status not in (404, 415) and response.status >= 400:
+            msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
             log_args = (
                 self._intake_endpoint,
                 response.status,
@@ -440,20 +403,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
-        elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-            result_traces_json = response.get_json()
-            if result_traces_json and "rate_by_service" in result_traces_json:
-                try:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                except ValueError:
-                    log.error("sample_rate is negative, cannot update the rate samplers")
+        return response
 
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
@@ -466,17 +416,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
 
-                    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-                    # are initialized
-                    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                        telemetry_writer.enable()
-
-                    if config._telemetry_metrics_enabled:
-                        telemetry_metrics_writer.enable()
-
-                    # appsec remote config should be enabled/started after the global tracer and configs
-                    # are initialized
-                    enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 
@@ -535,7 +474,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     e.reraise()
                 else:
                     log.error(
-                        "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+                        "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
                         n_traces,
                         self._intake_endpoint,
                         e.last_attempt.attempt_number,
@@ -547,10 +486,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
+                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % self.STATSD_NAMESPACE, len(encoded))
+                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % self.STATSD_NAMESPACE, n_traces)
                     for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+                        self.dogstatsd.distribution(
+                            "datadog.%s.%s" % (self.STATSD_NAMESPACE, name), metric["count"], tags=metric["tags"]
+                        )
         finally:
             self._set_drop_rate()
             self._metrics_reset()
@@ -577,6 +518,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 class AgentWriter(HTTPWriter):
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "tracer"
 
     def __init__(
         self,
@@ -596,6 +538,10 @@ class AgentWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
         # type: (...) -> None
         # Default to v0.4 if we are on Windows since there is a known compatibility issue
         # https://github.com/DataDog/dd-trace-py/issues/4829
@@ -631,6 +577,20 @@ class AgentWriter(HTTPWriter):
         )
 
         endpoint = "%s/traces" % self._api_version
+        headers = {
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
+            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
+            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Client-Computed-Top-Level": "yes",
+        }
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
 
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
@@ -647,6 +607,11 @@ class AgentWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
+
+        self._headers.update({"Content-Type": self._encoder.content_type})
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
     def recreate(self):
         # type: () -> HTTPWriter
@@ -694,10 +659,64 @@ class AgentWriter(HTTPWriter):
             return payload
         raise ValueError()
 
+    def _send_payload(self, payload, count):
+        response = super(AgentWriter, self)._send_payload(payload, count)
+        if response.status in [404, 415]:
+            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
+            try:
+                payload = self._downgrade(payload, response)
+            except ValueError:
+                log.error(
+                    "unsupported endpoint '%s': received response %s from intake (%s)",
+                    self._endpoint,
+                    response.status,
+                    self.intake_url,
+                )
+            else:
+                if payload is not None:
+                    self._send_payload(payload, count)
+        elif response.status < 400 and (self._priority_sampler or isinstance(self._sampler, BasePrioritySampler)):
+            result_traces_json = response.get_json()
+            if result_traces_json and "rate_by_service" in result_traces_json:
+                try:
+                    if self._priority_sampler:
+                        self._priority_sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                except ValueError:
+                    log.error("sample_rate is negative, cannot update the rate samplers")
+
+    def start(self):
+        super(AgentWriter, self).start()
+        try:
+            # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+            # are initialized
+            if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+                telemetry_writer.enable()
+
+            if config._telemetry_metrics_enabled:
+                telemetry_metrics_writer.enable()
+
+            # appsec remote config should be enabled/started after the global tracer and configs
+            # are initialized
+            enable_appsec_rc()
+        except service.ServiceStatusError:
+            pass
+
+    def _get_finalized_headers(self, count):
+        headers = self._headers.copy()
+        headers["X-Datadog-Trace-Count"] = str(count)
+        return headers
+
 
 class CIAppWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "ciappwriter"
 
     def __init__(
         self,
@@ -705,8 +724,6 @@ class CIAppWriter(HTTPWriter):
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
-        buffer_size=None,  # type: Optional[int]
-        max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=True,  # type: bool
@@ -734,8 +751,6 @@ class CIAppWriter(HTTPWriter):
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
-            buffer_size=buffer_size,
-            max_payload_size=max_payload_size,
             timeout=timeout,
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
@@ -759,3 +774,6 @@ class CIAppWriter(HTTPWriter):
             sync_mode=self._sync_mode,
             api_version=self._api_version,
         )
+
+    def _get_finalized_headers(self, count):
+        return self._headers.copy()
