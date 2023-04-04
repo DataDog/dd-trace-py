@@ -529,7 +529,7 @@ def test_hourglass_turn():
         sleep(0.1)
         hg.turn()
         while hg.trickling():
-            sleep(0.1)
+            sleep(0.01)
         # Check that only another 100ms trickle down after turning.
         assert sw.elapsed() < 0.3
 
