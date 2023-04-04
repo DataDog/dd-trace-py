@@ -1,5 +1,14 @@
 version: 2
 updates:
+  - package-ecosystem: "pip"
+    directory: "/.riot/requirements"
+    schedule:
+      interval: "daily"
+    versioning-strategy: 'lockfile-only'
+    ignore:
+      - dependency-name: "*"
+        # ignore semver major updates in riot venv requirements
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
