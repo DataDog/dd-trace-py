@@ -38,7 +38,6 @@ class PsycopgCore(TracerTestCase):
         unpatch()
 
     def _get_conn(self, service=None):
-        print(POSTGRES_CONFIG)
         conn = psycopg.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
@@ -176,7 +175,6 @@ class PsycopgCore(TracerTestCase):
             )
             assert_is_measured(self.get_spans()[1])
 
-    # @skipIf(psycopg_VERSION < (2, 5), "context manager not available in psycopg==2.4")
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228

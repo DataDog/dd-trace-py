@@ -34,8 +34,13 @@ config._add(
     ),
 )
 
-# Original connect method
+# Original methods
 _connect = psycopg.connect
+_connection_connect = psycopg.Connection.connect
+_cursor_init = psycopg.Cursor
+_async_connection_connect = psycopg.AsyncConnection.connect
+_async_cursor_init = psycopg.AsyncCursor
+
 
 PSYCOPG_VERSION = parse_version(psycopg.__version__)
 
@@ -48,7 +53,6 @@ def patch():
         return
     setattr(psycopg, "_datadog_patch", True)
 
-    # config.psycopg._extensions_to_patch = _psycopg_extensions
     Pin(_config=config.psycopg).onto(psycopg)
     config.psycopg.base_module = psycopg
 
@@ -58,14 +62,16 @@ def patch():
 
     wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async_psycopg3)
     wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", PsycopgTracedAsyncCursor._init_from_connection)
-    # _patch_extensions(_psycopg_extensions)  # do this early just in case
 
 
 def unpatch():
     if getattr(psycopg, "_datadog_patch", False):
         setattr(psycopg, "_datadog_patch", False)
         psycopg.connect = _connect
-        #  _unpatch_extensions(_psycopg_extensions)
+        psycopg.Connection.connect = _connection_connect
+        psycopg.Cursor = _cursor_init
+        psycopg.AsyncConnection.connect = _async_connection_connect
+        psycopg.AsyncCursor = _async_cursor_init
 
         pin = Pin.get_from(psycopg)
         if pin:

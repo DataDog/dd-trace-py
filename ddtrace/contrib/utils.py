@@ -98,15 +98,11 @@ def _patch_extensions(_extensions):
 
 
 def _unpatch_extensions(_extensions):
-    # we must patch extensions all the time (it's pretty harmless) so split
-    # from global patching of connections. must be idempotent.
     for original, module, func, _ in _extensions:
         setattr(module, func, original)
 
 
-#
 # monkeypatch targets
-#
 
 
 def patched_connect(connect_func, _, args, kwargs):

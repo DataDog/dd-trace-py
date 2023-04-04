@@ -64,9 +64,7 @@ def unpatch():
             pin.remove_from(psycopg2)
 
 
-#
 # monkeypatch targets
-#
 
 
 def _extensions_register_type(func, _, args, kwargs):

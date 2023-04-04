@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    This release adds support for the new psycopg3 package. This new integration has all the same tracing functionality 
+    as the previous psycopg2-binary package, with added support for new methods including async connection and cursor classes.
