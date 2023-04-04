@@ -3,7 +3,6 @@ import os
 import sys
 
 import mock
-import msgpack
 import pytest
 
 from ddtrace import Pin
@@ -134,7 +133,6 @@ class TestPytest(TracerTestCase):
                 "arguments": {"item": str(expected_params[i])},
                 "metadata": {},
             }
-        return spans
 
     def test_parameterize_case_complex_objects(self):
         """Test parametrize case with complex objects."""

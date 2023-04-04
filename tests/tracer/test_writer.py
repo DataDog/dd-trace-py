@@ -20,7 +20,6 @@ from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import CIAppWriter
@@ -66,8 +65,7 @@ class AgentWriterTests(BaseTestCase):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
         statsd.increment.assert_not_called()
@@ -79,8 +77,7 @@ class AgentWriterTests(BaseTestCase):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
         statsd.distribution.assert_has_calls(
@@ -103,8 +100,7 @@ class AgentWriterTests(BaseTestCase):
             writer.write(
                 [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
             )
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
         statsd.distribution.assert_has_calls(
@@ -142,8 +138,7 @@ class AgentWriterTests(BaseTestCase):
 
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
             statsd.distribution.assert_has_calls(
@@ -200,8 +195,7 @@ class AgentWriterTests(BaseTestCase):
             writer.write(
                 [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
             )
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
             writer_metrics_reset.assert_called_once()
@@ -218,8 +212,7 @@ class AgentWriterTests(BaseTestCase):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
             writer_metrics_reset.assert_called_once()
@@ -241,8 +234,7 @@ class AgentWriterTests(BaseTestCase):
             for i in range(n_traces):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
 
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
             assert writer_metrics_reset.call_count == 1

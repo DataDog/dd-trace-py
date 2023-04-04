@@ -15,8 +15,6 @@ import msgpack
 import pytest
 import six
 
-import ddtrace
-from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -33,7 +31,6 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.span import Span
 from tests.utils import DummyTracer
 

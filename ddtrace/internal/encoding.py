@@ -13,7 +13,6 @@ from .compat import PY3
 from .compat import binary_type
 from .compat import ensure_text
 from .logger import get_logger
-from .runtime import get_runtime_id
 
 
 __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]

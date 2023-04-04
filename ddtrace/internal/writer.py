@@ -19,6 +19,7 @@ import tenacity
 import ddtrace
 from ddtrace import config
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -741,6 +742,10 @@ class CIAppWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
+
+    def stop(self):
+        if self.status != ServiceStatus.STOPPED:
+            super(CIAppWriter, self).stop()
 
     def recreate(self):
         # type: () -> HTTPWriter
