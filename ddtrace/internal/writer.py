@@ -717,11 +717,8 @@ class CIAppWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
-        encoder = CIAppEncoderV01(
-            max_size=self._buffer_size,
-            max_item_size=self._max_payload_size,
-        )
-        self._metadata = {
+        encoder = CIAppEncoderV01()
+        encoder.metadata = {
             "language": "python",
             "env": config.env,
             "runtime-id": get_runtime_id(),
@@ -748,7 +745,7 @@ class CIAppWriter(HTTPWriter):
         )
 
     def _encode(self):
-        self._encoder.encode_with(self._metadata)
+        self._encoder.encode()
 
     def recreate(self):
         # type: () -> HTTPWriter

@@ -5,10 +5,10 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from ._encoding import CIAppEncoderV01  # noqa
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
+from ._encoding import packb
 from .compat import PY3
 from .compat import binary_type
 from .compat import ensure_text
@@ -158,15 +158,12 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-class CIAppEncoderV0(JSONEncoderV2):
-    content_type = "application/json"
+class CIAppEncoderV01(_EncoderBase):
+    content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
     def __init__(self, *args, metadata=None, **kwargs):
-        for kwarg in ("max_size", "max_item_size"):
-            if kwarg in kwargs:
-                del kwargs[kwarg]
-        super(CIAppEncoderV0, self).__init__(*args, **kwargs)
+        super(CIAppEncoderV01, self).__init__()
         self._init_buffer()
         self._metadata = metadata or dict()
 
@@ -185,11 +182,9 @@ class CIAppEncoderV0(JSONEncoderV2):
         return payload
 
     def _build_payload(self):
-        normalized_spans = [CIAppEncoderV0._convert_span(span) for trace in self.buffer for span in trace]
+        normalized_spans = [CIAppEncoderV01._convert_span(span) for trace in self.buffer for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
-        return super(CIAppEncoderV0, self).encode(
-            {"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans}
-        )
+        return packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 
     @staticmethod
     def _convert_span(span):

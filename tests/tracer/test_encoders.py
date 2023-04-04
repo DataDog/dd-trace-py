@@ -268,7 +268,7 @@ def decode(obj, reconstruct=True):
 
     unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
-    if not unpacked or not unpacked[0]:
+    if not unpacked or 0 not in unpacked or not unpacked[0]:
         return unpacked
 
     if isinstance(unpacked[0][0], bytes) and reconstruct:
@@ -301,56 +301,58 @@ def decode(obj, reconstruct=True):
 def test_encode_traces_ciapp_v0():
     traces = [
         [
-            Span(name="client.testing", span_id=0xAAAAAA),
-            Span(name="client.testing", span_id=0xAAAAAA),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
         ],
         [
-            Span(name="client.testing", span_id=0xAAAAAA),
-            Span(name="client.testing", span_id=0xAAAAAA),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
         ],
         [
-            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
-            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test"),
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
         ],
     ]
 
-    encoder = CIAppEncoderV01(2 << 20, 2 << 20)
+    encoder = CIAppEncoderV01(
+        2 << 20,
+        2 << 20,
+        metadata={
+            "language": "python",
+        },
+    )
     for trace in traces:
         encoder.put(trace)
-    payload = encoder.encode_with(
-        {
-            "language": "python",
-        }
-    )
-    assert isinstance(payload, string_type)
+    payload = encoder.encode()
+    assert isinstance(payload, msgpack_type)
     decoded = decode(payload)
-    assert decoded["version"] == 1
-    assert len(decoded["metadata"]) == 1
+    assert decoded[b"version"] == 1
+    assert len(decoded[b"metadata"]) == 1
 
-    star_metadata = decoded["metadata"]["*"]
-    assert star_metadata["language"] == "python"
+    star_metadata = decoded[b"metadata"][b"*"]
+    assert star_metadata[b"language"] == b"python"
 
-    received_events = sorted(decoded["events"], key=lambda event: event["content"]["start"])
+    received_events = sorted(decoded[b"events"], key=lambda event: event[b"content"][b"start"])
     assert len(received_events) == 6
 
     all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
     for given_span, received_event in zip(all_spans, received_events):
         expected_event = {
-            "type": "test" if given_span.span_type == "test" else "span",
-            "version": 1,
-            "content": {
-                "trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id),
-                "span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id),
-                "parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id),
-                "name": JSONEncoder._normalize_str(given_span.name),
-                "resource": JSONEncoder._normalize_str(given_span.resource),
-                "service": JSONEncoder._normalize_str(given_span.service),
-                "type": given_span.span_type,
-                "start": given_span.start_ns,
-                "duration": given_span.duration_ns,
-                "meta": dict(sorted(given_span._meta.items())),
-                "metrics": dict(sorted(given_span._metrics.items())),
-                "error": 0,
+            b"type": b"test" if given_span.span_type == "test" else b"span",
+            b"version": 1,
+            b"content": {
+                b"trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id).encode("utf-8"),
+                b"span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id).encode("utf-8"),
+                b"parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id).encode("utf-8"),
+                b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
+                b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
+                b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
+                b"type": given_span.span_type.encode("utf-8") if given_span.span_type else None,
+                b"start": given_span.start_ns,
+                b"duration": given_span.duration_ns,
+                b"meta": dict(sorted(given_span._meta.items())),
+                b"metrics": dict(sorted(given_span._metrics.items())),
+                b"error": 0,
             },
         }
         assert expected_event == received_event

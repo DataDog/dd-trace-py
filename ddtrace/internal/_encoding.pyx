@@ -770,11 +770,6 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         return 0
 
-cdef class CIAppEncoderV01(MsgpackEncoderV03):
-    cpdef encode_with(self, metadata):
-        super(CIAppEncoderV01, self).encode()
-        # TODO add metadata
-
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer
     which only supports basic Python types (int, bool, float, dict, list).
