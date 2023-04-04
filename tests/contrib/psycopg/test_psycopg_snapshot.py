@@ -14,9 +14,9 @@ from tests.utils import override_config
 def patch_psycopg():
     patch()
     assert isinstance(psycopg.connect, wrapt.ObjectProxy)
-    assert isinstance(psycopg.Connection.connect, wrapt.ObjectProxy)
+    assert isinstance(psycopg.Connection, wrapt.ObjectProxy)
     assert isinstance(psycopg.Cursor, wrapt.ObjectProxy)
-    assert isinstance(psycopg.AsyncConnection.connect, wrapt.ObjectProxy)
+    assert isinstance(psycopg.AsyncConnection, wrapt.ObjectProxy)
     assert isinstance(psycopg.AsyncCursor, wrapt.ObjectProxy)
     yield
     unpatch()
