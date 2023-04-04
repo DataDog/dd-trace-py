@@ -32,8 +32,9 @@ class TestPytest(TracerTestCase):
         class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
-                assert not CIVisibility.enabled
                 if is_enabled(config):
+                    assert CIVisibility.enabled
+                    CIVisibility.disable()
                     CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])

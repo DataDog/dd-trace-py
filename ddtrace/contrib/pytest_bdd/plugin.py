@@ -25,9 +25,10 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
-def pytest_sessionstart(session):
-    if session.config.pluginmanager.hasplugin("pytest-bdd"):
-        session.config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
+def pytest_configure(config):
+    # pass
+    if config.pluginmanager.hasplugin("pytest-bdd"):
+        config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
 
 class _PytestBddPlugin:
