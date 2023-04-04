@@ -139,6 +139,7 @@ def _collect_functions(module):
     """
     assert isinstance(module, ModuleType)
 
+    path = origin(module)
     containers = deque([ContainerIterator(module)])
     functions = {}
     seen_containers = set()
@@ -164,7 +165,9 @@ def _collect_functions(module):
 
                 for name in (k, o.__name__) if isinstance(k, str) else (o.__name__,):
                     fullname = ".".join((c.__fullname__, name)) if c.__fullname__ else name
-                    functions[fullname] = o
+                    if fullname not in functions or abspath(code.co_filename) == path:
+                        # Give precedence to code objects from the module
+                        functions[fullname] = o
 
                 try:
                     if o.__closure__:
