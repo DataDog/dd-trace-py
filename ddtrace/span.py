@@ -257,12 +257,18 @@ class Span(object):
 
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
+        if finish_time is None:
+            self._finish_ns(time_ns())
+        else:
+            self._finish_ns(int(finish_time * 1e9))
+
+    def _finish_ns(self, finish_time_ns):
+        # type: (int) -> None
         if self.duration_ns is not None:
             return
 
-        ft = time_ns() if finish_time is None else int(finish_time * 1e9)
         # be defensive so we don't die if start isn't set
-        self.duration_ns = ft - (self.start_ns or ft)
+        self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 
         for cb in self._on_finish_callbacks:
             cb(self)
