@@ -178,8 +178,7 @@ class AgentWriterTests(BaseTestCase):
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            if writer.status != ServiceStatus.STOPPED:
-                writer.stop()
+            writer.stop()
             writer.join()
 
             assert writer_metrics_reset.call_count == 1
@@ -753,5 +752,5 @@ def test_trace_with_128bit_trace_ids():
 def test_ciappwriter_metadata_included(endpoint_test_timeout_server, writer_class):
     writer = CIAppWriter("http://localhost:9126", metadata={"*": {"language": "python"}})
     writer._encoder.put([Span("foobar")])
-    payload = writer.encode_with_metadata()
-    assert decode(payload)["metadata"]["*"]["language"] == "python"
+    payload = writer.encode()
+    assert msgpack.unpackb(payload)[b"metadata"][b"*"][b"language"] == b"python"
