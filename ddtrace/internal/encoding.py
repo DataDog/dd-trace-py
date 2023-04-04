@@ -176,13 +176,16 @@ class CIAppEncoderV01(_EncoderBase):
     def put(self, spans):
         self.buffer.append(spans)
 
+    def encode_traces(self, traces):
+        return self._build_payload(traces=traces)
+
     def encode(self):
         payload = self._build_payload()
         self._init_buffer()
         return payload
 
-    def _build_payload(self):
-        normalized_spans = [CIAppEncoderV01._convert_span(span) for trace in self.buffer for span in trace]
+    def _build_payload(self, traces=None):
+        normalized_spans = [CIAppEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         return packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 

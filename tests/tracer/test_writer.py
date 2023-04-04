@@ -12,11 +12,14 @@ import pytest
 from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
+import ddtrace
+from ddtrace import config
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
@@ -337,6 +340,16 @@ class CIAppWriterTests(AgentWriterTests):
 
     def test_keep_rate(self):
         pytest.skip()
+
+    def test_metadata_included(self):
+        writer = CIAppWriter("http://localhost:9126")
+        writer._encoder.put([Span("foobar")])
+        payload = writer._encoder.encode()
+        unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
+        assert unpacked_metadata[b"language"] == b"python"
+        assert unpacked_metadata[b"runtime-id"] == get_runtime_id().encode("utf-8")
+        assert unpacked_metadata[b"library_version"] == ddtrace.__version__.encode("utf-8")
+        assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
 
 
 class LogWriterTests(BaseTestCase):
@@ -747,10 +760,3 @@ def test_trace_with_128bit_trace_ids():
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2 ** 64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
-
-
-def test_ciappwriter_metadata_included(endpoint_test_timeout_server, writer_class):
-    writer = CIAppWriter("http://localhost:9126", metadata={"*": {"language": "python"}})
-    writer._encoder.put([Span("foobar")])
-    payload = writer.encode()
-    assert msgpack.unpackb(payload)[b"metadata"][b"*"][b"language"] == b"python"

@@ -714,16 +714,17 @@ class CIAppWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
-        encoder = CIAppEncoderV01()
-        encoder.metadata = {
-            "language": "python",
-            "env": config.env,
-            "runtime-id": get_runtime_id(),
-            "library_version": ddtrace.__version__,
-        }
+        encoder = CIAppEncoderV01(
+            metadata={
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
 
         headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY")
+        headers["dd-api-key"] = os.environ.get("DD_API_KEY", "dummyapikey")
 
         super(CIAppWriter, self).__init__(
             intake_url=intake_url,

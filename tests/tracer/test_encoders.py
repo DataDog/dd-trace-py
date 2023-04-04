@@ -268,7 +268,7 @@ def decode(obj, reconstruct=True):
 
     unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
-    if not unpacked or 0 not in unpacked or not unpacked[0]:
+    if not unpacked or not unpacked[0]:
         return unpacked
 
     if isinstance(unpacked[0][0], bytes) and reconstruct:
@@ -315,8 +315,6 @@ def test_encode_traces_ciapp_v0():
     ]
 
     encoder = CIAppEncoderV01(
-        2 << 20,
-        2 << 20,
         metadata={
             "language": "python",
         },
@@ -325,7 +323,7 @@ def test_encode_traces_ciapp_v0():
         encoder.put(trace)
     payload = encoder.encode()
     assert isinstance(payload, msgpack_type)
-    decoded = decode(payload)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 1
     assert len(decoded[b"metadata"]) == 1
 
@@ -714,7 +712,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     assert unpacked is not None
 
 
-@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2", "CIAppEncoderV1"]})
+@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2"]})
 def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
@@ -741,8 +739,8 @@ def test_json_encoder_traces_bytes():
         ]
     )
     traces = json.loads(data)
-    if isinstance(encoder, encoding.JSONEncoderV2):
-        traces = traces["events"]
+    if encoder_class_name == "JSONEncoderV2":
+        traces = traces["traces"]
 
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]

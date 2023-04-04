@@ -3,6 +3,7 @@ import os
 import sys
 
 import mock
+import msgpack
 import pytest
 
 from ddtrace import Pin
@@ -12,30 +13,10 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
-from ddtrace.internal.encoding import CIAppEncoderV0
-from tests.utils import DummyCIAppWriter
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
-def assert_encoding(wrapped):
-    def wrap_test_function(self, *args, **kwargs):
-        spans = wrapped(self, *args, **kwargs)
-        encoder = CIAppEncoderV0()
-        encoder.put(spans)
-        expected = json.loads(encoder.encode())
-        received = json.loads(self.tracer._writer._encoded)
-        assert len(received["events"]) == len(expected["events"])
-        assert received["events"] == expected["events"]
-        return spans
-
-    return wrap_test_function
-
-
 class TestPytest(TracerTestCase):
-    def setUp(self):
-        self.tracer = DummyTracer(writer=DummyCIAppWriter("http://foo.bar"))
-
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
@@ -128,7 +109,6 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
 
-    @assert_encoding
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
