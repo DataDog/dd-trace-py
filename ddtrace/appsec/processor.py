@@ -238,7 +238,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_callback(_set_waf_request_metrics)
+        _asm_request_context.add_context_callback(_set_waf_request_metrics)
 
         if headers is not None:
             _context.set_items(

@@ -2,6 +2,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
 
 
@@ -31,59 +32,32 @@ thread will have a different context.
 # FIXME: remove these and use the new context API once implemented and allowing
 # contexts without spans
 
-_REQUEST_HTTP_IP = contextvars.ContextVar("REQUEST_HTTP_IP", default=None)  # type: contextvars.ContextVar[str|None]
-_REQUEST_HEADERS_NO_COOKIES = contextvars.ContextVar(
-    "REQUEST_HEADERS_NO_COOKIES", default=None
-)  # type: contextvars.ContextVar[str|None]
-_REQUEST_HEADERS_NO_COOKIES_CASE = contextvars.ContextVar(
-    "REQUEST_HEADERS_NO_COOKIES_CASE", default=False
-)  # type: contextvars.ContextVar[bool]
-_DD_BLOCK_REQUEST_CALLABLE = contextvars.ContextVar(
-    "datadog_block_request_callable_contextvar", default=None
-)  # type: contextvars.ContextVar[Callable[...,Any]| None]
-_DD_WAF_CALLBACK = contextvars.ContextVar(
-    "datadog_early_waf_callback", default=None
-)  # type: contextvars.ContextVar[Callable[...,Any]| None]
-_DD_WAF_RESULTS = contextvars.ContextVar(
-    "datadog_early_waf_results", default=None
-)  # type: contextvars.ContextVar[tuple[list[Any], list[Any], list[bool]]| None]
-_DD_WAF_SENT = contextvars.ContextVar(
-    "datadog_waf_adress_sent", default=None
-)  # type: contextvars.ContextVar[set[str]|None]
-_DD_IAST_TAINT_DICT = contextvars.ContextVar(
-    "datadog_iast_taint_dict", default=None
-)  # type: contextvars.ContextVar[dict[Any, Any]|None]
-_CONTEXT_CALLBACKS = contextvars.ContextVar(
-    "asm_context_finalise_callbacks", default=None
-)  # type: contextvars.ContextVar[list[Callable[...,Any]]| None]
-_IN_CONTEXT = contextvars.ContextVar("asm_is_inside_context", default=False)
-_ACTIVE_SPAN_AND_OWNERSHIP = contextvars.ContextVar("span_and_ownership", default=None)
-_CONTEXT_ID = contextvars.ContextVar("context_id", default=None)
 
-_CONTEXTVAR_DEFAULT_FACTORIES = [
-    (_REQUEST_HTTP_IP, lambda: None),
-    (_REQUEST_HEADERS_NO_COOKIES, lambda: None),
-    (_REQUEST_HEADERS_NO_COOKIES_CASE, lambda: False),
-    (_DD_BLOCK_REQUEST_CALLABLE, lambda: None),
-    (_DD_WAF_CALLBACK, lambda: None),
-    (_DD_WAF_RESULTS, lambda: [[], [], []]),
-    (_DD_WAF_SENT, set),
-    (_DD_IAST_TAINT_DICT, dict),
-    (_CONTEXT_CALLBACKS, list),
-    (_IN_CONTEXT, lambda: True),
-    (_ACTIVE_SPAN_AND_OWNERSHIP, lambda: None),
-    (_CONTEXT_ID, lambda: _Data_handler.main_id),
-]
+class ASM_Environment:
+    def __init__(self, active=False):
+        self.active = active
+        self.span = None
+        self.waf_addresses = {}  # type: dict[str, Any]
+        self.callbacks = {}  # type: dict[str, Any]
+        self.iast_taint_dict = {}  # type: dict[Any, Any]
+        self.telemetry = {}  # type: dict[str, Any]
+        self.addresses_sent = set()  # type: set[str]
+
+
+_ASM = contextvars.ContextVar("ASM_contextvar", default=ASM_Environment())
 
 
 def free_context_available():  # type: () -> bool
-    return _IN_CONTEXT.get() and _ACTIVE_SPAN_AND_OWNERSHIP.get() is None
+    env = _ASM.get()
+    return env.active and env.span is None
 
 
-def register(span, ownership=False):
-    # ownership: False if context was created before span, True if the span created the context
-    # print("REGISTER", span, ownership, _CONTEXT_ID.get())
-    _ACTIVE_SPAN_AND_OWNERSHIP.set((span, ownership))
+def register(span):
+    env = _ASM.get()
+    if not env.active:
+        log.debug("registering a span with no active asm context")
+        return
+    env.span = span
 
 
 class _Data_handler:
@@ -91,52 +65,80 @@ class _Data_handler:
 
     def __init__(self):
         _Data_handler.main_id += 1
+        env = ASM_Environment(True)
 
         self._id = _Data_handler.main_id
-        # print("START ", self._id)  # , asyncio.current_task().get_name())
-        self.tokens = []
         self.active = True
-        for var, factory in _CONTEXTVAR_DEFAULT_FACTORIES:
-            self.tokens.append(var.set(factory()))
-            # print(var.name, var.get())
-        # print(self.tokens)
+        self.token = _ASM.set(env)
+        # print("START ", self._id)  # , asyncio.current_task().get_name())
+
+        env.telemetry["waf_results"] = [], [], []
+        env.callbacks["context"] = []
 
     def finalise(self):
         pass
 
         # print("END  ", self._id, _CONTEXT_ID.get())  # , asyncio.current_task().get_name())
         if self.active:
+            env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = _CONTEXT_CALLBACKS.get()
-            if callbacks is not None:
-                for function in _CONTEXT_CALLBACKS.get():
-                    function()
-            for token, (var, _) in zip(self.tokens, _CONTEXTVAR_DEFAULT_FACTORIES):
-                # print(var.name, token, var.get(), token.old_value)
-                var.reset(token)
+            callbacks = env.callbacks["context"]
+            for function in callbacks:
+                function()
+            _ASM.reset(self.token)
             self.active = False
 
 
-def add_callback(function):  # type: (Any) -> None
-    callbacks = _CONTEXT_CALLBACKS.get()
-    if callbacks is not None:
+def set_value(category, address, value):  # type: (str, str, Any) -> None
+    env = _ASM.get()
+    if not env.active:
+        log.debug("setting %s address %s with no active asm context", category, address)
+        return
+    dictionary = getattr(env, category, None)
+    if dictionary is not None:
+        dictionary[address] = value
+
+
+def get_value(category, address, default=None):  # type: (str) -> None | Any
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting %s address %s with no active asm context", category, address)
+        return default
+    dictionary = getattr(env, category, None)
+    if dictionary is not None:
+        return dictionary.get(address, default)
+    return default
+
+
+def add_context_callback(function):  # type: (Any) -> None
+    callbacks = get_value("callbacks", "context")
+    if callbacks:
         callbacks.append(function)
 
 
+def set_waf_callback(value):  # type: (Any) -> None
+    set_value("callbacks", "waf_run", value)
+
+
+def call_waf_callback(custom_data=None):
+    # type: (dict[str, Any] | None) -> None
+    # print("WAF run", _CONTEXT_ID.get())
+    if not config._appsec_enabled:
+        return
+    callback = get_value("callbacks", "waf_run")
+    if callback:
+        return callback(custom_data)
+    else:
+        log.warning("WAF callback called but not set")
+
+
 def set_ip(ip):  # type: (Optional[str]) -> None
-    _REQUEST_HTTP_IP.set(ip)
+    if ip is not None:
+        set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
 
 
 def get_ip():  # type: () -> Optional[str]
-    return _REQUEST_HTTP_IP.get()
-
-
-def set_taint_dict(taint_dict):  # type: (dict) -> None
-    _DD_IAST_TAINT_DICT.set(taint_dict)
-
-
-def get_taint_dict():  # type: () -> dict
-    return _DD_IAST_TAINT_DICT.get() or {}
+    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HTTP_IP)
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
@@ -145,19 +147,36 @@ def get_taint_dict():  # type: () -> dict
 
 
 def set_headers(headers):  # type: (Any) -> None
-    _REQUEST_HEADERS_NO_COOKIES.set(headers)
+    if headers is not None:
+        set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
 
 
 def get_headers():  # type: () -> Optional[Any]
-    return _REQUEST_HEADERS_NO_COOKIES.get() or {}
+    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    _REQUEST_HEADERS_NO_COOKIES_CASE.set(case_sensitive)
+    set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
-    return _REQUEST_HEADERS_NO_COOKIES_CASE.get()
+    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)
+
+
+def set_taint_dict(taint_dict):  # type: (dict) -> None
+    env = _ASM.get()
+    if not env.active:
+        log.debug("setting iast dict with no active asm context")
+        return
+    env.iast_taint_dict = taint_dict
+
+
+def get_taint_dict():  # type: () -> dict
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting iast dict with no active asm context")
+        return {}
+    return env.iast_taint_dict
 
 
 def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
@@ -167,38 +186,26 @@ def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
     functools.partial.
     """
     if _callable:
-        _DD_BLOCK_REQUEST_CALLABLE.set(_callable)
+        set_value("callbacks", "block", _callable)
 
 
 def block_request():  # type: () -> None
     """
     Calls or returns the stored block request callable, if set.
     """
-    _callable = _DD_BLOCK_REQUEST_CALLABLE.get()
+    _callable = get_value("callbacks", "block")
     if _callable:
         _callable()
-
-    log.debug("Block request called but block callable not set by framework")
-
-
-def set_waf_callback(callback):  # type: (Any) -> None
-    _DD_WAF_CALLBACK.set(callback)
-
-
-def call_waf_callback(custom_data=None):
-    # type: (dict[str, Any] | None) -> None
-    # print("WAF run", _CONTEXT_ID.get())
-    if not config._appsec_enabled:
-        return
-    callback = _DD_WAF_CALLBACK.get()
-    if callback:
-        return callback(custom_data)
     else:
-        log.warning("WAF callback called but not set")
+        log.debug("Block request called but block callable not set by framework")
 
 
 def get_data_sent():  # type: () -> set[str] | None
-    return _DD_WAF_SENT.get()
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting addresses sent with no active asm context")
+        return {}
+    return env.addresses_sent
 
 
 def asm_request_context_set(remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None):
@@ -220,11 +227,11 @@ def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, b
 
 
 def get_waf_results():  # type: () -> Tuple[List[Any], List[Any], List[bool]] | None
-    return _DD_WAF_RESULTS.get()
+    return get_value("telemetry", "waf_results")
 
 
 def reset_waf_results():  # type: () -> None
-    _DD_WAF_RESULTS.set(([], [], []))
+    set_value("telemetry", "waf_results", ([], [], []))
 
 
 @contextlib.contextmanager
