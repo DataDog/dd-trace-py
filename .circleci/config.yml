@@ -393,6 +393,12 @@ jobs:
           # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
 
+  ci_visibility:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "ci_visibility"
+
   sourcecode:
     <<: *contrib_job
     steps:
@@ -1170,6 +1176,7 @@ requires_tests: &requires_tests
     - cassandra
     - celery
     - cherrypy
+    - ci_visibility
     - consul
     - ddtracerun
     - dogpile_cache
@@ -1275,6 +1282,7 @@ workflows:
       - cassandra: *requires_base_venvs
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
+      - ci_visibility: *requires_base_venvs
       - consul: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
