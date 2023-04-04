@@ -6,13 +6,13 @@ from ddtrace import tracer
 
 
 @datadog_lambda_wrapper
-def manually_wrapped_handler(event, context):
+def manually_wrapped_handler(event, context, success=True):
     with tracer.trace("result-trace"):
-        return {"success": True}
+        return {"success": success}
 
 
-def handler(event, context):
-    return {"success": True}
+def handler(event, context, success=True):
+    return {"success": success}
 
 
 def timeout_handler(event, context):

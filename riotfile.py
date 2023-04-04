@@ -2632,5 +2632,10 @@ venv = Venv(
                 "setuptools": ["<=67.6.0"],
             },
         ),
+        Venv(
+            name="ci_visibility",
+            command="pytest {cmdargs} tests/ci_visibility",
+            pys=select_pys(),
+        ),
     ],
 )

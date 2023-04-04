@@ -109,10 +109,9 @@ class MemoryCollector(collector.PeriodicCollector):
 
         super(MemoryCollector, self)._start_service()
 
-    def _stop_service(self):
-        # type: (...) -> None
-        super(MemoryCollector, self)._stop_service()
-
+    @staticmethod
+    def on_shutdown():
+        # type: () -> None
         if _memalloc is not None:
             try:
                 _memalloc.stop()
