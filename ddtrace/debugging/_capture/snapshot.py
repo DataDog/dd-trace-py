@@ -24,6 +24,10 @@ from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.utils.time import HourGlass
+
+
+CAPTURE_TIME_BUDGET = 0.2  # seconds
 
 
 def _capture_context(
@@ -33,21 +37,26 @@ def _capture_context(
     limits=CaptureLimits(),  # type: CaptureLimits
 ):
     # type: (...) -> Dict[str, Any]
-    return {
-        "arguments": {
-            n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields)
-            for n, v in arguments
+    with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
+
+        def timeout(_):
+            return not hg.trickling()
+
+        return {
+            "arguments": {
+                n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout)
+                for n, v in arguments
+            }
+            if arguments is not None
+            else {},
+            "locals": {
+                n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout)
+                for n, v in _locals
+            }
+            if _locals is not None
+            else {},
+            "throwable": utils.capture_exc_info(throwable),
         }
-        if arguments is not None
-        else {},
-        "locals": {
-            n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields)
-            for n, v in _locals
-        }
-        if _locals is not None
-        else {},
-        "throwable": utils.capture_exc_info(throwable),
-    }
 
 
 @attr.s
