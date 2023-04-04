@@ -2,6 +2,8 @@
 import mock
 import pytest
 
+from ddtrace.appsec._asm_request_context import asm_request_context_manager
+
 
 try:
     from ddtrace.appsec.iast._input_info import Input_info
@@ -18,6 +20,7 @@ def setup():
     taint_tracking_setup(bytes.join, bytearray.join)
 
 
+@asm_request_context_manager()
 def test_tainted_getitem():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
@@ -38,6 +41,7 @@ def test_tainted_getitem():
         tainted_knights["arthur"]
 
 
+@asm_request_context_manager()
 def test_tainted_get():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
@@ -67,6 +71,7 @@ def test_tainted_get():
     assert not is_pyobject_tainted(robin)
 
 
+@asm_request_context_manager()
 def test_tainted_items():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
@@ -82,6 +87,7 @@ def test_tainted_items():
         assert not is_pyobject_tainted(v)
 
 
+@asm_request_context_manager()
 def test_tainted_values():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
@@ -95,6 +101,7 @@ def test_tainted_values():
         assert not is_pyobject_tainted(v)
 
 
+@asm_request_context_manager()
 def test_checked_tainted_args():
     cursor = mock.Mock()
     setattr(cursor.execute, "__name__", "execute")

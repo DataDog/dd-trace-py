@@ -70,15 +70,11 @@ class _Data_handler:
         self._id = _Data_handler.main_id
         self.active = True
         self.token = _ASM.set(env)
-        # print("START ", self._id)  # , asyncio.current_task().get_name())
 
         env.telemetry["waf_results"] = [], [], []
         env.callbacks["context"] = []
 
     def finalise(self):
-        pass
-
-        # print("END  ", self._id)  # , asyncio.current_task().get_name())
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
@@ -100,7 +96,6 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
-    # print("get", category, address)
     env = _ASM.get()
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
@@ -123,7 +118,6 @@ def set_waf_callback(value):  # type: (Any) -> None
 
 def call_waf_callback(custom_data=None):
     # type: (dict[str, Any] | None) -> None
-    # print("WAF run", _CONTEXT_ID.get())
     if not config._appsec_enabled:
         return
     callback = get_value("callbacks", "waf_run")
@@ -224,7 +218,6 @@ def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, b
         list_results_data.append(result_data)
         list_result_info.append(result_info)
         list_is_blocked.append(is_blocked)
-        # _DD_WAF_RESULTS.set((list_results_data, list_result_info, list_is_blocked))
 
 
 def get_waf_results():  # type: () -> Tuple[List[Any], List[Any], List[bool]] | None
