@@ -370,7 +370,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         raise NotImplementedError
 
     def _get_finalized_headers(self, count):
-        raise NotImplementedError
+        return self._headers.copy()
 
     def _send_payload(self, payload, count):
         headers = self._get_finalized_headers(count)
@@ -774,6 +774,3 @@ class CIAppWriter(HTTPWriter):
             sync_mode=self._sync_mode,
             api_version=self._api_version,
         )
-
-    def _get_finalized_headers(self, count):
-        return self._headers.copy()
