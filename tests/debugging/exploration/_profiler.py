@@ -1,3 +1,4 @@
+from os.path import abspath
 import typing as t
 
 from debugger import COLS
@@ -9,6 +10,7 @@ from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.internal.module import origin
 
 
 # Track all instrumented functions and their call count.
@@ -21,6 +23,11 @@ class FunctionCollector(ModuleCollector):
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
         for fname, f in discovery._fullname_index.items():
+            if origin(module) != abspath(f.__code__.co_filename):
+                # Do not wrap functions that do not belong to the module. We
+                # will have a chance to wrap them when we discover the module
+                # they belong to.
+                continue
             _tracked_funcs[fname] = 0
             DeterministicProfiler.add_probe(
                 create_snapshot_function_probe(
