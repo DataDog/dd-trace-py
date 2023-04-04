@@ -107,6 +107,21 @@ def test_otel_span_is_recording(oteltracer):
     assert span.is_recording() is False
 
 
+def test_otel_span_end(oteltracer):
+    start_time_ns = 1680522337 * 1e9
+    duration_sec = 11
+    end_time_ns = start_time_ns + duration_sec * 1e9
+
+    span = oteltracer.start_span("otel1", start_time=start_time_ns)
+    span.end(end_time_ns)
+    assert span._ddspan.duration == duration_sec
+    # Span.end() should be set once, all subsecquent calls should be noops
+    span.end()
+    span.end(end_time_ns + 1_0000_000)
+    span.end(end_time_ns + 100_0000_000)
+    assert span._ddspan.duration == duration_sec
+
+
 def test_otel_span_exception_handling(oteltracer):
     with pytest.raises(Exception):
         with oteltracer.start_span("otel1") as span:
