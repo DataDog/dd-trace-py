@@ -78,11 +78,11 @@ class _Data_handler:
     def finalise(self):
         pass
 
-        # print("END  ", self._id, _CONTEXT_ID.get())  # , asyncio.current_task().get_name())
+        # print("END  ", self._id)  # , asyncio.current_task().get_name())
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks["context"]
+            callbacks = env.callbacks.get("context", [])
             for function in callbacks:
                 function()
             _ASM.reset(self.token)
@@ -100,6 +100,7 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
+    # print("get", category, address)
     env = _ASM.get()
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
@@ -112,7 +113,7 @@ def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
 
 def add_context_callback(function):  # type: (Any) -> None
     callbacks = get_value("callbacks", "context")
-    if callbacks:
+    if callbacks is not None:
         callbacks.append(function)
 
 

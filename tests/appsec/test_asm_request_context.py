@@ -12,10 +12,10 @@ def test_context_set_and_reset():
         assert _asm_request_context.get_ip() == _TEST_IP
         assert _asm_request_context.get_headers() == _TEST_HEADERS
         assert _asm_request_context.get_headers_case_sensitive()
-        assert _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get() is not None
+        assert _asm_request_context.get_value("callbacks", "block") is not None
     assert _asm_request_context.get_ip() is None
     assert _asm_request_context.get_headers() == {}
-    assert _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get() is None
+    assert _asm_request_context.get_value("callbacks", "block") is None
     assert not _asm_request_context.get_headers_case_sensitive()
     with _asm_request_context.asm_request_context_manager(_TEST_IP, _TEST_HEADERS):
         assert not _asm_request_context.get_headers_case_sensitive()
@@ -47,8 +47,8 @@ def test_call_block_callable_noargs():
 
     with _asm_request_context.asm_request_context_manager():
         _asm_request_context.set_block_request_callable(_callable)
-        assert _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get()() == 42
-    assert not _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get()
+        assert _asm_request_context.get_value("callbacks", "block")() == 42
+    assert not _asm_request_context.get_value("callbacks", "block")
 
 
 def test_call_block_callable_curried():
@@ -67,10 +67,11 @@ def test_call_block_callable_curried():
 def test_set_get_headers_case_sensitive():
     # default reset value should be False
     assert not _asm_request_context.get_headers_case_sensitive()
-    _asm_request_context.set_headers_case_sensitive(True)
-    assert _asm_request_context.get_headers_case_sensitive()
-    _asm_request_context.set_headers_case_sensitive(False)
-    assert not _asm_request_context.get_headers_case_sensitive()
+    with _asm_request_context.asm_request_context_manager():
+        _asm_request_context.set_headers_case_sensitive(True)
+        assert _asm_request_context.get_headers_case_sensitive()
+        _asm_request_context.set_headers_case_sensitive(False)
+        assert not _asm_request_context.get_headers_case_sensitive()
 
 
 def test_asm_request_context_manager():
@@ -78,9 +79,9 @@ def test_asm_request_context_manager():
         assert _asm_request_context.get_ip() == _TEST_IP
         assert _asm_request_context.get_headers() == _TEST_HEADERS
         assert _asm_request_context.get_headers_case_sensitive()
-        assert _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get()() == 42
+        assert _asm_request_context.get_value("callbacks", "block")() == 42
 
     assert _asm_request_context.get_ip() is None
     assert _asm_request_context.get_headers() == {}
-    assert _asm_request_context._DD_BLOCK_REQUEST_CALLABLE.get() is None
+    assert _asm_request_context.get_value("callbacks", "block") is None
     assert not _asm_request_context.get_headers_case_sensitive()
