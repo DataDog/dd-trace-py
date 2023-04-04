@@ -223,7 +223,7 @@ class AppSecSpanProcessor(SpanProcessor):
             new_asm_context.__enter__()
             # print("create asm context", resources._id)
             span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
-            _asm_request_context.register(span, True)
+            _asm_request_context.register(span)
 
         ctx = self._ddwaf._at_request_start()
 

@@ -34,7 +34,7 @@ thread will have a different context.
 
 
 class ASM_Environment:
-    def __init__(self, active=False):
+    def __init__(self, active=False):  # type: (bool) -> None
         self.active = active
         self.span = None
         self.waf_addresses = {}  # type: dict[str, Any]
@@ -99,7 +99,7 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
         dictionary[address] = value
 
 
-def get_value(category, address, default=None):  # type: (str) -> None | Any
+def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
     env = _ASM.get()
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
@@ -160,7 +160,7 @@ def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
 
 
 def get_headers_case_sensitive():  # type: () -> bool
-    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)
+    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
 def set_taint_dict(taint_dict):  # type: (dict) -> None
@@ -204,7 +204,7 @@ def get_data_sent():  # type: () -> set[str] | None
     env = _ASM.get()
     if not env.active:
         log.debug("getting addresses sent with no active asm context")
-        return {}
+        return set()
     return env.addresses_sent
 
 
