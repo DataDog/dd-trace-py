@@ -100,8 +100,24 @@ class DatadogInstrumentation(object):
         finally:
             self._after()
 
+    def _set_context(self, args, kwargs):
+        """Sets the context attribute."""
+        # The context is the second argument in a handler
+        # signature and it is always sent.
+        #
+        # note: AWS Lambda context is an object, the event is a dict.
+        # `get_remaining_time_in_millis` is guaranteed to be
+        # present in the context.
+        _context = get_argument_value(args, kwargs, 1, "context")
+        if hasattr(_context, "get_remaining_time_in_millis"):
+            self.context = _context
+        else:
+            # Handler was possibly manually wrapped, and the first
+            # argument is the `datadog-lambda` decorator object.
+            self.context = get_argument_value(args, kwargs, 2, "context")
+
     def _before(self, args, kwargs):
-        self.context = get_argument_value(args, kwargs, -1, "context")
+        self._set_context(args, kwargs)
         self.timeoutChannel = TimeoutChannel(self.context)
 
         self.timeoutChannel._start()
