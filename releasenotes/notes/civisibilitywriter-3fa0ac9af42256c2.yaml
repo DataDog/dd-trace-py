@@ -1,0 +1,3 @@
+features:
+  - |
+    tracing: Introduces ``CIVisibilityWriter``, an ``HTTPWriter`` subclass that communicates with Datadog's CI Visibility intake endpoint
