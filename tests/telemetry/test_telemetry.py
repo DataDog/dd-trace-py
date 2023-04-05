@@ -22,6 +22,7 @@ telemetry_writer.enable()
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-started"
+    assert events[1]["payload"]["error"] == {"code": 0, "message": ""}
 
 
 @pytest.mark.snapshot
@@ -154,3 +155,32 @@ os.fork()
 
     assert status == 0, err
     assert err == b""
+
+
+def test_app_started_error(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import sqlite3
+# patch() of the sqlite integration assumes this attribute is there
+# removing it should cause patching to fail.
+del sqlite3.connect
+
+from ddtrace import patch, tracer
+patch(raise_errors=False, sqlite3=True)
+tracer.trace("test").finish()
+tracer.flush()
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"failed to import" in stderr
+
+    events = test_agent_session.get_events()
+    assert len(events) == 2
+
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-started"
+    assert events[1]["payload"]["error"]["code"] == 2
+    assert events[1]["payload"]["error"]["message"] == "module 'sqlite3' has no attribute 'connect'"

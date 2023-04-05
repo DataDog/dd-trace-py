@@ -27,6 +27,7 @@ from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..internal.telemetry import telemetry_metrics_writer
 from ..internal.telemetry import telemetry_writer
+from ..internal.telemetry import trace as trace_telemetry
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..internal.utils.time import StopWatch
@@ -458,16 +459,17 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", n_traces)
+                log_msg = "failed to send, dropping %d traces to intake at %s after %d retries (%s)" % (
+                    n_traces,
+                    self._intake_endpoint,
+                    e.last_attempt.attempt_number,
+                    e.last_attempt.exception(),
+                )
+                telemetry_writer.add_error(trace_telemetry.AGENT_ERROR_CODE, log_msg)
                 if raise_exc:
                     e.reraise()
                 else:
-                    log.error(
-                        "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
-                        n_traces,
-                        self._intake_endpoint,
-                        e.last_attempt.attempt_number,
-                        e.last_attempt.exception(),
-                    )
+                    log.error(log_msg)
             finally:
                 if config.health_metrics_enabled and self.dogstatsd:
                     namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]

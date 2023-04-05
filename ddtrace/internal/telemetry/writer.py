@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ...internal import atexit
@@ -91,7 +92,7 @@ class _TelemetryClient:
 
     def get_headers(self, request):
         # type: (Dict) -> Dict
-        """Get all telemetry api v1 request headers"""
+        """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
@@ -124,6 +125,10 @@ class TelemetryBase(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        # Currently telemetry only supports reporting a single error.
+        # If we'd like to report multiple errors in the future
+        # we could hack it in by xor-ing error codes and concatenating strings
+        self._error = (0, "")  # type: Tuple[int, str]
         forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
@@ -144,7 +149,7 @@ class TelemetryBase(PeriodicService):
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
-                "api_version": "v1",
+                "api_version": "v2",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),
@@ -153,6 +158,14 @@ class TelemetryBase(PeriodicService):
                 "request_type": payload_type,
             }
             self._events_queue.append(event)
+
+    def add_error(self, code, msg):
+        # type: (int, str) -> None
+        """Add an error to be submitted with the app-started event.
+
+        Note that this overwrites any previously set errors.
+        """
+        self._error = (code, msg)
 
     def enable(self):
         # type: () -> None
@@ -381,7 +394,13 @@ class TelemetryWriter(TelemetryBase):
             "dependencies": get_dependencies(),
             "integrations": self._flush_integrations_queue(),
             "configurations": [],
+            "error": {
+                "code": self._error[0],
+                "message": self._error[1],
+            },
         }
+        # Reset the error after it has been reported.
+        self._error = (0, "")
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
