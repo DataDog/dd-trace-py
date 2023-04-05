@@ -1,6 +1,8 @@
 from itertools import islice
+from itertools import takewhile
 from types import FrameType
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -140,13 +142,21 @@ def capture_exc_info(exc_info):
     }
 
 
-def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfields=MAXFIELDS):
-    # type: (Any, int, int, int, int) -> Dict[str, Any]
+def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfields=MAXFIELDS, stopping_cond=None):
+    # type: (Any, int, int, int, int, Optional[Callable[[Any], bool]]) -> Dict[str, Any]
+    cond = stopping_cond if stopping_cond is not None else (lambda _: False)
+
     _type = type(value)
 
     if _type in BUILTIN_SIMPLE_TYPES:
         if _type is NoneType:
             return {"type": "NoneType", "isNull": True}
+
+        if cond(value):
+            return {
+                "type": qualname(_type),
+                "notCapturedReason": cond.__name__,
+            }
 
         value_repr = repr(value)
         value_repr_len = len(value_repr)
@@ -172,32 +182,65 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                 "size": len(value),
             }
 
+        if cond(value):
+            return {
+                "type": qualname(_type),
+                "notCapturedReason": cond.__name__,
+                "size": len(value),
+            }
+
+        collection = None  # type: Optional[List[Any]]
         if _type is dict:
             # Mapping
+            collection = [
+                (
+                    capture_value(
+                        k,
+                        level=level - 1,
+                        maxlen=maxlen,
+                        maxsize=maxsize,
+                        maxfields=maxfields,
+                        stopping_cond=cond,
+                    ),
+                    capture_value(
+                        v,
+                        level=level - 1,
+                        maxlen=maxlen,
+                        maxsize=maxsize,
+                        maxfields=maxfields,
+                        stopping_cond=cond,
+                    ),
+                )
+                for _, (k, v) in takewhile(lambda _: not cond(_), zip(range(maxsize), value.items()))
+            ]
             data = {
                 "type": "dict",
-                "entries": [
-                    (
-                        capture_value(k, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields),
-                        capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields),
-                    )
-                    for _, (k, v) in zip(range(maxsize), value.items())
-                ],
+                "entries": collection,
                 "size": len(value),
             }
 
         else:
             # Sequence
+            collection = [
+                capture_value(
+                    v,
+                    level=level - 1,
+                    maxlen=maxlen,
+                    maxsize=maxsize,
+                    maxfields=maxfields,
+                    stopping_cond=cond,
+                )
+                for _, v in takewhile(lambda _: not cond(_), zip(range(maxsize), value))
+            ]
             data = {
                 "type": qualname(_type),
-                "elements": [
-                    capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields)
-                    for _, v in zip(range(maxsize), value)
-                ],
+                "elements": collection,
                 "size": len(value),
             }
 
-        if len(value) > maxsize:
+        if len(collection) < min(maxsize, len(value)):
+            data["notCapturedReason"] = cond.__name__
+        elif len(value) > maxsize:
             data["notCapturedReason"] = "collectionSize"
 
         return data
@@ -209,16 +252,24 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
             "notCapturedReason": "depth",
         }
 
+    if cond(value):
+        return {
+            "type": qualname(_type),
+            "notCapturedReason": cond.__name__,
+        }
+
     fields = get_fields(value)
+    captured_fields = {
+        n: capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
+        for _, (n, v) in takewhile(lambda _: not cond(_), zip(range(maxfields), fields.items()))
+    }
     data = {
         "type": qualname(_type),
-        "fields": {
-            n: capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields)
-            for _, (n, v) in zip(range(maxfields), fields.items())
-        },
+        "fields": captured_fields,
     }
-
-    if len(fields) > maxfields:
+    if len(captured_fields) < min(maxfields, len(fields)):
+        data["notCapturedReason"] = cond.__name__
+    elif len(fields) > maxfields:
         data["notCapturedReason"] = "fieldCount"
 
     return data
