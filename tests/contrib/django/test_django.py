@@ -771,6 +771,27 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
 
 
+def test_cache_get_rowcount_empty_key(test_spans):
+    # get the default cache
+    import pandas as pd
+
+    cache = django.core.cache.caches["default"]
+    cache.set(1, pd.DataFrame())
+
+    result = cache.get(1)
+
+    assert result == pd.DataFrame()
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+
+
 def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
