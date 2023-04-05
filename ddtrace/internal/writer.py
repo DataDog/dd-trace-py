@@ -588,7 +588,7 @@ class AgentWriter(HTTPWriter):
                 }
             )
 
-        headers.update({"Content-Type": self._encoder.content_type})
+        headers.update({"Content-Type": encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             headers.update(parse_tags_str(additional_header_str))
