@@ -786,13 +786,13 @@ def test_cache_get_rowcount_empty_key(test_spans):
     assert isinstance(result, NoBool) is True
 
     spans = test_spans.get_spans()
-    assert len(spans) == 1
+    assert len(spans) == 2
 
-    span = spans[0]
-    assert span.service == "django"
-    assert span.resource == "django.core.cache.backends.locmem.get"
+    get_span = spans[1]
+    assert get_span.service == "django"
+    assert get_span.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
 
 
 def test_cache_get_unicode(test_spans):
