@@ -2512,6 +2512,12 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
         ),
+        Venv(
+            name="openai",
+            command="pytest {cmdargs} tests/contrib/openai",
+            pys=select_pys(min_version="3.7", max_version="3.9"),
+            pkgs={"openai": latest},
+        ),
     ],
 )
 
