@@ -15,5 +15,4 @@ appsec-enabled:
 iast-enabled:
   <<: *baseline
   tracer_enabled: true
-  appsec_enabled: true
   iast_enabled: true

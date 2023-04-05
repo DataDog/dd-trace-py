@@ -7,7 +7,7 @@ from flask import Response
 
 app = Flask(__name__)
 
-con = sqlite3.connect(":memory:")
+con = sqlite3.connect(":memory:", check_same_thread=False)
 cur = con.cursor()
 
 
@@ -18,15 +18,10 @@ def index():
 
 @app.route("/sqli", methods=["POST"])
 def sqli():
-    try:
-        sql = (
-            "SELECT * FROM IAST_USER WHERE USERNAME = '"
-            + request.form["username"]
-            + "' AND PASSWORD = '"
-            + request.form["password"]
-            + "'"
-        )
-        cur.execute(sql)
-    except:
-        pass
+    sql = (
+        "SELECT 1 FROM sqlite_master WHERE name = '"
+        + request.form["username"]
+        + "'"
+    )
+    cur.execute(sql)
     return Response("OK")
