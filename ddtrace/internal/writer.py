@@ -18,7 +18,6 @@ import tenacity
 import ddtrace
 from ddtrace import config
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -758,7 +757,7 @@ class CIVisibilityWriter(HTTPWriter):
         )
 
     def stop(self):
-        if self.status != ServiceStatus.STOPPED:
+        if self.status != service.ServiceStatus.STOPPED:
             super(CIVisibilityWriter, self).stop()
 
     def recreate(self):
