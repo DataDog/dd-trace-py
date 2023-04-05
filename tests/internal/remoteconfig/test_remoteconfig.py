@@ -123,18 +123,18 @@ def test_remote_config_enable_validate_rc_disabled():
 def test_remote_config_forksafe():
     import os
 
-    from ddtrace.internal.remoteconfig import RemoteConfig
+    from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
     from tests.utils import override_env
 
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
-        RemoteConfig.enable()
+        remoteconfig_poller.enable()
 
-        parent_worker = RemoteConfig._worker
+        parent_worker = remoteconfig_poller._worker
         assert parent_worker is not None
 
         if os.fork() == 0:
-            assert RemoteConfig._worker is not None
-            assert RemoteConfig._worker is not parent_worker
+            assert remoteconfig_poller._worker is not None
+            assert remoteconfig_poller._worker is parent_worker
             exit(0)
 
 

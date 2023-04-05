@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from unittest.mock import MagicMock
 
 import mock
 
@@ -76,8 +75,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
-    mock_callback = MagicMock()
-    mock_preprocess_results = MagicMock()
+    mock_callback = mock.MagicMock()
+    mock_preprocess_results = mock.MagicMock()
 
     def _mock_appsec_callback(features, test_tracer=None):
         mock_callback(features)
@@ -92,7 +91,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     enable_appsec_rc(start_subscribers=False)
     rc_client = RemoteConfigClient()
 
-    asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback, "ASM")
+    asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
     rc_client.register_product("ASM_FEATURES", asm_callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         # 0.

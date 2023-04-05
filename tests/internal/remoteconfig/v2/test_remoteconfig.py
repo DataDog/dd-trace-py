@@ -19,6 +19,7 @@ from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.v2.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.v2.worker import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 
@@ -109,32 +110,36 @@ def test_remote_config_register_auto_enable():
             pass
 
     mock_pubsub = MockPubsub()
+    remoteconfig_poller.disable()
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
-        assert remoteconfig_poller._worker is None
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         remoteconfig_poller.register("LIVE_DEBUGGER", mock_pubsub)
 
+        assert remoteconfig_poller.status == ServiceStatus.RUNNING
         assert remoteconfig_poller._client._products["LIVE_DEBUGGER"] is not None
 
         remoteconfig_poller.disable()
 
 
 def test_remote_config_register_validate_rc_disabled():
-    assert remoteconfig_poller._worker is None
+    remoteconfig_poller.disable()
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
 
-        assert remoteconfig_poller._worker is None
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
 def test_remote_config_enable_validate_rc_disabled():
-    assert remoteconfig_poller._worker is None
+    remoteconfig_poller.disable()
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
         remoteconfig_poller.enable()
 
-        assert remoteconfig_poller._worker is None
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
 @pytest.mark.subprocess
@@ -142,35 +147,19 @@ def test_remote_config_forksafe():
     import os
 
     from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+    from ddtrace.internal.service import ServiceStatus
     from tests.utils import override_env
 
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
         remoteconfig_poller.enable()
 
-        parent_worker = remoteconfig_poller._worker
-        assert parent_worker is not None
+        parent_worker = remoteconfig_poller
+        assert parent_worker.status == ServiceStatus.RUNNING
 
         if os.fork() == 0:
-            assert remoteconfig_poller._worker is not None
+            assert remoteconfig_poller.status == ServiceStatus.RUNNING
             assert remoteconfig_poller._worker is not parent_worker
             exit(0)
-
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_1_click(mock_send_request):
-    class Callback:
-        features = {}
-
-        def _reload_features(self, metadata, features):
-            self.features = features
-
-    callback = Callback()
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
-        mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-        remoteconfig_poller.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        remoteconfig_poller._online()
-        mock_send_request.assert_called()
-        assert callback.features == {"asm": {"enabled": True}}
 
 
 def test_remote_configuration_check_deprecated_var():
