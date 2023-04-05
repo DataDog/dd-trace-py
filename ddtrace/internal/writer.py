@@ -570,11 +570,11 @@ class AgentWriter(HTTPWriter):
                 "Unsupported api version: '%s'. The supported versions are: %r"
                 % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
-        self._buffer_size = buffer_size or get_writer_buffer_size()
-        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+        buffer_size = buffer_size or get_writer_buffer_size()
+        max_payload_size = max_payload_size or get_writer_max_payload_size()
         encoder = encoder_cls(
-            max_size=self._buffer_size,
-            max_item_size=self._max_payload_size,
+            max_size=buffer_size,
+            max_item_size=max_payload_size,
         )
 
         endpoint = "%s/traces" % self._api_version
