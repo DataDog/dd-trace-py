@@ -215,13 +215,11 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        # print("on_start", span)
         if _asm_request_context.free_context_available():
             _asm_request_context.register(span)
         else:
             new_asm_context = _asm_request_context.asm_request_context_manager()
             new_asm_context.__enter__()
-            # print("create asm context", resources._id)
             span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
             _asm_request_context.register(span)
 
