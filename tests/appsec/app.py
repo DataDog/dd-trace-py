@@ -3,7 +3,8 @@ import random
 
 from flask import Flask
 
-import ddtrace.auto
+
+import ddtrace.auto  # noqa: F401  # isort: skip
 
 
 app = Flask(__name__)
