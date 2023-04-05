@@ -52,6 +52,13 @@ class _EncoderBase(object):
         """
         raise NotImplementedError()
 
+    def put(self, obj):
+        # type: (Any) -> None
+        """
+        Adds an item to be encoded to the internal buffer
+        """
+        raise NotImplementedError()
+
     @staticmethod
     def _span_to_dict(span):
         # type: (Span) -> Dict[str, Any]
@@ -169,22 +176,22 @@ class CIVisibilityEncoderV01(_EncoderBase):
         self._metadata = metadata or dict()
 
     def __len__(self):
-        with self._lock():
+        with self._lock:
             return len(self.buffer)
 
     def _init_buffer(self):
-        with self._lock():
+        with self._lock:
             self.buffer = []
 
     def put(self, spans):
-        with self._lock():
+        with self._lock:
             self.buffer.append(spans)
 
     def encode_traces(self, traces):
         return self._build_payload(traces=traces)
 
     def encode(self):
-        with self._lock():
+        with self._lock:
             payload = self._build_payload(self.buffer)
             self._init_buffer()
             return payload
@@ -202,7 +209,11 @@ class CIVisibilityEncoderV01(_EncoderBase):
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
-        return {"version": 1, "type": "span", "content": sp}
+        if span.span_type == "test":
+            event_type = "test"
+        else:
+            event_type = "span"
+        return {"version": 1, "type": event_type, "content": sp}
 
 
 MSGPACK_ENCODERS = {
