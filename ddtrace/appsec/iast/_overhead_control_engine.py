@@ -7,11 +7,16 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+from ddtrace.internal.logger import get_logger
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
     from typing import Tuple
     from typing import Type
+
+log = get_logger(__name__)
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
 MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
@@ -84,6 +89,7 @@ class OverheadControl(object):
             self._request_quota += 1
             self._enabled = False
         self.vulnerabilities_reset_quota()
+        clear_taint_mapping()
 
     def register(self, klass):
         # type: (Type[Operation]) -> Type[Operation]
