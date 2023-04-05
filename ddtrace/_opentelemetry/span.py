@@ -170,7 +170,8 @@ class Span(OtelSpan):
 
         if status_code is StatusCode.ERROR:
             self._ddspan.error = 1
-            self.set_attribute(ERROR_MSG, message)
+            if message:
+                self.set_attribute(ERROR_MSG, message)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
@@ -197,5 +198,6 @@ class Span(OtelSpan):
             if self._record_exception:
                 self.record_exception(exc_val)
             if self._set_status_on_exception:
+                # do not overwrite the error message set by record exception
                 self.set_status(StatusCode.ERROR)
         self.end()
