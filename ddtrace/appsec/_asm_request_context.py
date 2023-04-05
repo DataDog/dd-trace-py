@@ -39,7 +39,6 @@ class ASM_Environment:
         self.span = None
         self.waf_addresses = {}  # type: dict[str, Any]
         self.callbacks = {}  # type: dict[str, Any]
-        self.iast_taint_dict = {}  # type: dict[Any, Any]
         self.telemetry = {}  # type: dict[str, Any]
         self.addresses_sent = set()  # type: set[str]
 
@@ -156,22 +155,6 @@ def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
 
 def get_headers_case_sensitive():  # type: () -> bool
     return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
-
-
-def set_taint_dict(taint_dict):  # type: (dict) -> None
-    env = _ASM.get()
-    if not env.active:
-        log.debug("setting iast dict with no active asm context")
-        return
-    env.iast_taint_dict = taint_dict
-
-
-def get_taint_dict():  # type: () -> dict
-    env = _ASM.get()
-    if not env.active:
-        log.debug("getting iast dict with no active asm context")
-        return {}
-    return env.iast_taint_dict
 
 
 def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
