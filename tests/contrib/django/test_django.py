@@ -798,9 +798,9 @@ def test_cache_get_rowcount_empty_key(test_spans):
 def test_cache_get_rowcount_missing_key_with_default(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
-	
-	# This is the diff with `test_cache_get_rowcount_missing_key`, 
-	# we are setting a default value to be returned in case of a cache miss
+
+    # This is the diff with `test_cache_get_rowcount_missing_key`,
+    # we are setting a default value to be returned in case of a cache miss
     cache.get("missing_key", default="default_value")
 
     spans = test_spans.get_spans()
