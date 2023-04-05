@@ -35,6 +35,9 @@ See [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributin
 
 ### Pre-commit Hooks
 
+**NOTE**: If pre-commit hooks fail to run in your development environment, you can uninstall them by deleting the symlink created by the installation script:
+
+    $ rm .git/hooks/pre-commit
 The tracer library uses formatting/linting tools including black, flake8, and mypy.
 While these are run in each CI pipeline for pull requests, they are automated to run
 when you call `git commit` as pre-commit hooks to catch any formatting errors before
