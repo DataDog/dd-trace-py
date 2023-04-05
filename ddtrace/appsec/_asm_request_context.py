@@ -59,14 +59,14 @@ def register(span):
     env.span = span
 
 
-class _Data_handler:
+class _DataHandler:
     main_id = 0
 
     def __init__(self):
-        _Data_handler.main_id += 1
+        _DataHandler.main_id += 1
         env = ASM_Environment(True)
 
-        self._id = _Data_handler.main_id
+        self._id = _DataHandler.main_id
         self.active = True
         self.token = _ASM.set(env)
 
@@ -215,9 +215,9 @@ def reset_waf_results():  # type: () -> None
 def asm_request_context_manager(
     remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None
 ):
-    # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[_Data_handler|None, None, None]
+    # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[_DataHandler|None, None, None]
     if True or config._appsec_enabled:
-        resources = _Data_handler()
+        resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         try:
             yield resources
