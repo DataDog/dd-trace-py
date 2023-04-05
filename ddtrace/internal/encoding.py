@@ -157,12 +157,12 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-class CIAppEncoderV01(_EncoderBase):
+class CIVisibilityEncoderV01(_EncoderBase):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
     def __init__(self, *args, metadata=None, **kwargs):
-        super(CIAppEncoderV01, self).__init__()
+        super(CIVisibilityEncoderV01, self).__init__()
         self._init_buffer()
         self._metadata = metadata or dict()
 
@@ -184,7 +184,9 @@ class CIAppEncoderV01(_EncoderBase):
         return payload
 
     def _build_payload(self, traces=None):
-        normalized_spans = [CIAppEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace]
+        normalized_spans = [
+            CIVisibilityEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace
+        ]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         return msgpack_packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 

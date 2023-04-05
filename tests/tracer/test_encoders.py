@@ -24,7 +24,7 @@ from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
-from ddtrace.internal.encoding import CIAppEncoderV01
+from ddtrace.internal.encoding import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -295,7 +295,7 @@ def decode(obj, reconstruct=True):
     return traces
 
 
-def test_encode_traces_ciapp_v0():
+def test_encode_traces_civisibility_v0():
     traces = [
         [
             Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
@@ -311,7 +311,7 @@ def test_encode_traces_ciapp_v0():
         ],
     ]
 
-    encoder = CIAppEncoderV01(
+    encoder = CIVisibilityEncoderV01(
         metadata={
             "language": "python",
         },

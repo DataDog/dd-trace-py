@@ -36,7 +36,7 @@ from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .encoding import CIAppEncoderV01
+from .encoding import CIVisibilityEncoderV01
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .encoding import _EncoderBase
@@ -711,10 +711,10 @@ class AgentWriter(HTTPWriter):
         return headers
 
 
-class CIAppWriter(HTTPWriter):
+class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "PUT"
-    STATSD_NAMESPACE = "ciappwriter"
+    STATSD_NAMESPACE = "civisibilitywriter"
 
     def __init__(
         self,
@@ -730,7 +730,7 @@ class CIAppWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
-        encoder = CIAppEncoderV01(
+        encoder = CIVisibilityEncoderV01(
             metadata={
                 "language": "python",
                 "env": config.env,
@@ -742,7 +742,7 @@ class CIAppWriter(HTTPWriter):
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY", "dummyapikey")
 
-        super(CIAppWriter, self).__init__(
+        super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             endpoint="v0.5/traces",  # XXX
             encoder=encoder,
@@ -758,7 +758,7 @@ class CIAppWriter(HTTPWriter):
 
     def stop(self):
         if self.status != ServiceStatus.STOPPED:
-            super(CIAppWriter, self).stop()
+            super(CIVisibilityWriter, self).stop()
 
     def recreate(self):
         # type: () -> HTTPWriter

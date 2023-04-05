@@ -22,7 +22,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import CIAppWriter
+from ddtrace.internal.writer import CIVisibilityWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
@@ -320,11 +320,11 @@ class AgentWriterTests(BaseTestCase):
                 assert 0.6 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
 
 
-class CIAppWriterTests(AgentWriterTests):
-    WRITER_CLASS = CIAppWriter
+class CIVisibilityWriterTests(AgentWriterTests):
+    WRITER_CLASS = CIVisibilityWriter
 
     # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
-    # that CIAppWriter does not implement
+    # that CIVisibilityWriter does not implement
     def test_drop_reason_buffer_full(self):
         pytest.skip()
 
@@ -338,7 +338,7 @@ class CIAppWriterTests(AgentWriterTests):
         pytest.skip()
 
     def test_metadata_included(self):
-        writer = CIAppWriter("http://localhost:9126")
+        writer = CIVisibilityWriter("http://localhost:9126")
         writer._encoder.put([Span("foobar")])
         payload = writer._encoder.encode()
         unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
@@ -497,7 +497,7 @@ def endpoint_assert_path():
         thread.join()
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_agent_url_path(endpoint_assert_path, writer_class):
     # test without base path
     endpoint_assert_path("/v0.")
@@ -517,7 +517,7 @@ def test_agent_url_path(endpoint_assert_path, writer_class):
     writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_connection_timeout_connect(writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, 2019))
     if PY3:
@@ -529,7 +529,7 @@ def test_flush_connection_timeout_connect(writer_class):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
@@ -537,7 +537,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
     if PY3:
@@ -549,14 +549,14 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_flush_queue_raise(writer_class):
     writer = writer_class("http://dne:1234")
 
@@ -703,7 +703,7 @@ def test_writer_api_version_selection(
                 pytest.fail("Raised RuntimeError when it was not expected")
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
     writer = writer_class("http://localhost:9126")
@@ -714,7 +714,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     assert writer._reuse_connections
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections(writer_class):
     # Ensure connection is not reused
     writer = writer_class("http://localhost:9126", reuse_connections=True)
@@ -725,7 +725,7 @@ def test_writer_reuse_connections(writer_class):
     assert writer._conn is None
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIAppWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_false(writer_class):
     # Ensure connection is reused
     writer = writer_class("http://localhost:9126", reuse_connections=False)
