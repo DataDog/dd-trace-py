@@ -184,15 +184,13 @@ class CIVisibilityEncoderV01(_EncoderBase):
         return self._build_payload(traces=traces)
 
     def encode(self):
-        payload = self._build_payload()
-        self._init_buffer()
-        return payload
-
-    def _build_payload(self, traces=None):
         with self._lock():
-            normalized_spans = [
-                CIVisibilityEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace
-            ]
+            payload = self._build_payload(self.buffer)
+            self._init_buffer()
+            return payload
+
+    def _build_payload(self, traces):
+        normalized_spans = [CIVisibilityEncoderV01._convert_span(span) for trace in traces for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         return msgpack_packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 
