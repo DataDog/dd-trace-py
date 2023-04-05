@@ -42,7 +42,7 @@ def patched_create(func, instance, args, kwargs):
     pin = Pin.get_from(openai)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
-    resp = None
+
     with pin.tracer.trace(instance.OBJECT_NAME) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         for k, v in args:
@@ -54,6 +54,8 @@ def patched_create(func, instance, args, kwargs):
             return resp
         except openai.error.OpenAIError as err:
             span.set_tag("error", str(err))
+            span.finish()
+            raise err
 
 
 # OpenAI Object tracing?
