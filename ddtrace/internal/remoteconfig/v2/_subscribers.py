@@ -1,11 +1,11 @@
 import abc
 import os
-import threading
 import time
 
 import six
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.periodic import PeriodicThread
 
 
 log = get_logger(__name__)
@@ -91,7 +91,7 @@ class RemoteConfigSubscriber(SubscriberBase):
     def start(self):
         log.debug("[%s][P: %s] Subscriber %s start %s", os.getpid(), os.getppid(), self._name, self.running)
         if not self.running:
-            self._th_worker = threading.Thread(target=self._worker)
+            self._th_worker = PeriodicThread(target=self._worker, interval=1, on_shutdown=self.stop)
             self._th_worker.start()
 
     def force_restart(self):
@@ -100,6 +100,8 @@ class RemoteConfigSubscriber(SubscriberBase):
         self.start()
 
     def stop(self):
-        self.running = False
         if self._th_worker:
-            self._th_worker.join()
+            self.running = False
+            log.debug("[%s][P: %s] Subscriber %s. Starting to stop", os.getpid(), os.getppid(), self._name)
+            self._th_worker.stop()
+            log.debug("[%s][P: %s] Subscriber %s. Stopped", os.getpid(), os.getppid(), self._name)

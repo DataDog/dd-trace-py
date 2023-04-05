@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Optional
 
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -110,10 +109,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if self.status == ServiceStatus.RUNNING:
                 return True
 
-            if self._worker is None:
-                self._start_service()
-                forksafe.register(self.start_subscribers)
-                atexit.register(self.disable)
+            self.start()
+            forksafe.register(self.start_subscribers)
+            atexit.register(self.disable)
             return True
         return False
 
@@ -145,40 +143,32 @@ class RemoteConfigPoller(periodic.PeriodicService):
         by calling ``enable`` again.
         """
         log.debug(
-            "[%s][P: %s][P2: %s] Remote Config Poller fork. Stopping  Pubsub services",
+            "[%s][P: %s] Remote Config Poller fork. Stopping  Pubsub services",
             os.getpid(),
-            os.getppid(),
             self._parent_id,
         )
         for pubsub in self._client._products.values():
             pubsub.stop()
 
-    def disable(self, join=False):
-        # type: (bool) -> None
-        with self._worker_lock:
-            if self._worker is not None:
-                self._worker.stop()
-                if join:
-                    self._worker.join()
-                self.stop_subscribers()
-                self._worker = None
+    def disable(self):
+        # type: () -> None
+        if self.status == ServiceStatus.STOPPED:
+            return
 
-                forksafe.unregister(self.start_subscribers)
-                atexit.unregister(self.disable)
+        self.stop_subscribers()
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+        forksafe.unregister(self.start_subscribers)
+        atexit.unregister(self.disable)
+
+        self.stop()
+
+    def on_shutdown(self):
         self.disable()
-        self.stop(timeout)
 
-    def _stop_service(
-        self,
-        timeout=None,  # type: Optional[float]
-    ):
+    def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
         self.stop_subscribers()
-        super(RemoteConfigPoller, self)._stop_service()
-        self.join(timeout=timeout)
+        super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
     def register(self, product, pubsub_instance):
         # type: (str, PubSubBase) -> None
@@ -203,7 +193,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def __exit__(self, *args):
         # type: (...) -> None
-        self.disable(join=True)
+        self.disable()
 
 
 remoteconfig_poller = RemoteConfigPoller()

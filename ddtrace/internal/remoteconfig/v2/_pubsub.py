@@ -18,7 +18,7 @@ In addition to this, there are different Remote Configuration behaviors:
   on child processes.
 
 To achieve this goal, a Remote Configuration product may register a PubSub instance. A PubSub class contains a publisher
-that receives the Remote Configuration payload and shares it with Pubsub Subscribe instance. The Subscribe starts a
+that receives the Remote Configuration payload and shares it with Pubsub Subscriber instance. The Subscriber starts a
 thread on each child process, waiting for a new update of the shared data between the Publisher on the main process
 and the child process. Remote Configuration creates a thread listening to the main process for each instance of PubSub.
 To connect this publisher and the child processes subscribers, we need a connector class: Shared Memory or File.
