@@ -198,6 +198,6 @@ class Span(OtelSpan):
             if self._record_exception:
                 self.record_exception(exc_val)
             if self._set_status_on_exception:
-                # do not overwrite the error message set by record exception
+                # do not overwrite the status message set by record exception
                 self.set_status(StatusCode.ERROR)
         self.end()
