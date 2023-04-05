@@ -337,7 +337,7 @@ def test_encode_traces_civisibility_v0():
             b"type": b"test" if given_span.span_type == "test" else b"span",
             b"version": 1,
             b"content": {
-                b"trace_id": JSONEncoderV2._encode_id_to_hex(given_span.trace_id).encode("utf-8"),
+                b"trace_id": JSONEncoderV2._encode_id_to_hex(given_span._trace_id_64bits).encode("utf-8"),
                 b"span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id).encode("utf-8"),
                 b"parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id).encode("utf-8"),
                 b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),

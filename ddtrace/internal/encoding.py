@@ -201,7 +201,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _convert_span(span):
         # type: (Span) -> Dict[str, Any]
         sp = JSONEncoderV2._convert_span(span)
-        sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(span.trace_id)
         sp["type"] = span.span_type
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
