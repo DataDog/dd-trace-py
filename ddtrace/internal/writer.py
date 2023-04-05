@@ -34,7 +34,7 @@ from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
-from ._encoding import BufferedEncoder
+from ._encoding import MsgpackEncoderBase
 from .agent import get_connection
 from .encoding import CIVisibilityEncoderV01
 from .encoding import JSONEncoderV2
@@ -239,7 +239,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         endpoint,  # type: str
-        encoder,  # type: BufferedEncoder
+        encoder,  # type: MsgpackEncoderBase
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
