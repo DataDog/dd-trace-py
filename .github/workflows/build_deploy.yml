@@ -214,10 +214,10 @@ jobs:
 
   build-and-publish-init-image:
     needs: [upload_pypi]
-    steps:
-      - uses: ./.github/workflows/lib-inject-publish.yml
-        with:
-          ddtrace-version: ${{ github.ref_name }}
-          image-tag: ${{ github.ref_name }}
-        secrets:
-          token: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    uses: ./.github/workflows/lib-inject-publish.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: ${{ github.ref_name }}
+      image-tag: ${{ github.ref_name }}
