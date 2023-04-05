@@ -771,12 +771,13 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
 
 
+class NoBool:
+    def __bool__(self):
+        raise NotImplementedError
+
+
 def test_cache_get_rowcount_empty_key(test_spans):
     # get the default cache
-    class NoBool:
-        def __bool__(self):
-            raise NotImplementedError
-
     cache = django.core.cache.caches["default"]
     cache.set(1, NoBool())
 
