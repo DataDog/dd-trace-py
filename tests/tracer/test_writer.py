@@ -594,6 +594,14 @@ def test_additional_headers():
         assert writer._headers["header2"] == "value2"
 
 
+def test_additional_headers_constructor():
+    writer = AgentWriter(
+        agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+    )
+    assert writer._headers["additional-header"] == "additional-value"
+    assert writer._headers["header2"] == "value2"
+
+
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
     monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
