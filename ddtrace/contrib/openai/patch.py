@@ -5,8 +5,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
 from ...pin import Pin
-
 from ..trace_utils import unwrap
+
 
 config._add(
     "openai",
@@ -24,7 +24,6 @@ def patch():
     setattr(openai, "__datadog_patch", True)
     _w = wrapt.wrap_function_wrapper
     _w("openai", "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create)
-    Pin.override(openai.api_resources.abstract.engine_api_resource.EngineAPIResource)
     # _w("openai", "Completion.create", traced_create)
     # _w("openai", "OpenAIObject.__init__", traced_init)
     # _w("openai", "OpenAIObject.construct_from", traced_init)
@@ -40,7 +39,7 @@ def unpatch():
 
 
 def patched_create(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
+    pin = Pin.get_from(openai)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
     resp = None
@@ -52,9 +51,9 @@ def patched_create(func, instance, args, kwargs):
             span.set_tag_str(k, v)
         try:
             resp = func(*args, **kwargs)
-        except openai.error.OpenAIError:
-            pass
-    return resp
+            return resp
+        except openai.error.OpenAIError as err:
+            span.set_tag("error", str(err))
 
 
 # OpenAI Object tracing?
