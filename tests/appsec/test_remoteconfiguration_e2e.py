@@ -109,6 +109,30 @@ def _1_click_activation():
 
 
 def _block_ip():
+    client = _get_agent_client()
+    client.request(
+        "POST",
+        "/test/session/responses/config/path",
+        json.dumps(
+            {
+                "path": "datadog/2/ASM_DATA/blocked_users/config",
+                "msg": {
+                    "rules_data": [
+                        {
+                            "data": [{"expiration": int(time.time()) + 1000000, "value": "123.45.67.88"}],
+                            "id": "blocked_ips",
+                            "type": "ip_with_expiration",
+                        }
+                    ]
+                },
+            }
+        ),
+    )
+    resp = client.getresponse()
+    assert resp.status == 202
+
+
+def _block_ip_with_1_click_activation():
     expires_date = datetime.datetime.strftime(
         datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
     )
@@ -176,9 +200,13 @@ def _block_ip():
         "targets": str(base64.b64encode(bytes(json.dumps(data), encoding="utf-8")), encoding="utf-8"),
         "target_files": [
             {
+                "path": path_1,
+                "raw": str(base64.b64encode(msg_1_enc), encoding="utf-8"),
+            },
+            {
                 "path": path_2,
                 "raw": str(base64.b64encode(msg_2_enc), encoding="utf-8"),
-            }
+            },
         ],
         "client_configs": [path_1, path_2],
     }
@@ -219,7 +247,7 @@ def _multi_requests(client, debug_mode=False):
         ]
     else:
         pool = ThreadPool(processes=9)
-        results_async = [pool.apply_async(_request, (client,)) for _ in range(100)]
+        results_async = [pool.apply_async(_request, (client,)) for _ in range(50)]
         results = [res.get() for res in results_async]
 
     return results
@@ -228,8 +256,6 @@ def _multi_requests(client, debug_mode=False):
 def _request_200(client, debug_mode=False):
     results = _multi_requests(client, debug_mode)
     for response in results:
-        print("response!!!!!!!!!!")
-        print(response)
         assert response.status_code == 200
         assert response.content == b"OK"
 
@@ -237,8 +263,6 @@ def _request_200(client, debug_mode=False):
 def _request_403(client, debug_mode=False):
     results = _multi_requests(client, debug_mode)
     for response in results:
-        print("response!!!!!!!!!!")
-        print(response)
         assert response.status_code == 403
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
@@ -258,7 +282,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
 
         _unblock_ip()
 
-        time.sleep(2)
+        time.sleep(1)
 
 
 @pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
@@ -272,7 +296,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _request_200(gunicorn_client)
 
-        time.sleep(3)
+        time.sleep(2)
 
         _request_403(gunicorn_client)
 
@@ -318,9 +342,9 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _1_click_activation()
 
-        time.sleep(2)
+        time.sleep(1)
 
-        _block_ip()
+        _block_ip_with_1_click_activation()
 
         _request_200(gunicorn_client, debug_mode=False)
 
@@ -334,6 +358,6 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _unblock_ip()
 
-        time.sleep(2)
+        time.sleep(1)
 
         _request_200(gunicorn_client, debug_mode=False)

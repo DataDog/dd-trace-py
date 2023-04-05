@@ -91,6 +91,9 @@ class PubSubBase(six.with_metaclass(abc.ABCMeta)):
     def start_subscriber(self):
         self._subscriber.start()
 
+    def restart_subscriber(self):
+        self._subscriber.force_restart()
+
     def _poll_data(self, test_tracer=None):
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 

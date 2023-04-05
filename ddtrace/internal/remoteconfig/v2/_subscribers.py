@@ -75,14 +75,7 @@ class RemoteConfigSubscriber(SubscriberBase):
             )
             checksum = hash(data_raw)
             self._exec_callback(data, test_tracer=test_tracer)
-        else:
-            log.debug(
-                "[%s][P: %s] Subscriber %s worker NO NEW DATA: %s",
-                os.getpid(),
-                os.getppid(),
-                self._name,
-                data_raw[:100],
-            )
+
         return checksum
 
     def _worker(self):

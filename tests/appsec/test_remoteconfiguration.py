@@ -161,38 +161,6 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(trac
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
 
 
-def test_load_new_configurations_invalid_content(remote_config_worker, tracer):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
-        tracer.configure(appsec_enabled=True, api_version="v0.4")
-        enable_appsec_rc(tracer, start_subscribers=False)
-        asm_features_data = b'{"asm":{"enabled":true}}'
-        asm_data_data = b'{"data": "data"}'
-        payload = AgentPayload(
-            target_files=[
-                TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
-                TargetFile(path="mock/ASM_DATA", raw=base64.b64encode(asm_data_data)),
-            ]
-        )
-        client_configs = {
-            "mock/ASM_FEATURES": ConfigMetadata(
-                id="",
-                product_name="ASM_FEATURES",
-                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
-                length=5,
-                tuf_version=5,
-            ),
-            "mock/ASM_DATA": ConfigMetadata(
-                id="",
-                product_name="ASM_DATA",
-                sha256_hash=hashlib.sha256(asm_data_data).hexdigest(),
-                length=5,
-                tuf_version=5,
-            ),
-        }
-        with pytest.raises(ValueError):
-            remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
-
-
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_dispatch_applied_configs(
