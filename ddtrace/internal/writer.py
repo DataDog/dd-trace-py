@@ -35,7 +35,7 @@ from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
-from ._encoding import MsgpackEncoderBase
+from ._encoding import BufferedEncoder
 from .agent import get_connection
 from .encoding import CIVisibilityEncoderV01
 from .encoding import JSONEncoderV2
@@ -246,7 +246,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         endpoint,  # type: str
-        encoder,  # type: MsgpackEncoderBase
+        encoder,  # type: BufferedEncoder
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -608,7 +608,7 @@ class AgentWriter(HTTPWriter):
                 }
             )
 
-        self._headers.update({"Content-Type": self._encoder.content_type})
+        self._headers.update({"Content-Type": self._encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
@@ -772,5 +772,4 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=self._api_version,
         )

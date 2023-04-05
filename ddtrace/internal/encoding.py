@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ._encoding import BufferedEncoder
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
@@ -49,13 +50,6 @@ class _EncoderBase(object):
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal
         functions.
-        """
-        raise NotImplementedError()
-
-    def put(self, obj):
-        # type: (Any) -> None
-        """
-        Adds an item to be encoded to the internal buffer
         """
         raise NotImplementedError()
 
@@ -165,7 +159,7 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-class CIVisibilityEncoderV01(_EncoderBase):
+class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
