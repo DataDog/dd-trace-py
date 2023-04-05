@@ -311,7 +311,7 @@ def test_encode_traces_civisibility_v0():
         ],
     ]
 
-    encoder = CIVisibilityEncoderV01()
+    encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata(
         {
             "language": "python",
