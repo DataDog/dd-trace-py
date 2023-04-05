@@ -37,6 +37,7 @@ from ._encoding import BufferItemTooLarge
 from .agent import get_connection
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
+from .encoding import _EncoderBase
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
