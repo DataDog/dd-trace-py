@@ -7,7 +7,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
 from ddtrace.internal.logger import get_logger
 
 

@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import new_pyobject_id
 from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
 
@@ -14,18 +15,6 @@ if TYPE_CHECKING:
     from typing import Union
 
     from ddtrace.appsec.iast._input_info import Input_info
-
-
-_IAST_TAINT_DICT = {}
-
-
-def set_taint_dict(taint_dict):  # type: (dict) -> None
-    global _IAST_TAINT_DICT
-    _IAST_TAINT_DICT = taint_dict
-
-
-def get_taint_dict():  # type: () -> dict
-    return _IAST_TAINT_DICT
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
@@ -69,10 +58,6 @@ def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
 
 def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
     return get_taint_dict().get(id(pyobject), tuple())
-
-
-def clear_taint_mapping():  # type: () -> None
-    set_taint_dict({})
 
 
 def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Input_info]]

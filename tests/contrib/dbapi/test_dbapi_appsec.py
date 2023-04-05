@@ -11,7 +11,7 @@ from tests.utils import TracerTestCase
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+        from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
         from ddtrace.appsec.iast._taint_tracking import setup
 
         super(TestTracedCursor, self).setUp()
