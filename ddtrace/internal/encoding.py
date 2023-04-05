@@ -1,4 +1,5 @@
 import json
+import threading
 from typing import Any
 from typing import Dict
 from typing import List
@@ -163,17 +164,21 @@ class CIVisibilityEncoderV01(_EncoderBase):
 
     def __init__(self, *args, metadata=None, **kwargs):
         super(CIVisibilityEncoderV01, self).__init__()
+        self._lock = threading.RLock()
         self._init_buffer()
         self._metadata = metadata or dict()
 
     def __len__(self):
-        return len(self.buffer)
+        with self._lock():
+            return len(self.buffer)
 
     def _init_buffer(self):
-        self.buffer = []
+        with self._lock():
+            self.buffer = []
 
     def put(self, spans):
-        self.buffer.append(spans)
+        with self._lock():
+            self.buffer.append(spans)
 
     def encode_traces(self, traces):
         return self._build_payload(traces=traces)
@@ -184,9 +189,10 @@ class CIVisibilityEncoderV01(_EncoderBase):
         return payload
 
     def _build_payload(self, traces=None):
-        normalized_spans = [
-            CIVisibilityEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace
-        ]
+        with self._lock():
+            normalized_spans = [
+                CIVisibilityEncoderV01._convert_span(span) for trace in (traces or self.buffer) for span in trace
+            ]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         return msgpack_packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
 
