@@ -5,13 +5,23 @@ import mock
 from mock.mock import MagicMock
 import pytest
 
+from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemory
+from ddtrace.internal.remoteconfig.v2._pubsub import PubSubMergeFirst
+from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.v2.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.v2.client import PublisherListenerProxy
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigError
-from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig.v2.client import RemoteConfigPublisherAfterMerge
 from ddtrace.internal.remoteconfig.v2.client import TargetFile
+from tests.internal.remoteconfig.v2.test_remoteconfig import RCMockPubSub
+
+
+class RCMockPubSub2(PubSubMergeFirst):
+    __subscriber_class__ = RemoteConfigSubscriber
+    __shared_data = ConnectorSharedMemory()
+
+    def __init__(self, _preprocess_results, callback):
+        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "TESTS")
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
@@ -31,7 +41,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.publisher.assert_called_once_with(mock_config, mock_config_content)
+    mock_callback.publish.assert_called_once_with(mock_config, mock_config_content)
     assert applied_configs == client_configs
 
 
@@ -39,7 +49,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
 def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
     mock_callback = MagicMock()
 
-    def _mock_appsec_callback(features):
+    def _mock_appsec_callback(features, test_tracer=None):
         mock_callback(dict(features))
 
     class MockExtractFile:
@@ -65,17 +75,17 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
         ),
     }
 
-    asm_callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, _mock_appsec_callback)
+    asm_callback = RCMockPubSub(None, _mock_appsec_callback)
     rc_client = RemoteConfigClient()
     rc_client.register_product("ASM_DATA", asm_callback)
     rc_client.register_product("ASM_FEATURES", asm_callback)
-    asm_callback.listener.start()
+    asm_callback.start_subscriber()
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
-    time.sleep(1)
+    time.sleep(2)
     mock_callback.assert_called_once_with(expected_results)
     assert applied_configs == client_configs
     rc_client._products = {}
-    asm_callback.listener.stop()
+    asm_callback.stop()
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
@@ -246,49 +256,50 @@ def test_validate_config_exists_in_target_paths(
             rc_client._validate_config_exists_in_target_paths(payload_client_configs, payload_target_files)
 
 
-# @pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
-# def test_remote_config_client_tags():
-#
-#     from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
-#
-#     tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-#
-#     assert tags["env"] == "foo"
-#     assert tags["version"] == "bar"
+@pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
+def test_remote_config_client_tags():
+
+    from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
+
+    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
+
+    assert tags["env"] == "foo"
+    assert tags["version"] == "bar"
 
 
-# @pytest.mark.subprocess(
-#     env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
-# )
-# def test_remote_config_client_tags_override():
-#
-#     from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
-#
-#     tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
-#
-#     assert tags["env"] == "foo"
-#     assert tags["version"] == "bar"
+@pytest.mark.subprocess(
+    env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
+)
+def test_remote_config_client_tags_override():
+
+    from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
+
+    tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
+
+    assert tags["env"] == "foo"
+    assert tags["version"] == "bar"
 
 
 def test_apply_default_callback():
-    class callbackClass:
+    class CallbackClass:
+        config = None
         result = None
 
         @classmethod
-        def _mock_appsec_callback(cls, *args, **kwargs):
-            cls.result = dict(args[0])
+        def publish(cls, *args, **kwargs):
+            cls.config = dict(args[0])
+            cls.result = dict(args[1])
 
     callback_content = {"a": 1}
     target = "1/ASM/2"
     config = {"Config": "data"}
     test_list_callbacks = []
-    callback = PublisherListenerProxy(RemoteConfigPublisher, None, callbackClass._mock_appsec_callback)
+    callback = CallbackClass()
     RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
-    callback.listener.start()
-    time.sleep(1)
-    assert callbackClass.result == {"a": 1}
+
+    assert CallbackClass.config == config
+    assert CallbackClass.result == callback_content
     assert test_list_callbacks == []
-    callback.listener.stop()
 
 
 def test_apply_merge_callback():
@@ -303,15 +314,15 @@ def test_apply_merge_callback():
     target = "1/ASM/2"
     config = {"Config": "data"}
     test_list_callbacks = []
-    callback = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, callbackClass._mock_appsec_callback)
+    callback = RCMockPubSub(None, callbackClass._mock_appsec_callback)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
-    callback.listener.start()
+    callback.start_subscriber()
     for callback_to_dispach in test_list_callbacks:
-        callback_to_dispach.dispatch()
+        callback_to_dispach.publish()
     time.sleep(1)
     assert callbackClass.result == {"b": [1, 2, 3]}
     assert len(test_list_callbacks) > 0
-    callback.listener.stop()
+    callback.stop()
 
 
 def test_apply_merge_multiple_callback():
@@ -322,8 +333,8 @@ def test_apply_merge_multiple_callback():
         def _mock_appsec_callback(cls, *args, **kwargs):
             cls.result = dict(args[0])
 
-    callback1 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, callbackClass._mock_appsec_callback)
-    callback2 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, callbackClass._mock_appsec_callback)
+    callback1 = RCMockPubSub(None, callbackClass._mock_appsec_callback)
+    callback2 = RCMockPubSub2(None, callbackClass._mock_appsec_callback)
     callback_content1 = {"a": [1]}
     callback_content2 = {"b": [2]}
     target = "1/ASM/2"
@@ -331,15 +342,15 @@ def test_apply_merge_multiple_callback():
     test_list_callbacks = []
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
-    callback1.listener.start()
-    callback2.listener.start()
+    callback1.start_subscriber()
+    callback2.start_subscriber()
     assert len(test_list_callbacks) == 1
-    test_list_callbacks[0].dispatch()
+    test_list_callbacks[0].publish()
     time.sleep(2)
 
     assert callbackClass.result == ({"a": [1], "b": [2]})
-    callback1.listener.stop()
-    callback2.listener.stop()
+    callback1.stop()
+    callback2.stop()
 
 
 def test_apply_merge_different_callback():
@@ -357,8 +368,8 @@ def test_apply_merge_different_callback():
         def _mock_appsec_callback(cls, *args, **kwargs):
             cls.result = dict(args[0])
 
-    callback1 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, Callback1And2Class._mock_appsec_callback)
-    callback3 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, Callback3Class._mock_appsec_callback)
+    callback1 = RCMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+    callback3 = RCMockPubSub2(None, Callback3Class._mock_appsec_callback)
     callback_content1 = {"a": [1]}
     callback_content2 = {"b": [2]}
     callback_content3 = {"c": [2]}
@@ -368,17 +379,17 @@ def test_apply_merge_different_callback():
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
-    callback1.listener.start()
-    callback3.listener.start()
+    callback1.start_subscriber()
+    callback3.start_subscriber()
     assert len(test_list_callbacks) == 2
-    test_list_callbacks[0].dispatch()
-    test_list_callbacks[1].dispatch()
+    test_list_callbacks[0].publish()
+    test_list_callbacks[1].publish()
     time.sleep(2)
 
-    assert Callback1And2Class.result == ({"a": [1], "b": [2]})
     assert Callback3Class.result == ({"c": [2]})
-    callback1.listener.stop()
-    callback3.listener.stop()
+    assert Callback1And2Class.result == ({"a": [1], "b": [2]})
+    callback1.stop()
+    callback3.stop()
 
 
 def test_apply_merge_different_target_callback():
@@ -396,8 +407,8 @@ def test_apply_merge_different_target_callback():
         def _mock_appsec_callback(cls, *args, **kwargs):
             cls.result = dict(args[0])
 
-    callback1 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, Callback1And2Class._mock_appsec_callback)
-    callback3 = PublisherListenerProxy(RemoteConfigPublisherAfterMerge, None, Callback3Class._mock_appsec_callback)
+    callback1 = RCMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+    callback3 = RCMockPubSub2(None, Callback3Class._mock_appsec_callback)
     callback_content1 = {"a": [1]}
     callback_content2 = {"b": [2]}
     callback_content3 = {"b": [3]}
@@ -407,14 +418,14 @@ def test_apply_merge_different_target_callback():
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
-    callback1.listener.start()
-    callback3.listener.start()
+    callback1.start_subscriber()
+    callback3.start_subscriber()
     assert len(test_list_callbacks) == 2
-    test_list_callbacks[0].dispatch()
-    test_list_callbacks[1].dispatch()
+    test_list_callbacks[0].publish()
+    test_list_callbacks[1].publish()
     time.sleep(2)
 
-    assert Callback1And2Class.result == ({"a": [1], "b": [2]})
     assert Callback3Class.result == ({"b": [3]})
-    callback1.listener.stop()
-    callback3.listener.stop()
+    assert Callback1And2Class.result == ({"a": [1], "b": [2]})
+    callback1.stop()
+    callback3.stop()

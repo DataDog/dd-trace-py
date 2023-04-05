@@ -35,9 +35,9 @@ class AppSecRC(PubSubMergeFirst):
     __subscriber_class__ = RemoteConfigSubscriber
     __shared_data = ConnectorSharedMemory()
 
-    def __init__(self, _preprocess_results, callback, name="Default"):
+    def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "ASM")
 
 
 def enable_appsec_rc(test_tracer=None, start_subscribers=True):
@@ -50,7 +50,7 @@ def enable_appsec_rc(test_tracer=None, start_subscribers=True):
         tracer = test_tracer
 
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
-    asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback, "ASM")
+    asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
     if _appsec_rc_features_is_enabled():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
@@ -112,7 +112,7 @@ def _appsec_rules_data(features, test_tracer):
 def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None):
     # type: (Any, Optional[PubSubBase]) -> Mapping[str, Any]
     if not pubsub_instance:
-        pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback, "ASM")
+        pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
 
     rc_appsec_enabled = None
     if features is not None:

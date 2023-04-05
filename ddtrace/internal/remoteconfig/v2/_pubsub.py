@@ -3,36 +3,33 @@ The Datadog Remote Configuration Publisher-Subscriber system.
 
 A common Python web application use to execute a WSGI server (e.x: Gunicorn) and this server use many workers.
 
-Remote Configuration needs to keep updated all workers as soon as possible. Due to, Remote Configuration may start
-BEFORE gunicorn server in `sitecustomize.py`, it starts to poll information from RC Agent and for each new payload,
-through this Pub-sub system, share this information with all child processes.
+Remote Configuration needs to keep all workers updated as soon as possible. Therefore, Remote Configuration may start
+BEFORE the Gunicorn server in sitecustomize.py, it starts to poll information from the RC Agent, and for each new
+payload, through this Pub-sub system, share this information with all child processes.
 
 In addition to this, there are different Remote Configuration behaviors:
-- When Remote Configuration Client receive a new product target file payload, we need to call a callback
-- When Remote Configuration Client receive a new product target file payload, we need to aggregate this target file
-data for each product. After that, call the callback with all aggregated information
-- Remote Configuration may have a callback for each product
-- Remote Configuration may have a callback for one or more products
+
+- When the Remote Configuration Client receives a new product target file payload, we need to call a callback.
+- When the Remote Configuration Client receives a new product target file payload, we need to aggregate this target
+  file data for each product. After that, call the callback with all aggregated information.
+- Remote Configuration may have a callback for each product.
+- Remote Configuration may have a callback for one or more products.
 - For each payload, Remote Configuration needs to execute specific actions on the main process and a different action
-  on child processes
+  on child processes.
 
-To archive this goal, a Remote Configuration product may register a PubSub instance. A PubSub Class contains a publisher
-that receives the Remote Configuration payload and shares it to Pubsub Subscribe instance. The Subscribe starts a thread
-on each child process, waiting for a new update of the shared data between the Publisher on the main process and the
-child process. Remote Configuration creates a thread listening to the main process for each instance of PubSub.
-To connect this publisher and the Child processes subscribers we need a connector class: Shared Memory or
-File. Each instance of PubSub works as a singleton when Remote Configuration dispatches the callbacks, that's mean, if
-we register the same instance of PubSub class on different products, we would have one thread waiting to the main
-process.
+To achieve this goal, a Remote Configuration product may register a PubSub instance. A PubSub class contains a publisher
+that receives the Remote Configuration payload and shares it with Pubsub Subscribe instance. The Subscribe starts a
+thread on each child process, waiting for a new update of the shared data between the Publisher on the main process
+and the child process. Remote Configuration creates a thread listening to the main process for each instance of PubSub.
+To connect this publisher and the child processes subscribers, we need a connector class: Shared Memory or File.
+Each instance of PubSub works as a singleton when Remote Configuration dispatches the callbacks. That means if we
+register the same instance of PubSub class on different products, we would have one thread waiting to the main process.
 
-Each DD Product (APM, ASM, DI, CI) may implement their own PubSub Class
+Each DD Product (APM, ASM, DI, CI) may implement its PubSub Class.
 
-Usage
-~~~~~
-
-Scenario 1: A callback for one or more Remote Configuration Products
---------------------------------------------------------------------
-AppSec needs to aggregate different products in the same callback for all child processes:
+Example 1: A callback for one or more Remote Configuration Products
+-------------------------------------------------------------------
+AppSec needs to aggregate different products in the same callback for all child processes.
 
 class AppSecRC(PubSubMergeFirst):
     __shared_data = ConnectorSharedMemory()
@@ -47,10 +44,9 @@ remoteconfig_poller.register("ASM_PRODUCT", asm_callback)
 remoteconfig_poller.register("ASM_FEATURES_PRODUCT", asm_callback)
 
 
-Scenario 2: One Callback for each product
------------------------------------------
-
-DI needs to aggregate different products in the same callback for all child processes:
+Example 2: One Callback for each product
+----------------------------------------
+DI needs to aggregate different products in the same callback for all child processes.
 
 class DynamicInstrumentationRC(PubSub):
     __shared_data = ConnectorSharedMemory()
