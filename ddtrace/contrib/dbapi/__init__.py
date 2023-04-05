@@ -105,6 +105,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
                 if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                     SqlInjection.report(evidence_value=args[0])
+                    raise Exception(args[0])
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
