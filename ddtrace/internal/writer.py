@@ -34,6 +34,7 @@ from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
+from ._encoding import MsgpackEncoderBase
 from .agent import get_connection
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
@@ -229,20 +230,14 @@ class LogWriter(TraceWriter):
         pass
 
 
-class AgentWriter(periodic.PeriodicService, TraceWriter):
-    """Writer to the Datadog Agent.
-
-    The Datadog Agent supports (at the time of writing this) receiving trace
-    payloads up to 50MB. A trace payload is just a list of traces and the agent
-    expects a trace to be complete. That is, all spans with the same trace_id
-    should be in the same trace.
-    """
-
-    RETRY_ATTEMPTS = 3
+class HTTPWriter(periodic.PeriodicService, TraceWriter):
+    """Writer to an arbitrary HTTP intake endpoint."""
 
     def __init__(
         self,
-        agent_url,  # type: str
+        intake_url,  # type: str
+        endpoint,  # type: str
+        encoder,  # type: MsgpackEncoderBase
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -253,103 +248,48 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
-        api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
         # type: (...) -> None
-        # Pre-conditions:
-        if buffer_size is not None and buffer_size <= 0:
-            raise ValueError("Writer buffer size must be positive")
-        if max_payload_size is not None and max_payload_size <= 0:
-            raise ValueError("Max payload size must be positive")
 
-        super(AgentWriter, self).__init__(interval=processing_interval)
-        self.agent_url = agent_url
-        self._buffer_size = buffer_size or get_writer_buffer_size()
-        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+        super(HTTPWriter, self).__init__(interval=processing_interval)
+        self.intake_url = intake_url
+        self._buffer_size = buffer_size
+        self._max_payload_size = max_payload_size
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self._headers = {
-            "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
-            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
-            "Datadog-Client-Computed-Top-Level": "yes",
-        }
-        if headers:
-            self._headers.update(headers)
+        self._headers = headers or {}
         self._timeout = timeout
 
-        # Default to v0.4 if we are on Windows since there is a known compatibility issue
-        # https://github.com/DataDog/dd-trace-py/issues/4829
-        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
-        #      as a safety precaution.
-        #      https://docs.python.org/3/library/sys.html#sys.platform
-        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if is_windows else "v0.5"
+        self._endpoint = endpoint
 
-        self._api_version = (
-            api_version
-            or os.getenv("DD_TRACE_API_VERSION")
-            or (default_api_version if priority_sampler is not None else "v0.3")
-        )
-        if is_windows and self._api_version == "v0.5":
-            raise RuntimeError(
-                "There is a known compatibility issue with v0.5 API and Windows, "
-                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
-            )
-
-        try:
-            Encoder = MSGPACK_ENCODERS[self._api_version]
-        except KeyError:
-            raise ValueError(
-                "Unsupported api version: '%s'. The supported versions are: %r"
-                % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
-            )
-
-        self._endpoint = "%s/traces" % self._api_version
-
-        self._container_info = container.get_container_info()
-        if self._container_info and self._container_info.container_id:
-            self._headers.update(
-                {
-                    "Datadog-Container-Id": self._container_info.container_id,
-                }
-            )
-
-        self._encoder = Encoder(
-            max_size=self._buffer_size,
-            max_item_size=self._max_payload_size,
-        )
-        self._headers.update({"Content-Type": self._encoder.content_type})
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            self._headers.update(parse_tags_str(additional_header_str))
+        self._encoder = encoder
         self.dogstatsd = dogstatsd
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
         # The connection has to be locked since there exists a race between
-        # the periodic thread of AgentWriter and other threads that might
+        # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck = threading.RLock()  # type: threading.RLock
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),  # type: ignore[attr-defined]
+                exp_base=1.618,
             ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),  # type: ignore[attr-defined]
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
     @property
-    def _agent_endpoint(self):
-        return "{}/{}".format(self.agent_url, self._endpoint)
+    def _intake_endpoint(self):
+        return "{}/{}".format(self.intake_url, self._endpoint)
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -382,21 +322,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if trace:
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
-    def recreate(self):
-        # type: () -> AgentWriter
-        return self.__class__(
-            agent_url=self.agent_url,
-            sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
-            processing_interval=self._interval,
-            buffer_size=self._buffer_size,
-            max_payload_size=self._max_payload_size,
-            timeout=self._timeout,
-            dogstatsd=self.dogstatsd,
-            sync_mode=self._sync_mode,
-            api_version=self._api_version,
-        )
-
     def _reset_connection(self):
         # type: () -> None
         with self._conn_lck:
@@ -410,17 +335,17 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         sw.start()
         with self._conn_lck:
             if self._conn is None:
-                log.debug("creating new agent connection to %s with timeout %d", self.agent_url, self._timeout)
-                self._conn = get_connection(self.agent_url, self._timeout)
+                log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
+                self._conn = get_connection(self.intake_url, self._timeout)
             try:
-                self._conn.request("PUT", self._endpoint, data, headers)
+                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)  # type: ignore[attr-defined]
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint)
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -432,32 +357,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _downgrade(self, payload, response):
-        if self._endpoint == "v0.5/traces":
-            self._endpoint = "v0.4/traces"
-            self._encoder = MSGPACK_ENCODERS["v0.4"](
-                max_size=self._buffer_size,
-                max_item_size=self._max_payload_size,
-            )
-            # Since we have to change the encoding in this case, the payload
-            # would need to be converted to the downgraded encoding before
-            # sending it, but we chuck it away instead.
-            log.warning(
-                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
-                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
-            )
-            return None
-        if self._endpoint == "v0.4/traces":
-            self._endpoint = "v0.3/traces"
-            # These endpoints share the same encoding, so we can try sending the
-            # same payload over the downgraded endpoint.
-            return payload
-        raise ValueError()
+    def _get_finalized_headers(self, count):
+        return self._headers.copy()
 
     def _send_payload(self, payload, count):
-        headers = self._headers.copy()
-        headers["X-Datadog-Trace-Count"] = str(count)
+        headers = self._get_finalized_headers(count)
 
         self._metrics_dist("http.requests")
 
@@ -468,24 +372,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
 
-        if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-            try:
-                payload = self._downgrade(payload, response)
-            except ValueError:
-                log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
-                    self._endpoint,
-                    response.status,
-                    self.agent_url,
-                )
-            else:
-                if payload is not None:
-                    self._send_payload(payload, count)
-        elif response.status >= 400:
-            msg = "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s"
+        if response.status not in (404, 415) and response.status >= 400:
+            msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
             log_args = (
-                self._agent_endpoint,
+                self._intake_endpoint,
                 response.status,
                 response.reason,
             )
@@ -501,20 +391,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
-        elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-            result_traces_json = response.get_json()
-            if result_traces_json and "rate_by_service" in result_traces_json:
-                try:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                except ValueError:
-                    log.error("sample_rate is negative, cannot update the rate samplers")
+        return response
 
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
@@ -522,22 +399,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             return
 
         if self._sync_mode is False:
-            # Start the AgentWriter on first write.
+            # Start the HTTPWriter on first write.
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
 
-                    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-                    # are initialized
-                    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                        telemetry_writer.enable()
-
-                    if config._telemetry_metrics_enabled:
-                        telemetry_metrics_writer.enable()
-
-                    # appsec remote config should be enabled/started after the global tracer and configs
-                    # are initialized
-                    enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 
@@ -596,22 +462,25 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     e.reraise()
                 else:
                     log.error(
-                        "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+                        "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
                         n_traces,
-                        self._agent_endpoint,
+                        self._intake_endpoint,
                         e.last_attempt.attempt_number,
                         e.last_attempt.exception(),
                     )
             finally:
                 if config.health_metrics_enabled and self.dogstatsd:
+                    namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
+                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
+                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
                     for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+                        self.dogstatsd.distribution(
+                            "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
+                        )
         finally:
             self._set_drop_rate()
             self._metrics_reset()
@@ -625,7 +494,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     ):
         # type: (...) -> None
         # FIXME: don't join() on stop(), let the caller handle this
-        super(AgentWriter, self)._stop_service()
+        super(HTTPWriter, self)._stop_service()
         self.join(timeout=timeout)
 
     def on_shutdown(self):
@@ -633,3 +502,207 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
+
+
+class AgentWriter(HTTPWriter):
+    """
+    The Datadog Agent supports (at the time of writing this) receiving trace
+    payloads up to 50MB. A trace payload is just a list of traces and the agent
+    expects a trace to be complete. That is, all spans with the same trace_id
+    should be in the same trace.
+    """
+
+    RETRY_ATTEMPTS = 3
+    HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "tracer"
+
+    def __init__(
+        self,
+        agent_url,  # type: str
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+        processing_interval=get_writer_interval_seconds(),  # type: float
+        # Match the payload size since there is no functionality
+        # to flush dynamically.
+        buffer_size=None,  # type: Optional[int]
+        max_payload_size=None,  # type: Optional[int]
+        timeout=agent.get_trace_agent_timeout(),  # type: float
+        dogstatsd=None,  # type: Optional[DogStatsd]
+        report_metrics=False,  # type: bool
+        sync_mode=False,  # type: bool
+        api_version=None,  # type: Optional[str]
+        reuse_connections=None,  # type: Optional[bool]
+        headers=None,  # type: Optional[Dict[str, str]]
+    ):
+        # type: (...) -> None
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
+        # Default to v0.4 if we are on Windows since there is a known compatibility issue
+        # https://github.com/DataDog/dd-trace-py/issues/4829
+        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
+        #      as a safety precaution.
+        #      https://docs.python.org/3/library/sys.html#sys.platform
+        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        default_api_version = "v0.4" if is_windows else "v0.5"
+
+        self._api_version = (
+            api_version
+            or os.getenv("DD_TRACE_API_VERSION")
+            or (default_api_version if priority_sampler is not None else "v0.3")
+        )
+        if is_windows and self._api_version == "v0.5":
+            raise RuntimeError(
+                "There is a known compatibility issue with v0.5 API and Windows, "
+                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
+            )
+
+        try:
+            encoder_cls = MSGPACK_ENCODERS[self._api_version]
+        except KeyError:
+            raise ValueError(
+                "Unsupported api version: '%s'. The supported versions are: %r"
+                % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+            )
+        buffer_size = buffer_size or get_writer_buffer_size()
+        max_payload_size = max_payload_size or get_writer_max_payload_size()
+        encoder = encoder_cls(
+            max_size=buffer_size,
+            max_item_size=max_payload_size,
+        )
+
+        endpoint = "%s/traces" % self._api_version
+        headers = {
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
+            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
+            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Client-Computed-Top-Level": "yes",
+        }
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
+
+        headers.update({"Content-Type": encoder.content_type})
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            headers.update(parse_tags_str(additional_header_str))
+        super(AgentWriter, self).__init__(
+            intake_url=agent_url,
+            endpoint=endpoint,
+            encoder=encoder,
+            sampler=sampler,
+            priority_sampler=priority_sampler,
+            processing_interval=processing_interval,
+            buffer_size=buffer_size,
+            max_payload_size=max_payload_size,
+            timeout=timeout,
+            dogstatsd=dogstatsd,
+            sync_mode=sync_mode,
+            reuse_connections=reuse_connections,
+            headers=headers,
+        )
+
+    def recreate(self):
+        # type: () -> HTTPWriter
+        return self.__class__(
+            agent_url=self.agent_url,
+            sampler=self._sampler,
+            priority_sampler=self._priority_sampler,
+            processing_interval=self._interval,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+            api_version=self._api_version,
+        )
+
+    @property
+    def agent_url(self):
+        return self.intake_url
+
+    @property
+    def _agent_endpoint(self):
+        return self._intake_endpoint
+
+    def _downgrade(self, payload, response):
+        if self._endpoint == "v0.5/traces":
+            self._endpoint = "v0.4/traces"
+            self._encoder = MSGPACK_ENCODERS["v0.4"](
+                max_size=self._buffer_size,
+                max_item_size=self._max_payload_size,
+            )
+            # Since we have to change the encoding in this case, the payload
+            # would need to be converted to the downgraded encoding before
+            # sending it, but we chuck it away instead.
+            log.warning(
+                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
+                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
+            )
+            return None
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
+            # These endpoints share the same encoding, so we can try sending the
+            # same payload over the downgraded endpoint.
+            return payload
+        raise ValueError()
+
+    def _send_payload(self, payload, count):
+        response = super(AgentWriter, self)._send_payload(payload, count)
+        if response.status in [404, 415]:
+            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
+            try:
+                payload = self._downgrade(payload, response)
+            except ValueError:
+                log.error(
+                    "unsupported endpoint '%s': received response %s from intake (%s)",
+                    self._endpoint,
+                    response.status,
+                    self.intake_url,
+                )
+            else:
+                if payload is not None:
+                    self._send_payload(payload, count)
+        elif response.status < 400 and (self._priority_sampler or isinstance(self._sampler, BasePrioritySampler)):
+            result_traces_json = response.get_json()
+            if result_traces_json and "rate_by_service" in result_traces_json:
+                try:
+                    if self._priority_sampler:
+                        self._priority_sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                except ValueError:
+                    log.error("sample_rate is negative, cannot update the rate samplers")
+
+    def start(self):
+        super(AgentWriter, self).start()
+        try:
+            # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+            # are initialized
+            if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+                telemetry_writer.enable()
+
+            if config._telemetry_metrics_enabled:
+                telemetry_metrics_writer.enable()
+
+            # appsec remote config should be enabled/started after the global tracer and configs
+            # are initialized
+            enable_appsec_rc()
+        except service.ServiceStatusError:
+            pass
+
+    def _get_finalized_headers(self, count):
+        headers = self._headers.copy()
+        headers["X-Datadog-Trace-Count"] = str(count)
+        return headers
