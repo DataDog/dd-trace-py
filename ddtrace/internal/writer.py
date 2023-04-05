@@ -534,11 +534,11 @@ class AgentWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        # type: (...) -> None
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
             raise ValueError("Max payload size must be positive")
-        # type: (...) -> None
         # Default to v0.4 if we are on Windows since there is a known compatibility issue
         # https://github.com/DataDog/dd-trace-py/issues/4829
         # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
