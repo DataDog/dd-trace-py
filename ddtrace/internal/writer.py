@@ -231,13 +231,7 @@ class LogWriter(TraceWriter):
 
 
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
-    """Writer to the Datadog Agent.
-
-    The Datadog Agent supports (at the time of writing this) receiving trace
-    payloads up to 50MB. A trace payload is just a list of traces and the agent
-    expects a trace to be complete. That is, all spans with the same trace_id
-    should be in the same trace.
-    """
+    """Writer to an arbitrary HTTP intake endpoint."""
 
     def __init__(
         self,
@@ -362,9 +356,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 # Reset the connection if reusing connections is disabled.
                 if not self._reuse_connections:
                     self._reset_connection()
-
-    def _downgrade(self, payload, response):
-        raise NotImplementedError
 
     def _get_finalized_headers(self, count):
         return self._headers.copy()
@@ -514,6 +505,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentWriter(HTTPWriter):
+    """
+    The Datadog Agent supports (at the time of writing this) receiving trace
+    payloads up to 50MB. A trace payload is just a list of traces and the agent
+    expects a trace to be complete. That is, all spans with the same trace_id
+    should be in the same trace.
+    """
+
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
     STATSD_NAMESPACE = "tracer"
@@ -582,6 +580,18 @@ class AgentWriter(HTTPWriter):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Datadog-Client-Computed-Top-Level": "yes",
         }
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
+
+        headers.update({"Content-Type": self._encoder.content_type})
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            headers.update(parse_tags_str(additional_header_str))
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             endpoint=endpoint,
@@ -597,18 +607,6 @@ class AgentWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
-        self._container_info = container.get_container_info()
-        if self._container_info and self._container_info.container_id:
-            self._headers.update(
-                {
-                    "Datadog-Container-Id": self._container_info.container_id,
-                }
-            )
-
-        self._headers.update({"Content-Type": self._encoder.content_type})
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            self._headers.update(parse_tags_str(additional_header_str))
 
     def recreate(self):
         # type: () -> HTTPWriter
