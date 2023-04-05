@@ -35,11 +35,11 @@ from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
+from ._encoding import MsgpackEncoderBase
 from .agent import get_connection
 from .encoding import CIVisibilityEncoderV01
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
-from .encoding import _EncoderBase
 from .logger import get_logger
 from .runtime import container
 from .runtime import get_runtime_id
@@ -246,7 +246,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         endpoint,  # type: str
-        encoder,  # type: _EncoderBase
+        encoder,  # type: MsgpackEncoderBase
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -287,9 +287,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),  # type: ignore[attr-defined]
+                exp_base=1.618,
             ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),  # type: ignore[attr-defined]
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
@@ -346,7 +347,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
-                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)
+                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)  # type: ignore[attr-defined]
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -481,15 +482,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     )
             finally:
                 if config.health_metrics_enabled and self.dogstatsd:
+                    namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % self.STATSD_NAMESPACE, len(encoded))
-                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % self.STATSD_NAMESPACE, n_traces)
+                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
+                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
                     for name, metric in self._metrics.items():
                         self.dogstatsd.distribution(
-                            "datadog.%s.%s" % (self.STATSD_NAMESPACE, name), metric["count"], tags=metric["tags"]
+                            "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
                         )
         finally:
             self._set_drop_rate()
@@ -537,11 +539,11 @@ class AgentWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        # type: (...) -> None
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
             raise ValueError("Max payload size must be positive")
-        # type: (...) -> None
         # Default to v0.4 if we are on Windows since there is a known compatibility issue
         # https://github.com/DataDog/dd-trace-py/issues/4829
         # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
