@@ -732,8 +732,9 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
-        encoder = CIVisibilityEncoderV01(
-            metadata={
+        encoder = CIVisibilityEncoderV01(0, 0)
+        encoder.set_metadata(
+            {
                 "language": "python",
                 "env": config.env,
                 "runtime-id": get_runtime_id(),

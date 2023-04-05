@@ -163,15 +163,17 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
         self._lock = threading.RLock()
         self._init_buffer()
-        self._metadata = kwargs.get("metadata") or dict()
 
     def __len__(self):
         with self._lock:
             return len(self.buffer)
+
+    def set_metadata(self, metadata):
+        self._metadata = metadata or dict()
 
     def _init_buffer(self):
         with self._lock:

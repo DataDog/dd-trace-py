@@ -311,10 +311,11 @@ def test_encode_traces_civisibility_v0():
         ],
     ]
 
-    encoder = CIVisibilityEncoderV01(
-        metadata={
+    encoder = CIVisibilityEncoderV01()
+    encoder.set_metadata(
+        {
             "language": "python",
-        },
+        }
     )
     for trace in traces:
         encoder.put(trace)
