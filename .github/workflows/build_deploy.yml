@@ -217,7 +217,6 @@ jobs:
 
   build-and-publish-init-image:
     needs: [upload_pypi]
-    runs-on: ubuntu-latest
     uses: ./.github/workflows/lib-inject-publish.yml
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
