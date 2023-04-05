@@ -4,7 +4,6 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._asm_request_context import asm_request_context_manager
 from ddtrace.appsec.iast._input_info import Input_info
 
 
@@ -55,12 +54,11 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     setup(bytes.join, bytearray.join)
-    with asm_request_context_manager():
-        clear_taint_mapping()
-        if should_be_tainted:
-            obj = taint_pyobject(obj, Input_info("test_str_aspect_tainting", obj, 0))
+    clear_taint_mapping()
+    if should_be_tainted:
+        obj = taint_pyobject(obj, Input_info("test_str_aspect_tainting", obj, 0))
 
-        result = ddtrace_aspects.str_aspect(obj, **kwargs)
-        assert is_pyobject_tainted(result) == should_be_tainted
+    result = ddtrace_aspects.str_aspect(obj, **kwargs)
+    assert is_pyobject_tainted(result) == should_be_tainted
 
-        assert result == str(obj, **kwargs)
+    assert result == str(obj, **kwargs)

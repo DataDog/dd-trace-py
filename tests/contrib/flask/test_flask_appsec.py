@@ -5,7 +5,6 @@ from flask import Response
 from flask import request
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
@@ -368,7 +367,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
             )
-        ), _asm_request_context.asm_request_context_manager():
+        ):
             from ddtrace.appsec.iast._taint_tracking import setup
 
             setup(bytes.join, bytearray.join)

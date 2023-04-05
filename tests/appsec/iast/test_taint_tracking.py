@@ -2,8 +2,6 @@
 
 import pytest
 
-from ddtrace.appsec._asm_request_context import asm_request_context_manager
-
 
 try:
     from ddtrace.appsec.iast._ast.aspects import add_aspect
@@ -19,7 +17,6 @@ def setup():
     taint_tracking_setup(bytes.join, bytearray.join)
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_nothing_tainted():
     text = "nothing tainted"
     value_parts, sources = taint_ranges_as_evidence_info(text)
@@ -27,7 +24,6 @@ def test_taint_ranges_as_evidence_info_nothing_tainted():
     assert sources == []
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_all_tainted():
     arg = "all tainted"
     input_info = Input_info("request_body", arg, 0)
@@ -37,7 +33,6 @@ def test_taint_ranges_as_evidence_info_all_tainted():
     assert sources == [input_info]
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_tainted_op1_add():
     arg = "tainted part"
     input_info = Input_info("request_body", arg, 0)
@@ -50,7 +45,6 @@ def test_taint_ranges_as_evidence_info_tainted_op1_add():
     assert sources == [input_info]
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_tainted_op2_add():
     arg = "tainted part"
     input_info = Input_info("request_body", arg, 0)
@@ -63,7 +57,6 @@ def test_taint_ranges_as_evidence_info_tainted_op2_add():
     assert sources == [input_info]
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     arg = "tainted part"
     input_info = Input_info("request_body", arg, 0)
@@ -76,7 +69,6 @@ def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     assert sources == [input_info]
 
 
-@asm_request_context_manager()
 def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     arg1 = "tainted body"
     arg2 = "tainted header"

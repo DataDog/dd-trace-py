@@ -4,7 +4,6 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._asm_request_context import asm_request_context_manager
 from ddtrace.appsec.iast._input_info import Input_info
 
 
@@ -72,19 +71,18 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     setup(bytes.join, bytearray.join)
-    with asm_request_context_manager():
-        clear_taint_mapping()
+    clear_taint_mapping()
 
-        if should_be_tainted:
-            obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
+    if should_be_tainted:
+        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
 
-        result = ddtrace_aspects.add_aspect(obj1, obj2)
-        assert result == obj1 + obj2
-        if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
-            assert result is not obj1 + obj2
-        assert is_pyobject_tainted(result) == should_be_tainted
-        if should_be_tainted:
-            assert get_tainted_ranges(result) == get_tainted_ranges(obj1)
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+    assert result == obj1 + obj2
+    if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
+        assert result is not obj1 + obj2
+    assert is_pyobject_tainted(result) == should_be_tainted
+    if should_be_tainted:
+        assert get_tainted_ranges(result) == get_tainted_ranges(obj1)
 
 
 @pytest.mark.parametrize(
@@ -111,23 +109,22 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     setup(bytes.join, bytearray.join)
-    with asm_request_context_manager():
-        clear_taint_mapping()
+    clear_taint_mapping()
 
+    if should_be_tainted:
+        obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0))
+        if len(obj2):
+            assert get_tainted_ranges(obj2)
+
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+
+    assert result == obj1 + obj2
+
+    assert is_pyobject_tainted(result) == should_be_tainted
+    if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
+        tainted_ranges = get_tainted_ranges(result)
+        assert type(tainted_ranges) is tuple
+        assert all(type(c) is tuple for c in tainted_ranges)
+        assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
-            obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0))
-            if len(obj2):
-                assert get_tainted_ranges(obj2)
-
-        result = ddtrace_aspects.add_aspect(obj1, obj2)
-
-        assert result == obj1 + obj2
-
-        assert is_pyobject_tainted(result) == should_be_tainted
-        if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
-            tainted_ranges = get_tainted_ranges(result)
-            assert type(tainted_ranges) is tuple
-            assert all(type(c) is tuple for c in tainted_ranges)
-            assert (tainted_ranges != []) == should_be_tainted
-            if should_be_tainted:
-                assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
+            assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
