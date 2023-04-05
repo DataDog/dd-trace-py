@@ -89,9 +89,9 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
     if not env.active:
         log.debug("setting %s address %s with no active asm context", category, address)
         return
-    dictionary = getattr(env, category, None)
-    if dictionary is not None:
-        dictionary[address] = value
+    asm_context_attr = getattr(env, category, None)
+    if asm_context_attr is not None:
+        asm_context_attr[address] = value
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
@@ -99,9 +99,9 @@ def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
         return default
-    dictionary = getattr(env, category, None)
-    if dictionary is not None:
-        return dictionary.get(address, default)
+    asm_context_attr = getattr(env, category, None)
+    if asm_context_attr is not None:
+        return asm_context_attr.get(address, default)
     return default
 
 
