@@ -1,8 +1,11 @@
 # Opentelemetry Tracer shim Unit Tests
 from opentelemetry.trace import SpanKind as OtelSpanKind
+from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
+
+from ddtrace.constants import MANUAL_DROP_KEY
 
 
 @pytest.mark.snapshot
@@ -104,6 +107,21 @@ def test_otel_span_is_recording(oteltracer):
     assert span.is_recording() is False
 
 
+def test_otel_span_end(oteltracer):
+    start_time_ns = 1680522337 * 1e9
+    duration_sec = 11
+    end_time_ns = start_time_ns + duration_sec * 1e9
+
+    span = oteltracer.start_span("otel1", start_time=start_time_ns)
+    span.end(end_time_ns)
+    assert span._ddspan.duration == duration_sec
+    # Span.end() should be set once, all subsecquent calls should be noops
+    span.end()
+    span.end(end_time_ns + 1_0000_000)
+    span.end(end_time_ns + 100_0000_000)
+    assert span._ddspan.duration == duration_sec
+
+
 def test_otel_span_exception_handling(oteltracer):
     with pytest.raises(Exception):
         with oteltracer.start_span("otel1") as span:
@@ -113,3 +131,35 @@ def test_otel_span_exception_handling(oteltracer):
     assert span._ddspan._meta["error.message"] == "Sorry Friend, I failed you"
     assert span._ddspan._meta["error.type"] == "builtins.Exception"
     assert span._ddspan._meta["error.stack"] is not None
+
+
+def test_otel_get_span_context(oteltracer):
+    otelspan = oteltracer.start_span("otel-server")
+
+    span_context = otelspan.get_span_context()
+    assert span_context.trace_id == otelspan._ddspan.trace_id
+    assert span_context.span_id == otelspan._ddspan.span_id
+    # A ddtrace._opentelemetry.Span can never be remote.
+    # opentelemetry.trace.NonRecordingSpan is used to represent a "remote span".
+    assert span_context.is_remote is False
+    # By default ddtrace set sampled=True for all spans
+    assert span_context.trace_flags == TraceFlags.SAMPLED
+    # Default tracestate values set on all Datadog Spans
+    assert span_context.trace_state.to_header() == "dd=s:1;t.dm:-0"
+
+
+def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
+    otelspan = oteltracer.start_span("otel-server")
+    otelspan._ddspan._context._meta["_dd.p.congo"] = "t61rcWkgMzE"
+    otelspan._ddspan._context._meta["_dd.p.some_val"] = "tehehe"
+
+    span_context = otelspan.get_span_context()
+    assert span_context.trace_state.to_header() == "dd=s:1;t.dm:-0;t.congo:t61rcWkgMzE;t.some_val:tehehe"
+
+
+def test_otel_get_span_context_with_default_trace_state(oteltracer):
+    otelspan = oteltracer.start_span("otel-server")
+    otelspan.set_attribute(MANUAL_DROP_KEY, "")
+
+    span_context = otelspan.get_span_context()
+    assert span_context.trace_flags == TraceFlags.DEFAULT

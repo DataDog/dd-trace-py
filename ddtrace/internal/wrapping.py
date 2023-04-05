@@ -70,20 +70,17 @@ def _end_finally(lineno):
 # __ddgensend = __ddgen.send
 # try:
 #     value = next(__ddgen)
+#     while True:
+#         try:
+#             tosend = yield value
+#         except GeneratorExit:
+#             return __ddgen.close()
+#         except:
+#             value = __ddgen.throw(*sys.exc_info())
+#         else:
+#             value = __ddgensend(tosend)
 # except StopIteration:
 #     return
-# while True:
-#     try:
-#         tosend = yield value
-#     except GeneratorExit:
-#         return __ddgen.close()
-#     except:
-#         value = __ddgen.throw(*sys.exc_info())
-#     else:
-#         try:
-#             value = __ddgensend(tosend)
-#         except StopIteration:
-#             return
 # -----------------------------------------------------------------------------
 def _wrap_generator(instrs, code, lineno):
     stopiter = Label()
@@ -94,6 +91,7 @@ def _wrap_generator(instrs, code, lineno):
     _yield = Label()
 
     instrs[-1:] = [
+        Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
         Instr("DUP_TOP", lineno=lineno),
         Instr("STORE_FAST", "__ddgen", lineno=lineno),
         Instr("LOAD_ATTR", "send", lineno=lineno),
@@ -101,9 +99,7 @@ def _wrap_generator(instrs, code, lineno):
         Instr("LOAD_CONST", next, lineno=lineno),
         Instr("LOAD_FAST", "__ddgen", lineno=lineno),
         loop,
-        Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
         Instr("CALL_FUNCTION", 1, lineno=lineno),
-        Instr("POP_BLOCK", lineno=lineno),
         _yield,
         Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", genexit, lineno=lineno),
         Instr("YIELD_VALUE", lineno=lineno),
@@ -111,20 +107,6 @@ def _wrap_generator(instrs, code, lineno):
         Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
         Instr("ROT_TWO", lineno=lineno),
         Instr("JUMP_ABSOLUTE", loop, lineno=lineno),
-        stopiter,  # except StpIteration:
-        Instr("DUP_TOP", lineno=lineno),
-        Instr("LOAD_CONST", StopIteration, lineno=lineno),
-        _compare_exc(propagate, lineno),
-        _jump_if_false(propagate, lineno),
-        Instr("POP_TOP", lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-        Instr("POP_TOP", lineno=lineno),
-        Instr("LOAD_CONST", None, lineno=lineno),
-        Instr("RETURN_VALUE", lineno=lineno),
-        propagate,
-        _end_finally(lineno),
-        Instr("LOAD_CONST", None, lineno=lineno),
-        Instr("RETURN_VALUE", lineno=lineno),
         genexit,  # except GeneratorExit:
         Instr("DUP_TOP", lineno=lineno),
         Instr("LOAD_CONST", GeneratorExit, lineno=lineno),
@@ -154,6 +136,21 @@ def _wrap_generator(instrs, code, lineno):
         Instr("POP_EXCEPT" if PY >= (3,) else "NOP", lineno=lineno),
         Instr("LOAD_FAST", "__value", lineno=lineno),
         Instr("JUMP_ABSOLUTE", _yield, lineno=lineno),
+        stopiter,  # except StopIteration:
+        Instr("DUP_TOP", lineno=lineno),
+        Instr("LOAD_CONST", StopIteration, lineno=lineno),
+        _compare_exc(propagate, lineno),
+        _jump_if_false(propagate, lineno),
+        Instr("POP_TOP", lineno=lineno),
+        Instr("POP_TOP", lineno=lineno),
+        Instr("POP_TOP", lineno=lineno),
+        Instr("POP_EXCEPT" if PY >= (3,) else "NOP", lineno=lineno),
+        Instr("LOAD_CONST", None, lineno=lineno),
+        Instr("RETURN_VALUE", lineno=lineno),
+        propagate,
+        _end_finally(lineno),
+        Instr("LOAD_CONST", None, lineno=lineno),
+        Instr("RETURN_VALUE", lineno=lineno),
     ]
 
 
@@ -175,20 +172,17 @@ wrap_generator = _wrap_generator_py311 if PY >= (3, 11) else _wrap_generator
 # __ddgensend = __ddgen.asend
 # try:
 #     value = await __ddgen.__anext__()
+#     while True:
+#         try:
+#             tosend = yield value
+#         except GeneratorExit:
+#             await __ddgen.aclose()
+#         except:
+#             value = await __ddgen.athrow(*sys.exc_info())
+#         else:
+#             value = await __ddgensend(tosend)
 # except StopAsyncIteration:
 #     return
-# while True:
-#     try:
-#         tosend = yield value
-#     except GeneratorExit:
-#         await __ddgen.aclose()
-#     except:
-#         value = await __ddgen.athrow(*sys.exc_info())
-#     else:
-#         try:
-#             value = await __ddgensend(tosend)
-#         except StopAsyncIteration:
-#             return
 # -----------------------------------------------------------------------------
 def _wrap_special_function_py3(instrs, code, lineno):
     if CompilerFlags.COROUTINE & code.co_flags:
@@ -208,6 +202,7 @@ def _wrap_special_function_py3(instrs, code, lineno):
         _yield = Label()
 
         instrs[-1:] = [
+            Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
             Instr("DUP_TOP", lineno=lineno),
             Instr("STORE_FAST", "__ddgen", lineno=lineno),
             Instr("LOAD_ATTR", "asend", lineno=lineno),
@@ -218,9 +213,7 @@ def _wrap_special_function_py3(instrs, code, lineno):
             loop,
             Instr("GET_AWAITABLE", lineno=lineno),
             Instr("LOAD_CONST", None, lineno=lineno),
-            Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
             Instr("YIELD_FROM", lineno=lineno),
-            Instr("POP_BLOCK", lineno=lineno),
             _yield,
             Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", genexit, lineno=lineno),
             Instr("YIELD_VALUE", lineno=lineno),
@@ -229,20 +222,6 @@ def _wrap_special_function_py3(instrs, code, lineno):
             Instr("ROT_TWO", lineno=lineno),
             Instr("CALL_FUNCTION", 1, lineno=lineno),
             Instr("JUMP_ABSOLUTE", loop, lineno=lineno),
-            stopiter,  # except StopAsyncIteration:
-            Instr("DUP_TOP", lineno=lineno),
-            Instr("LOAD_CONST", StopAsyncIteration, lineno=lineno),
-            _compare_exc(propagate, lineno),
-            _jump_if_false(propagate, lineno),
-            Instr("POP_TOP", lineno=lineno),
-            Instr("POP_TOP", lineno=lineno),
-            Instr("POP_TOP", lineno=lineno),
-            Instr("LOAD_CONST", None, lineno=lineno),
-            Instr("RETURN_VALUE", lineno=lineno),
-            propagate,  # finally:
-            _end_finally(lineno),
-            Instr("LOAD_CONST", None, lineno=lineno),
-            Instr("RETURN_VALUE", lineno=lineno),
             genexit,  # except GeneratorExit:
             Instr("DUP_TOP", lineno=lineno),
             Instr("LOAD_CONST", GeneratorExit, lineno=lineno),
@@ -279,6 +258,21 @@ def _wrap_special_function_py3(instrs, code, lineno):
             Instr("POP_EXCEPT", lineno=lineno),
             Instr("LOAD_FAST", "__value", lineno=lineno),
             Instr("JUMP_ABSOLUTE", _yield, lineno=lineno),
+            stopiter,  # except StopAsyncIteration:
+            Instr("DUP_TOP", lineno=lineno),
+            Instr("LOAD_CONST", StopAsyncIteration, lineno=lineno),
+            _compare_exc(propagate, lineno),
+            _jump_if_false(propagate, lineno),
+            Instr("POP_TOP", lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+            Instr("POP_EXCEPT", lineno=lineno),
+            Instr("LOAD_CONST", None, lineno=lineno),
+            Instr("RETURN_VALUE", lineno=lineno),
+            propagate,  # finally:
+            _end_finally(lineno),
+            Instr("LOAD_CONST", None, lineno=lineno),
+            Instr("RETURN_VALUE", lineno=lineno),
         ]
 
 
