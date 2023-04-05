@@ -773,14 +773,16 @@ def test_cache_get_rowcount_missing_key(test_spans):
 
 def test_cache_get_rowcount_empty_key(test_spans):
     # get the default cache
-    import pandas as pd
+    class NoBool:
+        def __bool__(self):
+            raise NotImplementedError
 
     cache = django.core.cache.caches["default"]
-    cache.set(1, pd.DataFrame())
+    cache.set(1, NoBool())
 
     result = cache.get(1)
 
-    assert result == pd.DataFrame()
+    assert isinstance(result, NoBool) is True
 
     spans = test_spans.get_spans()
     assert len(spans) == 1
