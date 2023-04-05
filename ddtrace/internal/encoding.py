@@ -162,6 +162,7 @@ class JSONEncoderV2(JSONEncoder):
 class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
+    PAYLOAD_FORMAT_VERSION = 1
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -195,7 +196,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _build_payload(self, traces):
         normalized_spans = [CIVisibilityEncoderV01._convert_span(span) for trace in traces for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
-        return msgpack_packb({"version": 1, "metadata": {"*": self._metadata}, "events": normalized_spans})
+        return msgpack_packb(
+            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
+        )
 
     @staticmethod
     def _convert_span(span):
@@ -209,7 +212,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             event_type = "test"
         else:
             event_type = "span"
-        return {"version": 1, "type": event_type, "content": sp}
+        return {"version": CIVisibilityEncoderV01.PAYLOAD_FORMAT_VERSION, "type": event_type, "content": sp}
 
 
 MSGPACK_ENCODERS = {
