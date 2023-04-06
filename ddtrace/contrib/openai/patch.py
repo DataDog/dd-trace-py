@@ -7,6 +7,7 @@ from ddtrace.vendor import wrapt
 
 from ...pin import Pin
 from ..trace_utils import unwrap
+from .utils import append_tag_prefixes, process_request, process_response
 
 
 config._add(
@@ -21,7 +22,7 @@ REQUEST_TAG_PREFIX = "request"
 RESPONSE_TAG_PREFIX = "response"
 ERROR_TAG_PREFIX = "error"
 ENGINE = "engine"
-
+RESOURCE_NAME="model"
 
 def patch():
     # Do monkey patching here
@@ -40,30 +41,16 @@ def unpatch():
         unwrap(openai.api_resources.abstract.engine_api_resource.EngineAPIResource, "create")
 
 
-def append_tag_prefixes(key_prefixes: list[str], data: dict):
-    prefix = ".".join(key_prefixes) + "."
-    return [(prefix + str(k), v) for k, v in data.items()]
-
-
-def process_response(engine, resp):
-    # alter the response tag value based on the `engine`
-    # (completions, chat.completions, embeddings)
-    if engine == openai.Completion.OBJECT_NAME:
-        resp["choices"] = {str(i): dict(completion) for i, completion in enumerate(resp.choices)}
-        return resp
-    return {}
-
-
 def patched_create(func, instance, args, kwargs):
     pin = Pin.get_from(openai)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
     # resource name is set to the model being used -- if that name is not found, use the engine name
-    sname = kwargs.get("model") if kwargs.get("model") is not None else instance.OBJECT_NAME
+    sname = kwargs.get(RESOURCE_NAME) if kwargs.get(RESOURCE_NAME) is not None else instance.OBJECT_NAME
     with pin.tracer.trace(sname) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         span.set_tag_str(ENGINE, instance.OBJECT_NAME)
-        set_flattened_tags(span, append_tag_prefixes([REQUEST_TAG_PREFIX], {**kwargs, **{k: v for k, v in args}}))
+        set_flattened_tags(span, append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(instance.OBJECT_NAME, args, kwargs)))
         resp = {}
         try:
             resp = func(*args, **kwargs)
