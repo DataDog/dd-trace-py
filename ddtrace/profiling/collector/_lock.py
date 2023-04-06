@@ -16,6 +16,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.datadog import ddup
 from ddtrace.vendor import wrapt
 
 
@@ -190,6 +191,8 @@ class LockCollector(collector.CaptureSamplerCollector):
     tracer = attr.ib(default=None)
 
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
 
     @abc.abstractmethod
     def _get_original(self):

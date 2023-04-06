@@ -75,6 +75,10 @@ public:
   // Add values
   void push_walltime(int64_t walltime, int64_t count);
   void push_cputime(int64_t cputime, int64_t count);
+  void push_acquire(int64_t acquire_time, int64_t count);
+  void push_release(int64_t lock_time, int64_t count);
+  void push_alloc(int64_t alloc_size, int64_t count);
+  void push_heap(int64_t heap_size);
 
   // Adds metadata to sample
   void push_threadinfo(
@@ -133,6 +137,10 @@ extern "C" {
   void ddup_start_sample();
   void ddup_push_walltime(int64_t walltime, int64_t count);
   void ddup_push_cputime(int64_t cputime, int64_t count);
+  void ddup_push_acquire(int64_t acquire_time, int64_t count);
+  void ddup_push_release(int64_t release_time, int64_t count);
+  void ddup_push_alloc(int64_t alloc_size, int64_t count);
+  void ddup_push_heap(int64_t heap_size);
   void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name);
   void ddup_push_taskinfo(int64_t task_id, const char *task_name);
   void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id);

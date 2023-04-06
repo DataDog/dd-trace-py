@@ -5,6 +5,10 @@ cdef extern from "exporter.hpp":
     void ddup_start_sample();
     void ddup_push_walltime(int64_t walltime, int64_t count);
     void ddup_push_cputime(int64_t cputime, int64_t count);
+    void ddup_push_acquire(int64_t acquire_time, int64_t count);
+    void ddup_push_release(int64_t release_time, int64_t count);
+    void ddup_push_alloc(int64_t alloc_size, int64_t count);
+    void ddup_push_heap(int64_t heap_size);
     void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name);
     void ddup_push_taskinfo(int64_t task_id, const char *task_name);
     void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id);
@@ -28,6 +32,18 @@ def push_cputime(value, count):
 
 def push_walltime(value, count):
   ddup_push_walltime(value, count)
+
+def push_acquire(value, count):
+  ddup_push_acquire(value, count)
+
+def push_release(value, count):
+  ddup_push_release(value, count)
+
+def push_alloc(value, count):
+  ddup_push_alloc(value, count)
+
+def push_heap(value):
+  ddup_push_heap(value)
 
 def push_frame(name, filename, address, line):
   if name is None and filename is None:

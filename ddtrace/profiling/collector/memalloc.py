@@ -18,6 +18,7 @@ from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.datadog import ddup
 
 
 LOG = logging.getLogger(__name__)
@@ -98,6 +99,8 @@ class MemoryCollector(collector.PeriodicCollector):
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
 
     def _start_service(self):
         # type: (...) -> None
@@ -131,9 +134,29 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
-        return (
-            tuple(
-                MemoryHeapSampleEvent(
+        stacks = []
+        for (stack, nframes, thread_id), size in _memalloc.heap():
+            if self.ignore_profiler or thread_id in thread_id_ignore_set:
+                continue
+            if self.use_libdatadog:
+                ddup.start_sample()
+                ddup.push_heapsize(size, 1)
+                ddup.push_threadinfo(thread_id, _threading.get_native_id(thread_id), _threading.get_thread_name(thread_id))
+
+                for frame in stack:
+                    if frame is not None:
+                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                            if not isinstance(frame, FrameType):
+                                continue
+                        lineno = 0 if frame.f_lineno is None else frame.f_lineno
+                        code = frame.f_code
+                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                            if not isinstance(frame, FrameType):
+                                continue
+                        ddup.push(code.co_name, code.co_filename, 0, lineno)
+
+            if self.use_pyprof:
+                event = MemoryHeapSampleEvent(
                     thread_id=thread_id,
                     thread_name=_threading.get_thread_name(thread_id),
                     thread_native_id=_threading.get_thread_native_id(thread_id),
@@ -142,6 +165,10 @@ class MemoryCollector(collector.PeriodicCollector):
                     size=size,
                     sample_size=self.heap_sample_size,
                 )
+                events.append(event)
+            return events
+        return (
+            tuple(
                 for (stack, nframes, thread_id), size in _memalloc.heap()
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
@@ -149,24 +176,43 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def collect(self):
         events, count, alloc_count = _memalloc.iter_events()
-        capture_pct = 100 * count / alloc_count
+        capture_ratio = count / alloc_count
+        capture_pct = 100 * capture_ratio
         thread_id_ignore_set = self._get_thread_id_ignore_set()
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
         # timestamp in C and then return it via iter_events.
-        return (
-            tuple(
-                MemoryAllocSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=_threading.get_thread_name(thread_id),
-                    thread_native_id=_threading.get_thread_native_id(thread_id),
-                    frames=stack,
-                    nframes=nframes,
-                    size=size,
-                    capture_pct=capture_pct,
-                    nevents=alloc_count,
-                )
-                for (stack, nframes, thread_id), size, domain in events
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-            ),
-        )
+        stacks = []
+        for (stack, nframes, thread_id), size, domain in events:
+            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
+                continue
+            if self.use_libdatadog:
+                ddup.start_sample()
+                ddup.push_alloc(size * capture_ratio, count)
+                ddup.push_threadinfo(thread_id, _threading.get_native_id(thread_id), _threading.get_thread_name(thread_id))
+
+                for frame in stack:
+                    if frame is not None:
+                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                            if not isinstance(frame, FrameType):
+                                continue
+                        lineno = 0 if frame.f_lineno is None else frame.f_lineno
+                        code = frame.f_code
+                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+                            if not isinstance(frame, FrameType):
+                                continue
+                        ddup.push(code.co_name, code.co_filename, 0, lineno)
+
+            if self.use_pyprof:
+                event = MemoryAllocSampleEvent(
+                            thread_id=thread_id,
+                            thread_name=_threading.get_thread_name(thread_id),
+                            thread_native_id=_threading.get_thread_native_id(thread_id),
+                            frames=stack,
+                            nframes=nframes,
+                            size=size,
+                            capture_pct=capture_pct,
+                            nevents=alloc_count,
+                        )
+                stacks.append(event)
+            return stacks

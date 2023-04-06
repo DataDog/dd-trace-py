@@ -311,14 +311,40 @@ bool Profile::flush_sample() {
   return true;
 }
 
+
+
+void Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
+  values[0] += cputime * count;
+  values[1] += count;
+}
+
 void Datadog::Profile::push_walltime(int64_t walltime, int64_t count) {
   values[2] += walltime * count;
   values[3] += count;
 }
 
-void Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
-  values[0] += cputime * count;
-  values[1] += count;
+void Datadog::Profile::push_exceptioninfo(const std::string_view &exception_type, int64_t count) {
+  push_label("exception type", exception_type);
+  values[4] += count;
+}
+
+void Datadog::Profile::push_acquire(int64_t acquire_time, int64_t count) {
+  values[5] += count;
+  values[6] += acquire_time;
+}
+
+void Datadog::Profile::push_release(int64_t release_time, int64_t count) {
+  values[7] += count;
+  values[8] += release_time;
+}
+
+void Datadog::Profile::push_alloc(int64_t allocsize, int64_t count) {
+  values[9] += count;
+  values[10] += allocsize; // Allocations are already aggregated?
+}
+
+void Datadog::Profile::push_heap(int64_t heapsize) {
+  values[11] += heapsize;
 }
 
 void Datadog::Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, const std::string_view &thread_name) {
@@ -340,11 +366,6 @@ void Datadog::Profile::push_spaninfo(int64_t span_id, int64_t local_root_span_id
 void Datadog::Profile::push_traceinfo(const std::string_view &trace_type, const std::string_view &trace_resource_container) {
   push_label("trace type", trace_type);
   push_label("trace resource container", trace_resource_container);
-}
-
-void Datadog::Profile::push_exceptioninfo(const std::string_view &exception_type, int64_t count) {
-  push_label("exception type", exception_type);
-  values[4] += count;
 }
 
 void Datadog::Profile::push_classinfo(const std::string_view &class_name) {
@@ -378,6 +399,22 @@ void ddup_push_walltime(int64_t walltime, int64_t count){
 
 void ddup_push_cputime(int64_t cputime, int64_t count){
   g_profile->push_cputime(cputime, count);
+}
+
+void ddup_push_acquire(int64_t acquire_time, int64_t count) {
+  g_profile->push_acquire(acquire_time, count);
+}
+
+void ddup_push_release(int64_t release_time, int64_t count) {
+  g_profile->push_release(release_time, count);
+}
+
+void ddup_push_alloc(int64_t alloc_size, int64_t count) {
+  g_profile->push_alloc(alloc_size, count);
+}
+
+void ddup_push_heap(int64_t heap_size) {
+  g_profile->push_heap(heap_size);
 }
 
 void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
