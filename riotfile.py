@@ -87,6 +87,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 
 venv = Venv(
     pkgs={
+        "decorator": latest,
         "mock": latest,
         "pytest": latest,
         "pytest-mock": latest,
@@ -264,7 +265,6 @@ venv = Venv(
                 "msgpack": latest,
                 "attrs": ["==20.1.0", latest],
                 "structlog": latest,
-                "decorator": latest,
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
             },
