@@ -1,0 +1,31 @@
+{
+  "version": "2.2",
+  "rules": [
+    {
+      "id": "tst-037-006",
+      "name": "Test block on response code",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000006",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.method"
+              }
+            ],
+            "regex": "GET"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    }
+  ]
+}

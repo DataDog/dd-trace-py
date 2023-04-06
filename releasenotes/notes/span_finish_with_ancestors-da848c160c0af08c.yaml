@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracer/span: Add ``Span.finish_with_ancestors`` method to enable the abrupt
+      finishing of a trace in cases where the trace or application must be
+      immediately terminated.

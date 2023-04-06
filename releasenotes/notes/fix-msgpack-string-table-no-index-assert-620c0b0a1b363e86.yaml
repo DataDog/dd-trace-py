@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue with the encoding of traces when using
+    the v0.5 API version with the Python optimization option flag ``-O`` or the
+    ``PYTHONOPTIMIZE`` environment variable.

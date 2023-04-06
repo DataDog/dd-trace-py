@@ -35,6 +35,10 @@ See [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributin
 
 ### Pre-commit Hooks
 
+**NOTE**: Pre-commit hooks are optional and provided as a convenience for contributors. 
+If pre-commit hooks fail to run in your development environment, you can uninstall them by deleting the symlink created by the installation script:
+
+    $ rm .git/hooks/pre-commit
 The tracer library uses formatting/linting tools including black, flake8, and mypy.
 While these are run in each CI pipeline for pull requests, they are automated to run
 when you call `git commit` as pre-commit hooks to catch any formatting errors before
@@ -72,6 +76,9 @@ launch them through:
 
 #### Running Tests in docker
 
+The dd-trace-py testrunner docker image allows you to run tests in an environment that matches CI. This is especially useful
+if you are unable to install certain test dependencies on your dev machine's bare metal.
+
 Once your docker-compose environment is running, you can use the shell script to
 execute tests within a Docker image. You can start the container with a bash shell:
 
@@ -103,10 +110,13 @@ You can run multiple tests by using regular expressions:
    `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a
    service specified in the `docker-compose.yml` file.
 5. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`.
-   1. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from
-      reinstalling the dev package; `-x` forces an exit after the first failed
-      test suite. To limit the tests to a particular version of Python, use the
-      `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
+
+You can use the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package;
+`-x` forces an exit after the first failed test suite. To limit the tests to a particular
+version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`. You can also pass
+command line arguments to the underlying test runner (like pytest) with the `--` argument.
+For example, you can run a specific test under pytest with
+`riot -v run -s gunicorn -- -k test_no_known_errors_occur`
 
 The `run` command uses regex syntax, which in some cases will cause multiple
 test suites to run. Use the following syntax to ensure only an individual suite

@@ -11,7 +11,10 @@ SERVER_URL = "http://0.0.0.0:8000/"
 
 
 def _get_response():
-    r = requests.get(SERVER_URL)
+    HEADERS = {
+        "User-Agent": "dd-test-scanner-log",
+    }
+    r = requests.get(SERVER_URL, headers=HEADERS)
     r.raise_for_status()
 
 
@@ -26,6 +29,7 @@ def _post_response():
         "HTTP_SEC_FETCH_DEST": "document",
         "HTTP_ACCEPT_ENCODING": "gzip, deflate, br",
         "HTTP_ACCEPT_LANGUAGE": "en-US,en;q=0.9",
+        "User-Agent": "dd-test-scanner-log",
     }
     r = requests.post(SERVER_URL + "post-view", data=utils.EXAMPLE_POST_DATA, headers=HEADERS)
     r.raise_for_status()
@@ -46,6 +50,7 @@ def server(scenario):
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
         "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "PERF_IAST_ENABLED": str(scenario.iast_enabled),
+        "PERF_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
     }
     # copy over current environ
     env.update(os.environ)

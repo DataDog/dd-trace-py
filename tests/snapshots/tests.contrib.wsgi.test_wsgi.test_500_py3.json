@@ -17,7 +17,8 @@
       "http.method": "GET",
       "http.url": "http://localhost:80/error",
       "language": "python",
-      "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
+      "runtime-id": "bb2d07942242401fa27e41f08139d6a1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

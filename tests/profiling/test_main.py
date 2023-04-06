@@ -23,9 +23,9 @@ def test_call_script(monkeypatch):
     else:
         assert exitcode == 42, (stdout, stderr)
     hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    assert hello == "hello world"
-    assert float(interval) >= 0.01
-    assert int(stacks) >= 1
+    assert hello == "hello world", stdout.decode().strip()
+    assert float(interval) >= 0.01, stdout.decode().strip()
+    assert int(stacks) >= 1, stdout.decode().strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
