@@ -5,6 +5,9 @@ on:
     branches:
       - '[0-9].[0-9]*'
       - '[0-9].x'
+      # special branches used to test this workflow
+      # before merging/releasing
+      - build_deploy*
   pull_request:
     paths:
       - "setup.py"
@@ -214,7 +217,6 @@ jobs:
 
   build-and-publish-init-image:
     needs: [upload_pypi]
-    runs-on: ubuntu-latest
     uses: ./.github/workflows/lib-inject-publish.yml
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
