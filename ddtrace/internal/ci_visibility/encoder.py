@@ -49,6 +49,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _build_payload(self, traces):
         normalized_spans = [CIVisibilityEncoderV01._convert_span(span) for trace in traces for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
+        # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb(
             {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
         )
