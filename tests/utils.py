@@ -9,7 +9,6 @@ import time
 from typing import List
 
 import attr
-import decorator
 import pytest
 
 import ddtrace
@@ -56,8 +55,14 @@ def assert_span_http_status_code(span, code):
     assert tag == code, "%r != %r" % (tag, code)
 
 
-def _override_env(env):
-    """Generator that yields within an isolated customized os.environ"""
+@contextlib.contextmanager
+def override_env(env):
+    """
+    Temporarily override ``os.environ`` with provided values::
+
+        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
+            # Your test
+    """
     # Copy the full original environment
     original = dict(os.environ)
 
@@ -69,30 +74,6 @@ def _override_env(env):
         # Full clear the environment out and reset back to the original
         os.environ.clear()
         os.environ.update(original)
-
-
-@contextlib.contextmanager
-def override_env(env):
-    """
-    Temporarily override ``os.environ`` with provided values::
-
-        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
-            # Your test
-    """
-    return _override_env(env)
-
-
-def override_decorated_env(env):
-    """Decorator for test functions that overrides environment variables passed as a dictionary"""
-
-    def _decorator(fn):
-        def wrapper(fn, *args, **kwargs):
-            with override_env(env):
-                return fn(*args, **kwargs)
-
-        return decorator.decorator(wrapper, fn)
-
-    return _decorator
 
 
 @contextlib.contextmanager
