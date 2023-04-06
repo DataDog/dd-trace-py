@@ -36,12 +36,10 @@ from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from ._encoding import BufferedEncoder
 from .agent import get_connection
-from .encoding import CIVisibilityEncoderV01
 from .encoding import JSONEncoderV2
 from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
 from .runtime import container
-from .runtime import get_runtime_id
 from .sma import SimpleMovingAverage
 
 
@@ -710,66 +708,3 @@ class AgentWriter(HTTPWriter):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
-
-
-class CIVisibilityWriter(HTTPWriter):
-    RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "PUT"
-    STATSD_NAMESPACE = "civisibilitywriter"
-
-    def __init__(
-        self,
-        intake_url,  # type: str
-        sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=get_writer_interval_seconds(),  # type: float
-        timeout=agent.get_trace_agent_timeout(),  # type: float
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=True,  # type: bool
-        report_metrics=False,  # type: bool
-        api_version=None,  # type: Optional[str]
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-    ):
-        encoder = CIVisibilityEncoderV01(0, 0)
-        encoder.set_metadata(
-            {
-                "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
-            }
-        )
-
-        headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY", "dummyapikey")
-
-        super(CIVisibilityWriter, self).__init__(
-            intake_url=intake_url,
-            endpoint="v0.5/traces",  # XXX
-            encoder=encoder,
-            sampler=sampler,
-            priority_sampler=priority_sampler,
-            processing_interval=processing_interval,
-            timeout=timeout,
-            dogstatsd=dogstatsd,
-            sync_mode=sync_mode,
-            reuse_connections=reuse_connections,
-            headers=headers,
-        )
-
-    def stop(self):
-        if self.status != service.ServiceStatus.STOPPED:
-            super(CIVisibilityWriter, self).stop()
-
-    def recreate(self):
-        # type: () -> HTTPWriter
-        return self.__class__(
-            intake_url=self.intake_url,
-            sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
-            processing_interval=self._interval,
-            timeout=self._timeout,
-            dogstatsd=self.dogstatsd,
-            sync_mode=self._sync_mode,
-        )
