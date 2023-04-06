@@ -324,6 +324,14 @@ class AgentWriterTests(BaseTestCase):
 class CIVisibilityWriterTests(AgentWriterTests):
     WRITER_CLASS = CIVisibilityWriter
 
+    def setUp(self):
+        self.original_env = dict(os.environ)
+        os.environ.update(dict(DD_API_KEY="foobar.baz"))
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self.original_env)
+
     # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
     # that CIVisibilityWriter does not implement
     def test_drop_reason_buffer_full(self):
