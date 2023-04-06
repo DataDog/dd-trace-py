@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -40,7 +41,7 @@ class CIVisibility(Service):
 
         self.tracer = tracer or ddtrace.tracer
         writer = CIVisibilityWriter(
-            "http://localhost:9126",
+            "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com"),
             sampler=self.tracer.writer._sampler,
             priority_sampler=self.tracer.writer._priority_sampler,
             timeout=self.tracer.writer._timeout,
