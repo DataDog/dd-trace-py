@@ -56,12 +56,7 @@ def assert_span_http_status_code(span, code):
 
 
 def _override_env(env):
-    """
-    Temporarily override ``os.environ`` with provided values::
-
-        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
-            # Your test
-    """
+    """Generator that yields within an isolated customized os.environ"""
     # Copy the full original environment
     original = dict(os.environ)
 
@@ -77,10 +72,18 @@ def _override_env(env):
 
 @contextlib.contextmanager
 def override_env(env):
+    """
+    Temporarily override ``os.environ`` with provided values::
+
+        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
+            # Your test
+    """
     return _override_env(env)
 
 
 def override_decorated_env(env):
+    """Decorator for test functions that overrides environment variables passed as a dictionary"""
+
     def _decorator(fn):
         def wrapper(fn, *args, **kwargs):
             with override_env(env):
