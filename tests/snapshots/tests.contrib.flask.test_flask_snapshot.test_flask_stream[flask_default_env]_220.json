@@ -1,0 +1,158 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /stream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "flask",
+      "flask.endpoint": "hello",
+      "flask.url_rule": "/stream",
+      "flask.version": "2.2.2",
+      "http.method": "GET",
+      "http.route": "/stream",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/stream",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "6bd58ff688004046a9547d8ccc2bb845",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 3008533
+    },
+    "duration": 1281346,
+    "start": 1675675616070025814
+  },
+     {
+       "name": "flask.application",
+       "service": "flask",
+       "resource": "GET /stream",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "flask",
+         "flask.endpoint": "hello",
+         "flask.url_rule": "/stream"
+       },
+       "duration": 433330,
+       "start": 1675675616070368137
+     },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 15757,
+          "start": 1675675616070549120
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 68134,
+          "start": 1675675616070590385
+        },
+           {
+             "name": "tests.contrib.flask.app.hello",
+             "service": "flask",
+             "resource": "/stream",
+             "trace_id": 0,
+             "span_id": 9,
+             "parent_id": 5,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "component": "flask"
+             },
+             "duration": 28653,
+             "start": 1675675616070623556
+           },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 10653,
+          "start": 1675675616070675701
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 12649,
+          "start": 1675675616070750842
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "component": "flask"
+          },
+          "duration": 8117,
+          "start": 1675675616070783501
+        },
+     {
+       "name": "flask.response",
+       "service": "flask",
+       "resource": "flask.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "flask"
+       },
+       "duration": 479293,
+       "start": 1675675616070808251
+     }]]

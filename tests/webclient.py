@@ -48,7 +48,7 @@ class Client(object):
 
         @tenacity.retry(stop=tenacity.stop_after_attempt(max_tries), wait=tenacity.wait_fixed(delay))
         def ping():
-            r = self.get_ignored(path)
+            r = self.get_ignored(path, timeout=1)
             assert r.status_code == 200
 
         ping()

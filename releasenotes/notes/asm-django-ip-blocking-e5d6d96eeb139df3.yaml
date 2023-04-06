@@ -1,0 +1,13 @@
+---
+prelude: >
+  Application Security Management (ASM) has added Django support for blocking malicious IPs using one click within Datadog.
+
+
+  .. note::
+    One click blocking for ASM is currently in beta.
+
+
+features:
+  - |
+    ASM: add support for one click blocking of IPs with the Django framework using 
+    Remote Configuration Management.

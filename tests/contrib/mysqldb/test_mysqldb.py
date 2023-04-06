@@ -63,8 +63,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -91,8 +93,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             fetch_span = spans[1]
@@ -120,8 +124,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -148,8 +154,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             fetch_span = spans[1]
@@ -302,8 +310,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
         assert span.get_tag("sql.query") is None
@@ -341,8 +351,10 @@ class MySQLCore(object):
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
                 "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -380,8 +392,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
 
@@ -497,8 +511,10 @@ class MySQLCore(object):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
 
@@ -595,8 +611,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
                     "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             assert span.get_tag("sql.query") is None

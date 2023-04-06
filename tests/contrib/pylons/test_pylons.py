@@ -80,6 +80,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_TYPE) is None
         assert span.get_tag(ERROR_STACK) is None
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
         assert span.span_type == "web"
 
     def test_mw_exc_success(self):
@@ -113,6 +114,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_TYPE) is None
         assert span.get_tag(ERROR_STACK) is None
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
 
     def test_middleware_exception(self):
         """Ensure exceptions raised in middleware are properly handled.
@@ -144,6 +146,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_TYPE) == "exceptions.Exception"
         assert span.get_tag(ERROR_STACK)
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
 
     def test_exc_success(self):
         from .app.middleware import ExceptionToSuccessMiddleware
@@ -169,6 +172,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_TYPE) is None
         assert span.get_tag(ERROR_STACK) is None
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
 
     def test_exc_client_failure(self):
         from .app.middleware import ExceptionToClientErrorMiddleware
@@ -194,6 +198,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_TYPE) is None
         assert span.get_tag(ERROR_STACK) is None
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
 
     def test_success_200(self, query_string=""):
         with override_global_config(dict(_appsec_enabled=True)):
@@ -353,6 +358,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(ERROR_MSG) == "Ouch!"
         assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_wrong_code(self):
@@ -370,6 +376,7 @@ class PylonsTestCase(TracerTestCase):
         assert_span_http_status_code(span, 500)
         assert span.get_tag(http.URL) == "http://localhost:80/raise_wrong_code"
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
         assert span.get_tag(ERROR_MSG) == "Ouch!"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
@@ -388,6 +395,7 @@ class PylonsTestCase(TracerTestCase):
         assert_span_http_status_code(span, 512)
         assert span.get_tag(http.URL) == "http://localhost:80/raise_custom_code"
         assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
         assert span.get_tag(ERROR_MSG) == "Ouch!"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
@@ -405,6 +413,8 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 1
         assert_span_http_status_code(span, 500)
         assert span.get_tag(http.URL) == "http://localhost:80/raise_code_method"
+        assert span.get_tag("component") == "pylons"
+        assert span.get_tag("span.kind") == "server"
         assert span.get_tag(ERROR_MSG) == "Ouch!"
 
     def test_distributed_tracing_default(self):
@@ -548,7 +558,6 @@ class PylonsTestCase(TracerTestCase):
 
     def test_pylons_body_urlencoded(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
-
             self.tracer.configure(api_version="v0.4")
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
             response = self.app.post(
@@ -679,7 +688,6 @@ class PylonsTestCase(TracerTestCase):
     def test_pylons_body_json_unicode_decode_error_charset(self):
         # Regression test, if request.charset returns None, a TypeError is raised
         with self.override_global_config(dict(_appsec_enabled=True)):
-
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), mock.patch(
                 "ddtrace.contrib.pylons.middleware.Request.charset", new_callable=mock.PropertyMock
             ) as mock_charset:
@@ -769,8 +777,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span.get_tag("_dd.appsec.json") is None
 
             span = _context.get_item("http.request.body", span=root_span)
-            assert span
-            assert span == "foo=bar"
+            assert span is None
 
     def test_pylons_body_plain_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
@@ -789,11 +796,10 @@ class PylonsTestCase(TracerTestCase):
 
             root_span = spans[0]
             appsec_json = root_span.get_tag("_dd.appsec.json")
-            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+            assert "triggers" not in json.loads(appsec_json if appsec_json else "{}")
 
             span = _context.get_item("http.request.body", span=root_span)
-            assert span
-            assert span == "1' or '1' = '1'"
+            assert span is None
 
     def test_request_method_get_200(self):
         res = self.app.get(url_for(controller="root", action="index"))
@@ -881,3 +887,4 @@ class PylonsTestCase(TracerTestCase):
         assert root_span.get_tag(user.ROLE) == "usr.role"
         assert root_span.get_tag(user.SCOPE) == "usr.scope"
         assert root_span.get_tag("component") == "pylons"
+        assert root_span.get_tag("span.kind") == "server"

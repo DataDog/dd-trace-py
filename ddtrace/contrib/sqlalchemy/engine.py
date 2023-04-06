@@ -21,8 +21,11 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
 from ...ext import net as netx
 from ...ext import sql as sqlx
 from ...pin import Pin
@@ -90,6 +93,9 @@ class EngineTracer(object):
         )
         span.set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
 
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
@@ -112,7 +118,7 @@ class EngineTracer(object):
 
         try:
             if cursor and cursor.rowcount >= 0:
-                span.set_tag(sqlx.ROWS, cursor.rowcount)
+                span.set_tag(db.ROWCOUNT, cursor.rowcount)
         finally:
             span.finish()
 

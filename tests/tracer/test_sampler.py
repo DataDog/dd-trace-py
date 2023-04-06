@@ -26,6 +26,7 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
+from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
 from ..utils import override_env
 
@@ -159,7 +160,15 @@ class RateByServiceSamplerTest(unittest.TestCase):
         assert "service:mcnulty,env:test" == RateByServiceSampler._key(service="mcnulty", env="test")
         assert "service:mcnulty,env:test" == RateByServiceSampler._key("mcnulty", "test")
 
-    def test_sample_rate_deviation(self):
+    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+    def test_sample_rate_deviation_128bit_trace_id(self):
+        self._test_sample_rate_deviation()
+
+    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false"))
+    def test_sample_rate_deviation_64bit_trace_id(self):
+        self._test_sample_rate_deviation()
+
+    def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
             writer = tracer._writer
@@ -620,18 +629,24 @@ def test_sampling_rule_matches_exception():
         )
 
 
-@pytest.mark.parametrize("sample_rate", [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
-def test_sampling_rule_sample(sample_rate):
-    rule = SamplingRule(sample_rate=sample_rate)
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
+)
+def test_sampling_rule_sample():
+    from ddtrace.sampler import SamplingRule
+    from ddtrace.span import Span
 
-    iterations = int(1e4 / sample_rate)
-    sampled = sum(rule.sample(Span(name=str(i))) for i in range(iterations))
+    for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
+        rule = SamplingRule(sample_rate=sample_rate)
 
-    # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
-    deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
-    assert deviation < 0.05, "Deviation {!r} too high with sample_rate {!r} for {} sampled".format(
-        deviation, sample_rate, sampled
-    )
+        iterations = int(1e4 / sample_rate)
+        sampled = sum(rule.sample(Span(name=str(i))) for i in range(iterations))
+
+        # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
+        deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
+        assert deviation < 0.05, "Deviation {!r} too high with sample_rate {!r} for {} sampled".format(
+            deviation, sample_rate, sampled
+        )
 
 
 def test_sampling_rule_sample_rate_1():

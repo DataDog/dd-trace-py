@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    ASM: The list of headers for retrieving the IP when Application Security Management is enabled or the 
+      `DD_TRACE_CLIENT_IP_ENABLED` environment variable is set has been updated. "Via" has been 
+      removed as it rarely contains IP data and some common vendor headers have been added. You can
+      also set the environment variable `DD_TRACE_CLIENT_IP_HEADER` to always retrieve the IP
+      from the header specified as the value.

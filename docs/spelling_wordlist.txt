@@ -1,5 +1,7 @@
 AArch
 AnyCallable
+autoreload
+autoreloading
 CPython
 Fargate
 Firehose
@@ -58,6 +60,7 @@ contextvar
 contextvars
 coroutine
 coroutines
+Cython
 datadog
 datadoghq
 datastore
@@ -103,6 +106,7 @@ iterable
 JSON
 jinja
 js
+kafka
 kombu
 kubernetes
 kwarg
@@ -137,6 +141,7 @@ pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf
@@ -160,6 +165,7 @@ resolvers
 repo
 respawn
 rq
+rowcount
 runnable
 runtime
 runtimes
@@ -168,6 +174,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite
@@ -179,6 +186,7 @@ submodule
 submodules
 substring
 timestamp
+tracestate
 tweens
 uWSGI
 unbuffered
@@ -198,6 +206,7 @@ versioned
 vertica
 w3c
 whitelist
+whitespace
 workflow
 wsgi
 xfail

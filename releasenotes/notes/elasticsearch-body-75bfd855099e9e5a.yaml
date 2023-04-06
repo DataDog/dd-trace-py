@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    elasticsearch: Omit large ``elasticsearch.body`` tag values that are
+      greater than 25000 characters to prevent traces from being too large to
+      send.
