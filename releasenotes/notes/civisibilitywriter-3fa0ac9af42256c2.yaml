@@ -1,4 +1,0 @@
-features:
-  - |
-    tracing: Introduces ``CIVisibilityWriter``, an ``HTTPWriter`` subclass that communicates with Datadog's CI Visibility intake endpoint.
-    An upcoming change will configure the pytest plugin to automatically use this writer.
