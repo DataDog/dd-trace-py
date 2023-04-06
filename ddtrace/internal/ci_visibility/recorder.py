@@ -42,9 +42,7 @@ class CIVisibility(Service):
 
         self.tracer = tracer or ddtrace.tracer
         if not isinstance(tracer._writer, CIVisibilityWriter):
-            writer = CIVisibilityWriter(
-                "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com"),
-            )
+            writer = CIVisibilityWriter()
             self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags()  # type: Dict[str, str]
