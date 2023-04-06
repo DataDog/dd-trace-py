@@ -1,0 +1,3 @@
+features:
+  - |
+    ci-visibility: Configures the ``CIVisibility`` service to send traces using the ``CIVisibilityWriter`` by default
