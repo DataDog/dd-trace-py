@@ -1,4 +1,5 @@
 import openai
+import os
 
 from ddtrace.contrib.openai.patch import patch
 from ddtrace.contrib.openai.patch import unpatch
@@ -16,13 +17,11 @@ class TestOpenAI(TracerTestCase):
         super(TestOpenAI, self).tearDown()
         unpatch()
 
-    def test_create(self):
-        # create a completion
+    def test_completion(self):
+        # create a completion (expected to fail since api key is not set)
         openai.Completion.create(model="ada", prompt="Hello world")
         spans = self.pop_spans()
         assert len(spans) > 0
         tags = spans[0].get_tags()
         assert tags["model"] == "ada"
         assert tags["prompt"] == "Hello world"
-        print(tags)
-        exit(1)
