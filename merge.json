@@ -18,7 +18,7 @@
     {
         "another": "different",
         "dict": "for",
-        "triggering": "no merge",
+        "triggering": "happy merges",
         "conflicts": "here"
     }
 ]

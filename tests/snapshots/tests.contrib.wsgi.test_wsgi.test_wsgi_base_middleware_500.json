@@ -16,7 +16,8 @@
       "error.type": "builtins.Exception",
       "language": "python",
       "request_tag": "req test tag set",
-      "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
+      "runtime-id": "bb2d07942242401fa27e41f08139d6a1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

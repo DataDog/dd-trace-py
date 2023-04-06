@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dbapi: The dbapi integration no longer assumes that a cursor object will
+    have a rowcount as not all database drivers implement rowcount.

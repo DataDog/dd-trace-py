@@ -16,7 +16,8 @@
       "http.url": "http://0.0.0.0:8000/not_found",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "9026d8da34d24c54bd18e7829f0153e4"
+      "runtime-id": "8ff87ef796b5444799ac6c8af5117899",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90749
     },
-    "duration": 187000,
-    "start": 1666809951425640000
+    "duration": 195000,
+    "start": 1667243828573811000
   }],
 [
   {
@@ -49,8 +50,9 @@
       "http.url": "http://0.0.0.0:8000/internal_error",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "9026d8da34d24c54bd18e7829f0153e4",
-      "sanic.route.name": "test_sanic_server.internal_error"
+      "runtime-id": "8ff87ef796b5444799ac6c8af5117899",
+      "sanic.route.name": "test_sanic_server.internal_error",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -59,6 +61,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 90749
     },
-    "duration": 958000,
-    "start": 1666809951457889000
+    "duration": 973000,
+    "start": 1667243828611475000
   }]]

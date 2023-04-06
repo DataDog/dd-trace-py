@@ -55,7 +55,7 @@ def parse_version(version):
 def _pep440_to_semver(version=None):
     # type: (Optional[str]) -> str
     # The library uses a PEP 440-compliant (https://peps.python.org/pep-0440/) versioning
-    # scheme, but the RCM spec requires that we use a SemVer-compliant version.
+    # scheme, but the Agent spec requires that we use a SemVer-compliant version.
     #
     # However, we may have versions like:
     #

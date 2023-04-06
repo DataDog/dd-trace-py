@@ -48,6 +48,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         assert run_span.get_tag("celery.action") == "run"
         assert run_span.get_tag("celery.state") == "SUCCESS"
         assert run_span.get_tag("component") == "celery"
+        assert run_span.get_tag("span.kind") == "consumer"
         assert apply_span.error == 0
         assert apply_span.name == "celery.apply"
         assert apply_span.resource == "tests.contrib.celery.test_old_style_task.CelerySubClass"
@@ -55,3 +56,4 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         assert apply_span.get_tag("celery.action") == "apply_async"
         assert apply_span.get_tag("celery.routing_key") == "celery"
         assert apply_span.get_tag("component") == "celery"
+        assert apply_span.get_tag("span.kind") == "producer"

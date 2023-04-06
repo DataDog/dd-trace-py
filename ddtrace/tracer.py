@@ -42,6 +42,8 @@ from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
+from .internal.serverless import has_aws_lambda_agent_extension
+from .internal.serverless import in_aws_lambda
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
@@ -238,7 +240,6 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
@@ -458,7 +459,6 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
@@ -467,7 +467,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self._writer, AgentWriter):
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if any(
             x is not None
@@ -694,31 +694,6 @@ class Tracer(object):
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
-            span.sampled = self._sampler.sample(span)
-            # Old behavior
-            # DEV: The new sampler sets metrics and priority sampling on the span for us
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-
-                    if self._priority_sampler:
-                        # At this stage, it's important to have the service set. If unset,
-                        # priority sampler will use the default sampling rate, which might
-                        # lead to oversampling (that is, dropping too many traces).
-                        if self._priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
-                        else:
-                            context.sampling_priority = AUTO_REJECT
-                else:
-                    if self._priority_sampler:
-                        # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
-            else:
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
@@ -750,12 +725,39 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
+        if not trace_id:
+            span.sampled = self._sampler.sample(span)
+            # Old behavior
+            # DEV: The new sampler sets metrics and priority sampling on the span for us
+            if not isinstance(self._sampler, DatadogSampler):
+                if span.sampled:
+                    # When doing client sampling in the client, keep the sample rate so that we can
+                    # scale up statistics in the next steps of the pipeline.
+                    if isinstance(self._sampler, RateSampler):
+                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
+
+                    if self._priority_sampler:
+                        # At this stage, it's important to have the service set. If unset,
+                        # priority sampler will use the default sampling rate, which might
+                        # lead to oversampling (that is, dropping too many traces).
+                        if self._priority_sampler.sample(span):
+                            context.sampling_priority = AUTO_KEEP
+                        else:
+                            context.sampling_priority = AUTO_REJECT
+                else:
+                    if self._priority_sampler:
+                        # If dropped by the local sampler, distributed instrumentation can drop it too.
+                        context.sampling_priority = AUTO_REJECT
+            else:
+                # We must always mark the span as sampled so it is forwarded to the agent
+                span.sampled = True
+
         # Only call span processors if the tracer is enabled
         if self.enabled:
             for p in self._span_processors:
                 p.on_span_start(span)
-
         self._hooks.emit(self.__class__.start_span, span)
+
         return span
 
     start_span = _start_span
@@ -1031,11 +1033,11 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        elif _in_aws_lambda() and _has_aws_lambda_agent_extension():
+        elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
         else:
-            return _in_aws_lambda()
+            return in_aws_lambda()
 
     @staticmethod
     def _use_sync_mode():
@@ -1049,25 +1051,8 @@ class Tracer(object):
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
         """
-        return _in_aws_lambda() and _has_aws_lambda_agent_extension()
+        return in_aws_lambda() and has_aws_lambda_agent_extension()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
-
-
-def _has_aws_lambda_agent_extension():
-    # type: () -> bool
-    """Returns whether the environment has the AWS Lambda Datadog Agent
-    extension available.
-    """
-    return os.path.exists("/opt/extensions/datadog-agent")
-
-
-def _in_aws_lambda():
-    # type: () -> bool
-    """Returns whether the environment is an AWS Lambda.
-    This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
-    variable is defined.
-    """
-    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))

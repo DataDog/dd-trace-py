@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    gevent: This fix resolves incompatibility under 3.8>=Python<=3.10 between ``ddtrace-run`` and applications that depend on ``gevent``, for example ``gunicorn`` servers. It accomplishes this by
+    keeping copies that have not been monkey patched by ``gevent`` of most modules used by ``ddtrace``. This "module cloning" logic can be controlled by the environment
+    variable ``DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE``. Valid values for this variable are "1", "0", and "auto". "1" tells ``ddtrace`` to run its module cloning logic
+    unconditionally, "0" tells it never to run that logic, and "auto" tells it to run module cloning logic *only if* ``gevent`` is accessible from the application's runtime.
+    The default value is "0".

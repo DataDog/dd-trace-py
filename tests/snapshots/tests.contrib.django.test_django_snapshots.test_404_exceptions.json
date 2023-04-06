@@ -20,7 +20,8 @@
       "http.status_code": "404",
       "http.url": "http://testserver/404-view/",
       "language": "python",
-      "runtime-id": "3a330969456446cd8d36553672a50858"
+      "runtime-id": "724d095f86444c4f9723fc0417164478",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
