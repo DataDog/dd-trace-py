@@ -7,6 +7,7 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -41,6 +42,7 @@ class TestPytest(TracerTestCase):
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
         with override_env(dict(DD_API_KEY="foobar.baz")):
+            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
             py_file = self.testdir.makepyfile(
                 """
             import asynctest
