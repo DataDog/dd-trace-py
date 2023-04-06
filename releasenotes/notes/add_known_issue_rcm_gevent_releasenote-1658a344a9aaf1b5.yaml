@@ -1,0 +1,7 @@
+---
+issues:
+  - |
+    remote config: There is a known issue with remote configuration management (RCM) when paired with gevent 
+    which can cause child processes to deadlock. 
+    If you are experiencing issues, we recommend disabling RCM with ``DD_REMOTE_CONFIGURATION_ENABLED=false``.  
+    Note, this will disable one click activation for ASM.

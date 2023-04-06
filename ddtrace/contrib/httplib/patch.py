@@ -9,6 +9,8 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
@@ -79,6 +81,9 @@ def _wrap_request(func, instance, args, kwargs):
 
         span.set_tag_str(COMPONENT, config.httplib.integration_name)
 
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         setattr(instance, "_datadog_span", span)
 
         # propagate distributed tracing headers
@@ -120,6 +125,9 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
             span.set_tag_str(COMPONENT, config.httplib.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             setattr(instance, "_datadog_span", span)
 

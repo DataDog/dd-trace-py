@@ -1,0 +1,8 @@
+features:
+  - |
+    ASM: This introduces the "suspicious request blocking" feature for Django and Flask.
+issues:
+  - |
+    ASM: There is a known issue with the flask support for any rule blocking on ``server.request.path_params``.
+    The request will be correctly blocked but the client application will be receiving and processing the suspicious request.
+    Possible workaround: use ``server.request.uri.raw`` instead, if you want the request to be blocked before entering the flask application.

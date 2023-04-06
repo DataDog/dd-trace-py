@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: Resolves an exception not being handled, which occurs when no root span is found before a lambda times out.
