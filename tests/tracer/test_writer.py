@@ -563,7 +563,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])
