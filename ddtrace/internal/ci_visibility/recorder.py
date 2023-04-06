@@ -40,7 +40,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if not isinstance(tracer._writer, CIVisibilityWriter):
+        if not isinstance(self.tracer._writer, CIVisibilityWriter):
             writer = CIVisibilityWriter()
             self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
