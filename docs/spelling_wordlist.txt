@@ -1,5 +1,7 @@
 AArch
 AnyCallable
+autoreload
+autoreloading
 CPython
 Fargate
 Firehose
@@ -104,6 +106,7 @@ iterable
 JSON
 jinja
 js
+kafka
 kombu
 kubernetes
 kwarg
@@ -138,6 +141,7 @@ pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf
@@ -170,6 +174,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite

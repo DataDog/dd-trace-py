@@ -202,7 +202,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=False)):
-            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5235, dogstatsd=statsd)
+            writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -552,6 +552,14 @@ def test_additional_headers():
         assert writer._headers["header2"] == "value2"
 
 
+def test_additional_headers_constructor():
+    writer = AgentWriter(
+        agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+    )
+    assert writer._headers["additional-header"] == "additional-value"
+    assert writer._headers["header2"] == "value2"
+
+
 def test_bad_encoding(monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
 
@@ -689,3 +697,23 @@ def test_writer_reuse_connections_false():
     # And another to potentially have it reset
     writer.flush_queue()
     assert writer._conn is conn
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+def test_trace_with_128bit_trace_ids():
+    """Ensure 128bit trace ids are correctly encoded"""
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from tests.utils import DummyTracer
+
+    tracer = DummyTracer()
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child1"):
+            pass
+        with tracer.trace("child2"):
+            pass
+
+    spans = tracer.pop()
+    chunk_root = spans[0]
+    assert chunk_root.trace_id >= 2 ** 64
+    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
