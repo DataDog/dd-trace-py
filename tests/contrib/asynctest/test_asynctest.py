@@ -29,7 +29,9 @@ class TestPytest(TracerTestCase):
                     CIVisibility.disable()
                     CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0) or sys.version_info <= (3, 6, 0),
@@ -41,21 +43,19 @@ class TestPytest(TracerTestCase):
         """Test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py` when try to import asynctest package.
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
-            py_file = self.testdir.makepyfile(
-                """
-            import asynctest
-            asynctest.CoroutineMock()
-
-            def test_asynctest():
-                assert 1 == 1
+        py_file = self.testdir.makepyfile(
             """
-            )
-            file_name = os.path.basename(py_file.strpath)
-            rec = self.inline_run("--ddtrace", file_name)
-            rec.assertoutcome(passed=1)
-            spans = self.pop_spans()
+        import asynctest
+        asynctest.CoroutineMock()
 
-            assert len(spans) == 1
-            assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+        def test_asynctest():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
