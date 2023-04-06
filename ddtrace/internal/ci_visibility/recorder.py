@@ -14,8 +14,9 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.internal.writer import CIVisibilityWriter
 from ddtrace.settings import IntegrationConfig
+
+from .writer import CIVisibilityWriter
 
 
 log = get_logger(__name__)
@@ -42,14 +43,6 @@ class CIVisibility(Service):
         self.tracer = tracer or ddtrace.tracer
         writer = CIVisibilityWriter(
             "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com"),
-            sampler=self.tracer.writer._sampler,
-            priority_sampler=self.tracer.writer._priority_sampler,
-            timeout=self.tracer.writer._timeout,
-            dogstatsd=self.tracer.writer.dogstatsd,
-            report_metrics=self.tracer.writer._report_metrics,
-            api_version=self.tracer.writer._api_version,
-            reuse_connections=self.tracer.writer._reuse_connections,
-            headers=self.tracer.writer._headers,
         )
         self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
