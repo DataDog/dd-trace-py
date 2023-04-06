@@ -17,10 +17,11 @@ config._add(
     },
 )
 
-REQUEST_TAG_PREFIX="request"
-RESPONSE_TAG_PREFIX="response"
-ERROR_TAG_PREFIX="error"
-ENGINE="engine"
+REQUEST_TAG_PREFIX = "request"
+RESPONSE_TAG_PREFIX = "response"
+ERROR_TAG_PREFIX = "error"
+ENGINE = "engine"
+
 
 def patch():
     # Do monkey patching here
@@ -31,23 +32,27 @@ def patch():
     _w("openai", "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create)
     Pin().onto(openai)
 
+
 def unpatch():
     # Undo the monkey patching that patch() did here
     if getattr(openai, "__datadog_patch", False):
         setattr(openai, "__datadog_patch", False)
         unwrap(openai.api_resources.abstract.engine_api_resource.EngineAPIResource, "create")
 
+
 def append_tag_prefixes(key_prefixes: list[str], data: dict):
     prefix = ".".join(key_prefixes) + "."
     return [(prefix + str(k), v) for k, v in data.items()]
 
+
 def process_response(engine, resp):
-    # alter the response tag value based on the `engine` 
+    # alter the response tag value based on the `engine`
     # (completions, chat.completions, embeddings)
     if engine == openai.Completion.OBJECT_NAME:
-        resp["choices"] = {str(i):dict(completion) for i, completion in enumerate(resp.choices)}
+        resp["choices"] = {str(i): dict(completion) for i, completion in enumerate(resp.choices)}
         return resp
     return {}
+
 
 def patched_create(func, instance, args, kwargs):
     pin = Pin.get_from(openai)
@@ -58,13 +63,18 @@ def patched_create(func, instance, args, kwargs):
     with pin.tracer.trace(sname) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         span.set_tag_str(ENGINE, instance.OBJECT_NAME)
-        set_flattened_tags(span, append_tag_prefixes([REQUEST_TAG_PREFIX], {**kwargs, **{k:v for k, v in args}}))
+        set_flattened_tags(span, append_tag_prefixes([REQUEST_TAG_PREFIX], {**kwargs, **{k: v for k, v in args}}))
         resp = {}
         try:
             resp = func(*args, **kwargs)
-            set_flattened_tags(span, append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(instance.OBJECT_NAME, resp)))
+            set_flattened_tags(
+                span, append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(instance.OBJECT_NAME, resp))
+            )
             return resp
         except openai.error.OpenAIError as err:
-            set_flattened_tags(span, append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}))
+            set_flattened_tags(
+                span,
+                append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
+            )
             span.finish()
             raise err

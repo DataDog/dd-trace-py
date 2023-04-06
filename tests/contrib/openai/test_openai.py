@@ -1,5 +1,4 @@
 import openai
-import os
 
 from ddtrace.contrib.openai.patch import patch
 from ddtrace.contrib.openai.patch import unpatch
