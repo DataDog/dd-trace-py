@@ -7,7 +7,9 @@ from ddtrace.vendor import wrapt
 
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .utils import append_tag_prefixes, process_request, process_response
+from .utils import append_tag_prefixes
+from .utils import process_request
+from .utils import process_response
 
 
 config._add(
@@ -22,7 +24,8 @@ REQUEST_TAG_PREFIX = "request"
 RESPONSE_TAG_PREFIX = "response"
 ERROR_TAG_PREFIX = "error"
 ENGINE = "engine"
-RESOURCE_NAME="model"
+RESOURCE_NAME = "model"
+
 
 def patch():
     # Do monkey patching here
@@ -50,7 +53,9 @@ def patched_create(func, instance, args, kwargs):
     with pin.tracer.trace(sname) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         span.set_tag_str(ENGINE, instance.OBJECT_NAME)
-        set_flattened_tags(span, append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(instance.OBJECT_NAME, args, kwargs)))
+        set_flattened_tags(
+            span, append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(instance.OBJECT_NAME, args, kwargs))
+        )
         resp = {}
         try:
             resp = func(*args, **kwargs)
