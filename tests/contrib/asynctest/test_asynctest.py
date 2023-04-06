@@ -42,7 +42,6 @@ class TestPytest(TracerTestCase):
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
         with override_env(dict(DD_API_KEY="foobar.baz")):
-            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
             py_file = self.testdir.makepyfile(
                 """
             import asynctest
