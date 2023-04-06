@@ -16,7 +16,8 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
+      "runtime-id": "e41622646bfc48a8aa5272861dd0bce0",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +26,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90727
     },
-    "duration": 86262000,
-    "start": 1666809908933429000
+    "duration": 22191000,
+    "start": 1667243749433378000
   },
      {
        "name": "random_sleep",
@@ -58,7 +59,8 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.1",
       "language": "python",
-      "runtime-id": "f2dd61e9ae20488da28b87971ce3d68a"
+      "runtime-id": "e41622646bfc48a8aa5272861dd0bce0",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -67,8 +69,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 90727
     },
-    "duration": 91384000,
-    "start": 1666809909058287000
+    "duration": 59408000,
+    "start": 1667243749495106000
   },
      {
        "name": "random_sleep",

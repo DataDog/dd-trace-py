@@ -173,3 +173,20 @@ def test_wrap_generator_throw_close():
     gen.close()
 
     assert channel == [True] + [0, ValueError, 1] * 10 + ["GeneratorExit"]
+
+
+def test_wrap_stack():
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        stack = []
+        frame = sys._getframe()
+        while frame:
+            stack.append(frame)
+            frame = frame.f_back
+        return stack
+
+    wrap(f, wrapper)
+
+    assert [frame.f_code.co_name for frame in f()[:4]] == ["f", "wrapper", "f", "test_wrap_stack"]

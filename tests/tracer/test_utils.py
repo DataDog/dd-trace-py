@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from functools import partial
 import sys
+from time import sleep
 import unittest
 
 import mock
@@ -512,3 +513,29 @@ def test_callonce_signature():
 def test_w3c_get_dd_list_member(context, expected_strs):
     for tag in expected_strs:
         assert tag in w3c_get_dd_list_member(context)
+
+
+def test_hourglass_init():
+    """Test that we get the full duration on initialization."""
+    with time.HourGlass(1) as hg, time.StopWatch() as sw:
+        while hg.trickling():
+            sleep(0.1)
+    assert sw.elapsed() > 0.9
+
+
+def test_hourglass_turn():
+    with time.HourGlass(1) as hg, time.StopWatch() as sw:
+        # We let 100ms trickle down before turning.
+        sleep(0.1)
+        hg.turn()
+        while hg.trickling():
+            sleep(0.01)
+        # Check that only another 100ms trickle down after turning.
+        assert sw.elapsed() < 0.3
+
+        # Now turn again and check that we get the full duration on top of the
+        # previous duration.
+        hg.turn()
+        while hg.trickling():
+            sleep(0.1)
+        assert sw.elapsed() > 1.1

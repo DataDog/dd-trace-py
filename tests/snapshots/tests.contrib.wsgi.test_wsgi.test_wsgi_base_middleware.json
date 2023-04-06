@@ -14,7 +14,8 @@
       "http.status_code": "200",
       "language": "python",
       "request_tag": "req test tag set",
-      "runtime-id": "7e366d0265614eba938e491d7cc69a25"
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,8 +25,8 @@
       "process_id": 71585,
       "request_metric": 1
     },
-    "duration": 203000,
-    "start": 1666810172182343000
+    "duration": 186000,
+    "start": 1667319310978989000
   },
      {
        "name": "test_wsgi.application",
@@ -43,8 +44,8 @@
        "metrics": {
          "app_metric": 2
        },
-       "duration": 53000,
-       "start": 1666810172182412000
+       "duration": 49000,
+       "start": 1667319310979047000
      },
      {
        "name": "test_wsgi.response",
@@ -62,6 +63,6 @@
        "metrics": {
          "response_metric": 3
        },
-       "duration": 51000,
-       "start": 1666810172182485000
+       "duration": 53000,
+       "start": 1667319310979113000
      }]]

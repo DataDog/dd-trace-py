@@ -15,7 +15,8 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
@@ -54,7 +55,8 @@
             "http.method": "GET",
             "http.status_code": "200",
             "http.status_msg": "OK",
-            "http.url": "http://localhost:80/"
+            "http.url": "http://localhost:80/",
+            "span.kind": "server"
           },
           "duration": 367000,
           "start": 1669654618452784000
@@ -84,7 +86,8 @@
                 "type": "web",
                 "error": 0,
                 "meta": {
-                  "component": "wsgi"
+                  "component": "wsgi",
+                  "span.kind": "server"
                 },
                 "duration": 97000,
                 "start": 1669654618452897000
@@ -115,7 +118,8 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "component": "wsgi"
+            "component": "wsgi",
+            "span.kind": "server"
           },
           "duration": 39000,
           "start": 1669654618452925000

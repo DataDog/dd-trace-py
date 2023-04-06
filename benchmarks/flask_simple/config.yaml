@@ -4,6 +4,7 @@ baseline: &baseline
   appsec_enabled: false
   iast_enabled: false
   post_request: false
+  telemetry_metrics_enabled: false
 tracer:
   <<: *baseline
   tracer_enabled: true
@@ -19,9 +20,10 @@ appsec-get: &appsec
   appsec_enabled: true
 appsec-post:
   <<: *appsec
-  tracer_enabled: true
-  appsec_enabled: true
   post_request: true
+appsec-telemetry:
+  <<: *appsec
+  telemetry_metrics_enabled: true
 tracer-and-profiler:
   <<: *baseline
   tracer_enabled: true

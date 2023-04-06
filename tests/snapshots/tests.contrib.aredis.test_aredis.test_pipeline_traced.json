@@ -11,10 +11,12 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aredis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
-      "runtime-id": "507ab5063a4c4d23b46d6433f0a24d2b"
+      "runtime-id": "b160e3d7c2ad48acb38c5da8ebc038b6",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,6 +29,6 @@
       "process_id": 572,
       "redis.pipeline_length": 3
     },
-    "duration": 2509000,
-    "start": 1666795795573939000
+    "duration": 13856000,
+    "start": 1667241319427644000
   }]]

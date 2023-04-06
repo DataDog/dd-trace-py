@@ -21,7 +21,9 @@ from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
@@ -186,7 +188,7 @@ def get_json_from_str(data_str):
 
     if data_str.endswith(LINE_BREAK):
         return LINE_BREAK, data_obj
-    return "", data_obj
+    return None, data_obj
 
 
 def get_kinesis_data_object(data):
@@ -195,8 +197,9 @@ def get_kinesis_data_object(data):
     :data: the data from a kinesis stream
 
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
-    We support injecting our trace context in the following two cases:
+    We support injecting our trace context in the following three cases:
     - json string
+    - byte encoded json string
     - base64 encoded json string
     If it's neither of these, then we leave the message as it is.
     """
@@ -204,15 +207,24 @@ def get_kinesis_data_object(data):
     # check if data is a json string
     try:
         return get_json_from_str(data)
-    except ValueError:
-        pass
+    except Exception:
+        log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
+
+    # check if data is an encoded json string
+    try:
+        data_str = data.decode("ascii")
+        return get_json_from_str(data_str)
+    except Exception:
+        log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
 
     # check if data is a base64 encoded json string
     try:
         data_str = base64.b64decode(data).decode("ascii")
         return get_json_from_str(data_str)
-    except ValueError:
-        raise TraceInjectionDecodingError("Unable to parse kinesis streams data string")
+    except Exception:
+        log.error("Unable to parse payload, unable to inject trace context.")
+
+    return None, None
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
@@ -231,22 +243,23 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
     data = record["Data"]
     line_break, data_obj = get_kinesis_data_object(data)
-    data_obj["_datadog"] = {}
-    HTTPPropagator.inject(span.context, data_obj["_datadog"])
-    data_json = json.dumps(data_obj)
+    if data_obj is not None:
+        data_obj["_datadog"] = {}
+        HTTPPropagator.inject(span.context, data_obj["_datadog"])
+        data_json = json.dumps(data_obj)
 
-    # if original string had a line break, add it back
-    if line_break:
-        data_json += line_break
+        # if original string had a line break, add it back
+        if line_break is not None:
+            data_json += line_break
 
-    # check if data size will exceed max size with headers
-    data_size = len(data_json)
-    if data_size >= MAX_KINESIS_DATA_SIZE:
-        raise TraceInjectionSizeExceed(
-            "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-        )
+        # check if data size will exceed max size with headers
+        data_size = len(data_json)
+        if data_size >= MAX_KINESIS_DATA_SIZE:
+            raise TraceInjectionSizeExceed(
+                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
+            )
 
-    record["Data"] = data_json
+        record["Data"] = data_json
 
 
 def inject_trace_to_kinesis_stream(params, span):
@@ -326,6 +339,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None

@@ -12,12 +12,14 @@
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "GET",
+      "http.route": "/sub-app/hello/{name}",
       "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,8 +28,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 71492
     },
-    "duration": 471000,
-    "start": 1666810088188276000
+    "duration": 269000,
+    "start": 1667244144927476000
   },
      {
        "name": "starlette.request",
@@ -44,8 +46,9 @@
          "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
-         "http.version": "1.1"
+         "http.version": "1.1",
+         "span.kind": "server"
        },
-       "duration": 276000,
-       "start": 1666810088188487000
+       "duration": 134000,
+       "start": 1667244144927624000
      }]]

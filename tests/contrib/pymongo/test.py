@@ -105,6 +105,8 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
@@ -163,6 +165,8 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == collection_name
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
@@ -241,6 +245,8 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "teams"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
@@ -313,6 +319,8 @@ class PymongoCore(object):
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
             assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
             assert span.get_tag("mongodb.collection") == "songs"
             assert span.get_tag("mongodb.db") == "testdb"
             assert span.get_tag("out.host")
@@ -356,6 +364,52 @@ class PymongoCore(object):
             spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
+
+    def test_rowcount(self):
+        tracer, client = self.get_tracer_and_client()
+        db = client["testdb"]
+        songs_collection = db["songs"]
+        songs_collection.delete_many({})
+
+        input_songs = [
+            {"name": "Powderfinger", "artist": "Neil"},
+            {"name": "Harvest", "artist": "Neil"},
+            {"name": "Suzanne", "artist": "Leonard"},
+            {"name": "Partisan", "artist": "Leonard"},
+        ]
+        songs_collection.insert_many(input_songs)
+
+        # scoped query (using the getattr syntax) to get 1 row
+        q = {"name": "Powderfinger"}
+        queried = list(songs_collection.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        # scoped query (using the getattr syntax) to get 2 rows
+        q = {"artist": "Neil"}
+        queried = list(songs_collection.find(q))
+
+        assert len(queried) == 2
+        count = 0
+        for row in queried:
+            count += 1
+        assert count == 2
+
+        assert queried[0]["name"] == "Powderfinger"
+        assert queried[0]["artist"] == "Neil"
+
+        assert queried[1]["name"] == "Harvest"
+        assert queried[1]["artist"] == "Neil"
+
+        spans = tracer.pop()
+        one_row_span = spans[2]
+        two_row_span = spans[3]
+
+        assert len(spans) == 4
+        assert one_row_span.name == "pymongo.cmd"
+        assert one_row_span.get_metric("db.row_count") == 1
+        assert two_row_span.get_metric("db.row_count") == 2
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
@@ -581,7 +635,9 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("component") == "pymongo"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
+        assert span.get_tag("db.system") == "mongodb"
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
