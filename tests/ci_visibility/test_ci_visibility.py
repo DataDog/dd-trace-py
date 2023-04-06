@@ -10,7 +10,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
-from tests.utils import override_decorated_env
+from tests.utils import override_env
 
 
 def test_filters_test_spans():
@@ -36,29 +36,29 @@ def test_filters_non_test_spans():
     assert trace_filter.process_trace(trace) is None
 
 
-@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_ci_visibility_service_enable():
-    dummy_tracer = DummyTracer()
-    dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
-    CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-    ci_visibility_instance = CIVisibility._instance
-    assert ci_visibility_instance is not None
-    assert CIVisibility.enabled
-    assert ci_visibility_instance.tracer == dummy_tracer
-    assert ci_visibility_instance._service == "test-service"
-    assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
-    CIVisibility.disable()
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        dummy_tracer = DummyTracer()
+        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+        ci_visibility_instance = CIVisibility._instance
+        assert ci_visibility_instance is not None
+        assert CIVisibility.enabled
+        assert ci_visibility_instance.tracer == dummy_tracer
+        assert ci_visibility_instance._service == "test-service"
+        assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+        CIVisibility.disable()
 
 
-@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_ci_visibility_service_disable():
-    dummy_tracer = DummyTracer()
-    dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
-    CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-    CIVisibility.disable()
-    ci_visibility_instance = CIVisibility._instance
-    assert ci_visibility_instance is None
-    assert not CIVisibility.enabled
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        dummy_tracer = DummyTracer()
+        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+        CIVisibility.disable()
+        ci_visibility_instance = CIVisibility._instance
+        assert ci_visibility_instance is None
+        assert not CIVisibility.enabled
 
 
 @pytest.mark.parametrize(
