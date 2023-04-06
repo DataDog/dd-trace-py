@@ -52,7 +52,7 @@ class CIVisibilityWriter(HTTPWriter):
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="v0.5/traces",  # XXX
+            endpoint="api/v2/citestcycle",
             encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
