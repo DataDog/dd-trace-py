@@ -107,9 +107,12 @@ def _extract_header_value(possible_header_names, headers, default=None):
 def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
     """Helper to convert hex ids into Datadog compatible ints
-    If the id is > 64 bit then truncate the trailing 64 bit.
+    If the id is > 64 bit and 128bit trace_id generation is disabled then truncate the trailing 64 bit.
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
+    Otherwise convert the full trace id into lower case hex values.
     """
+    if config._128_bit_trace_id_enabled:
+        return int(hex_id, 16)
     return int(hex_id[-16:], 16)
 
 
@@ -118,9 +121,11 @@ _b3_id_to_dd_id = _hex_id_to_dd_id
 
 def _dd_id_to_b3_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into hex ids"""
-    # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
-    # DEV: this gives us lowercase hex, which is what we want
+    """Helper to convert Datadog trace/span int ids into lower case hex values"""
+    if dd_id > _MAX_UINT_64BITS:
+        # b3 trace ids can have the length of 16 or 32 characters:
+        # https://github.com/openzipkin/b3-propagation#traceid
+        return "{:032x}".format(dd_id)
     return "{:016x}".format(dd_id)
 
 

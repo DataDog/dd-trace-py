@@ -5,8 +5,11 @@ from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
+from opentelemetry.trace.span import TraceFlags
+from opentelemetry.trace.span import TraceState
 
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import time_ns
 
 
 if TYPE_CHECKING:
@@ -37,8 +40,8 @@ class Span(OtelSpan):
     ):
         # type: (...) -> None
         if start_time is not None:
-            # otel instrumentation tracks time in nanoseconds while ddtrace uses seconds
-            datadog_span.start = start_time / 1e9
+            # start_time should be set in nanoseconds
+            datadog_span.start_ns = start_time
 
         self._ddspan = datadog_span
         if record_exception is not None:
@@ -77,7 +80,14 @@ class Span(OtelSpan):
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None
-        self._ddspan.finish(finish_time=end_time)
+        """
+        Marks the end time of a span. This method should be called once.
+
+        :param end_time: The end time of the span, in nanoseconds. Defaults to ``now``.
+        """
+        if end_time is None:
+            end_time = time_ns()
+        self._ddspan._finish_ns(end_time)
 
     @property
     def kind(self):
@@ -91,9 +101,14 @@ class Span(OtelSpan):
         # type: () -> SpanContext
         """Returns an Open Telemetry SpanContext"""
         # Returns a SpanContext with the current trace id, span id and is_remote flag.
-        # This is the bare minimum to get current context.
-        # TODO: Support propagating TraceState and TraceFlag
-        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False)
+        ts = None
+        tf = TraceFlags.DEFAULT
+        if self._ddspan.context:
+            ts = TraceState.from_header([self._ddspan.context._tracestate])
+            if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
+                tf = TraceFlags.SAMPLED
+
+        return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
     def set_attributes(self, attributes):
         # type: (Mapping[str, AttributeValue]) -> None
