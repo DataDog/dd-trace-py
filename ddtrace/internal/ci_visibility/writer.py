@@ -23,7 +23,7 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url,  # type: str
+        intake_url=None,  # type: Optional[str]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -35,6 +35,8 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        if not intake_url:
+            intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
             {
