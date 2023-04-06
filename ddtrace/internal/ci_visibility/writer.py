@@ -46,7 +46,9 @@ class CIVisibilityWriter(HTTPWriter):
         )
 
         headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY", "dummyapikey")
+        headers["dd-api-key"] = os.environ.get("DD_API_KEY")
+        if not headers["dd-api-key"]:
+            raise ValueError("Required environment variable DD_API_KEY not defined")
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,

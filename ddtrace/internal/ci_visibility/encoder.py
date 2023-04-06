@@ -16,6 +16,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
+    TEST_EVENT_VERSION = 1
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -66,4 +67,4 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             event_type = "test"
         else:
             event_type = "span"
-        return {"version": CIVisibilityEncoderV01.PAYLOAD_FORMAT_VERSION, "type": event_type, "content": sp}
+        return {"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION, "type": event_type, "content": sp}
