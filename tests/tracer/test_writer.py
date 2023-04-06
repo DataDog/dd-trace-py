@@ -30,6 +30,7 @@ from ddtrace.sampler import RateByServiceSampler
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
+from tests.utils import override_decorated_env
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -323,6 +324,14 @@ class AgentWriterTests(BaseTestCase):
 class CIVisibilityWriterTests(AgentWriterTests):
     WRITER_CLASS = CIVisibilityWriter
 
+    def setUp(self):
+        self.original_env = dict(os.environ)
+        os.environ.update(dict(DD_API_KEY="foobar.baz"))
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self.original_env)
+
     # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
     # that CIVisibilityWriter does not implement
     def test_drop_reason_buffer_full(self):
@@ -497,10 +506,12 @@ def endpoint_assert_path():
         thread.join()
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
-def test_agent_url_path(endpoint_assert_path, writer_class):
+@pytest.mark.parametrize("writer_and_path", ((AgentWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle")))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
+def test_agent_url_path(endpoint_assert_path, writer_and_path):
+    writer_class, path = writer_and_path
     # test without base path
-    endpoint_assert_path("/v0.")
+    endpoint_assert_path(path)
     writer = writer_class("http://%s:%s/" % (_HOST, _PORT))
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
@@ -511,13 +522,14 @@ def test_agent_url_path(endpoint_assert_path, writer_class):
     writer.flush_queue(raise_exc=True)
 
     # test with a base path
-    endpoint_assert_path("/test/v0.")
+    endpoint_assert_path("/test%s" % path)
     writer = writer_class("http://%s:%s/test/" % (_HOST, _PORT))
     writer._encoder.put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_flush_connection_timeout_connect(writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, 2019))
     if PY3:
@@ -530,6 +542,7 @@ def test_flush_connection_timeout_connect(writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
@@ -538,6 +551,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
     if PY3:
@@ -549,7 +563,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])
@@ -557,6 +571,7 @@ def test_flush_connection_uds(endpoint_uds_server, writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_flush_queue_raise(writer_class):
     writer = writer_class("http://dne:1234")
 
@@ -712,6 +727,7 @@ def test_writer_api_version_selection(
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
     writer = writer_class("http://localhost:9126")
@@ -723,6 +739,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_writer_reuse_connections(writer_class):
     # Ensure connection is not reused
     writer = writer_class("http://localhost:9126", reuse_connections=True)
@@ -734,6 +751,7 @@ def test_writer_reuse_connections(writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@override_decorated_env(dict(DD_API_KEY="foobar.baz"))
 def test_writer_reuse_connections_false(writer_class):
     # Ensure connection is reused
     writer = writer_class("http://localhost:9126", reuse_connections=False)
