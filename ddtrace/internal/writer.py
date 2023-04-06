@@ -573,25 +573,27 @@ class AgentWriter(HTTPWriter):
         )
 
         endpoint = "%s/traces" % self._api_version
-        headers = {
+        _headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Datadog-Client-Computed-Top-Level": "yes",
         }
+        if headers:
+            _headers.update(headers)
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
-            headers.update(
+            _headers.update(
                 {
                     "Datadog-Container-Id": self._container_info.container_id,
                 }
             )
 
-        headers.update({"Content-Type": encoder.content_type})
+        _headers.update({"Content-Type": encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
-            headers.update(parse_tags_str(additional_header_str))
+            _headers.update(parse_tags_str(additional_header_str))
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             endpoint=endpoint,
@@ -605,7 +607,7 @@ class AgentWriter(HTTPWriter):
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
-            headers=headers,
+            headers=_headers,
         )
 
     def recreate(self):

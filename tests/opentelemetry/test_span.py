@@ -1,4 +1,6 @@
 # Opentelemetry Tracer shim Unit Tests
+import logging
+
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.status import Status as OtelStatus
@@ -44,18 +46,33 @@ def test_otel_span_kind(oteltracer):
         pass
 
 
-def test_otel_span_status_with_status_obj(oteltracer):
+def test_otel_span_status_with_status_obj(oteltracer, caplog):
     with oteltracer.start_span("otel-unset") as unsetspan:
-        unsetspan.set_status(OtelStatus(OtelStatusCode.UNSET, None))
+        unsetspan.set_status(OtelStatus(OtelStatusCode.UNSET, "is unset"))
         assert unsetspan._ddspan.error == 0
+        assert "is unset" not in unsetspan._ddspan.get_tags().values()
 
     with oteltracer.start_span("otel-ok") as okspan:
         okspan.set_status(OtelStatus(OtelStatusCode.OK, "ok was set"))
         assert okspan._ddspan.error == 0
+        assert "ok was set" not in okspan._ddspan.get_tags().values()
 
     with oteltracer.start_span("otel-error") as errspan:
         errspan.set_status(OtelStatus(OtelStatusCode.ERROR, "error message for otel span"))
         assert errspan._ddspan.error == 1
+        assert errspan._ddspan.get_tag("error.message") in "error message for otel span"
+
+    with oteltracer.start_span("otel-error-dup-description") as errspan_dup_des:
+        with caplog.at_level(logging.DEBUG):
+            errspan_dup_des.set_status(
+                OtelStatus(OtelStatusCode.ERROR, "main otel err message"), "ot_duplicate_message"
+            )
+        assert errspan_dup_des._ddspan.error == 1
+        assert errspan_dup_des._ddspan.get_tag("error.message") in "main otel err message"
+        assert (
+            "Description ot_duplicate_message ignored. Use either `Status` or `(StatusCode, Description)`"
+            in caplog.text
+        )
 
     with oteltracer.start_span("set-status-on-otel-span") as span1:
         pass
@@ -64,27 +81,32 @@ def test_otel_span_status_with_status_obj(oteltracer):
     assert span1._ddspan.error == 0
     span1.set_status(OtelStatus(OtelStatusCode.ERROR, "error message for otel span"))
     assert span1._ddspan.error == 0
+    assert span1._ddspan.get_tag("error.message") is None
 
 
 def test_otel_span_status_with_status_code(oteltracer):
     with oteltracer.start_span("otel-unset") as unsetspan:
         unsetspan.set_status(OtelStatusCode.UNSET, "is unset")
         assert unsetspan._ddspan.error == 0
+        assert "is unset" not in unsetspan._ddspan.get_tags().values()
 
     with oteltracer.start_span("otel-ok") as okspan:
-        okspan.set_status(OtelStatusCode.OK, None)
+        okspan.set_status(OtelStatusCode.OK, "otel is okay")
         assert okspan._ddspan.error == 0
+        assert "otel is okay" not in okspan._ddspan.get_tags().values()
 
     with oteltracer.start_span("otel-error") as errspan:
         errspan.set_status(OtelStatusCode.ERROR, "error message for otel span")
         assert errspan._ddspan.error == 1
+        assert errspan._ddspan.get_tag("error.message") == "error message for otel span"
 
     with oteltracer.start_span("set-status-code-on-otel-span") as span2:
         pass
     # can not update status on closed span
     assert span2._ddspan.error == 0
-    span2.set_status(OtelStatusCode.ERROR, "error message for otel span")
+    span2.set_status(OtelStatusCode.ERROR, "some otel error message")
     assert span2._ddspan.error == 0
+    assert span2._ddspan.get_tag("error.message") is None
 
 
 def test_otel_add_event(oteltracer):
