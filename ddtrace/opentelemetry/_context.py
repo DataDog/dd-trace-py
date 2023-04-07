@@ -12,7 +12,7 @@ from ddtrace import tracer as ddtracer
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.otel._span import Span
+from ddtrace.opentelemetry._span import Span
 from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
 from ddtrace.span import Span as DDSpan
 

@@ -12,7 +12,7 @@ from opentelemetry.trace.span import Span as OtelSpan
 
 import ddtrace
 from ddtrace.internal.logger import get_logger
-from ddtrace.otel._span import Span
+from ddtrace.opentelemetry._span import Span
 
 
 if TYPE_CHECKING:
