@@ -13,6 +13,8 @@ from ...sampler import BaseSampler
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import get_writer_interval_seconds
+from .constants import AGENTLESS_ENDPOINT
+from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .encoder import CIVisibilityEncoderV01
 
 
@@ -20,6 +22,8 @@ class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "PUT"
     STATSD_NAMESPACE = "civisibilitywriter"
+    STATE_AGENTLESS = 0
+    STATE_AGENTPROXY = 1
 
     def __init__(
         self,
@@ -52,9 +56,11 @@ class CIVisibilityWriter(HTTPWriter):
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
 
+        self._state = self.STATE_AGENTLESS
+
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="api/v2/citestcycle",
+            endpoint=AGENTLESS_ENDPOINT,
             encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
@@ -81,3 +87,27 @@ class CIVisibilityWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
         )
+
+    def _check_agent(self):
+        try:
+            info = agent.info()
+        except Exception:
+            info = None
+
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and (EVP_PROXY_AGENT_ENDPOINT in endpoints or ("/" + EVP_PROXY_AGENT_ENDPOINT) in endpoints):
+                return self.STATE_AGENTPROXY
+        return self._state
+
+    def _set_state(self, new_state):
+        if new_state == self.STATE_AGENTPROXY:
+            self._state = new_state
+            self._endpoint = EVP_PROXY_AGENT_ENDPOINT
+            self.intake_url = agent.get_trace_url()
+            self._headers["X-Datadog-EVP-Subdomain"] = "citestcycle-intake"
+
+    def periodic(self):
+        if self._state != self.STATE_AGENTPROXY:
+            self._set_state(self._check_agent())
+        self.flush_queue(raise_exc=False)
