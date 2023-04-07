@@ -110,4 +110,4 @@ class CIVisibilityWriter(HTTPWriter):
     def periodic(self):
         if self._state != self.STATE_AGENTPROXY:
             self._set_state(self._check_agent())
-        self.flush_queue(raise_exc=False)
+        super(CIVisibilityWriter, self).periodic()
