@@ -158,7 +158,13 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        yield
+        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "1":
+            from ddtrace.internal.ci_visibility.coverage import cover
+
+            with cover(span, root=str(item.config.rootdir)):
+                yield
+        else:
+            yield
 
 
 def _extract_reason(call):
@@ -169,19 +175,13 @@ def _extract_reason(call):
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""
-    span = _extract_span(item)
-    if span is None:
-        return
-
-    if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-        from .coverage import cover
-
-        with cover(span, root=str(item.config.rootdir)):
-            outcome = yield
-    else:
-        outcome = yield
+    outcome = yield
 
     if not _CIVisibility.enabled:
+        return
+
+    span = _extract_span(item)
+    if span is None:
         return
 
     is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
