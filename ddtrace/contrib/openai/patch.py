@@ -51,7 +51,7 @@ def patched_create(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     resource = kwargs.get("model") if kwargs.get("model") is not None else instance.OBJECT_NAME
 
-    with pin.tracer.trace("openai.request", resource=resource) as span:
+    with pin.tracer.trace("openai.request", resource=resource, service=trace_utils.ext_service(pin, config.openai)) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         span.set_tag_str(ENGINE, instance.OBJECT_NAME)
         set_flattened_tags(
