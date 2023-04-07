@@ -5,7 +5,6 @@
 #include "exporter.hpp"
 
 #include <iostream>
-#include <string.h> // for strdup for hack
 #include <thread>
 
 using namespace Datadog;
