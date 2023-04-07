@@ -8,7 +8,6 @@ from ddtrace.vendor.wrapt.importer import when_imported
 from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
-from .internal.telemetry import trace as trace_telemetry
 from .internal.utils import formats
 from .settings import _config as config
 
@@ -151,14 +150,14 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except Exception as e:
-            telemetry_writer.add_error(trace_telemetry.INTEGRATION_INSTALL_ERROR_CODE, str(e))
+        except Exception:
             if raise_errors:
                 raise
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+        # If there was an error, it was already added to the telemetry writer with log.error()
+        telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 

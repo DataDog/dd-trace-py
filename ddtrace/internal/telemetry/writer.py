@@ -87,7 +87,10 @@ class _TelemetryClient:
         except Exception:
             log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
         finally:
-            conn.close()
+            try:
+                conn.close()
+            except UnboundLocalError:
+                pass
         return resp
 
     def get_headers(self, request):
@@ -161,8 +164,7 @@ class TelemetryBase(PeriodicService):
 
     def add_error(self, code, msg):
         # type: (int, str) -> None
-        """Add an error to be submitted with the app-started event.
-
+        """Add an error to be submitted with an event.
         Note that this overwrites any previously set errors.
         """
         self._error = (code, msg)
@@ -380,8 +382,10 @@ class TelemetryWriter(TelemetryBase):
                 "enabled": True,
                 "auto_enabled": auto_enabled,
                 "compatible": True,
-                "error": "",
+                "error": self._error[1],  # the integration error only takes a message, no code
             }
+            # Reset the error after it has been reported.
+            self._error = (0, "")
             self._integrations_queue.append(integration)
 
     def _app_started_event(self):

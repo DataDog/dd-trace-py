@@ -1934,3 +1934,12 @@ def test_ctx_api():
         _context.get_item("appsec.key")
     with pytest.raises(ValueError):
         _context.get_items(["appsec.key"])
+
+
+def test_installed_excepthook():
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook
+    ddtrace.uninstall_excepthook()
+    assert sys.excepthook is not ddtrace._excepthook
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook

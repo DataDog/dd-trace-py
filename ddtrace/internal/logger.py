@@ -161,3 +161,11 @@ class DDLogger(logging.Logger):
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
+
+    def error(self, msg, *args, **kwargs):
+        # avoid circular import
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        # currently we only have one error code
+        telemetry_writer.add_error(1, msg % args)
+        return super(DDLogger, self).error(msg, *args, **kwargs)
