@@ -490,6 +490,13 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.9.0:
 
+   DD_CIVISIBILITY_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+     description: Configures the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``.
+     version_added:
+        v1.12.0:
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
