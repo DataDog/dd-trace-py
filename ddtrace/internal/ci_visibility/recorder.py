@@ -62,11 +62,6 @@ class CIVisibility(Service):
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
 
-        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-            from .coverage import activate as activate_coverage
-
-            self._cov = activate_coverage()
-
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
@@ -108,10 +103,6 @@ class CIVisibility(Service):
 
     def _stop_service(self):
         # type: () -> None
-        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-            from .coverage import deactivate as deactivate_coverage
-
-            deactivate_coverage(self._cov)
         try:
             self.tracer.shutdown()
         except Exception:

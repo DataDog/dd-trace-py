@@ -1,3 +1,4 @@
+import contextlib
 from itertools import count
 from itertools import groupby
 import json
@@ -11,7 +12,8 @@ from coverage import Coverage
 from coverage.numbits import numbits_to_nums
 
 
-def activate(span, root=None, **kwargs):
+@contextlib.contextmanager
+def cover(span, root=None, **kwargs):
     coverage_kwargs = {
         "data_file": None,
         "source": [root] if root else None,
@@ -21,9 +23,7 @@ def activate(span, root=None, **kwargs):
     cov = Coverage(**coverage_kwargs)
     cov.start()
     cov.switch_context(str(span.trace_id))
-
-
-def deactivate(cov, span, root=None, **kwargs):
+    yield cov
     cov.stop()
     span.set_tag("test.coverage", CIVisibilityReporter(cov).build(test_id=str(span.trace_id), root=root))
 
@@ -47,6 +47,8 @@ def segments(lines):
 
 class CIVisibilityReporter:
     """A reporter for writing CI Visibility JSON coverage results."""
+
+    report_type = "CI Visibility JSON report"
 
     def __init__(self, coverage):
         self.coverage = coverage

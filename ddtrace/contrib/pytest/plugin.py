@@ -1,5 +1,6 @@
 from doctest import DocTest
 import json
+import os
 import re
 from typing import Dict
 
@@ -168,13 +169,19 @@ def _extract_reason(call):
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""
-    outcome = yield
-
-    if not _CIVisibility.enabled:
-        return
-
     span = _extract_span(item)
     if span is None:
+        return
+
+    if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
+        from .coverage import cover
+
+        with cover(span, root=str(item.config.rootdir)):
+            outcome = yield
+    else:
+        outcome = yield
+
+    if not _CIVisibility.enabled:
         return
 
     is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
