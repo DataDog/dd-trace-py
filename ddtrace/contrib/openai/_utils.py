@@ -1,7 +1,13 @@
-import openai
+import typing
 
 
-def append_tag_prefixes(key_prefixes: list[str], data: dict):
+if typing.TYPE_CHECKING:
+    from typing import Dict
+    from typing import List
+
+
+def append_tag_prefixes(key_prefixes, data):
+    # type: (List[str], Dict[str, str]) -> Dict[str, str]
     prefix = ".".join(key_prefixes) + "."
     return [(prefix + str(k), v) for k, v in data.items()]
 
@@ -12,7 +18,7 @@ def expand(data):
     return data
 
 
-def process_response(engine, resp):
+def process_response(openai, engine, resp):
     # alter the response tag value based on the `engine`
     # (completions, chat.completions, embeddings)
     try:
@@ -31,7 +37,7 @@ def process_response(engine, resp):
         return {}
 
 
-def process_request(engine, args, kwargs):
+def process_request(openai, engine, args, kwargs):
     try:
         if engine in [openai.Completion.OBJECT_NAME, openai.Embedding.OBJECT_NAME]:
             return {**kwargs, **{k: v for k, v in args}}

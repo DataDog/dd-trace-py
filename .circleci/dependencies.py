@@ -162,4 +162,5 @@ LATEST_VERSIONS = {
     "yaaredis": "3.0.0",
     "yarl": "1.8.2",
     "openai": "0.27.2",
+    "vcrpy": "4.2.1",
 }

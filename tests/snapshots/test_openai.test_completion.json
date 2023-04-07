@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "ada",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "engine": "completions",
+      "language": "python",
+      "request.model": "ada",
+      "request.prompt": "Hello world",
+      "response.choices.0.finish_reason": "length",
+      "response.choices.0.logprobs": "None",
+      "response.choices.0.text": ", this is my favorite invention of 2016. It\u2019s nothing fancy (",
+      "response.id": "cmpl-72TLqafUbSf7fVkEBQnBnHcyVjSsS",
+      "response.model": "ada",
+      "response.object": "text_completion",
+      "runtime-id": "2c018c1682ac4ee0abd4dbd89ed99e2c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88414,
+      "response.choices.0.index": 0,
+      "response.created": 1680823838,
+      "response.usage.completion_tokens": 16,
+      "response.usage.prompt_tokens": 2,
+      "response.usage.total_tokens": 18
+    },
+    "duration": 15776000,
+    "start": 1680824936951629000
+  }]]
