@@ -41,7 +41,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if ddconfig.ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
+        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
             writer = CIVisibilityWriter()
             self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
