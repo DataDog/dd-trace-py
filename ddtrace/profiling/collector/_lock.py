@@ -102,22 +102,34 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                if self.use_libdatadog:
+                    thread_native_id = _threading.get_thread_native_id(thread_id)
+                    ddup.start_sample()
+                    ddup.push_alloc(end - start, 1)
+                    ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    ddup.push_taskinfo(task_id, task_name)
 
-                event = self.ACQUIRE_EVENT_CLASS(
-                    lock_name=self._self_name,
-                    frames=frames,
-                    nframes=nframes,
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    task_id=task_id,
-                    task_name=task_name,
-                    wait_time_ns=end - start,
-                    sampling_pct=self._self_capture_sampler.capture_pct,
-                )
+                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
 
-                if self._self_tracer is not None:
-                    event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                if self.use_libdatadog:
+                    # TODO endpoint profiling
+                    ddup.flush_sample()
+
+                if self.use_pyprof and nframes:
+                    event = self.ACQUIRE_EVENT_CLASS(
+                        lock_name=self._self_name,
+                        frames=frames,
+                        nframes=nframes,
+                        thread_id=thread_id,
+                        thread_name=thread_name,
+                        task_id=task_id,
+                        task_name=task_name,
+                        wait_time_ns=end - start,
+                        sampling_pct=self._self_capture_sampler.capture_pct,
+                    )
+
+                    if self._self_tracer is not None:
+                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                 self._self_recorder.push_event(event)
             except Exception:
@@ -144,7 +156,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         else:
                             frame = task_frame
 
-                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
 
                         event = self.RELEASE_EVENT_CLASS(  # type: ignore[call-arg]
                             lock_name=self._self_name,
