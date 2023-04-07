@@ -71,13 +71,17 @@ class CIVisibilityReporter:
 
     def build(self, test_id=None, root=None):
         """Generate a CI Visibility structure."""
-        return [
+        return json.dumps(
             {
-                "filename": os.path.relpath(filename, root) if root is not None else filename,
-                "segments": segments(lines),
+                "files": [
+                    {
+                        "filename": os.path.relpath(filename, root) if root is not None else filename,
+                        "segments": segments(lines),
+                    }
+                    for filename, lines in self._lines(test_id).items()
+                ]
             }
-            for filename, lines in self._lines(test_id).items()
-        ]
+        )
 
     def report(self, outfile=None, test_id=None, root=None):
         """Generate a CI Visibility report.
