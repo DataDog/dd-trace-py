@@ -150,7 +150,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except ImportError:
+        except Exception as e:
             if raise_errors:
                 raise
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
@@ -230,7 +230,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+            when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors))
 
         # manually add module to patched modules
         with _LOCK:
