@@ -66,7 +66,7 @@ class CIVisibilityReporter:
                 "where context_id = ?"
             )
             data = [context_id]
-            bitmaps = list(con.execute(query, data))
+            bitmaps = list(con._execute(query, data))
             return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
 
     def build(self, test_id=None, root=None):
