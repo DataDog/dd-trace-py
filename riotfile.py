@@ -2043,6 +2043,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=20.12",
                         "pytest-sanic": "~=1.6.2",
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
@@ -2059,6 +2060,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=21.12.0",
                         "sanic-testing": "~=0.8.3",
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
