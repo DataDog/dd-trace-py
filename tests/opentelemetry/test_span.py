@@ -2,7 +2,11 @@
 import logging
 
 from opentelemetry.trace import SpanKind as OtelSpanKind
+from opentelemetry.trace import set_span_in_context
+from opentelemetry.trace.span import NonRecordingSpan
+from opentelemetry.trace.span import SpanContext
 from opentelemetry.trace.span import TraceFlags
+from opentelemetry.trace.span import TraceState
 from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
@@ -161,7 +165,7 @@ def test_otel_get_span_context(oteltracer):
     span_context = otelspan.get_span_context()
     assert span_context.trace_id == otelspan._ddspan.trace_id
     assert span_context.span_id == otelspan._ddspan.span_id
-    # A ddtrace._opentelemetry.Span can never be remote.
+    # A ddtrace.opentelemetry._span can never be remote.
     # opentelemetry.trace.NonRecordingSpan is used to represent a "remote span".
     assert span_context.is_remote is False
     # By default ddtrace set sampled=True for all spans
@@ -185,3 +189,18 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
 
     span_context = otelspan.get_span_context()
     assert span_context.trace_flags == TraceFlags.DEFAULT
+
+
+@pytest.mark.parametrize("trace_flags", [TraceFlags.SAMPLED, TraceFlags.DEFAULT])
+@pytest.mark.parametrize("trace_state", [TraceState.from_header(["rojo=00f067aa0ba902b7,congo=t61rcWkgMzE"]), None])
+def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):
+    remote_context = SpanContext(12345, 67890, True, trace_flags, trace_state)
+    remote_span = NonRecordingSpan(remote_context)
+
+    with oteltracer.start_as_current_span("otel-span", context=set_span_in_context(remote_span)) as child_span:
+        child_context = child_span.get_span_context()
+        assert child_context.trace_id == remote_context.trace_id
+        assert child_span._ddspan.parent_id == remote_context.span_id
+        assert child_context.is_remote is False  # parent_context.is_remote is True
+        assert child_context.trace_flags == remote_context.trace_flags
+        assert remote_context.trace_state.to_header() in child_context.trace_state.to_header()
