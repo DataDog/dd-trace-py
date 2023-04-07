@@ -104,8 +104,7 @@ class Span(OtelSpan):
 
     def get_span_context(self):
         # type: () -> SpanContext
-        """Returns an Open Telemetry SpanContext"""
-        # Returns a SpanContext with the current trace id, span id and is_remote flag.
+        """Returns an OpenTelemetry SpanContext"""
         ts = None
         tf = TraceFlags.DEFAULT
         if self._ddspan.context:
