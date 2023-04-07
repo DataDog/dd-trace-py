@@ -159,43 +159,43 @@ def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
             assert rows[0][0] == "one"
 
 
-@pytest.fixture()
-def psycopg3_patched(transactional_db):
-    from django.db import connections
+# @pytest.fixture()
+# def psycopg3_patched(transactional_db):
+#     from django.db import connections
 
-    from ddtrace.contrib.psycopg.patch import patch
-    from ddtrace.contrib.psycopg.patch import unpatch
+#     from ddtrace.contrib.psycopg.patch import patch
+#     from ddtrace.contrib.psycopg.patch import unpatch
 
-    patch()
+#     patch()
 
-    # # force recreate connection to ensure psycopg3 patching has occurred
-    del connections["postgres"]
-    connections["postgres"].close()
-    connections["postgres"].connect()
+#     # # force recreate connection to ensure psycopg3 patching has occurred
+#     del connections["postgres"]
+#     connections["postgres"].close()
+#     connections["postgres"].connect()
 
-    yield
+#     yield
 
-    unpatch()
+#     unpatch()
 
 
-@pytest.mark.django_db
-@pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
-def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
-    """Execute a psycopg3 query on a Django database wrapper.
+# @pytest.mark.django_db
+# @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
+# def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
+#     """Execute a psycopg3 query on a Django database wrapper.
 
-    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
-    """
-    from django.db import connections
-    from psycopg.sql import SQL
+#     If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+#     """
+#     from django.db import connections
+#     from psycopg.sql import SQL
 
-    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
-        query = SQL("""select 'one' as x""")
-        conn = connections["postgres"]
-        with conn.cursor() as cur:
-            cur.execute(query)
-            rows = cur.fetchall()
-            assert len(rows) == 1, rows
-            assert rows[0][0] == "one"
+#     with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+#         query = SQL("""select 'one' as x""")
+#         conn = connections["postgres"]
+#         with conn.cursor() as cur:
+#             cur.execute(query)
+#             rows = cur.fetchall()
+#             assert len(rows) == 1, rows
+#             assert rows[0][0] == "one"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")

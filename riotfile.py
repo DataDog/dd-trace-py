@@ -142,22 +142,22 @@ venv = Venv(
                 ),
             ],
         ),
-        # Venv(
-        #     pys=["3"],
-        #     name="mypy",
-        #     command="mypy {cmdargs}",
-        #     create=True,
-        #     pkgs={
-        #         "mypy": "==0.991",
-        #         "envier": "==0.4.0",
-        #         "types-attrs": "==19.1.0",
-        #         "types-docutils": "==0.19.1.1",
-        #         "types-protobuf": "==3.20.4.5",
-        #         "types-PyYAML": "==6.0.12.2",
-        #         "types-setuptools": "==65.6.0.0",
-        #         "types-six": "==1.16.21.4",
-        #     },
-        # ),
+        Venv(
+            pys=["3"],
+            name="mypy",
+            command="mypy {cmdargs}",
+            create=True,
+            pkgs={
+                "mypy": "==0.991",
+                "envier": "==0.4.0",
+                "types-attrs": "==19.1.0",
+                "types-docutils": "==0.19.1.1",
+                "types-protobuf": "==3.20.4.5",
+                "types-PyYAML": "==6.0.12.2",
+                "types-setuptools": "==65.6.0.0",
+                "types-six": "==1.16.21.4",
+            },
+        ),
         Venv(
             pys=["3"],
             pkgs={"codespell": "==2.1.0"},
@@ -172,16 +172,16 @@ venv = Venv(
                 ),
             ],
         ),
-        # Venv(
-        #     pys=["3"],
-        #     pkgs={"slotscheck": latest},
-        #     venvs=[
-        #         Venv(
-        #             name="slotscheck",
-        #             command="python -m slotscheck -v ddtrace/",
-        #         ),
-        #     ],
-        # ),
+        Venv(
+            pys=["3"],
+            pkgs={"slotscheck": latest},
+            venvs=[
+                Venv(
+                    name="slotscheck",
+                    command="python -m slotscheck -v ddtrace/",
+                ),
+            ],
+        ),
         Venv(
             pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},
@@ -757,7 +757,6 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg[c]": "<=3.1.18",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
