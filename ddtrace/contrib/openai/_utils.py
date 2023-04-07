@@ -18,7 +18,7 @@ def append_tag_prefixes(key_prefixes, data):
 
 def expand(data):
     if isinstance(data, list):
-        return {str(i): dict(completion) for i, completion in enumerate(data)}
+        return {str(i): completion for i, completion in enumerate(data)}
     return data
 
 
@@ -72,11 +72,17 @@ def process_response(openai, engine, resp):
 def process_request(openai, engine, args, kwargs):
     try:
         update_engine_names(openai)
+        kwargs = kwargs.copy()
         if engine == SUPPORTED_ENGINES["ChatCompletion"]:
-            kwargs = kwargs.copy()
             messages = kwargs.get("messages")
             # messages are a series of messages each defined by a `role` and `content`
             kwargs["messages"] = expand(messages)
+        elif engine == SUPPORTED_ENGINES["Completions"]:
+            prompt = kwargs.get("prompt")
+            kwargs["prompt"] = expand(prompt)
+        elif engine == SUPPORTED_ENGINES["Embeddings"]:
+            inp = kwargs.get("input")
+            kwargs["input"] = expand(inp)
         return {**kwargs, **{k: v for k, v in args}}
     except KeyError or IndexError:
         return {}
