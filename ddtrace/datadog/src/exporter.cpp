@@ -13,16 +13,12 @@ inline ddog_CharSlice to_slice(const std::string_view &str) {
   return {.ptr = str.data(), .len = str.size()};
 }
 
-Uploader::Uploader(const std::string &_service,
-                   const std::string &_env,
-                   const std::string &_version,
-                   const std::string &_url) {
-  service = _service;
-  env = _env;
-  version = _version;
-  url = _url;
+DdogProfExporter::DdogProfExporter(std::string_view env,
+                                   std::string_view service,
+                                   std::string_view version, 
+                                   std::string_view url) {
 
-  // If we're this far, let's add some tags
+  // Setup the 
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
   add_tag(tags, "language", language);
   add_tag(tags, "env", env);
@@ -39,21 +35,30 @@ Uploader::Uploader(const std::string &_service,
   ddog_Vec_Tag_drop(tags);
 
   if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK)
-    ddog_exporter = new_exporter.ok;
+    ptr = new_exporter.ok;
   else
     std::cout << "ERROR INITIALIZING LIBDATADOG EXPORTER" << std::endl;
-
-//  ddog_prof_Exporter_NewResult_drop(new_exporter);
 }
 
-Uploader::~Uploader() {
-  ddog_prof_Exporter_drop(ddog_exporter);
+DdogProfExporter::~DdogProfExporter() {
+  ddog_prof_Exporter_drop(ptr);
 }
 
-void Uploader::add_tag(ddog_Vec_Tag &tags, const std::string &key, const std::string &val) {
+Uploader::Uploader(std::string_view _env,
+                   std::string_view _service,
+                   std::string_view _version,
+                   std::string_view _url) :
+  env(_env),
+  service(_service),
+  version(_version),
+  url(_url) {
+    ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, url);
+}
+
+void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val) {
   ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-    std::cout << "Error pushing tag '" + key + "'->'" + val + "'" << std::endl;
+    std::cout << "Error pushing tag '" << key << "'->'" << val << "'" << std::endl;
     std::cout << "  err: " << ddog_Error_message(&res.err).ptr << std::endl;
   }
 }
@@ -104,7 +109,7 @@ bool Uploader::upload(const Profile *profile) {
   ddog_prof_Exporter_Slice_File files = {.ptr = file, .len = 1};
 
   ddog_prof_Exporter_Request_BuildResult build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter,
+      ddog_exporter->ptr,
       start,
       end,
       files,
@@ -120,7 +125,7 @@ bool Uploader::upload(const Profile *profile) {
 
   ddog_prof_Exporter_Request *req = build_res.ok;
 
-  ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter, &req, nullptr);
+  ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter->ptr, &req, nullptr);
 
   // Close out request
 

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <string>
 #include <string_view>
+#include <memory>
 #include <vector>
 
 extern "C" {
@@ -19,27 +20,36 @@ namespace Datadog {
 // Forward
 class Profile;
 
+struct DdogProfExporter {
+  void add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
+
+public:
+  static constexpr std::string_view language = "python";
+  static constexpr std::string_view family = "python";
+  static constexpr std::string_view profiler_version = "1.8.0rc2_libdatadog";
+
+  DdogProfExporter(std::string_view env, std::string_view service, std::string_view version, std::string_view url);
+  ~DdogProfExporter();
+
+  ddog_prof_Exporter *ptr;
+};
+
 class Uploader {
-  std::string service; // service name (ex:prof-probe-native)
   std::string env;     // ex: staging / local / prod
+  std::string service; // service name (ex:prof-probe-native)
   std::string version; // appended to tags (example: 1.2.1)
   std::string url;     // host:port
   std::string api_key; // Datadog api key
-  std::string language = "python";
-  std::string family = "python";
-  std::string profiler_version = "1.8.0rc2_libdatadog";
   bool agentless; // Whether or not to actually use API key/intake
 
-  ddog_prof_Exporter *ddog_exporter;
+  std::unique_ptr<DdogProfExporter> ddog_exporter;
 
 public:
-  Uploader(const std::string &_service = "py_libdatadog",
-           const std::string &_env = "prod",
-           const std::string &_version = "",
-           const std::string &_url = "http://localhost:8126");
-  ~Uploader();
+  Uploader(std::string_view _env = "prod",
+           std::string_view _service = "py_libdatadog",
+           std::string_view _version = "",
+           std::string_view _url = "http://localhost:8126");
 
-  void add_tag(ddog_Vec_Tag &tags, const std::string &key, const std::string &val);
   bool upload(const Profile *profile);
 
 };
