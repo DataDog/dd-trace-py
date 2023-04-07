@@ -15,26 +15,34 @@
       "language": "python",
       "request.model": "ada",
       "request.prompt": "Hello world",
-      "response.choices.0.finish_reason": "length",
+      "request.stop": ".",
+      "response.choices.0.finish_reason": "stop",
       "response.choices.0.logprobs": "None",
-      "response.choices.0.text": ", this is my favorite invention of 2016. It\u2019s nothing fancy (",
-      "response.id": "cmpl-72TLqafUbSf7fVkEBQnBnHcyVjSsS",
+      "response.choices.0.text": "",
+      "response.choices.1.finish_reason": "length",
+      "response.choices.1.logprobs": "None",
+      "response.choices.1.text": ",\u201d he says, his voice is low",
+      "response.id": "cmpl-72nAuZ7XAao85iRZK4gxZvwXuPJJV",
       "response.model": "ada",
       "response.object": "text_completion",
-      "runtime-id": "2c018c1682ac4ee0abd4dbd89ed99e2c"
+      "runtime-id": "03768ba7a9ca4eeaab5584b088c0d57f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88414,
+      "process_id": 12147,
+      "request.max_tokens": 10,
+      "request.n": 2,
+      "request.temperature": 0.8,
       "response.choices.0.index": 0,
-      "response.created": 1680823838,
-      "response.usage.completion_tokens": 16,
+      "response.choices.1.index": 1,
+      "response.created": 1680900040,
+      "response.usage.completion_tokens": 10,
       "response.usage.prompt_tokens": 2,
-      "response.usage.total_tokens": 18
+      "response.usage.total_tokens": 12
     },
-    "duration": 15776000,
-    "start": 1680824936951629000
+    "duration": 215102000,
+    "start": 1680900040091720000
   }]]
