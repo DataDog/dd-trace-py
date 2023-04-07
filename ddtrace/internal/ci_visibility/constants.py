@@ -1,2 +1,3 @@
-EVP_PROXY_AGENT_ENDPOINT = "evp_proxy/v2/api/v2/citestcycle"
+EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2/"
+EVP_PROXY_AGENT_ENDPOINT = "{}api/v2/citestcycle".format(EVP_PROXY_AGENT_BASE_PATH)
 AGENTLESS_ENDPOINT = "api/v2/citestcycle"

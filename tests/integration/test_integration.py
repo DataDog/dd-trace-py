@@ -15,6 +15,8 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
@@ -24,6 +26,7 @@ from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
 from tests.utils import call_program
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -516,6 +519,24 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
         ), "the proportion of sampled spans should approximate the sample rate given by the agent"
 
         t.shutdown()
+
+
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
+def test_evp_proxy_response():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        t = Tracer()
+        t.configure(writer=CIVisibilityWriter())
+        assert t._writer._state != CIVisibilityWriter.STATE_AGENTPROXY
+        assert t._writer._endpoint != EVP_PROXY_AGENT_ENDPOINT
+        assert t._writer.intake_url != agent.get_trace_url()
+        assert t._writer._headers.get("X-Datadog-EVP-Subdomain") != "citestcycle-intake"
+        s = t.trace("operation")
+        s.finish()
+        t.shutdown()
+        assert t._writer._state == CIVisibilityWriter.STATE_AGENTPROXY
+        assert t._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
+        assert t._writer.intake_url == agent.get_trace_url()
+        assert t._writer._headers["X-Datadog-EVP-Subdomain"] == "citestcycle-intake"
 
 
 def test_bad_endpoint():
