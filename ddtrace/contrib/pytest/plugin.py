@@ -45,6 +45,16 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
+def _store_suite_id(item, suite_id):
+    """Store test_suite_id at `pytest.Item` instance."""
+    setattr(item, "_datadog_test_suite_id", suite_id)
+
+
+def _extract_suite_id(item):
+    """Extract test_suite_id from `pytest.Item` instance."""
+    return getattr(item, "_datadog_test_suite_id", None)
+
+
 def _extract_repository_name(repository_url):
     # type: (str) -> str
     """Extract repository name from repository url."""
@@ -54,6 +64,14 @@ def _extract_repository_name(repository_url):
         # In case of parsing error, default to repository url
         log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
         return repository_url
+
+
+def _get_pytest_command(config):
+    """Extract and re-create pytest session command from pytest config."""
+    command = "pytest"
+    if getattr(config, "invocation_params", None):
+        command += " {}".format(" ".join(config.invocation_params.args))
+    return command
 
 
 def pytest_addoption(parser):
@@ -84,6 +102,16 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
+        test_command_span = _CIVisibility._instance.tracer.trace(
+            "pytest.test_session",
+            service=_CIVisibility._instance._service,
+            span_type=SpanTypes.TEST,
+        )
+        test_command_span.set_tag_str(COMPONENT, "pytest")
+        test_command_span.set_tag_str(SPAN_KIND, KIND)
+        test_command_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_command_span.set_tag_str(test.SESSION, _get_pytest_command(config))
+        test_command_span.set_tag(test.SESSION_ID, test_command_span.trace_id)
         # TODO: hooks into start of test process (pytest run command)
         #  Generate unique test_command_id, make test_command_id available to test suite hooks
         #  Store start_timestamp for test command.
@@ -93,21 +121,37 @@ def pytest_sessionfinish(session, exitstatus):
     # TODO: hooks right after whole test run finished, right before returning exit status to system.
     #  generate a test_command_end event, need to include test_command_id
     if is_enabled(session.config):
+        test_command_span = _CIVisibility._instance.tracer.current_root_span()
+        if test_command_span is not None:
+            test_command_span.finish()
         _CIVisibility.disable()
 
 
 @pytest.fixture(scope="module", autouse=True)
 def ddtrace_test_module_fixture(request):
-    # TODO: this always occurs during the setup of every test suite (pytest test module), which is as close as possible
-    #  to the start of a test suite. Pytest doesn't offer hooks at the start of each test suite, so we have to use
-    #  a module scoped autofixture instead.
+    """
+    Hook to trace test modules in pytest. This fixture runs during the setup/teardown of every pytest test module,
+    which is as close as possible to the start/end of a test suite. Pytest doesn't offer hooks at the start of a test
+    suite, so we have to use a module-scoped fixture instead.
+    """
+    if not _CIVisibility.enabled:
+        yield
+        return
     # TODO: generate unique test_suite_id, make test_command_id and test_suite_id available to test hook
     #  Store start_timestamp for test suite.
-    yield
-    # TODO: hooks into the teardown of a test suite (pytest test module), which is as close as possible to the
-    #  end of test suite. Pytest doesn't offer hooks at the end of each test suite, so we have to use a module
-    #  scoped autofixture instead.
-    # TODO: generate test_suite_end event, need to include test_command_id, test_suite_id
+    with _CIVisibility._instance.tracer.trace(
+        "pytest.test_suite",
+        service=_CIVisibility._instance._service,
+        span_type=SpanTypes.TEST,
+    ) as test_module_span:
+        test_module_span.set_tag_str(COMPONENT, "pytest")
+        test_module_span.set_tag_str(SPAN_KIND, KIND)
+        test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_module_span.set_tag(test.SESSION_ID, test_module_span.trace_id)
+        test_module_span.set_tag(test.SUITE_ID, test_module_span.span_id)
+        test_module_span.set_tag_str(test.SUITE, request.node.name)
+        _store_suite_id(request.node, test_module_span.span_id)
+        yield
 
 
 @pytest.fixture(scope="function")
@@ -130,12 +174,10 @@ def patch_all(request):
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_call(item):
+def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
-    # TODO: hooks into start of a test function (after setup),
-    #  generate unique test_id
 
     with _CIVisibility._instance.tracer.trace(
         ddtrace.config.pytest.operation_name,
@@ -144,22 +186,26 @@ def pytest_runtest_call(item):
         span_type=SpanTypes.TEST,
     ) as span:
         span.set_tag_str(COMPONENT, "pytest")
-        span.set_tag(SPAN_KIND, KIND)
-        span.set_tag(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag(test.NAME, item.name)
+        span.set_tag_str(SPAN_KIND, KIND)
+        span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        span.set_tag_str(test.NAME, item.name)
+        span.set_tag(test.SESSION_ID, span.trace_id)
+        test_suite_id = _extract_suite_id(item)
+        span.set_tag(test.SUITE_ID, test_suite_id)
+
         if hasattr(item, "module"):
-            span.set_tag(test.SUITE, item.module.__name__)
+            span.set_tag_str(test.SUITE, item.module.__name__)
         elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-            span.set_tag(test.SUITE, item.dtest.globs["__name__"])
-        span.set_tag(test.TYPE, SpanTypes.TEST)
-        span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
+            span.set_tag_str(test.SUITE, item.dtest.globs["__name__"])
+        span.set_tag_str(test.TYPE, SpanTypes.TEST)
+        span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
 
         if item.location and item.location[0]:
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
-        span.set_tag(test.STATUS, test.Status.FAIL.value)
+        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
 
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
@@ -171,7 +217,7 @@ def pytest_runtest_call(item):
                 except Exception:
                     parameters["arguments"][param_name] = "Could not encode"
                     log.warning("Failed to encode %r", param_name, exc_info=True)
-            span.set_tag(test.PARAMETERS, json.dumps(parameters))
+            span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
@@ -179,12 +225,6 @@ def pytest_runtest_call(item):
         _store_span(item, span)
 
         yield
-
-        # TODO: hooks into end of test function call
-        #  generates test_end event
-        #  include test_command_id, test_suite_id, test_id
-        #  spans generated as part of this will be duplicates of test traces generated by current test instrumentation,
-        #  will link automatically later on
 
 
 def _extract_reason(call):
@@ -219,26 +259,26 @@ def pytest_runtest_makereport(item, call):
     if result.skipped:
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
-            span.set_tag(test.STATUS, test.Status.PASS.value)
+            span.set_tag_str(test.STATUS, test.Status.PASS.value)
             if not item.config.option.runxfail:
-                span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                span.set_tag_str(test.RESULT, test.Status.XFAIL.value)
+                span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
         else:
-            span.set_tag(test.STATUS, test.Status.SKIP.value)
+            span.set_tag_str(test.STATUS, test.Status.SKIP.value)
         reason = _extract_reason(call)
         if reason is not None:
-            span.set_tag(test.SKIP_REASON, reason)
+            span.set_tag_str(test.SKIP_REASON, reason)
     elif result.passed:
-        span.set_tag(test.STATUS, test.Status.PASS.value)
+        span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
-            span.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-            span.set_tag(test.RESULT, test.Status.XPASS.value)
+            span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+            span.set_tag_str(test.RESULT, test.Status.XPASS.value)
     else:
-        span.set_tag(test.STATUS, test.Status.FAIL.value)
+        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-            span.set_tag(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
-            span.set_tag(test.RESULT, test.Status.XPASS.value)
+            span.set_tag_str(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+            span.set_tag_str(test.RESULT, test.Status.XPASS.value)
         if call.excinfo:
             span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)

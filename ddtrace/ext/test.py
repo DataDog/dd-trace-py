@@ -14,6 +14,18 @@ FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 # Test Framework Version
 FRAMEWORK_VERSION = TEST_FRAMEWORK_VERSION = "test.framework_version"
 
+# Test Session
+SESSION = "test.session"
+
+# Test Session ID
+SESSION_ID = "test.session_id"
+
+# Test Suite
+SUITE = TEST_SUITE = "test.suite"
+
+# Test Suite ID
+SUITE_ID = "test.suite_id"
+
 # Test Name
 NAME = TEST_NAME = "test.name"
 
@@ -28,9 +40,6 @@ SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 
 # Test Status
 STATUS = TEST_STATUS = "test.status"
-
-# Test Suite
-SUITE = TEST_SUITE = "test.suite"
 
 # Traits
 TRAITS = TEST_TRAITS = "test.traits"
