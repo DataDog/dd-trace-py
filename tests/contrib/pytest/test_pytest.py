@@ -13,6 +13,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class PytestTestCase(TracerTestCase):
@@ -745,3 +746,25 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 2
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
+
+    def test_pytest_will_report_coverage(self):
+        file_names = []
+        py_team_a_file = self.testdir.makepyfile(
+            test_team_a="""
+        import pytest
+
+        def test_team_a():
+            assert 1 == 1
+        """
+        )
+        file_names.append(os.path.basename(py_team_a_file.strpath))
+
+        with override_env(dict(DD_CIVISIBILITY_CODE_COVERAGE_ENABLED="1")):
+            self.inline_run("--ddtrace", *file_names)
+        spans = self.pop_spans()
+
+        assert "test.coverage" in spans[0].get_tags()
+        raw_tag = spans[0].get_tag("test.coverage")
+        assert raw_tag == ""  # XXX
+        tag_data = json.loads(raw_tag)
+        assert tag_data == ["@default-team"], spans[0]
