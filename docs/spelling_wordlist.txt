@@ -49,7 +49,6 @@ cassandra
 cgroups
 cherrypy
 ciapp
-ci
 client_ip
 codepath
 collect
