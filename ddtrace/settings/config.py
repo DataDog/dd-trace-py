@@ -202,6 +202,7 @@ class Config(object):
         self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
+        self._rc_version = -1
 
         # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))

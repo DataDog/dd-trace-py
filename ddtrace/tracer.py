@@ -48,7 +48,8 @@ from .internal.serverless import in_aws_lambda
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
+from .internal.telemetry import telemetry_lifecycle_writer
+from .internal.utils.formats import asbool, parse_tags_str
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -133,9 +134,9 @@ def _default_span_processors_factory(
     appsec_enabled,  # type: bool
     iast_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
-    single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
+    traceconfig,  # type: _TraceConfigurationV1
 ):
     # type: (...) -> Tuple[List[SpanProcessor], Optional[Any]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -173,8 +174,8 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    if single_span_sampling_rules:
-        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
+    if traceconfig.span_sampling_rules:
+        span_processors.append(SpanSamplingProcessor(traceconfig.span_sampling_rules))
 
     span_processors.append(
         SpanAggregator(
@@ -185,6 +186,29 @@ def _default_span_processors_factory(
         )
     )
     return span_processors, appsec_processor
+
+
+class _TraceConfigurationV1(object):
+    def __init__(
+        self,
+        service,  # type: str
+        env,  # type: str
+        version,  # type: str
+        debug_enabled,  # type: bool
+        http_header_tags,  # type: str
+        tracing_service_mapping,  # type: str
+        tracing_sample_rate,  # type: float
+    ):
+        # type: (...) -> None
+        self.service = service
+        self.env = env
+        self.version = version
+        self.debug_enabled = debug_enabled
+        self.http_header_tags = parse_tags_str(http_header_tags)
+        self.service_mapping = parse_tags_str(tracing_service_mapping)
+        self.tracing_sampler = DatadogSampler(default_sample_rate=tracing_sample_rate)
+        self.span_sampling_rules = get_span_sampling_rules()
+
 
 
 class Tracer(object):
@@ -229,7 +253,6 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
@@ -244,11 +267,12 @@ class Tracer(object):
             writer = AgentWriter(
                 agent_url=self._agent_url,
                 sampler=self._sampler,
-                priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
+                response_callback=self._update_config,
             )
+        self.enabled = True
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
@@ -258,6 +282,21 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+
+        self._config = _TraceConfigurationV1(
+            service=config.service,
+            env=config.env,
+            version=config.version,
+            debug_enabled=asbool(os.getenv("DD_TRACE_DEBUG", default="1")),
+            http_header_tags=os.getenv("DD_TRACE_HEADER_TAGS", ""),
+            tracing_service_mapping=os.getenv("DD_SERVICE_MAPPING", ""),
+            tracing_sample_rate=float(os.getenv("DD_TRACE_SAMPLE_RATE", default="1.0"))
+        )
+
+        from ddtrace.internal.remoteconfig import RemoteConfig
+
+        RemoteConfig.register("APM_TRACING", self._rc_callback)
+
         self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -266,9 +305,9 @@ class Tracer(object):
             self._appsec_enabled,
             self._iast_enabled,
             self._compute_stats,
-            self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
+            self._config,
         )
 
         self._hooks = _hooks.Hooks()
@@ -279,6 +318,59 @@ class Tracer(object):
 
         self._new_process = False
 
+    def _rc_callback(self, metadata, cfg):
+        if not cfg:
+            # TODO: reset back to original config
+            return
+
+        features = cfg["lib_config"]
+        print(features)
+        new_cfg = {}
+
+        if features["tracing_debug_enabled"] is None:
+            new_cfg["debug_enabled"] = debug_mode
+        else:
+            new_cfg["debug_enabled"] = features["tracing_debug"]
+
+        if features["tracing_sample_rate"] is None:
+            # TODO: handle user-defined values for the fallback (eg. tracer.configure())
+            new_cfg["tracing_sample_rate"] = os.getenv("DD_TRACE_SAMPLE_RATE")
+        else:
+            new_cfg["tracing_sample_rate"] = features["tracing_sample_rate"]
+
+        if features["tracing_service_mapping"] is None:
+            new_cfg["tracing_service_mapping"] = os.getenv("DD_SERVICE_MAPPING")
+        else:
+            new_cfg["tracing_service_mapping"] = features["tracing_service_mapping"]
+
+        enable_runtime_metrics = features["runtime_metrics_enabled"]
+        if enable_runtime_metrics is None:
+            enable_runtime_metrics = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
+
+        from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
+
+        if enable_runtime_metrics:
+            RuntimeWorker.enable()
+        else:
+            RuntimeWorker.disable()
+
+        self._config = _TraceConfigurationV1(
+            service=config.service,
+            env=config.env,
+            version=config.version,
+            **new_cfg,
+        )
+        telemetry_lifecycle_writer.add_event(
+            {
+                "configuration": [
+                    {"name": "service", "value": config.service},
+                    {"name": "env", "value": config.env},
+                ],
+                "remote_config": {},
+            },
+            "app-client-configuration-change",
+        )
+
     def _atexit(self):
         # type: () -> None
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -288,6 +380,25 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
+
+    def _update_config(self, resp):
+        if "rate_by_service" in resp:
+            try:
+                if self._priority_sampler:
+                    self._priority_sampler.update_rate_by_service_sample_rates(
+                        resp["rate_by_service"],
+                    )
+                if isinstance(self._sampler, BasePrioritySampler):
+                    self._sampler.update_rate_by_service_sample_rates(
+                        resp["rate_by_service"],
+                    )
+            except ValueError:
+                log.error("sample_rate is negative, cannot update the rate samplers")
+
+    def update_configuration(
+        self,
+    ):
+        return
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
@@ -463,7 +574,6 @@ class Tracer(object):
             self._writer = AgentWriter(
                 self._agent_url,
                 sampler=self._sampler,
-                priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
@@ -502,7 +612,6 @@ class Tracer(object):
                 self._appsec_enabled,
                 self._iast_enabled,
                 self._compute_stats,
-                self._single_span_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
             )
@@ -513,7 +622,7 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if self._config.debug_enabled or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -548,7 +657,6 @@ class Tracer(object):
             self._appsec_enabled,
             self._iast_enabled,
             self._compute_stats,
-            self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
@@ -646,21 +754,16 @@ class Tracer(object):
 
         trace_id = context.trace_id
         parent_id = context.span_id
+        if parent:
+            trace_cfg = parent._get_ctx_item("config")
+        else:
+            trace_cfg = self._config
 
-        # The following precedence is used for a new span's service:
-        # 1. Explicitly provided service name
-        #     a. User provided or integration provided service name
-        # 2. Parent's service name (if defined)
-        # 3. Globally configured service name
-        #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         if service is None:
-            if parent:
-                service = parent.service
-            else:
-                service = config.service
+            service = trace_cfg.service
 
         # Update the service name based on any mapping
-        service = config.service_mapping.get(service, service)
+        service = self._config.service_mapping.get(service, service)
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -697,6 +800,8 @@ class Tracer(object):
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
+        span._set_ctx_item("config", trace_cfg)
+
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid
@@ -728,7 +833,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span)
+            span.sampled = self._config.tracing_sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self._sampler, DatadogSampler):
@@ -754,7 +859,7 @@ class Tracer(object):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
-        # Only call span processors if the tracer is enabled
+        # Only call span processors if the trace is enabled
         if self.enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__):
                 p.on_span_start(span)
@@ -766,6 +871,7 @@ class Tracer(object):
 
     def _on_span_finish(self, span):
         # type: (Span) -> None
+        trace_cfg = span._get_ctx_item("config")
         active = self.current_span()
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
