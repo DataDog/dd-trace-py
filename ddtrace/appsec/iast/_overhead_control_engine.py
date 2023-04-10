@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
 MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
-REQUEST_SAMPLING = int(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30))  # Percentage of requests analyzed by IAST
+REQUEST_SAMPLING = int(os.environ.get("DD_IAST_REQUEST_SAMPLING", 100))  # Percentage of requests analyzed by IAST
 
 
 class Operation(object):
