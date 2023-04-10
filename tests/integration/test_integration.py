@@ -15,6 +15,7 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
@@ -24,6 +25,7 @@ from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
 from tests.utils import call_program
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -944,3 +946,25 @@ def test_no_warnings():
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
     assert err == b"", err
+
+
+def test_civisibility_event_endpoints():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        t = Tracer()
+        t.configure(writer=CIVisibilityWriter())
+        conn = mock.MagicMock()
+        t._writer._conn = conn
+        with mock.patch("ddtrace.internal.compat.get_connection_response") as get_connection_response:
+            get_connection_response.return_value.status = 200
+            s = t.trace("operation", service="my-svc")
+            s.finish()
+            s = t.trace("operation", service="my-svc2")
+            s.set_tag(
+                "test.coverage",
+                "{'files': [{'filename': 'test_cov.py', 'segments': [[5, 0, 5, 0, -1]]}, {'filename': 'test_module.py', 'segments': [[2, 0, 2, 0, -1]]}]}",
+            )
+            s.finish()
+            t.shutdown()
+        assert conn.request.call_count == 2
+        assert conn.request.call_args[0][1] == "api/v2/citestcycle"
+        assert conn.request.call_args[1][1] == "api/v2/citestcov"
