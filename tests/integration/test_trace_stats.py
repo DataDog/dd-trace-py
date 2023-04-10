@@ -157,3 +157,4 @@ def test_single_span_sampling(stats_tracer, sampling_rule):
         with stats_tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
             child.set_metric("_dd.span_sampling.mechanism", 8)
+    assert 1 == 0
