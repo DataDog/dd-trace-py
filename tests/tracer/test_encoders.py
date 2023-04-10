@@ -22,6 +22,7 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
@@ -352,6 +353,45 @@ def test_encode_traces_civisibility_v0():
             },
         }
         assert expected_event == received_event
+
+
+def test_encode_traces_civisibility_v2_coverage():
+    coverage_data = {
+        "files": [
+            {"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]},
+            {"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]},
+        ]
+    }
+    coverage_json = json.dumps(coverage_data)
+    coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    coverage_span.set_tag("test.coverage", coverage_json)
+    traces = [
+        [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
+    ]
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    for trace in traces:
+        encoder.put(trace)
+    payload = encoder.encode()
+    assert isinstance(payload, msgpack_type)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    assert decoded[b"version"] == 2
+
+    received_covs = decoded[b"coverages"]
+    assert len(received_covs) == 1
+
+    all_spans = [span for trace in traces for span in trace]
+    for given_span, received_cov in zip(all_spans, received_covs):
+        expected_cov = {
+            b"test_session_id": b"bar",
+            b"test_suite_id": b"foo",
+            b"span_id": given_span.span_id,
+            b"files": [
+                {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
+                for file in coverage_data["files"]
+            ],
+        }
+        assert expected_cov == received_cov
 
 
 def allencodings(f):

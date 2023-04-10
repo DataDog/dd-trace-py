@@ -1,3 +1,4 @@
+import json
 import threading
 from typing import Any
 from typing import Dict
@@ -21,6 +22,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
         self._lock = threading.RLock()
+        self._metadata = {}
         self._init_buffer()
 
     def __len__(self):
@@ -68,3 +70,27 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         else:
             event_type = "span"
         return {"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION, "type": event_type, "content": sp}
+
+
+class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
+    PAYLOAD_FORMAT_VERSION = 2
+
+    def _build_payload(self, traces):
+        normalized_covs = [
+            CIVisibilityCoverageEncoderV02._convert_span(span)
+            for trace in traces
+            for span in trace
+            if "test.coverage" in span.get_tags()
+        ]
+        # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
+        return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
+
+    @staticmethod
+    def _convert_span(span):
+        # type: (Span) -> Dict[str, Any]
+        return {
+            "span_id": span.span_id,
+            "test_session_id": "bar",
+            "test_suite_id": "foo",
+            "files": json.loads(span.get_tag("test.coverage"))["files"],
+        }
