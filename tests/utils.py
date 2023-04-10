@@ -16,6 +16,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -437,19 +438,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             setattr(ddtrace, "tracer", original)
 
 
-class DummyWriter(AgentWriter):
-    """DummyWriter is a small fake writer used for tests. not thread-safe."""
-
+class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
-
-        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -457,9 +449,6 @@ class DummyWriter(AgentWriter):
             # put spans in a list like we do in the real execution path
             # with both encoders
             traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
@@ -474,6 +463,41 @@ class DummyWriter(AgentWriter):
         traces = self.traces
         self.traces = []
         return traces
+
+
+class DummyWriter(DummyWriterMixin, AgentWriter):
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
+
+    def __init__(self, *args, **kwargs):
+        # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
+
+        AgentWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+
+
+class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
+    def __init__(self, *args, **kwargs):
+        CIVisibilityWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self._encoded = None
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        CIVisibilityWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        self._encoded = self._encoder._build_payload()
 
 
 class DummyTracer(Tracer):
@@ -505,9 +529,10 @@ class DummyTracer(Tracer):
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriter
+            kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+        if not kwargs.get("writer"):
+            kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
