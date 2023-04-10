@@ -51,7 +51,7 @@ def test_inject(tracer):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
     from ddtrace.context import Context
@@ -279,7 +279,7 @@ def test_extract(tracer):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
