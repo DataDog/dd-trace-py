@@ -75,6 +75,11 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
+    def put(self, spans):
+        spans_with_coverage = [span for span in spans if "test.coverage" in span.get_tags()]
+        if spans_with_coverage:
+            return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
+
     def _build_payload(self, traces):
         normalized_covs = [
             CIVisibilityCoverageEncoderV02._convert_span(span)
@@ -82,6 +87,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             for span in trace
             if "test.coverage" in span.get_tags()
         ]
+        if not normalized_covs:
+            return
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 

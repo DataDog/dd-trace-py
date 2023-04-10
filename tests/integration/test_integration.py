@@ -15,7 +15,7 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
-from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriterGroup
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
@@ -951,20 +951,24 @@ def test_no_warnings():
 def test_civisibility_event_endpoints():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         t = Tracer()
-        t.configure(writer=CIVisibilityWriter())
-        conn = mock.MagicMock()
-        t._writer._conn = conn
-        with mock.patch("ddtrace.internal.compat.get_connection_response") as get_connection_response:
-            get_connection_response.return_value.status = 200
+        t.configure(writer=CIVisibilityWriterGroup(reuse_connections=True))
+        for writer in t._writer._writers:
+            writer._conn = mock.MagicMock()
+        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+            from_http_response.return_value.status = 200
             s = t.trace("operation", service="my-svc")
             s.finish()
-            s = t.trace("operation", service="my-svc2")
-            s.set_tag(
+            span = t.trace("operation2", service="my-svc2")
+            span.set_tag(
                 "test.coverage",
-                "{'files': [{'filename': 'test_cov.py', 'segments': [[5, 0, 5, 0, -1]]}, {'filename': 'test_module.py', 'segments': [[2, 0, 2, 0, -1]]}]}",
+                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
             )
-            s.finish()
+            span.finish()
+            assert t._writer._writers[0]._conn.request.call_count == 2
+            assert t._writer._writers[0]._conn.request.call_args[0][1] == "api/v2/citestcycle"
+            assert (
+                t._writer._writers[1]._conn.request.call_count == 1
+            ), "span without coverage tag should not be sent by coverage writer"
+            assert t._writer._writers[1]._conn.request.call_args[0][1] == "api/v2/citestcov"
             t.shutdown()
-        assert conn.request.call_count == 2
-        assert conn.request.call_args[0][1] == "api/v2/citestcycle"
-        assert conn.request.call_args[1][1] == "api/v2/citestcov"

@@ -10,6 +10,7 @@ from .. import agent
 from .. import service
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
+from .._encoding import BufferedEncoder
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import TraceWriter
@@ -25,6 +26,8 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
+        endpoint,  # type: str
+        encoder,  # type: BufferedEncoder
         intake_url=None,  # type: Optional[str]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
@@ -39,15 +42,6 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
-        event_encoder = CIVisibilityEncoderV01(0, 0)
-        event_encoder.set_metadata(
-            {
-                "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
-            }
-        )
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
@@ -55,8 +49,8 @@ class CIVisibilityWriter(HTTPWriter):
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="api/v2/citestcycle",
-            encoder=event_encoder,
+            endpoint=endpoint,
+            encoder=encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -98,27 +92,33 @@ class CIVisibilityEventWriter(CIVisibilityWriter):
             }
         )
 
-        super(CIVisibilityWriter, self).__init__(endpoint="api/v2/citestcycle", encoder=event_encoder, **kwargs)
+        super(CIVisibilityEventWriter, self).__init__(endpoint="api/v2/citestcycle", encoder=event_encoder, **kwargs)
 
 
 class CIVisibilityCoverageWriter(CIVisibilityWriter):
     STATSD_NAMESPACE = "civisibility.coveragewriter"
 
     def __init__(self, **kwargs):
-        super(CIVisibilityWriter, self).__init__(
+        super(CIVisibilityCoverageWriter, self).__init__(
             endpoint="api/v2/citestcov", encoder=CIVisibilityCoverageEncoderV02(0, 0), **kwargs
         )
 
 
-class CIVisibilityWriterGroup(TraceWriter):
+class CIVisibilityWriterGroup(service.Service, TraceWriter):
     def __init__(self, **kwargs):
+        super(CIVisibilityWriterGroup, self).__init__()
         _event_writer = CIVisibilityEventWriter(**kwargs)
         _coverage_writer = CIVisibilityCoverageWriter(**kwargs)
         self._writers = [_event_writer, _coverage_writer]
+        self.start()
 
-    def stop(self, timeout=None):
+    def _stop_service(self, timeout=None):
         for writer in self._writers:
             writer.stop(timeout=timeout)
+
+    def _start_service(self):
+        for writer in self._writers:
+            writer.start()
 
     def flush_queue(self, raise_exc=False):
         for writer in self._writers:
@@ -127,3 +127,15 @@ class CIVisibilityWriterGroup(TraceWriter):
     def write(self, spans=None):
         for writer in self._writers:
             writer.write(spans=spans)
+
+    def recreate(self):
+        # type: () -> HTTPWriter
+        return self.__class__(
+            intake_url=self.intake_url,
+            sampler=self._sampler,
+            priority_sampler=self._priority_sampler,
+            processing_interval=self._interval,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+        )
