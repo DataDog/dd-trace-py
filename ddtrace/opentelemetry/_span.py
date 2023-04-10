@@ -8,8 +8,10 @@ from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import time_ns
+from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
@@ -21,6 +23,9 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes
 
     from ddtrace.span import Span as DDSpan
+
+
+log = get_logger(__name__)
 
 
 class Span(OtelSpan):
@@ -99,8 +104,7 @@ class Span(OtelSpan):
 
     def get_span_context(self):
         # type: () -> SpanContext
-        """Returns an Open Telemetry SpanContext"""
-        # Returns a SpanContext with the current trace id, span id and is_remote flag.
+        """Returns an OpenTelemetry SpanContext"""
         ts = None
         tf = TraceFlags.DEFAULT
         if self._ddspan.context:
@@ -154,13 +158,19 @@ class Span(OtelSpan):
         """
         if not self.is_recording():
             return
-        elif isinstance(status, Status):
+
+        if isinstance(status, Status):
             status_code = status.status_code
+            message = status.description
+            log.warning("Description %s ignored. Use either `Status` or `(StatusCode, Description)`", description)
         else:
             status_code = status
+            message = description
 
         if status_code is StatusCode.ERROR:
             self._ddspan.error = 1
+            if message:
+                self.set_attribute(ERROR_MSG, message)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
@@ -187,5 +197,6 @@ class Span(OtelSpan):
             if self._record_exception:
                 self.record_exception(exc_val)
             if self._set_status_on_exception:
+                # do not overwrite the status message set by record exception
                 self.set_status(StatusCode.ERROR)
         self.end()
