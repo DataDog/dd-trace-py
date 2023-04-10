@@ -78,7 +78,7 @@ def test_inject_128bit_trace_id_datadog():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
 )
 def test_inject_128bit_trace_id_b3multi():
     from ddtrace.context import Context
@@ -100,10 +100,7 @@ def test_inject_128bit_trace_id_b3multi():
 
 
 @pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
-        DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER,
-    ),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER),
 )
 def test_inject_128bit_trace_id_b3_single_header():
     from ddtrace.context import Context
@@ -125,10 +122,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 
 
 @pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
-        DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT,
-    ),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.context import Context
@@ -316,7 +310,7 @@ def test_extract_128bit_trace_ids_datadog():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true", DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3),
 )
 def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
@@ -343,10 +337,7 @@ def test_extract_128bit_trace_ids_b3multi():
 
 
 @pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
-        DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER,
-    ),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE_HEADER),
 )
 def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
@@ -372,10 +363,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 
 
 @pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true",
-        DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT,
-    ),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
