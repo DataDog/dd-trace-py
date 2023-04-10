@@ -29,7 +29,9 @@ def _post_response():
         "HTTP_ACCEPT_LANGUAGE": "en-US,en;q=0.9",
         "User-Agent": "dd-test-scanner-log",
     }
-    r = requests.post(SERVER_URL + "sqli", data={"username": "shaquille_oatmeal" , "password": "123456"}, headers=HEADERS)
+    r = requests.post(
+        SERVER_URL + "sqli", data={"username": "shaquille_oatmeal", "password": "123456"}, headers=HEADERS
+    )
     r.raise_for_status()
 
 
