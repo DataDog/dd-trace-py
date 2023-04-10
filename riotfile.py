@@ -2166,6 +2166,7 @@ venv = Venv(
                             "~=21.6.0",
                         ],
                         "pytest-sanic": latest,
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
@@ -2176,6 +2177,7 @@ venv = Venv(
                             "~=21.12.0",
                         ],
                         "sanic-testing": "~=0.8.3",
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
@@ -2183,6 +2185,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=22.3.0",
                         "sanic-testing": "~=22.3.0",
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
@@ -2190,6 +2193,7 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=22.9.0",
                         "sanic-testing": "~=22.9.0",
+                        "websockets": ["<11.0"],
                     },
                 ),
                 Venv(
@@ -2197,6 +2201,7 @@ venv = Venv(
                     pkgs={
                         "sanic": latest,
                         "sanic-testing": latest,
+                        "websockets": ["<11.0"],
                     },
                 ),
             ],
