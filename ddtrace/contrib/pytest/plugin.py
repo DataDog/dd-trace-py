@@ -15,6 +15,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -45,14 +49,24 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
-def _store_suite_id(item, suite_id):
-    """Store test_suite_id at `pytest.Item` instance."""
-    setattr(item, "_datadog_test_suite_id", suite_id)
+def _store_module_id(item, suite_id):
+    """Store test_module_id at `pytest.Item` instance."""
+    setattr(item, "_datadog_test_module_id", suite_id)
 
 
-def _extract_suite_id(item):
-    """Extract test_suite_id from `pytest.Item` instance."""
-    return getattr(item, "_datadog_test_suite_id", None)
+def _extract_module_id(item):
+    """Extract test_module_id from `pytest.Item` instance."""
+    return getattr(item, "_datadog_test_module_id", None)
+
+
+def _store_package_id(item, suite_id):
+    """Store test_package_id at `pytest.Item` instance."""
+    setattr(item, "_datadog_test_package_id", suite_id)
+
+
+def _extract_package_id(item):
+    """Extract test_package_id from `pytest.Item` instance."""
+    return getattr(item, "_datadog_test_package_id", None)
 
 
 def _extract_repository_name(repository_url):
@@ -110,16 +124,16 @@ def pytest_configure(config):
         test_command_span.set_tag_str(COMPONENT, "pytest")
         test_command_span.set_tag_str(SPAN_KIND, KIND)
         test_command_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        test_command_span.set_tag_str(test.SESSION, _get_pytest_command(config))
-        test_command_span.set_tag(test.SESSION_ID, test_command_span.trace_id)
-        # TODO: hooks into start of test process (pytest run command)
-        #  Generate unique test_command_id, make test_command_id available to test suite hooks
-        #  Store start_timestamp for test command.
+        test_command_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+        test_command_span.set_tag_str(_EVENT_TYPE, "test_session_end")
+        test_command_span.set_tag_str(test.COMMAND, _get_pytest_command(config))
+        test_command_span.set_tag(_SESSION_ID, test_command_span.trace_id)
 
 
 def pytest_sessionfinish(session, exitstatus):
-    # TODO: hooks right after whole test run finished, right before returning exit status to system.
-    #  generate a test_command_end event, need to include test_command_id
+    """
+    Hooks right after a whole test session has finished, right before returning the exit status to system.
+    """
     if is_enabled(session.config):
         test_command_span = _CIVisibility._instance.tracer.current_root_span()
         if test_command_span is not None:
@@ -137,20 +151,46 @@ def ddtrace_test_module_fixture(request):
     if not _CIVisibility.enabled:
         yield
         return
-    # TODO: generate unique test_suite_id, make test_command_id and test_suite_id available to test hook
-    #  Store start_timestamp for test suite.
     with _CIVisibility._instance.tracer.trace(
-        "pytest.test_suite",
+        "pytest.test_module",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
     ) as test_module_span:
         test_module_span.set_tag_str(COMPONENT, "pytest")
         test_module_span.set_tag_str(SPAN_KIND, KIND)
         test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        test_module_span.set_tag(test.SESSION_ID, test_module_span.trace_id)
-        test_module_span.set_tag(test.SUITE_ID, test_module_span.span_id)
+        test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+        test_module_span.set_tag_str(_EVENT_TYPE, "test_suite_end")
+        test_module_span.set_tag(_SESSION_ID, test_module_span.trace_id)
+        test_module_span.set_tag(_SUITE_ID, test_module_span.span_id)
         test_module_span.set_tag_str(test.SUITE, request.node.name)
-        _store_suite_id(request.node, test_module_span.span_id)
+        _store_module_id(request.node, test_module_span.span_id)
+        yield
+
+
+@pytest.fixture(scope="package", autouse=True)
+def ddtrace_test_package_fixture(request):
+    """
+    Hook to trace test packages in pytest. This fixture runs during the setup/teardown of every pytest test package,
+    which is as close as possible to the start/end of a test package. Pytest doesn't offer hooks at the start of a test
+    package, so we have to use a package-scoped fixture instead.
+    """
+    if not _CIVisibility.enabled:
+        yield
+        return
+    with _CIVisibility._instance.tracer.trace(
+        "pytest.test_package",
+        service=_CIVisibility._instance._service,
+        span_type=SpanTypes.TEST,
+    ) as test_package_span:
+        test_package_span.set_tag_str(COMPONENT, "pytest")
+        test_package_span.set_tag_str(SPAN_KIND, KIND)
+        test_package_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_package_span.set_tag_str(_EVENT_TYPE, "test_package_end")
+        test_package_span.set_tag(_SESSION_ID, test_package_span.trace_id)
+        test_package_span.set_tag(_MODULE_ID, test_package_span.span_id)
+        test_package_span.set_tag_str(test.SUITE, request.node.name)
+        _store_package_id(request.node, test_package_span.span_id)
         yield
 
 
@@ -189,9 +229,11 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(test.NAME, item.name)
-        span.set_tag(test.SESSION_ID, span.trace_id)
-        test_suite_id = _extract_suite_id(item)
-        span.set_tag(test.SUITE_ID, test_suite_id)
+        span.set_tag(_SESSION_ID, span.trace_id)
+        test_module_id = _extract_module_id(item.parent)
+        span.set_tag(_SUITE_ID, test_module_id)
+        test_package_id = _extract_package_id(item.parent.parent)
+        span.set_tag(_MODULE_ID, test_package_id)
 
         if hasattr(item, "module"):
             span.set_tag_str(test.SUITE, item.module.__name__)

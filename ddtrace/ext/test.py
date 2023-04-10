@@ -14,17 +14,14 @@ FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 # Test Framework Version
 FRAMEWORK_VERSION = TEST_FRAMEWORK_VERSION = "test.framework_version"
 
-# Test Session
-SESSION = "test.session"
+# Test Command
+COMMAND = "test.command"
 
-# Test Session ID
-SESSION_ID = "test.session_id"
+# Test Module
+MODULE = "test.module"
 
 # Test Suite
 SUITE = TEST_SUITE = "test.suite"
-
-# Test Suite ID
-SUITE_ID = "test.suite_id"
 
 # Test Name
 NAME = TEST_NAME = "test.name"
