@@ -8,8 +8,8 @@ from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import Pin
 
 
 log = get_logger(__name__)
@@ -25,9 +25,9 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
-def pytest_sessionstart(session):
-    if session.config.pluginmanager.hasplugin("pytest-bdd"):
-        session.config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
+def pytest_configure(config):
+    if config.pluginmanager.hasplugin("pytest-bdd"):
+        config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
 
 class _PytestBddPlugin:
@@ -39,29 +39,20 @@ class _PytestBddPlugin:
     @staticmethod
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_scenario(request, feature, scenario):
-        pin = Pin.get_from(request.config)
-        if pin:
+        if _CIVisibility.enabled:
             span = _extract_feature_span(request.node)
             if span is not None:
                 location = os.path.relpath(scenario.feature.filename, str(request.config.rootdir))
                 span.set_tag(test.NAME, scenario.name)
                 span.set_tag(test.SUITE, location)  # override test suite name with .feature location
 
-                codeowners = pin._config.get("_codeowners")
-                if codeowners is not None:
-                    try:
-                        handles = codeowners.of(location)
-                        if handles:
-                            span.set_tag(test.CODEOWNERS, json.dumps(handles))
-                    except KeyError:
-                        log.debug("no matching codeowners for %s", location)
+                _CIVisibility.set_codeowners_of(location, span=span)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_step(self, request, feature, scenario, step, step_func):
-        pin = Pin.get_from(request.config)
-        if pin:
+        if _CIVisibility.enabled:
             feature_span = _extract_feature_span(request.node)
-            span = pin.tracer.start_span(
+            span = _CIVisibility._instance.tracer.start_span(
                 step.type,
                 resource=step.name,
                 span_type=STEP_KIND,
@@ -102,14 +93,7 @@ class _PytestBddPlugin:
 
             location = os.path.relpath(step_func.__code__.co_filename, str(request.config.rootdir))
             span.set_tag(test.FILE, location)
-            codeowners = pin._config.get("_codeowners")
-            if codeowners is not None:
-                try:
-                    handles = codeowners.of(location)
-                    if handles:
-                        span.set_tag(test.CODEOWNERS, json.dumps(handles))
-                except KeyError:
-                    log.debug("no matching codeowners for %s", location)
+            _CIVisibility.set_codeowners_of(location, span=span)
 
             _store_span(step_func, span)
 

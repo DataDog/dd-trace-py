@@ -1,5 +1,7 @@
 AArch
 AnyCallable
+autoreload
+autoreloading
 CPython
 Fargate
 Firehose
@@ -139,6 +141,7 @@ pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf

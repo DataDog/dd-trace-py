@@ -52,13 +52,13 @@ class MetricSample(CapturedEvent):
         self.sample(_args)
         self.state = CaptureState.DONE
 
-    def line(self, _locals=None, exc_info=(None, None, None)):
+    def line(self):
         frame = self.frame
 
-        if not self._eval_condition(_locals or frame.f_locals):
+        if not self._eval_condition(frame.f_locals):
             return
 
-        self.sample(_locals or frame.f_locals)
+        self.sample(frame.f_locals)
         self.state = CaptureState.DONE
 
     def sample(self, _locals):

@@ -107,9 +107,12 @@ def _extract_header_value(possible_header_names, headers, default=None):
 def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
     """Helper to convert hex ids into Datadog compatible ints
-    If the id is > 64 bit then truncate the trailing 64 bit.
+    If the id is > 64 bit and 128bit trace_id generation is disabled then truncate the trailing 64 bit.
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
+    Otherwise convert the full trace id into lower case hex values.
     """
+    if config._128_bit_trace_id_enabled:
+        return int(hex_id, 16)
     return int(hex_id[-16:], 16)
 
 
@@ -118,9 +121,11 @@ _b3_id_to_dd_id = _hex_id_to_dd_id
 
 def _dd_id_to_b3_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into hex ids"""
-    # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
-    # DEV: this gives us lowercase hex, which is what we want
+    """Helper to convert Datadog trace/span int ids into lower case hex values"""
+    if dd_id > _MAX_UINT_64BITS:
+        # b3 trace ids can have the length of 16 or 32 characters:
+        # https://github.com/openzipkin/b3-propagation#traceid
+        return "{:032x}".format(dd_id)
     return "{:016x}".format(dd_id)
 
 
@@ -266,19 +271,21 @@ class _DatadogMultiHeader:
                 }
                 log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
-        if meta is not None and config._128_bit_trace_id_enabled:
-            # When 128 bit trace ids are propagated the 64 lowest order bits are encoded as an integer
-            # and set in the `x-datadog-trace-id` header (this was done for backwards compatibility).
-            # The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+        if meta and _HIGHER_ORDER_TRACE_ID_BITS in meta:
+            # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
+            # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
             # Here we reconstruct the full 128 bit trace_id.
-            trace_id_hob_hex = meta.get(_HIGHER_ORDER_TRACE_ID_BITS)  # type: Optional[str]
-            if trace_id_hob_hex is not None:
-                # convert lowest order bits in trace_id to base 16
-                trace_id_lod_hex = "{:016x}".format(trace_id)
+            trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
+            try:
+                if len(trace_id_hob_hex) != 16:
+                    raise ValueError("Invalid size")
                 # combine highest and lowest order hex values to create a 128 bit trace_id
-                trace_id = int(trace_id_hob_hex + trace_id_lod_hex, 16)
-                # After the full trace id is reconstructed this tag is no longer required
-                del meta[_HIGHER_ORDER_TRACE_ID_BITS]
+                trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
+            except ValueError:
+                meta["_dd.propagation_error"] == "malformed_tid {}".format(trace_id_hob_hex)
+                log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+            # After the full trace id is reconstructed this tag is no longer required
+            del meta[_HIGHER_ORDER_TRACE_ID_BITS]
 
         # Try to parse values into their expected types
         try:
