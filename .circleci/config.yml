@@ -167,11 +167,7 @@ commands:
                   DD_TRACE_AGENT_URL: http://localhost:9126
                 command: |
                   mv .riot .ddriot
-                  if [ << pipeline.parameters.coverage >> ]; then
-                    riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
-                  else
-                    riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} --no-cov
-                  fi
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -186,11 +182,7 @@ commands:
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
                 command: |
-                  if [ << pipeline.parameters.coverage >> ]; then
-                    riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s
-                  else
-                    riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env {} -s --no-cov
-                  fi
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
