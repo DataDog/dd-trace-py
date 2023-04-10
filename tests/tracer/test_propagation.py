@@ -217,28 +217,17 @@ def test_extract(tracer):
             }
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"),
-    parametrize={
-        "TEST_TRACE_ID": [
-            str(2 ** 128 - 1),
-            str(2 ** 127 + 1),
-            str(2 ** 65 - 1),
-            str(2 ** 64 + 1),
-            str(2 ** 127 + 2 ** 63),
-        ]
-    },
+@pytest.mark.parametrize(
+    "trace_id",
+    [
+        2 ** 128 - 1,
+        2 ** 127 + 1,
+        2 ** 65 - 1,
+        2 ** 64 + 1,
+        2 ** 127 + 2 ** 63,
+    ],
 )
-def test_extract_128bit_trace_ids():
-    import os
-
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-    from ddtrace.propagation.http import HTTPPropagator
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()
-
-    trace_id = int(os.getenv("TEST_TRACE_ID"))
+def test_extract_128bit_trace_ids(tracer, trace_id):
     trace_id_64bit = trace_id & 2 ** 64 - 1
     # Get the hex representation of the 64 most signicant bits
     trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
