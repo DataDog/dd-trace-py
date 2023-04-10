@@ -9,11 +9,10 @@ from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.sampler import RateSampler
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Optional
     from typing import Set
     from typing import Tuple
     from typing import Type
@@ -75,17 +74,15 @@ class OverheadControl(object):
     _request_quota = MAX_REQUESTS
     _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
-    # Configure rate limiter
-    _limiter = RateLimiter(REQUEST_SAMPLING)
-    _span = None  # type: Optional[Span]
+    # Configure sampler
+    _sampler = RateSampler(sample_rate=REQUEST_SAMPLING / 100.0)
 
     def acquire_request(self, span):  # type: (Span) -> None
         """Block a request's quota at start of the request.
 
         TODO: Implement sampling request in this method
         """
-        self._span = span
-        if self._request_quota > 0 and self._limiter.is_allowed(span.start_ns):
+        if self._request_quota > 0 and self._sampler.sample(span):
             self._request_quota -= 1
             self._enabled = True
 
