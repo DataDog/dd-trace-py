@@ -161,21 +161,24 @@ def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
 
 # @pytest.fixture()
 # def psycopg3_patched(transactional_db):
-#     from django.db import connections
+#     if django.VERSION < (4, 2, 0):
+#         pytest.skip(eason="Psycopg3 not supported in django<4.2")
+#     else:
+#         from django.db import connections
 
-#     from ddtrace.contrib.psycopg.patch import patch
-#     from ddtrace.contrib.psycopg.patch import unpatch
+#         from ddtrace.contrib.psycopg.patch import patch
+#         from ddtrace.contrib.psycopg.patch import unpatch
 
-#     patch()
+#         patch()
 
-#     # # force recreate connection to ensure psycopg3 patching has occurred
-#     del connections["postgres"]
-#     connections["postgres"].close()
-#     connections["postgres"].connect()
+#         # # force recreate connection to ensure psycopg3 patching has occurred
+#         del connections["postgres"]
+#         connections["postgres"].close()
+#         connections["postgres"].connect()
 
-#     yield
+#         yield
 
-#     unpatch()
+#         unpatch()
 
 
 # @pytest.mark.django_db
