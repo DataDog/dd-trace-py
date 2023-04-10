@@ -12,14 +12,16 @@ from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
+from ..writer import TraceWriter
 from ..writer import get_writer_interval_seconds
+from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
 
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "PUT"
-    STATSD_NAMESPACE = "civisibilitywriter"
+    STATSD_NAMESPACE = "civisibility.writer"
 
     def __init__(
         self,
@@ -37,8 +39,8 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
-        encoder = CIVisibilityEncoderV01(0, 0)
-        encoder.set_metadata(
+        event_encoder = CIVisibilityEncoderV01(0, 0)
+        event_encoder.set_metadata(
             {
                 "language": "python",
                 "env": config.env,
@@ -46,7 +48,6 @@ class CIVisibilityWriter(HTTPWriter):
                 "library_version": ddtrace.__version__,
             }
         )
-
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
@@ -55,7 +56,7 @@ class CIVisibilityWriter(HTTPWriter):
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             endpoint="api/v2/citestcycle",
-            encoder=encoder,
+            encoder=event_encoder,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -81,3 +82,48 @@ class CIVisibilityWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
         )
+
+
+class CIVisibilityEventWriter(CIVisibilityWriter):
+    STATSD_NAMESPACE = "civisibility.eventwriter"
+
+    def __init__(self, **kwargs):
+        event_encoder = CIVisibilityEncoderV01(0, 0)
+        event_encoder.set_metadata(
+            {
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
+
+        super(CIVisibilityWriter, self).__init__(endpoint="api/v2/citestcycle", encoder=event_encoder, **kwargs)
+
+
+class CIVisibilityCoverageWriter(CIVisibilityWriter):
+    STATSD_NAMESPACE = "civisibility.coveragewriter"
+
+    def __init__(self, **kwargs):
+        super(CIVisibilityWriter, self).__init__(
+            endpoint="api/v2/citestcov", encoder=CIVisibilityCoverageEncoderV02(0, 0), **kwargs
+        )
+
+
+class CIVisibilityWriterGroup(TraceWriter):
+    def __init__(self, **kwargs):
+        _event_writer = CIVisibilityEventWriter(**kwargs)
+        _coverage_writer = CIVisibilityCoverageWriter(**kwargs)
+        self._writers = [_event_writer, _coverage_writer]
+
+    def stop(self, timeout=None):
+        for writer in self._writers:
+            writer.stop(timeout=timeout)
+
+    def flush_queue(self, raise_exc=False):
+        for writer in self._writers:
+            writer.flush_queue(raise_exc=raise_exc)
+
+    def write(self, spans=None):
+        for writer in self._writers:
+            writer.write(spans=spans)
