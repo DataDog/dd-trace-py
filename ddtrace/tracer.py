@@ -467,7 +467,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self._writer, AgentWriter):
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if any(
             x is not None
