@@ -26,7 +26,7 @@ services:
         ports:
             - "127.0.0.1:8500:8500"
     postgres:
-        image: postgres:11-alpine
+        image: postgres:12-alpine
         environment:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
