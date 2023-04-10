@@ -1,6 +1,9 @@
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
+from ddtrace.internal.agent import get_stats_url
+from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -26,6 +29,23 @@ ERROR_TAG_PREFIX = "error"
 ENGINE = "engine"
 
 
+_statsd = None
+
+
+def _stats_client():
+    global _statsd
+    if _statsd is None:
+        # FIXME: this currently does not consider if the tracer
+        # is configured to use a different hostname.
+        # eg. tracer.configure(host="new-hostname")
+        _statsd = get_dogstatsd_client(
+            get_stats_url(),
+            namespace="openai",
+            tags=["env:%s" % config.env, "service:%s" % config.service, "version:%s" % config.version],
+        )
+    return _statsd
+
+
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
@@ -36,7 +56,6 @@ def patch():
     _w = wrapt.wrap_function_wrapper
     _w("openai", "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
     Pin().onto(openai)
-
     setattr(openai, "__datadog_patch", True)
 
 
@@ -53,9 +72,9 @@ def patched_create(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     if not hasattr(instance, "OBJECT_NAME"):
         setattr(instance, "OBJECT_NAME", infer_object_name(kwargs))
-    resource = kwargs.get("model") if kwargs.get("model") is not None else instance.OBJECT_NAME
+    model_name = kwargs.get("model") if kwargs.get("model") is not None else instance.OBJECT_NAME
     with pin.tracer.trace(
-        "openai.request", resource=resource, service=trace_utils.ext_service(pin, config.openai)
+        "openai.request", resource=model_name, service=trace_utils.ext_service(pin, config.openai)
     ) as span:
         span.set_tag_str(COMPONENT, config.openai.integration_name)
         span.set_tag_str(ENGINE, instance.OBJECT_NAME)
@@ -78,3 +97,5 @@ def patched_create(openai, pin, func, instance, args, kwargs):
                 append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
             )
             raise err
+        finally:
+            _stats_client().distribution("request.duration", time_ns() - span.start_ns, tags=["model:%s" % model_name])
