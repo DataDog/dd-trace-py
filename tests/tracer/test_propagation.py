@@ -11,7 +11,6 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -596,6 +595,9 @@ def test_get_wsgi_header(tracer):
     assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
+TRACE_ID = 171395628812617415352188477958425669623
+TRACE_ID_HEX = "80f198ee56343ba864fe8b2a57d3eff7"
+
 # for testing with other propagation styles
 TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
@@ -606,13 +608,6 @@ TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
-
-if asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")):
-    TRACE_ID = 171395628812617415352188477958425669623
-    TRACE_ID_HEX = "80f198ee56343ba864fe8b2a57d3eff7"
-else:
-    TRACE_ID = 7277407061855694839
-    TRACE_ID_HEX = "000000000000000064fe8b2a57d3eff7"
 
 
 @pytest.mark.parametrize(
