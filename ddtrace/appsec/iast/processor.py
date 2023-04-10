@@ -26,7 +26,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request()
+        oce.acquire_request(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None

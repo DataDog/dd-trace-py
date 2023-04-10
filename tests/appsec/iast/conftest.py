@@ -13,7 +13,7 @@ def iast_span(tracer, env):
         with tracer.trace("test") as span:
             weak_hash_patch()
             weak_cipher_patch()
-            oce.acquire_request()
+            oce.acquire_request(span)
             yield span
             oce.release_request()
             weak_hash_unpatch()
