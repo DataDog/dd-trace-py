@@ -14,7 +14,7 @@ class FlaskSQLi(bm.Scenario):
         with utils.server(self) as get_response:
 
             def _(loops):
-                for _ in range(loops):
+                for _ in range(500):
                     get_response()
 
             yield _

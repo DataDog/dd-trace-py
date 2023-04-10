@@ -46,14 +46,13 @@ def server(scenario):
     env = {
         "PERF_TRACER_ENABLED": str(scenario.tracer_enabled),
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
-        "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
-        "PERF_IAST_ENABLED": str(scenario.iast_enabled),
+        "DD_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "DD_IAST_ENABLED": str(scenario.iast_enabled),
         "PERF_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
     }
     # copy over current environ
     env.update(os.environ)
-    cmd = ["ddtrace-run", "gunicorn", "-c", "gunicorn.conf.py"]
+    cmd = ["gunicorn", "-c", "gunicorn.conf.py"]
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
