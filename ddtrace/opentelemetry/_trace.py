@@ -51,7 +51,7 @@ class TracerProvider(OtelTracerProvider):
         schema_url=None,
     ):
         # type: (str, Optional[str], Optional[str]) -> OtelTracer
-        """Returns an opentelmetry compatible Tracer."""
+        """Returns an opentelemetry compatible Tracer."""
         return Tracer(self._ddtracer)
 
 
