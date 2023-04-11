@@ -10,8 +10,6 @@ interactions:
       - '*/*'
       Accept-Encoding:
       - gzip, deflate
-      Authorization:
-      - XXXXXX
       Connection:
       - keep-alive
       Content-Length:
@@ -19,28 +17,29 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - OpenAI/v1 PythonBindings/0.27.2
+      - OpenAI/v1 PythonBindings/0.27.4
       X-OpenAI-Client-User-Agent:
-      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
-        "3.11.2", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
-        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
-        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+      - '{"bindings_version": "0.27.4", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.11", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA7zOPWvDMBSF4b2/QtxZDnZc1662ZkiWQgenZCglKNaNrUbWVaUbmhD830ugH2un
-        ri+cw3MBa0BBN2juxuCyujy3Bz9fbA7vvj2Fc/DNosndsq+eVhok0O4NO/5azDoag0O25EFCF1Ez
-        GlDFXVMUTVFXjYSRDDpQ0AfOylmV8THuKMvLvAAJx6R7BHWBEGkMvGU6oE+gqlrC7/VPLmsJTKzd
-        T7m/nSR0A9kOE6iXC4yYvj8jOQQFOiWbWHu+Cskz+qt+PaCY5/NcbCg6I1qMFpP40EkEp89ohGax
-        crRD8Wj3KJYWnRHWi4forO+ZvBRrPOkkxbO3jEa0rBnTDCYJe+ttGrYRdSIPChJTAAnWGzyByif5
-        /8w/uIrpdbr5BAAA//8DAGPACWkOAgAA
+        H4sIAAAAAAAAA5SPzWobMRRG932Ky11rzIx/als7k7TBEFqKg7MoxcjStUepRldI19S1mXcvpolL
+        du72wPdxzhm9Q422NWK7FKrpeLFayBd7Oub5bG3DarcK6/U3k07L0ydUyNsXsvK6GFjuUiDxHFGh
+        zWSEHOrm46wZDqezSa2wY0cBNe6TVKPBpJJD3nJVj+oGFR6K2RPqM6bMXZKN8E+KBfVkqvDf9RWP
+        pwqFxYQraepxr9C27C0V1N/P2FF5O80cCDWaUnwRE+WiyFEoXvSfWoJhPazhmXNwsKLsqcAvUyAF
+        85scGAEDkQ6STYDihRQ8BN4SPPodwWdPwYGPsMjBx71wVPBER1MUuAOBMEhLcPd1vbyvmjkkEx11
+        3g6wV7jz0Zd2k8kUjqixCCdU6KOjI+q6V/9X8S7Ax79V70NuEb9Brel/9B/+AAAA//8DALNWo4Ux
+        AgAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b5ff422ca58189d-EWR
+      - 7b64596efdf5ff78-BOS
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -50,7 +49,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Apr 2023 02:55:59 GMT
+      - Tue, 11 Apr 2023 15:44:29 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -62,21 +61,21 @@ interactions:
       openai-model:
       - gpt-3.5-turbo-0301
       openai-organization:
-      - datadog-4
+      - user-f23xvdxbrssd56y1ghcjdcue
       openai-processing-ms:
-      - '1430'
+      - '19456'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '3500'
+      - '20'
       x-ratelimit-remaining-requests:
-      - '3499'
+      - '19'
       x-ratelimit-reset-requests:
-      - 17ms
+      - 3s
       x-request-id:
-      - 4884c5c1462e84882c854ba728074c12
+      - 7bf0cc199790aec81b383ea959d0b1da
     status:
       code: 200
       message: OK

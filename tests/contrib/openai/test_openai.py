@@ -26,6 +26,7 @@ openai_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
     record_mode="once",
     match_on=["path"],
+    filter_headers=["authorization"],
     # Ignore requests to the agent
     ignore_localhost=True,
 )
