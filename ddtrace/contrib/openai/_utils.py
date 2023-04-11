@@ -7,7 +7,7 @@ if typing.TYPE_CHECKING:
 
 # SUPPORTED_ENGINES specifies the engines we support custom span formatting
 # for request/response data.
-SUPPORTED_ENGINES = {"ChatCompletion": "chat.completions", "Completions": "completions", "Embeddings": "embeddings"}
+SUPPORTED_ENGINES = {"ChatCompletions": "chat.completions", "Completions": "completions", "Embeddings": "embeddings"}
 
 # See models and endpoints at: https://platform.openai.com/docs/models/model-endpoint-compatibility
 # See pricing at: https://openai.com/pricing
@@ -32,6 +32,49 @@ PRICING = {
     "embeddings": {"text-embedding-ada-002": 0.0004, "text-search-ada-doc-001": 0.0004},
 }
 
+# ENGINE_ARGUMENTS specifies request/response endpoint fields
+# we want to parse and store in spans.
+ENGINE_ARGUMENTS = {
+    SUPPORTED_ENGINES["ChatCompletions"]: {
+        "request": [
+            "model",
+            "top_p",
+            "n",
+            "stream",
+            "stop",
+            "max_tokens",
+            "presence_penalty",
+            "frequency_penalty",
+            "logit_bias",
+            "messages",
+        ],
+        "response": ["id", "object", "created", "choices", "usage"],
+    },
+    SUPPORTED_ENGINES["Completions"]: {
+        "request": [
+            "model",
+            "suffix" "max_tokens",
+            "temperature",
+            "top_p",
+            "n",
+            "stream",
+            "logprobs",
+            "echo",
+            "stop",
+            "presence_penalty",
+            "frequency_penalty",
+            "best_of",
+            "logit_bias",
+            "user",
+        ],
+        "response": ["id", "object", "created", "choices", "usage"],
+    },
+    SUPPORTED_ENGINES["Embeddings"]: {
+        "request": ["model", "input", "user"],
+        "response": ["model" "data", "object", "usage"],
+    },
+}
+
 
 def append_tag_prefixes(key_prefixes, data):
     # type: (List[str], Dict[str, str]) -> Dict[str, str]
@@ -47,7 +90,7 @@ def expand(data):
 
 def update_engine_names(openai):
     if hasattr(openai, "ChatCompletion") and hasattr(openai.ChatCompletion, "OBJECT_NAME"):
-        SUPPORTED_ENGINES["ChatCompletion"] == openai.ChatCompletion.OBJECT_NAME
+        SUPPORTED_ENGINES["ChatCompletions"] == openai.ChatCompletion.OBJECT_NAME
     if hasattr(openai, "Completion") and hasattr(openai.Completion, "OBJECT_NAME"):
         SUPPORTED_ENGINES["Completions"] == openai.Completion.OBJECT_NAME
     if hasattr(openai, "Embeddings") and hasattr(openai.Embeddings, "OBJECT_NAME"):
@@ -76,18 +119,19 @@ def process_response(openai, engine, resp):
     try:
         update_engine_names(openai)
         resp = openai.util.convert_to_dict(resp)
-        if engine in (SUPPORTED_ENGINES["ChatCompletion"], SUPPORTED_ENGINES["Completions"]):
-            resp["choices"] = expand(resp["choices"])
-            return resp
-        elif engine == SUPPORTED_ENGINES["Embeddings"]:
-            if "data" in resp:
-                resp["data"] = {
+        ret = {}
+        for arg in ENGINE_ARGUMENTS[engine]["response"]:
+            if arg == "data" and engine == SUPPORTED_ENGINES["Embeddings"]:
+                ret["data"] = {
                     "num-embeddings": len(resp["data"]),
                     "embedding-length": len(resp["data"][0]["embedding"]),
                 }
-                return resp
-        else:
-            return resp
+            elif arg == "choices":
+                ret["choices"] = expand(resp.get("choices"))
+            else:
+                if resp.get(arg):
+                    ret[arg] = resp.get(arg)
+        return ret
     except KeyError or IndexError:
         return {}
 
@@ -95,18 +139,24 @@ def process_response(openai, engine, resp):
 def process_request(openai, engine, args, kwargs):
     try:
         update_engine_names(openai)
-        kwargs = kwargs.copy()
-        if engine == SUPPORTED_ENGINES["ChatCompletion"]:
-            messages = kwargs.get("messages")
-            # messages are a series of messages each defined by a `role` and `content`
-            kwargs["messages"] = expand(messages)
-        elif engine == SUPPORTED_ENGINES["Completions"]:
-            prompt = kwargs.get("prompt")
-            kwargs["prompt"] = expand(prompt)
-        elif engine == SUPPORTED_ENGINES["Embeddings"]:
-            inp = kwargs.get("input")
-            kwargs["input"] = expand(inp)
-        return {**kwargs, **{k: v for k, v in args}}
+        request = {}
+        input_data_arg = (
+            "messages"
+            if engine == SUPPORTED_ENGINES["ChatCompletions"]
+            else "prompt"
+            if engine == SUPPORTED_ENGINES["Completions"]
+            else "input"
+            if engine == SUPPORTED_ENGINES["Embeddings"]
+            else None
+        )
+        for arg in ENGINE_ARGUMENTS[engine]["request"]:
+            if input_data_arg and arg == input_data_arg:
+                request[arg] = expand(kwargs.get(arg))
+            else:
+                if kwargs.get(arg):
+                    request[arg] = kwargs.get(arg)
+        # to-do - need to investigate what actually shows up in `args` when
+        return request
     except KeyError or IndexError:
         return {}
 

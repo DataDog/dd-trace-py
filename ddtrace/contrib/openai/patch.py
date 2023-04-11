@@ -113,7 +113,7 @@ def usage_metrics(usage, model, engine, metrics_tags):
         name = "{}.{}".format("tokens", token_type)
         # want to capture total count for tokens, as well its distribution
         _stats_client().increment(name, num_tokens, tags=metrics_tags)
-        _stats_client().distribution(name, num_tokens, tags=metrics_tags)
+        _stats_client().distribution(name + ".distribution", num_tokens, tags=metrics_tags)
     # increment price info
     prompt_price = get_price(model, num_tokens, engine, "prompt")
     completion_price = get_price(model, num_tokens, engine, "completion")
