@@ -45,11 +45,13 @@
          "language": "python",
          "net.peer.ip": "127.0.0.1",
          "runtime-id": "c6467d51b30d46e0960922cfeddda2a4",
-         "span.kind": "server"
+         "span.kind": "server",
+         "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 0,
          "net.host.port": 8001,
          "net.peer.port": 50782,
          "process_id": 34028

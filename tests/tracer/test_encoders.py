@@ -22,6 +22,7 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
@@ -292,6 +293,65 @@ def decode(obj, reconstruct=True):
         traces = unpacked
 
     return traces
+
+
+def test_encode_traces_civisibility_v0():
+    traces = [
+        [
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+        ],
+        [
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
+        ],
+        [
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
+            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
+        ],
+    ]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata(
+        {
+            "language": "python",
+        }
+    )
+    for trace in traces:
+        encoder.put(trace)
+    payload = encoder.encode()
+    assert isinstance(payload, msgpack_type)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    assert decoded[b"version"] == 1
+    assert len(decoded[b"metadata"]) == 1
+
+    star_metadata = decoded[b"metadata"][b"*"]
+    assert star_metadata[b"language"] == b"python"
+
+    received_events = sorted(decoded[b"events"], key=lambda event: event[b"content"][b"start"])
+    assert len(received_events) == 6
+
+    all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
+    for given_span, received_event in zip(all_spans, received_events):
+        expected_event = {
+            b"type": b"test" if given_span.span_type == "test" else b"span",
+            b"version": 1,
+            b"content": {
+                b"trace_id": JSONEncoderV2._encode_id_to_hex(given_span._trace_id_64bits).encode("utf-8"),
+                b"span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id).encode("utf-8"),
+                b"parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id).encode("utf-8"),
+                b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
+                b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
+                b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
+                b"type": given_span.span_type.encode("utf-8") if given_span.span_type else None,
+                b"start": given_span.start_ns,
+                b"duration": given_span.duration_ns,
+                b"meta": dict(sorted(given_span._meta.items())),
+                b"metrics": dict(sorted(given_span._metrics.items())),
+                b"error": 0,
+            },
+        }
+        assert expected_event == received_event
 
 
 def allencodings(f):
