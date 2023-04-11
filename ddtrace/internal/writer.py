@@ -388,7 +388,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = None
 
     def _put(self, data, headers, client):
-        # type: (bytes, Dict[str, str], Optional[WriterClientBase]) -> Response
+        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -656,7 +656,7 @@ class AgentWriter(HTTPWriter):
                 }
             )
 
-        _headers.update({"Content-Type": client.encoder.content_type})
+        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
