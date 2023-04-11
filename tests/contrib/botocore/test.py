@@ -1605,7 +1605,11 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(
+            QueueUrl=queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=10,
+        )
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1626,6 +1630,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_json is None
 
         # receive message using SQS and ensure headers are present
+        assert response.get("Messages"), response
         assert len(response["Messages"]) == 1
         msg = response["Messages"][0]
         assert msg is not None
