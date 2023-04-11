@@ -3,6 +3,7 @@ from mako.template import DefTemplate
 from mako.template import Template
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -51,8 +52,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
     template_name = template_name or DEFAULT_TEMPLATE_NAME
 
     with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", "mako")
+        span.set_tag_str(COMPONENT, "mako")
 
         span.set_tag(SPAN_MEASURED_KEY)
         try:

@@ -20,7 +20,7 @@ namespace Datadog {
 // Forward
 class Profile;
 
-struct DdogProfExporter {
+class DdogProfExporter {
   void add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
 
 public:

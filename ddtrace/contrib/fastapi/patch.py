@@ -1,5 +1,4 @@
 import fastapi
-from fastapi.middleware import Middleware
 import fastapi.routing
 
 from ddtrace import Pin
@@ -35,11 +34,8 @@ def span_modifier(span, scope):
         span.resource = "{} {}".format(scope["method"], resource)
 
 
-def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.fastapi))
-    kwargs.update({"middleware": mw})
-    wrapped(*args, **kwargs)
+def wrap_middleware_stack(wrapped, instance, args, kwargs):
+    return TraceMiddleware(app=wrapped(*args, **kwargs), integration_config=config.fastapi)
 
 
 async def traced_serialize_response(wrapped, instance, args, kwargs):
@@ -73,7 +69,7 @@ def patch():
 
     setattr(fastapi, "_datadog_patch", True)
     Pin().onto(fastapi)
-    _w("fastapi.applications", "FastAPI.__init__", traced_init)
+    _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
     # We need to check that Starlette instrumentation hasn't already patched these
@@ -90,7 +86,7 @@ def unpatch():
 
     setattr(fastapi, "_datadog_patch", False)
 
-    _u(fastapi.applications.FastAPI, "__init__")
+    _u(fastapi.applications.FastAPI, "build_middleware_stack")
     _u(fastapi.routing, "serialize_response")
 
     # We need to check that Starlette instrumentation hasn't already unpatched these

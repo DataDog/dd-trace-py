@@ -13,10 +13,12 @@
       "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
+      "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "5113f19f40fc4d19bb09913e11d5f1bf"
+      "runtime-id": "1b018a1ff6344b3a95773b9b631c4ada",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,11 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 5432,
-      "process_id": 78166,
-      "sql.rows": 2
+      "db.row_count": 2,
+      "network.destination.port": 5432,
+      "process_id": 78166
     },
-    "duration": 3560000,
-    "start": 1632160756723404000
+    "duration": 2382000,
+    "start": 1667243097706684000
   }]]

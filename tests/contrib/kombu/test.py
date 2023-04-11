@@ -43,7 +43,7 @@ class TestKombuPatch(TracerTestCase):
     def test_extract_conn_tags(self):
         result = utils.extract_conn_tags(self.conn)
         assert result["out.host"] == "127.0.0.1"
-        assert result["out.port"] == str(self.TEST_PORT)
+        assert result["network.destination.port"] == str(self.TEST_PORT)
 
     def _publish_consume(self):
         results = []
@@ -81,6 +81,7 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(producer_span.get_tag("kombu.routing_key"), u"tasks")
         self.assertEqual(producer_span.resource, "tasks")
         self.assertEqual(producer_span.get_tag("component"), "kombu")
+        self.assertEqual(producer_span.get_tag("span.kind"), "producer")
 
         consumer_span = spans[1]
         assert_is_measured(consumer_span)
@@ -91,6 +92,7 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.get_tag("kombu.exchange"), u"tasks")
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), u"tasks")
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
+        self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
 
     def test_analytics_default(self):
         self._publish_consume()

@@ -5,10 +5,15 @@ import pymongo
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import db
+from ...ext import mongo
 from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
@@ -16,9 +21,7 @@ from .client import set_address_tags
 
 config._add(
     "pymongo",
-    dict(
-        _default_service="pymongo",
-    ),
+    dict(_default_service="pymongo"),
 )
 
 
@@ -69,8 +72,11 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
     ) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.pymongo.integration_name)
+        span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+        span.set_tag_str(db.SYSTEM, mongo.SERVICE)
+
+        # set span.kind tag equal to type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)

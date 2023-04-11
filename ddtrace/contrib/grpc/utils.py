@@ -3,6 +3,7 @@ import logging
 from ddtrace.internal.compat import parse
 
 from . import constants
+from ...ext import net
 
 
 log = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def set_grpc_client_meta(span, host, port):
     if host:
         span.set_tag_str(constants.GRPC_HOST_KEY, host)
     if port:
-        span.set_tag_str(constants.GRPC_PORT_KEY, str(port))
+        span.set_tag_str(net.TARGET_PORT, str(port))
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
 

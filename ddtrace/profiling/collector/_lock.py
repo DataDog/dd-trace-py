@@ -6,9 +6,9 @@ import sys
 import typing
 
 import attr
+from six.moves import _thread
 
 from ddtrace.internal import compat
-from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
@@ -44,7 +44,7 @@ class LockReleaseEvent(LockEventBase):
 
 def _current_thread():
     # type: (...) -> typing.Tuple[int, str]
-    thread_id = nogevent.thread_get_ident()
+    thread_id = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
 
@@ -138,12 +138,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             except Exception:
                 pass
 
-    def release(
-        self,
-        *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
-    ):
-        # type: (...) -> None
+    def release(self, *args, **kwargs):
+        # type (typing.Any, typing.Any) -> None
         try:
             return self.__wrapped__.release(*args, **kwargs)
         finally:
@@ -158,7 +154,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             frame = sys._getframe(1)
                         else:
                             frame = task_frame
-
 
                         if self.use_libdatadog:
                             thread_native_id = _threading.get_thread_native_id(thread_id)

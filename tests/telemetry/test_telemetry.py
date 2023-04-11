@@ -59,9 +59,9 @@ telemetry_writer.enable()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_writer.app_started_event()
-    telemetry_writer.app_started_event()
-    telemetry_writer.app_started_event()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())

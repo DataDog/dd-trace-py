@@ -11,10 +11,12 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "redis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
-      "runtime-id": "6446f27dcf0e439eb015e4d19ecc4609"
+      "runtime-id": "b8f85bec81c04f81aa7a1e60a8dd199f",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,13 +24,13 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
+      "network.destination.port": 6379,
       "out.redis_db": 0,
       "process_id": 773,
       "redis.args_length": 3
     },
-    "duration": 3449000,
-    "start": 1666795689177580000
+    "duration": 5107000,
+    "start": 1667243546134215000
   }],
 [
   {
@@ -43,10 +45,12 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "redis",
+      "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
-      "runtime-id": "6446f27dcf0e439eb015e4d19ecc4609"
+      "runtime-id": "b8f85bec81c04f81aa7a1e60a8dd199f",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -54,11 +58,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
+      "network.destination.port": 6379,
       "out.redis_db": 0,
       "process_id": 773,
       "redis.pipeline_length": 1
     },
-    "duration": 2181000,
-    "start": 1666795689181166000
+    "duration": 1697000,
+    "start": 1667243546139425000
   }]]

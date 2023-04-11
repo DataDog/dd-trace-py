@@ -3,12 +3,15 @@ import os
 import aiobotocore.client
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
@@ -77,8 +80,10 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         operation_name = "{}.read".format(self._self_parent_span.name)
 
         with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.aiobotocore.integration_name)
+            span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+
+            # set span.kind tag equal to type of request
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
@@ -114,8 +119,10 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.aiobotocore.integration_name)
+        span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+
+        # set span.kind tag equal to type of request
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

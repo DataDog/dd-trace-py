@@ -112,10 +112,9 @@ class MemoryCollector(collector.PeriodicCollector):
 
         super(MemoryCollector, self)._start_service()
 
-    def _stop_service(self):
-        # type: (...) -> None
-        super(MemoryCollector, self)._stop_service()
-
+    @staticmethod
+    def on_shutdown():
+        # type: () -> None
         if _memalloc is not None:
             try:
                 _memalloc.stop()
@@ -175,9 +174,14 @@ class MemoryCollector(collector.PeriodicCollector):
         )
 
     def collect(self):
-        events, count, alloc_count = _memalloc.iter_events()
-        capture_ratio = count / alloc_count
-        capture_pct = 100 * capture_ratio
+        try:
+            events, count, alloc_count = _memalloc.iter_events()
+        except RuntimeError:
+            # DEV: This can happen if either _memalloc has not been started or has been stopped.
+            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
+            return tuple()
+
+        capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds

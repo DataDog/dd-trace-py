@@ -234,7 +234,7 @@ cdef class MsgpackStringTable(StringTable):
         self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
-        assert self.index(ORIGIN_KEY) == 1
+        self.index(ORIGIN_KEY)
         self._reset_size = self.pk.length
 
     def __dealloc__(self):
@@ -243,6 +243,11 @@ cdef class MsgpackStringTable(StringTable):
 
     cdef insert(self, object string):
         cdef int ret
+
+        if len(string) > self.max_size:
+            string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
+                len(string), self.max_size
+            )
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
@@ -293,7 +298,12 @@ cdef class MsgpackStringTable(StringTable):
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
         with self._lock:
-            assert self.size + size <= self.max_size
+            if self.size + size > self.max_size:
+                raise BufferFull(
+                    "Cannot append raw bytes: string table is full (current size: %d, max size: %d)." % (
+                        self.size, self.max_size
+                    )
+                )
             res = msgpack_pack_raw_body(&self.pk, <char *>PyLong_AsLong(src), size)
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
@@ -594,7 +604,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         if ret == 0:
             ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
             if ret != 0: return ret
-            ret = pack_number(&self.pk, span.trace_id)
+            ret = pack_number(&self.pk, span._trace_id_64bits)
             if ret != 0: return ret
 
             if has_parent_id:
@@ -708,7 +718,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = self._pack_string(span.resource)
         if ret != 0: return ret
 
-        _ = span.trace_id
+        _ = span._trace_id_64bits
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         

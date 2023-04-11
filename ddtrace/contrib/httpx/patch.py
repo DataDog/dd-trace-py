@@ -7,13 +7,17 @@ from six import ensure_text
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
@@ -24,7 +28,8 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
-HTTPX_VERSION = tuple(map(int, httpx.__version__.split(".")))
+
+HTTPX_VERSION = parse_version(httpx.__version__)
 
 config._add(
     "httpx",
@@ -41,14 +46,21 @@ def _url_to_str(url):
     """
     Helper to convert the httpx.URL parts from bytes to a str
     """
-    # httpx==0.23.1 removed URL.raw, must construct it manually
-    if HTTPX_VERSION >= (0, 23, 1):
+    # httpx==0.13.0 added URL.raw, removed in httpx==0.23.1. Otherwise, must construct manually
+    if HTTPX_VERSION < (0, 13, 0):
+        # Manually construct the same way httpx==0.13 does it:
+        # https://github.com/encode/httpx/blob/2c2c6a71a9ff520d237f8283a586df2753f01f5e/httpx/_models.py#L161
+        scheme = url.scheme.encode("ascii")
+        host = url.host.encode("ascii")
+        port = url.port
+        raw_path = url.full_path.encode("ascii")
+    elif HTTPX_VERSION < (0, 23, 1):
+        scheme, host, port, raw_path = url.raw
+    else:
         scheme = url.raw_scheme
         host = url.raw_host
         port = url.port
         raw_path = url.raw_path
-    else:
-        scheme, host, port, raw_path = url.raw
     url = scheme + b"://" + host
     if port is not None:
         url += b":" + ensure_binary(str(port))
@@ -109,8 +121,10 @@ async def _wrapped_async_send(
         return await wrapped(*args, **kwargs)
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.httpx.integration_name)
+        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+
+        # set span.kind to the operation type being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None
@@ -135,8 +149,10 @@ def _wrapped_sync_send(
     req = get_argument_value(args, kwargs, 0, "request")
 
     with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.httpx.integration_name)
+        span.set_tag_str(COMPONENT, config.httpx.integration_name)
+
+        # set span.kind to the operation type being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         _init_span(span, req)
         resp = None
@@ -154,11 +170,17 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
-    _w(httpx.AsyncClient, "send", _wrapped_async_send)
-    _w(httpx.Client, "send", _wrapped_sync_send)
-
     pin = Pin()
-    pin.onto(httpx.AsyncClient)
+
+    if HTTPX_VERSION >= (0, 11):
+        # httpx==0.11 created synchronous Client class separate from AsyncClient
+        _w(httpx.Client, "send", _wrapped_sync_send)
+        _w(httpx.AsyncClient, "send", _wrapped_async_send)
+        pin.onto(httpx.AsyncClient)
+    else:
+        # httpx==0.9 Client class was asynchronous, httpx==0.10 made Client synonymous with AsyncClient
+        _w(httpx.Client, "send", _wrapped_async_send)
+
     pin.onto(httpx.Client)
 
 
@@ -169,5 +191,8 @@ def unpatch():
 
     setattr(httpx, "_datadog_patch", False)
 
-    _u(httpx.AsyncClient, "send")
+    if HTTPX_VERSION >= (0, 11):
+        # See above patching code for when this patching occurred
+        _u(httpx.AsyncClient, "send")
+
     _u(httpx.Client, "send")

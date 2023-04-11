@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Handles a race condition on process shutdown that would cause an
+    error about a module not being started to occasionally appear in the logs.

@@ -1,10 +1,13 @@
 import consul
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
 from ...internal.utils import get_argument_value
@@ -50,8 +53,10 @@ def wrap_function(name):
         resource = name.upper()
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.consul.integration_name)
+            span.set_tag_str(COMPONENT, config.consul.integration_name)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.consul.get_analytics_sample_rate()

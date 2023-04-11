@@ -4,6 +4,7 @@ import platform
 import shutil
 import sys
 import tarfile
+import glob
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
@@ -45,7 +46,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.6.1"
+LIBDDWAF_VERSION = "1.8.2"
 
 LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog", "libdatadog"))
 
@@ -133,6 +134,10 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
+def is_64_bit_python():
+    return sys.maxsize > (1 << 32)
+
+
 class Library_Download():
     name = None
     download_dir = None
@@ -153,10 +158,19 @@ class Library_Download():
         if not os.path.isdir(cls.download_dir):
             os.makedirs(cls.download_dir)
 
-        build_platform = get_build_platform()
         for arch in cls.available_releases[CURRENT_OS]:
-            if CURRENT_OS == "Darwin" and not build_platform.endswith(arch):
+            if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
+                continue
+            elif CURRENT_OS == "Darwin":
+                # Detect build type for macos:
+                # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
+                target_platform = os.getenv("PLAT")
+                # Darwin Universal2 should bundle both architectures
+                if not target_platform.endswith(("universal2", arch)):
+                    continue
+            elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
+                # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
 
             arch_dir = os.path.join(cls.download_dir, arch)
@@ -233,6 +247,7 @@ class LibDDWaf_Download(Library_Download):
         return TRANSLATE_SUFFIX[os]
 
     def run(self):
+        CleanLibraries.remove_libddwaf_artifacts()
         LibDDWaf_Download.download_artifacts()
         BuildPyCommand.run(self)
 
@@ -274,15 +289,22 @@ class Library_Downloader(BuildPyCommand):
         LibDatadog_Download.run(self)
         LibDDWaf_Download.run(self)
 
-
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_dynamic_library():
+    def remove_artifacts():
+        CleanLibraries.remove_libddwaf_artifacts()
+        CleanLibraries.remove_libddatadog_artifacts()
+
+    @staticmethod
+    def remove_libddwaf_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+
+    @staticmethod
+    def remove_libdatadog_artifacts():
         shutil.rmtree(LIBDATADOGPROF_DOWNLOAD_DIR, True)
 
     def run(self):
-        CleanLibraries.remove_dynamic_library()
+        CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
 
 
@@ -364,7 +386,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
-    if platform.system() != "Windows":
+    if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
                 "ddtrace.appsec.iast._stacktrace",
@@ -375,6 +397,20 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
+        if sys.version_info >= (3, 6, 0):
+            ext_modules.append(
+                Extension(
+                    "ddtrace.appsec.iast._taint_tracking._native",
+                    # Sort source files for reproducibility
+                    sources=sorted(
+                        glob.glob(
+                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                            recursive=True,
+                        )
+                    ),
+                    extra_compile_args=debug_compile_args + ["-std=c++17"],
+                )
+            )
 else:
     ext_modules = []
 
@@ -411,7 +447,6 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },
-    py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -438,6 +473,8 @@ setup(
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
+        "pep562; python_version<'3.7'",
+        "opentelemetry-api>=1; python_version>='3.7'",
     ]
     + bytecode,
     extras_require={
@@ -461,8 +498,8 @@ setup(
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
         ],
-        "gevent.plugins.monkey.did_patch_all": [
-            "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
+        "opentelemetry_context": [
+            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
         ],
     },
     classifiers=[

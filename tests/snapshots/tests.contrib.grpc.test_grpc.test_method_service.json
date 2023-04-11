@@ -16,9 +16,9 @@
       "grpc.method.name": "Handler",
       "grpc.method.path": "/Servicer/Handler",
       "grpc.method.service": "Servicer",
-      "grpc.port": "58143",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
+      "network.destination.port": "58143",
       "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
       "span.kind": "client"
     },
@@ -78,9 +78,9 @@
       "grpc.method.package": "pkg",
       "grpc.method.path": "/pkg.Servicer/Handler",
       "grpc.method.service": "Servicer",
-      "grpc.port": "58143",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
+      "network.destination.port": "58143",
       "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
       "span.kind": "client"
     },

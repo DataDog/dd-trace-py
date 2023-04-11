@@ -11,6 +11,8 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
+from ddtrace.internal.constants import COMPONENT
+
 from .. import trace_utils
 from ... import Pin
 from ... import Span
@@ -18,7 +20,9 @@ from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
 from ...propagation.http import HTTPPropagator
@@ -98,8 +102,10 @@ class _ClientInterceptor:
             resource=method_as_str,
         )
 
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.grpc_aio_client.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

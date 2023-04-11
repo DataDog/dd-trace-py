@@ -2,12 +2,12 @@
 from __future__ import absolute_import
 
 import sys
-import threading
 import typing
 
 import attr
 import six
 
+from ddtrace import _threading as ddtrace_threading
 from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
@@ -19,10 +19,6 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.datadog import ddup
-
-
-# NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
-# module without having gevent crashing our dedicated thread.
 
 
 # These are special features that might not be available depending on your Python version and platform
@@ -297,13 +293,12 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, use_libdatadog, use_pyprof):
-    if ignore_profiler:
-        # Do not use `threading.enumerate` to not mess with locking (gevent!)
-        thread_id_ignore_list = {thread_id
-                                 for thread_id, thread in threading._active.items()
-                                 if getattr(thread, "_ddtrace_profiling_ignore", False)}
-    else:
-        thread_id_ignore_list = set()
+    # Do not use `threading.enumerate` to not mess with locking (gevent!)
+    thread_id_ignore_list = {
+        thread_id
+        for thread_id, thread in ddtrace_threading._active.items()
+        if getattr(thread, "_ddtrace_profiling_ignore", False)
+    } if ignore_profiler else set()
 
     running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
@@ -315,12 +310,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, thread_pyframes, exception, span, cpu_time in running_threads:
-        thread_task_id, thread_task_name, thread_task_frame = _task.get_task(thread_id)
-
-        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks.
-        # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
-        # We ignore them here:
-        if thread_task_id in thread_id_ignore_list:
+        if thread_name is None:
+            # A Python thread with no name is likely still initialising so we
+            # ignore it to avoid reporting potentially misleading data.
+            # Effectively we would be discarding a negligible number of samples.
             continue
 
         tasks = _task.list_tasks(thread_id)
@@ -366,7 +359,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             ddup.push_walltime(wall_time, 1)
             ddup.push_cputime(cpu_time, 1)
             ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-            ddup.push_taskinfo(thread_task_id, thread_task_name)
+            ddup.push_taskinfo(task_id, task_name)
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes, use_libdatadog, use_pyprof)
 
@@ -378,8 +371,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
+                task_id=None,
+                task_name=None,
                 nframes=nframes,
                 frames=frames,
                 wall_time_ns=wall_time,
@@ -394,7 +387,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if use_libdatadog:
                 ddup.start_sample()
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_taskinfo(thread_task_id, thread_task_name)
+                ddup.push_taskinfo(task_id, task_name)
                 ddup.push_exceptioninfo(exc_type, 1)
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes, use_libdatadog, use_pyprof)
@@ -407,8 +400,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     thread_id=thread_id,
                     thread_name=thread_name,
                     thread_native_id=thread_native_id,
-                    task_id=thread_task_id,
-                    task_name=thread_task_name,
+                    task_id=None,
+                    task_name=None,
                     nframes=nframes,
                     frames=frames,
                     sampling_period=int(interval * 1e9),

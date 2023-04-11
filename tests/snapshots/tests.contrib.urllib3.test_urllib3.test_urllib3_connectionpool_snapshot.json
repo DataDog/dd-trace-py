@@ -15,7 +15,8 @@
       "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
-      "runtime-id": "cc5307bbec5b4359979671a968f8dcc8"
+      "runtime-id": "225d6ef7f3cc4d50998e2b6d4678091c",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,6 +25,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 6354
     },
-    "duration": 18940000,
-    "start": 1666810143801801000
+    "duration": 8974000,
+    "start": 1667244229915869000
   }]]

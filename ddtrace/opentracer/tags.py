@@ -18,6 +18,6 @@ Tags = TagNames(
     SAMPLING_PRIORITY="sampling.priority",
     SERVICE_NAME="service.name",
     TARGET_HOST="out.host",
-    TARGET_PORT="out.port",
+    TARGET_PORT="network.destination.port",
     SPAN_TYPE="span.type",
 )

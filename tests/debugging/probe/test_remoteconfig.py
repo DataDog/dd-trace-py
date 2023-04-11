@@ -4,10 +4,15 @@ from uuid import uuid4
 import pytest
 
 from ddtrace.debugging._config import config
+from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.remoteconfig import probe_factory
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
@@ -155,7 +160,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
                 # New
                 create_snapshot_line_probe(
@@ -163,7 +167,6 @@ def test_poller_events(mock_config):
                     source_file="tests/debugger/submod/stuff.py",
                     line=36,
                     condition=None,
-                    active=False,
                 ),
             ]
         )
@@ -176,7 +179,6 @@ def test_poller_events(mock_config):
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
-            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe2"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
@@ -200,12 +202,15 @@ def test_multiple_configs():
         adapter = ProbeRCAdapter(cb)
 
         adapter(
-            config_metadata("snapshotProbe_probe1"),
+            config_metadata("spanProbe_probe1"),
             {
                 "id": "probe1",
+                "version": 0,
+                "type": ProbeType.SPAN_PROBE,
                 "active": True,
-                "tags": ["boo:far"],
-                "where": {"sourceFile": "tests/debugger/submod/stuff.py", "lines": ["36"]},
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
             },
         )
 
@@ -219,7 +224,8 @@ def test_multiple_configs():
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
-                "active": True,
+                "version": 1,
+                "type": ProbeType.METRIC_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
@@ -233,17 +239,36 @@ def test_multiple_configs():
             }
         )
 
+        adapter(
+            config_metadata("logProbe_probe3"),
+            {
+                "id": "probe3",
+                "version": 1,
+                "type": ProbeType.LOG_PROBE,
+                "tags": ["foo:bar"],
+                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "template": "hello {#foo}",
+                "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+            }
+        )
+
         sleep(0.5)
 
         # testing two things:
         #  1. after sleep 0.5 probe status should report 2 probes
-        #  2. bad config id raises ValueError
+        #  2. bad config raises ValueError
         with pytest.raises(ValueError):
             adapter(config_metadata("not-supported"), {})
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2"})),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
             }
         )
 
@@ -256,5 +281,138 @@ def test_multiple_configs():
             }
         )
 
+    finally:
+        config.diagnostics_interval = old_interval
+
+
+def test_log_probe_attributes_parsing():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "language": "python",
+            "where": {
+                "sourceFile": "foo.py",
+                "lines": ["57"],
+            },
+            "tags": ["env:staging", "version:v12417452-d2552757"],
+            "template": "{weekID} {idea}",
+            "segments": [
+                {"dsl": "weekID", "json": {"eq": [{"ref": "weekID"}, 1]}},
+                {"str": " "},
+                {"dsl": "idea", "json": {"ref": "idea"}},
+            ],
+            "captureSnapshot": False,
+            "capture": {"maxReferenceDepth": 42, "maxLength": 43},
+            "sampling": {"snapshotsPerSecond": 5000},
+        }
+    )
+
+    assert isinstance(probe, LogProbeMixin)
+
+    assert probe.limits.max_level == 42
+    assert probe.limits.max_len == 43
+
+
+def test_parse_log_probe_with_rate():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "sampling": {"snapshotsPerSecond": 1337},
+        }
+    )
+
+    assert probe.rate == 1337
+
+
+def test_parse_log_probe_default_rates():
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": True,
+        }
+    )
+
+    assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
+
+    probe = probe_factory(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "template": "hello {#foo}",
+            "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
+            "captureSnapshot": False,
+        }
+    )
+
+    assert probe.rate == DEFAULT_PROBE_RATE
+
+
+def test_modified_probe_events(mock_config):
+    events = []
+
+    def cb(e, ps):
+        events.append((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
+
+    mock_config.add_probes(
+        [
+            create_snapshot_line_probe(
+                probe_id="probe1",
+                version=1,
+                source_file="tests/debugger/submod/stuff.py",
+                line=36,
+                condition=None,
+            ),
+        ]
+    )
+
+    metadata = config_metadata()
+    old_interval = config.diagnostics_interval
+    config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter(metadata, {})
+
+        mock_config.add_probes(
+            [
+                create_snapshot_line_probe(
+                    probe_id="probe1",
+                    version=2,
+                    source_file="tests/debugger/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                )
+            ]
+        )
+        adapter(metadata, {})
+
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter(metadata, {})
+
+        assert events == [
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
+            (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
+        ]
     finally:
         config.diagnostics_interval = old_interval

@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    grpc: Deprecates ``ddtrace.contrib.grpc.constants.GRPC_PORT_KEY``. Use ``ddtrace.ext.net.TARGET_PORT`` instead.

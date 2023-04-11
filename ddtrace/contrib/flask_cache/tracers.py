@@ -6,10 +6,12 @@ import logging
 import typing
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...ext import db
 from .utils import _extract_client
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
@@ -68,8 +70,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             # create a new span
             s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
 
-            # set component tag equal to name of integration
-            s.set_tag_str("component", config.flask_cache.integration_name)
+            s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             # set span tags
@@ -95,7 +96,9 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
                     span.set_tag_str(COMMAND_KEY, args[0])
-                return super(TracedCache, self).get(*args, **kwargs)
+                result = super(TracedCache, self).get(*args, **kwargs)
+                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                return result
 
         def set(self, *args, **kwargs):
             """
@@ -151,7 +154,10 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
-                return super(TracedCache, self).get_many(*args, **kwargs)
+                result = super(TracedCache, self).get_many(*args, **kwargs)
+                # get many returns a list, with either the key value or None if it doesn't exist
+                span.set_metric(db.ROWCOUNT, sum(1 for val in result if val))
+                return result
 
         def set_many(self, *args, **kwargs):
             """

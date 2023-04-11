@@ -8,6 +8,7 @@ class FlaskSimple(bm.Scenario):
     appsec_enabled = bm.var_bool()
     iast_enabled = bm.var_bool()
     post_request = bm.var_bool()
+    telemetry_metrics_enabled = bm.var_bool()
 
     def run(self):
         with utils.server(self) as get_response:
