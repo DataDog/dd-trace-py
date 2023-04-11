@@ -247,10 +247,8 @@ class LibDDWaf_Download(Library_Download):
         return TRANSLATE_SUFFIX[os]
 
     @classmethod
-    def run(cls, self):
-        CleanLibraries.remove_libddwaf_artifacts()
+    def run(cls):
         LibDDWaf_Download.download_artifacts()
-        BuildPyCommand.run(self)
 
 class LibDatadog_Download(Library_Download):
     name = "datadog"
@@ -281,28 +279,21 @@ class LibDatadog_Download(Library_Download):
         return TRANSLATE_SUFFIX[os]
 
     @classmethod
-    def run(cls, self):
+    def run(cls):
         LibDatadog_Download.download_artifacts()
-        BuildPyCommand.run(self)
 
 
 class Library_Downloader(BuildPyCommand):
     def run(self):
-        LibDatadog_Download.run(self)
-        LibDDWaf_Download.run(self)
+        CleanLibraries.remove_artifacts()
+        LibDatadog_Download.run()
+        LibDDWaf_Download.run()
+        BuildPyCommand.run(self)
 
 class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
-        CleanLibraries.remove_libddwaf_artifacts()
-        CleanLibraries.remove_libdatadog_artifacts()
-
-    @staticmethod
-    def remove_libddwaf_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-
-    @staticmethod
-    def remove_libdatadog_artifacts():
         shutil.rmtree(LIBDATADOGPROF_DOWNLOAD_DIR, True)
 
     def run(self):
