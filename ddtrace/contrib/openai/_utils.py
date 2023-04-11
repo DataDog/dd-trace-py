@@ -80,14 +80,17 @@ def process_text(text):
     return text
 
 
-def infer_object_name(kwargs):
-    if kwargs.get("messages") is not None:
-        return "chat.completions"
-    elif kwargs.get("input") is not None:
-        return "embeddings"
-    elif kwargs.get("prompt") is not None:
-        return "completions"
-    return "<default>"
+def engine_resource_name(openai, instance):
+    update_engine_names(openai)
+    return (
+        "openai.chat.completion.create"
+        if instance.OBJECT_NAME == SUPPORTED_ENGINES["ChatCompletions"]
+        else "openai.completion.create"
+        if instance.OBJECT_NAME == SUPPORTED_ENGINES["Completions"]
+        else "openai.embedding.create"
+        if instance.OBJECT_NAME == SUPPORTED_ENGINES["Embeddings"]
+        else "openai.create"
+    )
 
 
 def process_response(openai, engine, resp):

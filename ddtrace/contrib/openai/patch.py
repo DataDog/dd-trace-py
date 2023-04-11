@@ -9,11 +9,10 @@ from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
 from ._utils import append_tag_prefixes
+from ._utils import engine_resource_name
 from ._utils import process_request
 from ._utils import process_response
 from ._utils import process_text
-from ._utils import SUPPORTED_ENGINES
-from ._utils import update_engine_names
 
 
 config._add(
@@ -93,49 +92,59 @@ def unpatch():
 
 @trace_utils.with_traced_module
 def patched_engine_create(openai, pin, func, instance, args, kwargs):
-    return _engine_create(openai, pin, func, instance, args, kwargs)
-
-
-@trace_utils_async.with_traced_module
-async def patched_async_engine_create(openai, pin, func, instance, args, kwargs):
-    return _engine_create(openai, pin, func, instance, args, kwargs)
-
-
-@trace_utils.with_traced_module
-def patched_create(openai, pin, func, instance, args, kwargs):
-    return _create(openai, pin, func, instance, args, kwargs)
-
-
-@trace_utils_async.with_traced_module
-async def patched_async_create(openai, pin, func, instance, args, kwargs):
-    return _create(openai, pin, func, instance, args, kwargs)
-
-
-def _engine_create(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     model_name = kwargs.get("model")
-    update_engine_names(openai)
-    resource_name = (
-        "openai.chat.completion.create"
-        if instance.OBJECT_NAME == SUPPORTED_ENGINES["ChatCompletions"]
-        else "openai.completion.create"
-        if instance.OBJECT_NAME == SUPPORTED_ENGINES["Completions"]
-        else "openai.embedding.create"
-        if instance.OBJECT_NAME == SUPPORTED_ENGINES["Embeddings"]
-        else "openai.create"
+    span = pin.tracer.trace(
+        engine_resource_name(openai, instance), resource=model_name, service=trace_utils.ext_service(pin, config.openai)
     )
-    span = pin.tracer.trace(resource_name, resource=model_name, service=trace_utils.ext_service(pin, config.openai))
     try:
         span.set_tag_str("model", model_name)
-        resp = func(*args, **kwargs)
-        return resp
+        return func(*args, **kwargs)
     finally:
         span.finish()
 
 
-def _create(openai, pin, func, instance, args, kwargs):
+@trace_utils_async.with_traced_module
+async def patched_async_engine_create(openai, pin, func, instance, args, kwargs):
+    # resource name is set to the model being used -- if that name is not found, use the engine name
     model_name = kwargs.get("model")
-    metric_tags = ["model:%s" % model_name, "engine:%s" % instance.OBJECT_NAME]
+    span = pin.tracer.trace(
+        engine_resource_name(openai, instance), resource=model_name, service=trace_utils.ext_service(pin, config.openai)
+    )
+    try:
+        span.set_tag_str("model", model_name)
+        return await func(*args, **kwargs)
+    finally:
+        span.finish()
+
+
+@trace_utils.with_traced_module
+def patched_create(openai, pin, func, instance, args, kwargs):
+    span = start_openai_span(openai, pin, instance, args, kwargs)
+    resp, err = None, None
+    try:
+        resp = func(*args, **kwargs)
+        return resp
+    except openai.error.OpenAIError as err:
+        err = err
+    finally:
+        finish_openai_span(span, resp, err, openai, instance, kwargs)
+
+
+@trace_utils_async.with_traced_module
+async def patched_async_create(openai, pin, func, instance, args, kwargs):
+    span = start_openai_span(openai, pin, instance, args, kwargs)
+    resp, err = None, None
+    try:
+        resp = await func(*args, **kwargs)
+        return resp
+    except openai.error.OpenAIError as err:
+        err = err
+    finally:
+        finish_openai_span(span, resp, err, openai, instance, kwargs)
+
+
+def start_openai_span(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace("openai.request", service=trace_utils.ext_service(pin, config.openai))
     span.set_tag_str(COMPONENT, config.openai.integration_name)
     span.set_tag_str(ENGINE, instance.OBJECT_NAME)
@@ -144,28 +153,31 @@ def _create(openai, pin, func, instance, args, kwargs):
         append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
         processor=process_text,
     )
-    try:
-        resp = func(*args, **kwargs)
+    return span
+
+
+def finish_openai_span(span, resp, err, openai, instance, kwargs):
+    model_name = kwargs.get("model")
+    metric_tags = ["model:%s" % model_name, "engine:%s" % instance.OBJECT_NAME]
+    if resp:
         set_flattened_tags(
             span,
             append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(openai, instance.OBJECT_NAME, resp)),
             processor=process_text,
         )
-        usage_metrics(resp.get("usage"), model_name, instance.OBJECT_NAME, metric_tags)
-        return resp
-    except openai.error.OpenAIError as err:
+        usage_metrics(resp.get("usage"), metric_tags)
+    elif err:
         set_flattened_tags(
             span,
             append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
         )
         _stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
         raise err
-    finally:
-        span.finish()
-        _stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
+    span.finish()
+    _stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
-def usage_metrics(usage, model, engine, metrics_tags):
+def usage_metrics(usage, metrics_tags):
     if not usage:
         return
     for token_type in ["prompt", "completion", "total"]:
