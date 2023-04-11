@@ -289,7 +289,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
                 else:
-                    value = _context.get_item(SPAN_DATA_NAMES[key], span=span)
+                    value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
 
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value

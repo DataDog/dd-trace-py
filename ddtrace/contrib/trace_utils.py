@@ -508,27 +508,30 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
+        from ddtrace.appsec._asm_request_context import set_value
+        from ddtrace.appsec._constants import SPAN_DATA_NAMES
+
         status_code = str(status_code) if status_code is not None else None
 
-        _context.set_items(
-            {
-                k: v
-                for k, v in [
-                    ("http.request.uri", raw_uri),
-                    ("http.request.method", method),
-                    ("http.request.cookies", request_cookies),
-                    ("http.request.query", parsed_query),
-                    ("http.request.headers", request_headers),
-                    ("http.response.headers", response_headers),
-                    ("http.response.status", status_code),
-                    ("http.request.path_params", request_path_params),
-                    ("http.request.body", request_body),
-                    ("http.request.remote_ip", request_ip),
-                ]
-                if v is not None
-            },
-            span=span,
-        )
+        addresses = {
+            k: v
+            for k, v in [
+                (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+                (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+                (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+                (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+                (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+                (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+                (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+                (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+            ]
+            if v is not None
+        }
+        _context.set_items(addresses, span=span)
+        for k, v in addresses.items():
+            set_value("waf_addresses", k, v)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
