@@ -68,6 +68,8 @@ class CIVisibilityWriter(HTTPWriter):
     def recreate(self):
         # type: () -> HTTPWriter
         return self.__class__(
+            endpoint=self._endpoint,
+            encoder=self._encoder,
             intake_url=self.intake_url,
             sampler=self._sampler,
             priority_sampler=self._priority_sampler,
@@ -107,6 +109,13 @@ class CIVisibilityCoverageWriter(CIVisibilityWriter):
 class CIVisibilityWriterGroup(service.Service, TraceWriter):
     def __init__(self, **kwargs):
         super(CIVisibilityWriterGroup, self).__init__()
+        self.intake_url = kwargs.get("intake_url")
+        self._sampler = kwargs.get("sampler")
+        self._priority_sampler = kwargs.get("priority_sampler")
+        self._interval = kwargs.get("processing_interval")
+        self._timeout = kwargs.get("timeout")
+        self.dogstatsd = kwargs.get("dogstatsd")
+        self._sync_mode = kwargs.get("sync_mode")
         _event_writer = CIVisibilityEventWriter(**kwargs)
         _coverage_writer = CIVisibilityCoverageWriter(**kwargs)
         self._writers = [_event_writer, _coverage_writer]
@@ -129,7 +138,7 @@ class CIVisibilityWriterGroup(service.Service, TraceWriter):
             writer.write(spans=spans)
 
     def recreate(self):
-        # type: () -> HTTPWriter
+        # type: () -> CIVisibilityWriterGroup
         return self.__class__(
             intake_url=self.intake_url,
             sampler=self._sampler,
