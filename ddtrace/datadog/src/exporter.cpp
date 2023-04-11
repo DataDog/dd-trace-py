@@ -2,6 +2,13 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
+
+// High-level skip for invalid architectures
+#ifndef __linux__
+#elif __aarch64__
+#elif __i386__
+#else
+
 #include "exporter.hpp"
 
 #include <iostream>
@@ -489,3 +496,5 @@ void ddup_upload() {
   g_prof_flag ^= true;
   g_profile->zero_stats();
 }
+
+#endif
