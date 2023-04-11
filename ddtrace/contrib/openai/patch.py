@@ -1,16 +1,14 @@
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
 from ddtrace.internal.agent import get_stats_url
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...pin import Pin
+from ..trace_utils import wrap
 from ._utils import append_tag_prefixes
 from ._utils import get_price
-from ._utils import infer_object_name
 from ._utils import process_request
 from ._utils import process_response
 from ._utils import process_text
@@ -52,54 +50,73 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    _w = wrapt.wrap_function_wrapper
-    _w("openai", "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
+    wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
+
+    try:
+        # Added in v0.27
+        import openai.api_resources.chat_completion
+    except ImportError:
+        pass
+    else:
+        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_chat_create(openai))
+
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
 
 
 def unpatch():
-    import openai
+    # FIXME add unpatching. unwrapping the create methods results in a
+    # >               return super().create(*args, **kwargs)
+    # E               AttributeError: 'method' object has no attribute '__get__'
+    pass
 
-    if getattr(openai, "__datadog_patch", False):
-        setattr(openai, "__datadog_patch", False)
+
+@trace_utils.with_traced_module
+def patched_chat_create(openai, pin, func, instance, args, kwargs):
+    # resource name is set to the model being used -- if that name is not found, use the engine name
+    model_name = kwargs.get("model")
+    span = pin.tracer.trace(
+        "openai.chat.create", resource=model_name, service=trace_utils.ext_service(pin, config.openai)
+    )
+    try:
+        span.set_tag_str("model", model_name)
+        resp = func(*args, **kwargs)
+        return resp
+    finally:
+        span.finish()
 
 
 @trace_utils.with_traced_module
 def patched_create(openai, pin, func, instance, args, kwargs):
-    # resource name is set to the model being used -- if that name is not found, use the engine name
-    if not hasattr(instance, "OBJECT_NAME"):
-        setattr(instance, "OBJECT_NAME", infer_object_name(kwargs))
-    model_name = kwargs.get("model") if kwargs.get("model") is not None else instance.OBJECT_NAME
+    model_name = kwargs.get("model")
     metric_tags = ["model:%s" % model_name, "engine:%s" % instance.OBJECT_NAME]
-    with pin.tracer.trace(
-        "openai.request", resource=model_name, service=trace_utils.ext_service(pin, config.openai)
-    ) as span:
-        span.set_tag_str(COMPONENT, config.openai.integration_name)
-        span.set_tag_str(ENGINE, instance.OBJECT_NAME)
+    span = pin.tracer.trace("openai.request", service=trace_utils.ext_service(pin, config.openai))
+    span.set_tag_str(COMPONENT, config.openai.integration_name)
+    span.set_tag_str(ENGINE, instance.OBJECT_NAME)
+    set_flattened_tags(
+        span,
+        append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
+        processor=process_text,
+    )
+    try:
+        resp = func(*args, **kwargs)
         set_flattened_tags(
             span,
-            append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
+            append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(openai, instance.OBJECT_NAME, resp)),
             processor=process_text,
         )
-        try:
-            resp = func(*args, **kwargs)
-            set_flattened_tags(
-                span,
-                append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(openai, instance.OBJECT_NAME, resp)),
-                processor=process_text,
-            )
-            usage_metrics(resp.get("usage"), model_name, instance.OBJECT_NAME, metric_tags)
-            return resp
-        except openai.error.OpenAIError as err:
-            set_flattened_tags(
-                span,
-                append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
-            )
-            _stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
-            raise err
-        finally:
-            _stats_client().distribution("request.duration", time_ns() - span.start_ns, tags=metric_tags)
+        usage_metrics(resp.get("usage"), model_name, instance.OBJECT_NAME, metric_tags)
+        return resp
+    except openai.error.OpenAIError as err:
+        set_flattened_tags(
+            span,
+            append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
+        )
+        _stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
+        raise err
+    finally:
+        span.finish()
+        _stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
 def usage_metrics(usage, model, engine, metrics_tags):

@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "openai",
-    "resource": "ada",
+    "resource": "openai.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -25,14 +25,14 @@
       "response.id": "cmpl-73ySgG6R6KMUo1roOG2tsL179fGTX",
       "response.model": "ada",
       "response.object": "text_completion",
-      "runtime-id": "c4a7ea0ad0e94961b7492c3e1265a14e"
+      "runtime-id": "edf9c087922d43679151375414640765"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 93994,
+      "process_id": 86608,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
@@ -42,6 +42,6 @@
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 2
     },
-    "duration": 213542000,
-    "start": 1681181754446846000
+    "duration": 21733000,
+    "start": 1681227555283891000
   }]]
