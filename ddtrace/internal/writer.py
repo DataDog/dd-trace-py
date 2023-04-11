@@ -65,7 +65,7 @@ DEFAULT_PROCESSING_INTERVAL = 1.0
 DEFAULT_REUSE_CONNECTIONS = False
 
 
-class WriterClientBase:
+class WriterClientBase(object):
     ENDPOINT = ""
 
     def __init__(
