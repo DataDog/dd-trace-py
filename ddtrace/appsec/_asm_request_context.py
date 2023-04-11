@@ -77,8 +77,8 @@ class _DataHandler:
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get("context", [])
-            if callbacks:
+            callbacks = env.callbacks.get("context")
+            if callbacks is not None:
                 for function in callbacks:
                     function()
                 _ASM.reset(self.token)
