@@ -284,16 +284,16 @@ class LibDatadog_Download(Library_Download):
     def get_extra_objects():
         arch = "x86_64" # TODO for now, but fix before submitting PR
         base_name = "libdatadog_profiling"
-        if CURRENT_OS is not "Windows":
+        if CURRENT_OS != "Windows":
           base_name += ".a"
         base_path = os.path.join("ddtrace", "datadog", "libdatadog", arch, "lib", base_name)
-        if CURRENT_OS is "Linux":
+        if CURRENT_OS == "Linux":
           return [base_path]
         return []
 
     @staticmethod
     def get_include_dirs():
-        if CURRENT_OS is "Linux":
+        if CURRENT_OS == "Linux":
             return [
                 "ddtrace/datadog/include",
                 "ddtrace/datadog/libdatadog/x86_64/include",
