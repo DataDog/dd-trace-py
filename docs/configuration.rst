@@ -60,6 +60,15 @@ The following environment variables for the tracer are supported:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_ENABLED``
 
+   DD_TRACE_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables OpenTelemetry support. To enable OpenTelemetry without `ddtrace-run` refer
+         to the following :mod:`docs <ddtrace.opentelemetry>`.
+     version_added:
+       v1.12.0:
+
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
@@ -71,6 +80,8 @@ The following environment variables for the tracer are supported:
      default: False
      description: |
          This configuration enables the generation of 128 bit trace ids.
+     version_added:
+       v1.12.0:
 
    DD_TRACE_DEBUG:
      type: Boolean
