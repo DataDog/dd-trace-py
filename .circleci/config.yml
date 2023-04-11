@@ -532,10 +532,12 @@ jobs:
 
   integration_agent:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - attach_workspace:
           at: .
       - checkout
+      - setup_riot
       - start_docker_services:
           services: ddagent
       - run:
