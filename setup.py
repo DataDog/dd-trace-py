@@ -261,6 +261,8 @@ class LibDatadog_Download(Library_Download):
         },
     }
     available_releases = {
+        "Windows": [],
+        "Darwin": [],
         "Linux": ["x86_64"],
     }
 
