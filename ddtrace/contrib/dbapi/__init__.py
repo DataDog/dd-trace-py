@@ -1,8 +1,6 @@
 """
 Generic dbapi tracing code.
 """
-import inspect
-
 import six
 
 from ddtrace import config
@@ -67,33 +65,6 @@ class TracedCursor(wrapt.ObjectProxy):
         # Python 2 iterators use `next`
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
-
-    @classmethod
-    def _init_from_connection(traced_cursor_cls, wrapped_cursor_cls, _, args, kwargs):
-        connection = kwargs.pop("connection", None)
-        if not connection:
-            args = list(args)
-            connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, TracedConnection)), None))
-        pin = Pin.get_from(connection)
-        cfg = pin._config
-
-        args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
-        # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
-        if "row_factory" in args_mapping and "row_factory" not in kwargs:
-            # check for row_factory in args by checking for functions
-            row_factory = None
-            for i in range(len(args)):
-                if callable(args[i]):
-                    row_factory = args.pop(i)
-                    break
-            # else just use the connection row factory
-            if row_factory is None:
-                row_factory = connection.row_factory
-            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
-        else:
-            cursor = wrapped_cursor_cls(connection, *args, **kwargs)
-
-        return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
         """

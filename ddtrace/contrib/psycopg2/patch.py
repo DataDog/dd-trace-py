@@ -6,15 +6,18 @@ from psycopg2.sql import SQL
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.contrib import dbapi
+from ddtrace.contrib.psycopg.connection import patched_connect
+from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
+from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+from ddtrace.contrib.psycopg.utils import _patch_extensions
+from ddtrace.contrib.psycopg.utils import _unpatch_extensions
+from ddtrace.contrib.psycopg.utils import psycopg_sql_injector_factory
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
-from ..utils import _patch_extensions
-from ..utils import _unpatch_extensions
-from ..utils import patched_connect
-from ..utils import psycopg_sql_injector_factory
 
 
 config._add(
@@ -49,7 +52,7 @@ def patch():
     Pin(_config=config.psycopg2).onto(psycopg2)
     config.psycopg2.base_module = psycopg2
 
-    wrapt.wrap_function_wrapper(psycopg2, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg2, "connect", patched_connect_psycopg2)
     _patch_extensions(_psycopg2_extensions)  # do this early just in case
 
 
@@ -62,6 +65,30 @@ def unpatch():
         pin = Pin.get_from(psycopg2)
         if pin:
             pin.remove_from(psycopg2)
+
+
+class Psycopg2TracedCursor(Psycopg3TracedCursor):
+    """TracedCursor for psycopg2"""
+
+
+class Psycopg2FetchTracedCursor(Psycopg3FetchTracedCursor):
+    """FetchTracedCursor for psycopg2"""
+
+
+class Psycopg2TracedConnection(dbapi.TracedConnection):
+    """TracedConnection wraps a Connection with tracing code."""
+
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = Psycopg2FetchTracedCursor if config.psycopg2.trace_fetch_methods else Psycopg2TracedCursor
+
+        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg2, cursor_cls=cursor_cls)
+
+
+def patched_connect_psycopg2(connect_func, _, args, kwargs):
+    kwargs["traced_conn_cls"] = Psycopg2TracedConnection
+    return patched_connect(connect_func, _, args, kwargs)
 
 
 # monkeypatch targets

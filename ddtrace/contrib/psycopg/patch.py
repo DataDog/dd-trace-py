@@ -1,3 +1,4 @@
+import inspect
 import os
 
 import psycopg
@@ -6,18 +7,19 @@ from psycopg.sql import SQL
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.contrib import dbapi
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
-from ..utils import PsycopgTracedConnection
-from ..utils import PsycopgTracedCursor
-from ..utils import patched_connect
-from ..utils import psycopg_sql_injector_factory
-from ..utils_async import PsycopgTracedAsyncConnection
-from ..utils_async import PsycopgTracedAsyncCursor
-from ..utils_async import patched_connect_async
+from .connection import patched_connect
+from .connection import patched_connect_async
+from .cursor import Psycopg3FetchTracedAsyncCursor
+from .cursor import Psycopg3FetchTracedCursor
+from .cursor import Psycopg3TracedAsyncCursor
+from .cursor import Psycopg3TracedCursor
+from .utils import psycopg_sql_injector_factory
 
 
 config._add(
@@ -25,8 +27,8 @@ config._add(
     dict(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
-        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=True)),
+        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=True)),
         _dbm_propagator=_DBM_Propagator(
             0, "query", psycopg_sql_injector_factory(composable_class=Composable, sql_class=SQL)
         ),
@@ -56,12 +58,12 @@ def patch():
     Pin(_config=config.psycopg).onto(psycopg)
     config.psycopg.base_module = psycopg
 
-    wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect_psycopg3)
-    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect_psycopg3)
-    wrapt.wrap_function_wrapper(psycopg, "Cursor", PsycopgTracedCursor._init_from_connection)
+    wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect)
+    wrapt.wrap_function_wrapper(psycopg, "Cursor", init_cursor_from_connection)
 
-    wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async_psycopg3)
-    wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", PsycopgTracedAsyncCursor._init_from_connection)
+    wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async)
+    wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", init_cursor_from_connection)
 
 
 def unpatch():
@@ -78,51 +80,38 @@ def unpatch():
             pin.remove_from(psycopg)
 
 
-class Psycopg3TracedConnection(PsycopgTracedConnection):
-    def __init__(self, *args, **kwargs):
-        PsycopgTracedConnection.__init__(self, conn=args[0])
+def init_cursor_from_connection(wrapped_cursor_cls, _, args, kwargs):
+    connection = kwargs.pop("connection", None)
+    if not connection:
+        args = list(args)
+        connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None))
+    pin = Pin.get_from(connection).clone()
+    cfg = globals()["config"]._config["psycopg"]
 
-    def execute(self, *args, **kwargs):
-        """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
+    if cfg and getattr(cfg, "trace_fetch_methods") and cfg.trace_fetch_methods:
+        trace_fetch_methods = True
+    else:
+        trace_fetch_methods = False
 
-        def patched_execute(*args, **kwargs):
-            try:
-                cur = self.cursor()
-                if kwargs.get("binary", None):
-                    cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
-            except Exception as ex:
-                raise ex.with_traceback(None)
+    if issubclass(wrapped_cursor_cls, psycopg.AsyncCursor):
+        traced_cursor_cls = Psycopg3FetchTracedAsyncCursor if trace_fetch_methods else Psycopg3TracedAsyncCursor
+    else:
+        traced_cursor_cls = Psycopg3FetchTracedCursor if trace_fetch_methods else Psycopg3TracedCursor
 
-        return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+    args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
+    # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
+    if "row_factory" in args_mapping and "row_factory" not in kwargs:
+        # check for row_factory in args by checking for functions
+        row_factory = None
+        for i in range(len(args)):
+            if callable(args[i]):
+                row_factory = args.pop(i)
+                break
+        # else just use the connection row factory
+        if row_factory is None:
+            row_factory = connection.row_factory
+        cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
+    else:
+        cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 
-
-class Psycopg3TracedAsyncConnection(PsycopgTracedAsyncConnection):
-    def __init__(self, *args, **kwargs):
-        super(Psycopg3TracedAsyncConnection, self).__init__(*args, **kwargs)
-
-    async def execute(self, *args, **kwargs):  # noqa
-        """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
-
-        async def patched_execute(*args, **kwargs):
-            try:
-                cur = await self.cursor()
-                if kwargs.get("binary", None):
-                    cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
-            except Exception as ex:
-                raise ex.with_traceback(None)
-
-        return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
-
-
-def patched_connect_psycopg3(connect_func, _, args, kwargs):
-    kwargs["traced_conn_cls"] = Psycopg3TracedConnection
-    return patched_connect(connect_func, _, args, kwargs)
-
-
-def patched_connect_async_psycopg3(connect_func, _, args, kwargs):
-    kwargs["traced_conn_cls"] = Psycopg3TracedAsyncConnection
-    return patched_connect_async(connect_func, _, args, kwargs)
+    return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
