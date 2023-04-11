@@ -1,0 +1,63 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "openai",
+    "resource": "text-embedding-ada-002",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "engine": "embeddings",
+      "language": "python",
+      "request.encoding_format": "base64",
+      "request.input": "hi this is evan",
+      "request.model": "text-embedding-ada-002",
+      "response.model": "text-embedding-ada-002-v2",
+      "response.object": "list",
+      "runtime-id": "c4a7ea0ad0e94961b7492c3e1265a14e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 93994,
+      "response.data.embedding-length": 8192,
+      "response.data.num-embeddings": 1,
+      "response.usage.prompt_tokens": 5,
+      "response.usage.total_tokens": 5
+    },
+    "duration": 120042000,
+    "start": 1681181754740525000
+  },
+     {
+       "name": "openai.request",
+       "service": "openai",
+       "resource": "text-embedding-ada-002",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "openai",
+         "engine": "embeddings",
+         "request.encoding_format": "base64",
+         "request.input": "hi this is evan",
+         "request.model": "text-embedding-ada-002",
+         "response.model": "text-embedding-ada-002-v2",
+         "response.object": "list"
+       },
+       "metrics": {
+         "response.data.embedding-length": 8192,
+         "response.data.num-embeddings": 1,
+         "response.usage.prompt_tokens": 5,
+         "response.usage.total_tokens": 5
+       },
+       "duration": 119689000,
+       "start": 1681181754740665000
+     }]]

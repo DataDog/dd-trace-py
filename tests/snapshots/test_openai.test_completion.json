@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": "openai",
     "resource": "ada",
     "trace_id": 0,
     "span_id": 1,
@@ -19,30 +19,29 @@
       "response.choices.0.finish_reason": "stop",
       "response.choices.0.logprobs": "None",
       "response.choices.0.text": "",
-      "response.choices.1.finish_reason": "length",
+      "response.choices.1.finish_reason": "stop",
       "response.choices.1.logprobs": "None",
-      "response.choices.1.text": ",\u201d he says, his voice is low",
-      "response.id": "cmpl-72nAuZ7XAao85iRZK4gxZvwXuPJJV",
+      "response.choices.1.text": "",
+      "response.id": "cmpl-73ySgG6R6KMUo1roOG2tsL179fGTX",
       "response.model": "ada",
       "response.object": "text_completion",
-      "runtime-id": "03768ba7a9ca4eeaab5584b088c0d57f"
+      "runtime-id": "c4a7ea0ad0e94961b7492c3e1265a14e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 12147,
+      "process_id": 93994,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
       "response.choices.0.index": 0,
       "response.choices.1.index": 1,
-      "response.created": 1680900040,
-      "response.usage.completion_tokens": 10,
+      "response.created": 1681181754,
       "response.usage.prompt_tokens": 2,
-      "response.usage.total_tokens": 12
+      "response.usage.total_tokens": 2
     },
-    "duration": 215102000,
-    "start": 1680900040091720000
+    "duration": 213542000,
+    "start": 1681181754446846000
   }]]

@@ -1,7 +1,10 @@
 interactions:
 - request:
-    body: '{"model": "ada", "prompt": "Hello world", "temperature": 0.8, "n": 2, "stop":
-      ".", "max_tokens": 10}'
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "system", "content": "You
+      are a helpful assistant."}, {"role": "user", "content": "Who won the world series
+      in 2020?"}, {"role": "assistant", "content": "The Los Angeles Dodgers won the
+      World Series in 2020."}, {"role": "user", "content": "Where was it played?"}],
+      "top_p": 0.9, "n": 2}'
     headers:
       Accept:
       - '*/*'
@@ -12,30 +15,32 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '100'
+      - '335'
       Content-Type:
       - application/json
       User-Agent:
-      - OpenAI/v1 PythonBindings/0.26.5
+      - OpenAI/v1 PythonBindings/0.27.2
       X-OpenAI-Client-User-Agent:
-      - '{"bindings_version": "0.26.5", "httplib": "requests", "lang": "python", "lang_version":
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
         "3.11.2", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
     method: POST
-    uri: https://api.openai.com/v1/completions
+    uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA4yMzUoDMRRG9z7Gt45gqs7U+wKzqCL4A4LIkE5up2kzuSG5hcow7y66cePC7eGc
-        MyN4EIYpx8v2+vN57JqnZvPwKrbIY7fSem/bu1338gYD2R54UBCUz9oPMuXIGiTBYCjslD3INmtr
-        17a9vTGYxHMEwXn3rewlDFxB7/PPAAQYhOT5DLoyiDLmItsKSqcYDXYhhbrvC7sqCYSqkrGYP2L7
-        3/jD4FTdyKAZuciUtVc5cqqglYGKuvgLluXiCwAA//8DAG/mRqsdAQAA
+        H4sIAAAAAAAAA7zOPWvDMBSF4b2/QtxZDnZc1662ZkiWQgenZCglKNaNrUbWVaUbmhD830ugH2un
+        ri+cw3MBa0BBN2juxuCyujy3Bz9fbA7vvj2Fc/DNosndsq+eVhok0O4NO/5azDoag0O25EFCF1Ez
+        GlDFXVMUTVFXjYSRDDpQ0AfOylmV8THuKMvLvAAJx6R7BHWBEGkMvGU6oE+gqlrC7/VPLmsJTKzd
+        T7m/nSR0A9kOE6iXC4yYvj8jOQQFOiWbWHu+Cskz+qt+PaCY5/NcbCg6I1qMFpP40EkEp89ohGax
+        crRD8Wj3KJYWnRHWi4forO+ZvBRrPOkkxbO3jEa0rBnTDCYJe+ttGrYRdSIPChJTAAnWGzyByif5
+        /8w/uIrpdbr5BAAA//8DAGPACWkOAgAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b5ff40dbc0a0f5d-EWR
+      - 7b5ff422ca58189d-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -45,7 +50,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Apr 2023 02:55:54 GMT
+      - Tue, 11 Apr 2023 02:55:59 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -55,29 +60,23 @@ interactions:
       alt-svc:
       - h3=":443"; ma=86400, h3-29=":443"; ma=86400
       openai-model:
-      - ada
+      - gpt-3.5-turbo-0301
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '71'
+      - '1430'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '3000'
-      x-ratelimit-limit-tokens:
-      - '250000'
+      - '3500'
       x-ratelimit-remaining-requests:
-      - '2999'
-      x-ratelimit-remaining-tokens:
-      - '249979'
+      - '3499'
       x-ratelimit-reset-requests:
-      - 20ms
-      x-ratelimit-reset-tokens:
-      - 4ms
+      - 17ms
       x-request-id:
-      - 7335ce61d8a979cc1f3213623ef8ac0b
+      - 4884c5c1462e84882c854ba728074c12
     status:
       code: 200
       message: OK
