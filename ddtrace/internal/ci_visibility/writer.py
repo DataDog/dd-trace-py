@@ -69,11 +69,9 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
-        self._clients = [CIVisibilityEventClient(), CIVisibilityCoverageClient()]
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            encoder=self._clients[0].encoder,
-            endpoint=self._clients[0].ENDPOINT,
+            clients=[CIVisibilityEventClient(), CIVisibilityCoverageClient()],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -85,26 +83,6 @@ class CIVisibilityWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
-
-    def set_encoder(self, encoder):
-        for client in self._clients:
-            client.encoder = encoder
-
-    def _put_encoder(self, spans):
-        for client in self._clients:
-            client.encoder.put(spans)
-
-    def flush_queue(self, raise_exc=False):
-        try:
-            for client in self._clients:
-                self._flush_queue_with_client(client=client, raise_exc=raise_exc)
-        finally:
-            self._set_drop_rate()
-            self._metrics_reset()
-
-    def write(self, spans=None):
-        for client in self._clients:
-            self._write_with_client(client=client, spans=spans)
 
     @property
     def _intake_endpoint(self):

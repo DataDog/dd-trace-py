@@ -237,7 +237,8 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=False)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
-            writer.set_encoder(writer_encoder)
+            for client in writer._clients:
+                client.encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
