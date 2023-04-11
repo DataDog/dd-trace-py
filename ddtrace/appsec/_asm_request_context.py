@@ -78,9 +78,10 @@ class _DataHandler:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
             callbacks = env.callbacks.get("context", [])
-            for function in callbacks:
-                function()
-            _ASM.reset(self.token)
+            if callbacks:
+                for function in callbacks:
+                    function()
+                _ASM.reset(self.token)
             self.active = False
 
 
