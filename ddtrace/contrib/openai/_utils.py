@@ -9,29 +9,6 @@ if typing.TYPE_CHECKING:
 # for request/response data.
 SUPPORTED_ENGINES = {"ChatCompletions": "chat.completions", "Completions": "completions", "Embeddings": "embeddings"}
 
-# See models and endpoints at: https://platform.openai.com/docs/models/model-endpoint-compatibility
-# See pricing at: https://openai.com/pricing
-# PRICING details the $ price per 1k tokens.
-PRICING = {
-    "chat.completions": {
-        "gpt-4": {"prompt": 0.03, "completion": 0.06},
-        "gpt-4-32k": {"prompt": 0.06, "completion": 0.12},
-        "gpt-3.5-turbo": {"prompt": 0.002, "completion": 0.002},
-    },
-    "completions": {
-        "text-davinci-003": 0.02,
-        "text-davinci-002": 0.02,
-        "text-curie-001": 0.002,
-        "text-babbage-001": 0.0005,
-        "text-ada-001": 0.0004,
-        "davinci": 0.02,
-        "curie": 0.002,
-        "babbage": 0.0005,
-        "ada": 0.004,
-    },
-    "embeddings": {"text-embedding-ada-002": 0.0004, "text-search-ada-doc-001": 0.0004},
-}
-
 # ENGINE_ARGUMENTS specifies request/response endpoint fields
 # we want to parse and store in spans.
 ENGINE_ARGUMENTS = {
@@ -159,21 +136,3 @@ def process_request(openai, engine, args, kwargs):
         return request
     except KeyError or IndexError:
         return {}
-
-
-def get_price(model_name, num_tokens, engine, token_type="prompt"):
-    try:
-        engine_pricing_info = PRICING.get(engine)
-        if engine_pricing_info:
-            price = engine_pricing_info.get(model_name)
-            if price:
-                return num_tokens * (price if engine != "chat.completions" else price[token_type])
-            else:
-                for model, price in engine_pricing_info.items():
-                    # openai offers model version snapshots that stay static for 3 month periods
-                    # e.g. gpt-3.5-turbo-0301 is a snapshot from March 1st that will deprecate on June 1st.
-                    if model_name.startswith(model):
-                        return num_tokens * (price if engine != "chat.completions" else price[token_type])
-        return 0
-    except KeyError:
-        return 0
