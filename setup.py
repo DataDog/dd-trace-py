@@ -246,7 +246,8 @@ class LibDDWaf_Download(Library_Download):
         TRANSLATE_SUFFIX = {"Windows": (".dll"), "Darwin": (".dylib"), "Linux": (".so")}
         return TRANSLATE_SUFFIX[os]
 
-    def run(self):
+    @classmethod
+    def run(cls, self):
         CleanLibraries.remove_libddwaf_artifacts()
         LibDDWaf_Download.download_artifacts()
         BuildPyCommand.run(self)
@@ -279,7 +280,8 @@ class LibDatadog_Download(Library_Download):
         TRANSLATE_SUFFIX = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
         return TRANSLATE_SUFFIX[os]
 
-    def run(self):
+    @classmethod
+    def run(cls, self):
         LibDatadog_Download.download_artifacts()
         BuildPyCommand.run(self)
 
