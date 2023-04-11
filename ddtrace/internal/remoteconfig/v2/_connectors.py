@@ -6,6 +6,9 @@ import os
 
 import six
 
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import to_unicode
+
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,12 +44,16 @@ class ConnectorSharedMemory(ConnectorBase):
         self.data = multiprocessing.Array(c_char, 603432, lock=False)
 
     def write(self, metadata, config_raw):
-        data = bytes(json.dumps(config_raw), encoding="utf-8")
+        if PY2:
+            data = bytes(json.dumps(config_raw))
+        else:
+            data = bytes(json.dumps(config_raw), encoding="utf-8")
+
         self.data.value = data
 
     def read(self):
         config = {}
-        config_raw = str(self.data.value, encoding="utf-8")
+        config_raw = to_unicode(self.data.value)
         if config_raw:
             config = json.loads(config_raw)
         return config
