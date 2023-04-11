@@ -37,7 +37,7 @@ class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
 
 class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_results):
-        super().__init__(data_connector, preprocess_results)
+        super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_results)
 
     def __call__(self, pubsub_instance, metadata, config):
         # type: (Any, Optional[Any], Any) -> None
@@ -53,7 +53,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_results):
-        super().__init__(data_connector, preprocess_results)
+        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_results)
         self.configs = {}
 
     def append(self, target, config):

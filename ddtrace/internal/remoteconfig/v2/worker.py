@@ -168,6 +168,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
         self.stop_subscribers()
+
+        if self.status == ServiceStatus.STOPPED:
+            return
+
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
     def register(self, product, pubsub_instance):
