@@ -7,7 +7,9 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class TestPytest(TracerTestCase):
@@ -27,7 +29,9 @@ class TestPytest(TracerTestCase):
                     CIVisibility.disable()
                     CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0) or sys.version_info <= (3, 6, 0),

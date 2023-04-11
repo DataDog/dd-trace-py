@@ -282,7 +282,7 @@ class _DatadogMultiHeader:
                 # combine highest and lowest order hex values to create a 128 bit trace_id
                 trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
             except ValueError:
-                meta["_dd.propagation_error"] == "malformed_tid {}".format(trace_id_hob_hex)
+                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
             # After the full trace id is reconstructed this tag is no longer required
             del meta[_HIGHER_ORDER_TRACE_ID_BITS]
