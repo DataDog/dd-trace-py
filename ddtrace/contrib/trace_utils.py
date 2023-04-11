@@ -508,7 +508,7 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        from ddtrace.appsec._asm_request_context import set_value
+        from ddtrace.appsec._asm_request_context import set_waf_address
         from ddtrace.appsec._constants import SPAN_DATA_NAMES
 
         status_code = str(status_code) if status_code is not None else None
@@ -529,9 +529,8 @@ def set_http_meta(
             ]
             if v is not None
         }
-        _context.set_items(addresses, span=span)
         for k, v in addresses.items():
-            set_value("waf_addresses", k, v)
+            set_waf_address(k, v, span)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)

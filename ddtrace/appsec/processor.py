@@ -238,19 +238,16 @@ class AppSecSpanProcessor(SpanProcessor):
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
-            _context.set_items(
-                {
-                    SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: headers,
-                    SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE: headers_case_sensitive,
-                },
-                span=span,
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
+            _asm_request_context.set_waf_address(
+                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
             )
             if not peer_ip:
                 return
 
             ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _context.set_item("http.request.remote_ip", ip, span=span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 # _asm_request_context.call_callback()

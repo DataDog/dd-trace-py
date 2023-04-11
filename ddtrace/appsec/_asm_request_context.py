@@ -94,6 +94,14 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
         asm_context_attr[address] = value
 
 
+def set_waf_address(address, value, span):  # type: (str, Any, Any) -> None
+    from ddtrace.internal._context import set_item
+
+    set_value("waf_addresses", address, value)
+    if span:
+        set_item(address, value, span=span)
+
+
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
     env = _ASM.get()
     if not env.active:
@@ -128,7 +136,7 @@ def call_waf_callback(custom_data=None):
 
 def set_ip(ip):  # type: (Optional[str]) -> None
     if ip is not None:
-        set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, _ASM.get().span)
 
 
 def get_ip():  # type: () -> Optional[str]
@@ -142,7 +150,7 @@ def get_ip():  # type: () -> Optional[str]
 
 def set_headers(headers):  # type: (Any) -> None
     if headers is not None:
-        set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, _ASM.get().span)
 
 
 def get_headers():  # type: () -> Optional[Any]
@@ -150,7 +158,7 @@ def get_headers():  # type: () -> Optional[Any]
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    set_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive)
+    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, _ASM.get().span)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
