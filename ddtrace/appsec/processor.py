@@ -341,7 +341,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
             ]:
-                headers_req = _context.get_item(id_tag, span=span)
+                headers_req = _asm_request_context.get_waf_address(id_tag)
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
 
@@ -354,7 +354,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
 
-            remote_ip = _context.get_item(SPAN_DATA_NAMES.REQUEST_HTTP_IP, span=span)
+            remote_ip = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
@@ -380,7 +380,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         # Force to set respond headers at the end
-        headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+        headers_req = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
         if headers_req:
             _set_headers(span, headers_req, kind="response")
 

@@ -113,6 +113,10 @@ def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
     return default
 
 
+def get_waf_address(address, default=None):  # type: (str, Any) -> Any
+    return get_value("waf_addresses", address, default=default)
+
+
 def add_context_callback(function):  # type: (Any) -> None
     callbacks = get_value("callbacks", "context")
     if callbacks is not None:
