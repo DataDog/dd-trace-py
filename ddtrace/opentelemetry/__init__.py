@@ -6,7 +6,7 @@ The dd-trace-py library provides an implementation of the
 `opentelemetry api <https://opentelemetry-python.readthedocs.io/en/latest/api/index.html>`_.
 When ddtrace OpenTelemetry support is configured, all operations defined in the
 OpenTelemetry trace api can be used to create, configure, and propagate a distributed trace.
-All operations in the opentelemetry trace api configured to use the ddtrace global tracer (``ddtrace.tracer``)
+All operations defined the opentelemetry trace api are configured to use the ddtrace global tracer (``ddtrace.tracer``)
 and generate datadog compatible traces. By default all opentelemetry traces are submitted to a Datadog agent.
 
 
@@ -14,11 +14,11 @@ Configuration
 -------------
 
 When using ``ddtrace-run``, OpenTelemetry support can be enabled by setting
-the ``DD_TRACE_OTEL_ENABLED`` environment variable (default value is ``False``).
+the ``DD_TRACE_OTEL_ENABLED`` environment variable (the default value is ``False``).
 
-OpenTelemetry support can be programmatically with by setting the ``OTEL_PYTHON_CONTEXT``environment variable
-to ``ddcontextvars_context`` and configuring the ``ddtrace.opentelemetry.TracerProvider``. These configurations
-must be set before the first OpenTelemetry span is initialized::
+OpenTelemetry support can be programmatically enabled by setting the ``OTEL_PYTHON_CONTEXT``environment variable
+to ``ddcontextvars_context`` and setting the ``ddtrace.opentelemetry.TracerProvider``. These configurations
+must be set before any OpenTelemetry Tracers are initialized::
 
     from opentelemetry.trace import set_tracer_provider
     from ddtrace.opentelemetry import TracerProvider
