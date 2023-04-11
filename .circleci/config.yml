@@ -167,7 +167,7 @@ commands:
                   DD_TRACE_AGENT_URL: http://localhost:9126
                 command: |
                   mv .riot .ddriot
-                  ./scripts/ddtest riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -182,7 +182,7 @@ commands:
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
                 command: |
-                  ./scripts/ddtest riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -540,16 +540,25 @@ jobs:
     <<: *machine_executor
     parallelism: 2
     steps:
-      - run_test:
-          docker_services: 'ddagent'
-          pattern: 'integration-latest'
-
+      - attach_workspace:
+          at: .
+      - checkout
+      - start_docker_services:
+          services: ddagent
+      - run:
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+      - when:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - save_coverage
 
   integration_testagent:
     <<: *machine_executor
     steps:
       - run_test:
-          store_coverage: false
           snapshot: true
           pattern: 'integration-snapshot'
 
