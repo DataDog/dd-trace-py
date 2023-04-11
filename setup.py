@@ -295,7 +295,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
         CleanLibraries.remove_libddwaf_artifacts()
-        CleanLibraries.remove_libddatadog_artifacts()
+        CleanLibraries.remove_libdatadog_artifacts()
 
     @staticmethod
     def remove_libddwaf_artifacts():
