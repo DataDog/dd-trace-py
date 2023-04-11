@@ -543,12 +543,13 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
+      - setup_riot
       - start_docker_services:
           services: ddagent
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
       - when:
           condition:
             << pipeline.parameters.coverage >>
