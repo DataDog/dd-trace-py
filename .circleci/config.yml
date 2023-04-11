@@ -538,32 +538,30 @@ jobs:
 
   integration_agent:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - attach_workspace:
           at: .
       - checkout
+      - setup_riot
       - start_docker_services:
           services: ddagent
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
+            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+      - when:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - save_coverage
 
   integration_testagent:
     <<: *machine_executor
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          env: SNAPSHOT_CI=1
-          services: testagent
-      - run:
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
+      - run_test:
+          snapshot: true
+          pattern: 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
