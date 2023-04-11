@@ -16,7 +16,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings import IntegrationConfig
 
-from .writer import CIVisibilityWriterGroup
+from .writer import CIVisibilityWriter
 
 
 log = get_logger(__name__)
@@ -41,8 +41,8 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriterGroup):
-            writer = CIVisibilityWriterGroup()
+        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
+            writer = CIVisibilityWriter()
             self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags()  # type: Dict[str, str]

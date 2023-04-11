@@ -236,8 +236,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def __init__(
         self,
         intake_url,  # type: str
-        endpoint,  # type: str
-        encoder,  # type: BufferedEncoder
+        endpoint=None,  # type: Optional[str]
+        encoder=None,  # type: Optional[BufferedEncoder]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -291,6 +291,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _intake_endpoint(self):
         return "{}/{}".format(self.intake_url, self._endpoint)
 
+    def set_encoder(self, encoder):
+        self._encoder = encoder
+
+    def _put_encoder(self, spans):
+        self._encoder.put(spans)
+
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
         if tags:
@@ -329,7 +335,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers):
+    def _put(self, data, headers, client=None):
         # type: (bytes, Dict[str, str]) -> Response
         sw = StopWatch()
         sw.start()
@@ -338,7 +344,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
-                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)  # type: ignore[attr-defined]
+                self._conn.request(
+                    self.HTTP_METHOD, client.ENDPOINT if client is not None else self._endpoint, data, headers
+                )  # type: ignore[attr-defined]
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -360,12 +368,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _get_finalized_headers(self, count):
         return self._headers.copy()
 
-    def _send_payload(self, payload, count):
+    def _send_payload(self, payload, count, client=None):
         headers = self._get_finalized_headers(count)
 
         self._metrics_dist("http.requests")
 
-        response = self._put(payload, headers)
+        response = self._put(payload, headers, client=client)
 
         if response.status >= 400:
             self._metrics_dist("http.errors", tags=["type:%s" % response.status])
@@ -394,9 +402,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        return self._write_with_client(spans=spans)
+
+    def _write_with_client(self, client=None, spans=None):
         # type: (Optional[List[Span]]) -> None
         if spans is None:
             return
+
+        encoder = client.encoder if client is not None else self._encoder
 
         if self._sync_mode is False:
             # Start the HTTPWriter on first write.
@@ -411,13 +424,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._set_keep_rate(spans)
 
         try:
-            self._encoder.put(spans)
+            encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             log.warning(
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
-                self._encoder.max_item_size,
+                encoder.max_item_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
@@ -425,9 +438,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             payload_size = e.args[0]
             log.warning(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                len(self._encoder),
-                self._encoder.size,
-                self._encoder.max_size,
+                len(encoder),
+                encoder.size,
+                encoder.max_size,
                 payload_size,
                 self.status.value,
             )
@@ -440,50 +453,54 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
-        # type: (bool) -> None
         try:
-            n_traces = len(self._encoder)
-            try:
-                encoded = self._encoder.encode()
-                if encoded is None:
-                    return
-            except Exception:
-                log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-                self._metrics_dist("encoder.dropped.traces", n_traces)
-                return
-
-            try:
-                self._retry_upload(self._send_payload, encoded, n_traces)
-            except tenacity.RetryError as e:
-                self._metrics_dist("http.errors", tags=["type:err"])
-                self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", n_traces)
-                if raise_exc:
-                    e.reraise()
-                else:
-                    log.error(
-                        "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
-                        n_traces,
-                        self._intake_endpoint,
-                        e.last_attempt.attempt_number,
-                        e.last_attempt.exception(),
-                    )
-            finally:
-                if config.health_metrics_enabled and self.dogstatsd:
-                    namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
-                    # Note that we cannot use the batching functionality of dogstatsd because
-                    # it's not thread-safe.
-                    # https://github.com/DataDog/datadogpy/issues/439
-                    # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
-                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                    for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution(
-                            "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
-                        )
+            self._flush_queue_with_client(raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
             self._metrics_reset()
+
+    def _flush_queue_with_client(self, client=None, raise_exc=False):
+        # type: (bool) -> None
+        encoder = client.encoder if client is not None else self._encoder
+        n_traces = len(encoder)
+        try:
+            encoded = encoder.encode()
+            if encoded is None:
+                return
+        except Exception:
+            log.error("failed to encode trace with encoder %r", encoder, exc_info=True)
+            self._metrics_dist("encoder.dropped.traces", n_traces)
+            return
+
+        try:
+            self._retry_upload(self._send_payload, encoded, n_traces, client=client)
+        except tenacity.RetryError as e:
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.bytes", len(encoded))
+            self._metrics_dist("http.dropped.traces", n_traces)
+            if raise_exc:
+                e.reraise()
+            else:
+                log.error(
+                    "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+                    n_traces,
+                    self._intake_endpoint,
+                    e.last_attempt.attempt_number,
+                    e.last_attempt.exception(),
+                )
+        finally:
+            if config.health_metrics_enabled and self.dogstatsd:
+                namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
+                # Note that we cannot use the batching functionality of dogstatsd because
+                # it's not thread-safe.
+                # https://github.com/DataDog/datadogpy/issues/439
+                # This really isn't ideal as now we're going to do a ton of socket calls.
+                self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
+                self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
+                for name, metric in self._metrics.items():
+                    self.dogstatsd.distribution(
+                        "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
+                    )
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -656,7 +673,7 @@ class AgentWriter(HTTPWriter):
             return payload
         raise ValueError()
 
-    def _send_payload(self, payload, count):
+    def _send_payload(self, payload, count, client=None):
         response = super(AgentWriter, self)._send_payload(payload, count)
         if response.status in [404, 415]:
             log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
