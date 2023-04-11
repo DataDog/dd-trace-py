@@ -601,6 +601,7 @@ jobs:
 
   stdlib:
     <<: *contrib_job_small
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
