@@ -8,8 +8,10 @@ from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_
 from tests.utils import override_env
 
 
-def iast_span(tracer, env):
+def iast_span(tracer, env, request_sampling="100"):
+    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
     with override_env(env):
+        oce.reconfigure()
         with tracer.trace("test") as span:
             weak_hash_patch()
             weak_cipher_patch()

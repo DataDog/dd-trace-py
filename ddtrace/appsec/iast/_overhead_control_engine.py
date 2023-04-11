@@ -21,9 +21,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
+
+def get_request_sampling_value():
+    return int(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30))  # Percentage of requests analyzed by IAST
+
+
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
 MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
-REQUEST_SAMPLING = int(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30))  # Percentage of requests analyzed by IAST
 
 
 class Operation(object):
@@ -74,8 +78,10 @@ class OverheadControl(object):
     _request_quota = MAX_REQUESTS
     _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
-    # Configure sampler
-    _sampler = RateSampler(sample_rate=REQUEST_SAMPLING / 100.0)
+    _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
+
+    def reconfigure(self):
+        self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span):  # type: (Span) -> None
         """Block a request's quota at start of the request.
