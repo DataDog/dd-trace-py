@@ -277,8 +277,28 @@ class LibDatadog_Download(Library_Download):
 
     @classmethod
     def get_suffixes(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
+        TRANSLATE_SUFFIX = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
         return TRANSLATE_SUFFIX[os]
+
+    @staticmethod
+    def get_extra_objects():
+        arch = "x86_64" # TODO for now, but fix before submitting PR
+        base_name = "libdatadog_profiling"
+        if CURRENT_OS is not "Windows":
+          base_name += ".a"
+        base_path = os.path.join("ddtrace", "datadog", "libdatadog", arch, "lib", base_name)
+        if CURRENT_OS is "Linux":
+          return [base_path]
+        return []
+
+    @staticmethod
+    def get_include_dirs():
+        if CURRENT_OS is "Linux":
+            return [
+                "ddtrace/datadog/include",
+                "ddtrace/datadog/libdatadog/x86_64/include",
+            ]
+        return []
 
     @classmethod
     def run(cls):
@@ -567,13 +587,8 @@ setup(
                     "ddtrace/datadog/ddup.pyx",
                     "ddtrace/datadog/src/exporter.cpp"
                 ],
-                include_dirs=[
-                    "ddtrace/datadog/include",
-                    "ddtrace/datadog/libdatadog/x86_64/include",
-                ],
-                extra_objects=[
-                    "ddtrace/datadog/libdatadog/x86_64/lib/libdatadog_profiling.a",
-                ],
+                include_dirs=LibDatadog_Download.get_include_dirs(),
+                extra_objects=LibDatadog_Download.get_extra_objects(),
                 extra_compile_args=["-std=c++17"],
                 language='c++',
             ),
