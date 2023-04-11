@@ -65,6 +65,16 @@ DEFAULT_PROCESSING_INTERVAL = 1.0
 DEFAULT_REUSE_CONNECTIONS = False
 
 
+class WriterClientBase:
+    ENDPOINT = ""
+
+    def __init__(
+        self,
+        encoder,  # type: BufferedEncoder
+    ):
+        self.encoder = encoder
+
+
 def get_writer_buffer_size():
     # type: () -> int
     return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
@@ -233,11 +243,15 @@ class LogWriter(TraceWriter):
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to an arbitrary HTTP intake endpoint."""
 
+    RETRY_ATTEMPTS = 3
+    HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "tracer"
+
     def __init__(
         self,
         intake_url,  # type: str
-        endpoint=None,  # type: Optional[str]
-        encoder=None,  # type: Optional[BufferedEncoder]
+        endpoint,  # type: str
+        encoder,  # type: BufferedEncoder
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -278,10 +292,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),  # type: ignore[attr-defined]
+                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),  # type: ignore[attr-defined]
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
@@ -336,7 +350,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = None
 
     def _put(self, data, headers, client=None):
-        # type: (bytes, Dict[str, str]) -> Response
+        # type: (bytes, Dict[str, str], Optional[WriterClientBase]) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -345,8 +359,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
                 self._conn.request(
-                    self.HTTP_METHOD, client.ENDPOINT if client is not None else self._endpoint, data, headers
-                )  # type: ignore[attr-defined]
+                    self.HTTP_METHOD,
+                    client.ENDPOINT if client is not None else self._endpoint,
+                    data,
+                    headers,
+                )
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -405,7 +422,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return self._write_with_client(spans=spans)
 
     def _write_with_client(self, client=None, spans=None):
-        # type: (Optional[List[Span]]) -> None
+        # type: (Optional[WriterClientBase], Optional[List[Span]]) -> None
         if spans is None:
             return
 
@@ -460,7 +477,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_reset()
 
     def _flush_queue_with_client(self, client=None, raise_exc=False):
-        # type: (bool) -> None
+        # type: (Optional[WriterClientBase], bool) -> None
         encoder = client.encoder if client is not None else self._encoder
         n_traces = len(encoder)
         try:
@@ -490,7 +507,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 )
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
-                namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
+                namespace = self.STATSD_NAMESPACE
                 # Note that we cannot use the batching functionality of dogstatsd because
                 # it's not thread-safe.
                 # https://github.com/DataDog/datadogpy/issues/439

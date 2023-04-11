@@ -10,24 +10,15 @@ from .. import agent
 from .. import service
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
-from .._encoding import BufferedEncoder
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
-from ..writer import TraceWriter
+from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
 
-class CIVisibilityClientBase:
-    def __init__(
-        self,
-        encoder,  # type: BufferedEncoder
-    ):
-        self.encoder = encoder
-
-
-class CIVisibilityEventClient(CIVisibilityClientBase):
+class CIVisibilityEventClient(WriterClientBase):
     ENDPOINT = "api/v2/citestcycle"
 
     def __init__(self):
@@ -43,7 +34,7 @@ class CIVisibilityEventClient(CIVisibilityClientBase):
         super(CIVisibilityEventClient, self).__init__(encoder)
 
 
-class CIVisibilityCoverageClient(CIVisibilityClientBase):
+class CIVisibilityCoverageClient(WriterClientBase):
     ENDPOINT = "api/v2/citestcov"
 
     def __init__(self):
@@ -58,7 +49,7 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url,  # type: str
+        intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -78,8 +69,11 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
+        self._clients = [CIVisibilityEventClient(), CIVisibilityCoverageClient()]
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
+            encoder=self._clients[0].encoder,
+            endpoint=self._clients[0].ENDPOINT,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -91,7 +85,6 @@ class CIVisibilityWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
-        self._clients = [CIVisibilityEventClient(), CIVisibilityCoverageClient()]
 
     def set_encoder(self, encoder):
         for client in self._clients:
@@ -133,5 +126,4 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=self._api_version,
         )
