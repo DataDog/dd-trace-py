@@ -226,6 +226,9 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
             },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",
+            },
         ),
         Venv(
             pys=select_pys(),
@@ -761,6 +764,9 @@ venv = Venv(
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",
             },
             venvs=[
                 Venv(
@@ -2300,6 +2306,9 @@ venv = Venv(
             name="dbapi",
             command="pytest {cmdargs} tests/contrib/dbapi",
             pys=select_pys(),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",
+            },
         ),
         Venv(
             name="dogpile_cache",
