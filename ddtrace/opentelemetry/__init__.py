@@ -17,7 +17,8 @@ When using ``ddtrace-run``, OpenTelemetry support can be enabled by setting
 the ``DD_TRACE_OTEL_ENABLED`` environment variable (default value is ``False``).
 
 OpenTelemetry support can be programmatically with by setting the ``OTEL_PYTHON_CONTEXT``environment variable
-to ``ddcontextvars_context`` and configuring the ``ddtrace.opentelemetry.TracerProvider``::
+to ``ddcontextvars_context`` and configuring the ``ddtrace.opentelemetry.TracerProvider``. These configurations
+must be set before the first OpenTelemetry span is initialized::
 
     from opentelemetry.trace import set_tracer_provider
     from ddtrace.opentelemetry import TracerProvider
