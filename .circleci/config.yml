@@ -545,9 +545,11 @@ jobs:
       - checkout
       - start_docker_services:
           services: ddagent
-      - run_test:
-          store_coverage: false
-          pattern: 'integration-latest'
+      - run:
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} --no-cov
+
 
   integration_testagent:
     <<: *machine_executor
