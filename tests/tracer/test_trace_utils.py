@@ -21,6 +21,7 @@ from ddtrace import config
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import six
@@ -306,7 +307,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
-@pytest.mark.parametrize("span_type", ["web", "http", None])
+@pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, None])
 @pytest.mark.parametrize(
     "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
     [
@@ -417,7 +418,7 @@ def test_set_http_meta(
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
 
-    if appsec_enabled and span.span_type == "web":
+    if appsec_enabled and span.span_type == SpanTypes.WEB:
         if uri is not None:
             assert _context.get_item("http.request.uri", span=span) == uri
         if method is not None:
