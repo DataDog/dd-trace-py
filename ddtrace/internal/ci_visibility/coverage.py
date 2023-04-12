@@ -20,16 +20,16 @@ try:
     from coverage import Coverage
     from coverage import version_info as coverage_version
     from coverage.numbits import numbits_to_nums
+
+    # this public attribute became private after coverage==6.3
+    EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
 except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
+    EXECUTE_ATTR = ""
     log.warning(
         "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
         "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
     )
-
-
-# this public attribute became private after coverage==6.3
-EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
 
 
 def enabled():
