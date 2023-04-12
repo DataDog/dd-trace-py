@@ -8,18 +8,18 @@ from psycopg.sql import SQL
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import dbapi
+from ddtrace.contrib.psycopg.async_connection import patched_connect_async
+from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
+from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
+from ddtrace.contrib.psycopg.connection import patched_connect
+from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
+from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+from ddtrace.contrib.psycopg.utils import psycopg_sql_injector_factory
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 from ...propagation._database_monitoring import _DBM_Propagator
-from .connection import patched_connect
-from .connection import patched_connect_async
-from .cursor import Psycopg3FetchTracedAsyncCursor
-from .cursor import Psycopg3FetchTracedCursor
-from .cursor import Psycopg3TracedAsyncCursor
-from .cursor import Psycopg3TracedCursor
-from .utils import psycopg_sql_injector_factory
 
 
 config._add(
