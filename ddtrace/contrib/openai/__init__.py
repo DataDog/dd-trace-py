@@ -35,6 +35,8 @@ Global Configuration
    This option can also be set with the ``DD_OPENAI_LOGS_ENABLED`` environment
    variable.
 
+   Note that DD_API_KEY must be set.
+
    Default: ``False``
 
 
@@ -46,6 +48,20 @@ Global Configuration
    variable.
 
    Default: ``1.0``
+
+
+.. py:data:: ddtrace.config.openai["metrics_enabled"]
+
+   Enable collection of OpenAI metrics.
+
+   Note that the statsd port of the Datadog Agent must be enabled. See
+   https://docs.datadoghq.com/developers/dogstatsd/?tab=hostagent#agent for
+   instructions.
+
+   This option can also be set with the ``DD_OPENAI_METRICS_ENABLED`` environment
+   variable.
+
+   Default: ``True``
 
 
 Instance Configuration

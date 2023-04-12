@@ -1,16 +1,19 @@
 import os
+import typing
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
-from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 
 from .. import trace_utils
 from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
+from ._logging import V2LogWriter
+from ._metrics import stats_client
 from ._openai import CHAT_COMPLETIONS
 from ._openai import COMPLETIONS
 from ._openai import EMBEDDINGS
@@ -21,34 +24,64 @@ from ._utils import append_tag_prefixes
 from ._utils import process_text
 
 
+if typing.TYPE_CHECKING:
+    from typing import List
+
+
 config._add(
     "openai",
     {
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
+        "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "_default_service": "openai",
     },
 )
 
+
+log = get_logger(__file__)
+
+
 REQUEST_TAG_PREFIX = "request"
 RESPONSE_TAG_PREFIX = "response"
 ERROR_TAG_PREFIX = "error"
 
-_statsd = None
+
+_logs_writer = None
 
 
-def _stats_client():
-    global _statsd
-    if _statsd is None:
-        # FIXME: this currently does not consider if the tracer
-        # is configured to use a different hostname.
-        # eg. tracer.configure(host="new-hostname")
-        _statsd = get_dogstatsd_client(
-            get_stats_url(),
-            namespace="openai",
-            tags=["env:%s" % config.env, "service:%s" % config.service, "version:%s" % config.version],
-        )
-    return _statsd
+def _log(level, msg, tags):
+    # type: (str, str, List[str]) -> None
+    global _logs_writer
+
+    if _logs_writer is None or config.openai.logs_enabled is False:
+        return
+
+    import datetime
+
+    timestamp = datetime.datetime.now().isoformat()
+    from ddtrace import tracer
+
+    curspan = tracer.current_span()
+
+    log = {
+        "message": "%s %s %s" % (timestamp, level, msg),
+        "hostname": os.getenv("DD_HOSTNAME", get_hostname()),
+        "ddsource": "python",
+        "service": "openai",
+    }
+    if config.env:
+        tags.append("env:%s" % config.env)
+    if config.version:
+        tags.append("version:%s" % config.version)
+    log["ddtags"] = ",".join(t for t in tags)
+    log["prompt"] = "hello world"
+    log[
+        "completion"
+    ] = "A Hello, World! program is generally a computer program that ignores any input and outputs or displays a message similar to Hello, World!."
+    log["dd.trace_id"] = str(curspan.trace_id)
+    log["dd.span_id"] = str(curspan.span_id)
+    _logs_writer.enqueue(log)
 
 
 def patch():
@@ -76,6 +109,24 @@ def patch():
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
 
+    if config.openai.logs_enabled:
+        ddsite = (os.getenv("DD_SITE", "datadoghq.com"),)
+        ddapikey = os.getenv("DD_API_KEY")
+        # TODO: replace with proper check
+        assert ddapikey
+
+        writer = V2LogWriter(
+            site=ddsite,
+            api_key=ddapikey,
+            interval=1.0,
+            timeout=2.0,
+        )
+        global _logs_writer
+        _logs_writer = writer
+        _logs_writer.start()
+        # TODO: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
+        log.debug("started log writer")
+
 
 def unpatch():
     # FIXME add unpatching. unwrapping the create methods results in a
@@ -89,6 +140,7 @@ def patched_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     span = start_endpoint_span(openai, pin, instance, args, kwargs)
     resp, resp_err = None, None
+    _log("INFO", "test prompt", tags=["model:%s" % kwargs.get("model")])
     try:
         resp = func(*args, **kwargs)
         return resp
@@ -96,6 +148,7 @@ def patched_endpoint(openai, pin, func, instance, args, kwargs):
         resp_err = err
     finally:
         finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
+
 
 @trace_utils_async.with_traced_module
 async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
@@ -109,6 +162,7 @@ async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
         resp_err = err
     finally:
         finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
+
 
 @trace_utils.with_traced_module
 def patched_create(openai, pin, func, instance, args, kwargs):
@@ -180,11 +234,11 @@ def finish_endpoint_span(span, resp, err, openai, instance, kwargs):
             span,
             append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
         )
-        _stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
+        stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
         span.finish()
         raise err
     span.finish()
-    _stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
+    stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
 def usage_metrics(usage, metrics_tags):
@@ -197,4 +251,4 @@ def usage_metrics(usage, metrics_tags):
         # format metric name into tokens.<token type>
         name = "{}.{}".format("tokens", token_type)
         # want to capture total count for token distribution
-        _stats_client().distribution(name, num_tokens, tags=metrics_tags)
+        stats_client().distribution(name, num_tokens, tags=metrics_tags)
