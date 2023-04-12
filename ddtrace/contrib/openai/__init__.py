@@ -27,6 +27,27 @@ Global Configuration
    Default: ``"openai"``
 
 
+.. py:data:: ddtrace.config.openai["logs_enabled"]
+
+   Enable collection of prompts and completions as logs. The number of prompt/completions collected
+   can be adjusted using the sampling option below.
+
+   This option can also be set with the ``DD_OPENAI_LOGS_ENABLED`` environment
+   variable.
+
+   Default: ``False``
+
+
+.. py:data:: ddtrace.config.openai["prompt_completion_sample_rate"]
+
+   Configure the sample rate for the collection of prompts and completions as logs.
+
+   This option can also be set with the ``DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   variable.
+
+   Default: ``1.0``
+
+
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 

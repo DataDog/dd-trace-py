@@ -1,8 +1,11 @@
+import os
+
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.internal.utils.formats import asbool
 
 from .. import trace_utils
 from .. import trace_utils_async
@@ -21,6 +24,8 @@ from ._utils import process_text
 config._add(
     "openai",
     {
+        "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
+        "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "_default_service": "openai",
     },
 )
@@ -92,7 +97,6 @@ def patched_endpoint(openai, pin, func, instance, args, kwargs):
     finally:
         finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
 
-
 @trace_utils_async.with_traced_module
 async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
@@ -105,7 +109,6 @@ async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
         resp_err = err
     finally:
         finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
-
 
 @trace_utils.with_traced_module
 def patched_create(openai, pin, func, instance, args, kwargs):
