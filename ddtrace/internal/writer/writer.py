@@ -40,6 +40,7 @@ from ..logger import get_logger
 from ..runtime import container
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
+from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
