@@ -17,8 +17,11 @@ from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
+from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -80,12 +83,64 @@ def _extract_repository_name(repository_url):
         return repository_url
 
 
+def _extract_reason(call):
+    if call.excinfo is not None:
+        return call.excinfo.value
+
+
 def _get_pytest_command(config):
     """Extract and re-create pytest session command from pytest config."""
     command = "pytest"
     if getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(config.invocation_params.args))
     return command
+
+
+def _start_test_module_span(item):
+    """
+    Starts a test module span at the start of a new pytest test package.
+    Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
+    to find the ``pytest.Package`` ``item``.
+    """
+    test_module_span = _CIVisibility._instance.tracer.trace(
+        "pytest.test_module",
+        service=_CIVisibility._instance._service,
+        span_type=SpanTypes.TEST,
+    )
+    test_module_span.set_tag_str(COMPONENT, "pytest")
+    test_module_span.set_tag_str(SPAN_KIND, KIND)
+    test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+    test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+    test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
+    test_module_span.set_tag(_SESSION_ID, test_module_span.trace_id)
+    test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
+    test_module_span.set_tag_str(test.MODULE, item.parent.parent.name)
+    _store_span(item.parent.parent, test_module_span)
+
+
+def _start_test_suite_span(item):
+    """
+    Starts a test suite span at the start of a new pytest test module.
+    Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
+    to find the ``pytest.Module`` ``item``.
+    """
+    test_suite_span = _CIVisibility._instance.tracer.trace(
+        "pytest.test_suite", service=_CIVisibility._instance._service, span_type=SpanTypes.TEST
+    )
+    test_suite_span.set_tag_str(COMPONENT, "pytest")
+    test_suite_span.set_tag_str(SPAN_KIND, KIND)
+    test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+    test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+    test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+    test_suite_span.set_tag(_SESSION_ID, test_suite_span.trace_id)
+    test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
+    if isinstance(item.parent.parent, pytest.Package):
+        test_suite_span.set_tag_str(test.MODULE, item.parent.parent.name)
+    test_suite_span.set_tag_str(test.BUNDLE, "")
+    test_suite_span.set_tag_str(test.SUITE, item.parent.module.__name__)
+    _store_span(item.parent, test_suite_span)
 
 
 def pytest_addoption(parser):
@@ -116,6 +171,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
+
+
+def pytest_sessionstart(session):
+    if _CIVisibility.enabled:
         test_command_span = _CIVisibility._instance.tracer.trace(
             "pytest.test_session",
             service=_CIVisibility._instance._service,
@@ -125,73 +184,18 @@ def pytest_configure(config):
         test_command_span.set_tag_str(SPAN_KIND, KIND)
         test_command_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         test_command_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-        test_command_span.set_tag_str(_EVENT_TYPE, "test_session_end")
-        test_command_span.set_tag_str(test.COMMAND, _get_pytest_command(config))
+        test_command_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
+        test_command_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
         test_command_span.set_tag(_SESSION_ID, test_command_span.trace_id)
+        _store_span(session, test_command_span)
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """
-    Hooks right after a whole test session has finished, right before returning the exit status to system.
-    """
-    if is_enabled(session.config):
-        test_command_span = _CIVisibility._instance.tracer.current_root_span()
+    if _CIVisibility.enabled:
+        test_command_span = _extract_span(session)
         if test_command_span is not None:
             test_command_span.finish()
         _CIVisibility.disable()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def ddtrace_test_module_fixture(request):
-    """
-    Hook to trace test modules in pytest. This fixture runs during the setup/teardown of every pytest test module,
-    which is as close as possible to the start/end of a test suite. Pytest doesn't offer hooks at the start of a test
-    suite, so we have to use a module-scoped fixture instead.
-    """
-    if not _CIVisibility.enabled:
-        yield
-        return
-    with _CIVisibility._instance.tracer.trace(
-        "pytest.test_module",
-        service=_CIVisibility._instance._service,
-        span_type=SpanTypes.TEST,
-    ) as test_module_span:
-        test_module_span.set_tag_str(COMPONENT, "pytest")
-        test_module_span.set_tag_str(SPAN_KIND, KIND)
-        test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-        test_module_span.set_tag_str(_EVENT_TYPE, "test_suite_end")
-        test_module_span.set_tag(_SESSION_ID, test_module_span.trace_id)
-        test_module_span.set_tag(_SUITE_ID, test_module_span.span_id)
-        test_module_span.set_tag_str(test.SUITE, request.node.name)
-        _store_module_id(request.node, test_module_span.span_id)
-        yield
-
-
-@pytest.fixture(scope="package", autouse=True)
-def ddtrace_test_package_fixture(request):
-    """
-    Hook to trace test packages in pytest. This fixture runs during the setup/teardown of every pytest test package,
-    which is as close as possible to the start/end of a test package. Pytest doesn't offer hooks at the start of a test
-    package, so we have to use a package-scoped fixture instead.
-    """
-    if not _CIVisibility.enabled:
-        yield
-        return
-    with _CIVisibility._instance.tracer.trace(
-        "pytest.test_package",
-        service=_CIVisibility._instance._service,
-        span_type=SpanTypes.TEST,
-    ) as test_package_span:
-        test_package_span.set_tag_str(COMPONENT, "pytest")
-        test_package_span.set_tag_str(SPAN_KIND, KIND)
-        test_package_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        test_package_span.set_tag_str(_EVENT_TYPE, "test_package_end")
-        test_package_span.set_tag(_SESSION_ID, test_package_span.trace_id)
-        test_package_span.set_tag(_MODULE_ID, test_package_span.span_id)
-        test_package_span.set_tag_str(test.SUITE, request.node.name)
-        _store_package_id(request.node, test_package_span.span_id)
-        yield
 
 
 @pytest.fixture(scope="function")
@@ -218,22 +222,34 @@ def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
+    if isinstance(item.parent.parent, pytest.Package):
+        if _extract_span(item.parent.parent) is None:
+            _start_test_module_span(item)
 
-    with _CIVisibility._instance.tracer.trace(
+    if _extract_span(item.parent) is None:
+        _start_test_suite_span(item)
+    module_span = _extract_span(item.parent)
+
+    with _CIVisibility._instance.tracer.start_span(
         ddtrace.config.pytest.operation_name,
+        child_of=module_span,
         service=_CIVisibility._instance._service,
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
+        activate=True,
     ) as span:
         span.set_tag_str(COMPONENT, "pytest")
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag(_SESSION_ID, span.trace_id)
-        test_module_id = _extract_module_id(item.parent)
-        span.set_tag(_SUITE_ID, test_module_id)
-        test_package_id = _extract_package_id(item.parent.parent)
-        span.set_tag(_MODULE_ID, test_package_id)
+        test_suite_span = _extract_span(item.parent)
+        span.set_tag(_SUITE_ID, test_suite_span.span_id)
+
+        if isinstance(item.parent.parent, pytest.Package):
+            test_module_span = _extract_span(item.parent.parent)
+            span.set_tag(_MODULE_ID, test_module_span.span_id)
 
         if hasattr(item, "module"):
             span.set_tag_str(test.SUITE, item.module.__name__)
@@ -268,10 +284,16 @@ def pytest_runtest_protocol(item, nextitem):
 
         yield
 
+    test_suite_span = _extract_span(item.parent)
+    if test_suite_span is not None:
+        if nextitem is None or nextitem.parent != item.parent and not test_suite_span.finished:
+            test_suite_span.finish()
 
-def _extract_reason(call):
-    if call.excinfo is not None:
-        return call.excinfo.value
+    if isinstance(item.parent.parent, pytest.Package):
+        test_module_span = _extract_span(item.parent.parent)
+        if test_module_span is not None:
+            if nextitem is None or nextitem.parent.parent != item.parent.parent and not test_module_span.finished:
+                test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -309,7 +331,7 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.STATUS, test.Status.SKIP.value)
         reason = _extract_reason(call)
         if reason is not None:
-            span.set_tag_str(test.SKIP_REASON, reason)
+            span.set_tag(test.SKIP_REASON, reason)
     elif result.passed:
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:

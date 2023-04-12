@@ -20,6 +20,9 @@ COMMAND = "test.command"
 # Test Module
 MODULE = "test.module"
 
+# Test Bundle (Legacy equivalent to test.module)
+BUNDLE = "test.bundle"
+
 # Test Suite
 SUITE = TEST_SUITE = "test.suite"
 
