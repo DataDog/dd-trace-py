@@ -70,7 +70,6 @@ class CIVisibility(Service):
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
-
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return

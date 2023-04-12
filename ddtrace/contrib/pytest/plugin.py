@@ -6,7 +6,6 @@ from typing import Dict
 import pytest
 
 import ddtrace
-from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -16,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -158,7 +158,7 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if compat.PY3 and config._ci_visibility_code_coverage_enabled:
+        if coverage_enabled():
             from ddtrace.internal.ci_visibility.coverage import cover
 
             with cover(span, root=str(item.config.rootdir)):

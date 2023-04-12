@@ -384,8 +384,6 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "coverage<=7.2.3; python_version>='3.7'",
-        "coverage<6.0; python_version<='3.6'",
     ]
     + bytecode,
     extras_require={
