@@ -17,7 +17,6 @@ import tenacity
 
 import ddtrace
 from ddtrace import config
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -41,6 +40,12 @@ from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
+
+
+should_start_remoteconfig = config._appsec_enabled or asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+
+if should_start_remoteconfig:
+    from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -700,7 +705,8 @@ class AgentWriter(HTTPWriter):
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
-            enable_appsec_rc()
+            if should_start_remoteconfig:
+                enable_appsec_rc()
         except service.ServiceStatusError:
             pass
 
