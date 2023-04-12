@@ -398,7 +398,7 @@ def test_writer_headers(encoding, monkeypatch):
         pass
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("Datadog-Meta-Tracer-Version") == ddtrace.__version__
     assert headers.get("Datadog-Meta-Lang") == "python"
     assert headers.get("Content-Type") == "application/msgpack"
@@ -413,7 +413,7 @@ def test_writer_headers(encoding, monkeypatch):
             pass
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
     t = Tracer()
@@ -424,7 +424,7 @@ def test_writer_headers(encoding, monkeypatch):
                 t.trace("child").finish()
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
@@ -522,7 +522,8 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
 
 def test_bad_endpoint():
     t = Tracer()
-    t._writer._endpoint = "/bad"
+    for client in t._writer._clients:
+        client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
@@ -665,7 +666,8 @@ def test_bad_encoder():
         def encode_traces(self, traces):
             raise Exception()
 
-    t._writer._encoder = BadEncoder()
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
