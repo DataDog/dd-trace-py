@@ -28,7 +28,7 @@ class Vulnerability(object):
 
     def __attrs_post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
-        if PY2:
+        if PY2 and self.hash < 0:
             self.hash += 1 << 32
 
 
