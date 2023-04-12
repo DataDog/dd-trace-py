@@ -13,7 +13,6 @@ from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
@@ -50,37 +49,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     setattr(item, "_datadog_span", span)
-
-
-def _store_module_id(item, suite_id):
-    """Store test_module_id at `pytest.Item` instance."""
-    setattr(item, "_datadog_test_module_id", suite_id)
-
-
-def _extract_module_id(item):
-    """Extract test_module_id from `pytest.Item` instance."""
-    return getattr(item, "_datadog_test_module_id", None)
-
-
-def _store_package_id(item, suite_id):
-    """Store test_package_id at `pytest.Item` instance."""
-    setattr(item, "_datadog_test_package_id", suite_id)
-
-
-def _extract_package_id(item):
-    """Extract test_package_id from `pytest.Item` instance."""
-    return getattr(item, "_datadog_test_package_id", None)
-
-
-def _extract_repository_name(repository_url):
-    # type: (str) -> str
-    """Extract repository name from repository url."""
-    try:
-        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
-    except ValueError:
-        # In case of parsing error, default to repository url
-        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
-        return repository_url
 
 
 def _extract_reason(call):
