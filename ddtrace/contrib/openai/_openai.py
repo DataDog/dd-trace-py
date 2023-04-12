@@ -104,7 +104,7 @@ def process_response(openai, endpoint, resp):
                 if resp.get(arg):
                     ret[arg] = resp.get(arg)
         return ret
-    except KeyError or IndexError:
+    except (KeyError, IndexError):
         return {}
 
 
@@ -119,5 +119,5 @@ def process_request(openai, engine, args, kwargs):
                 if kwargs.get(arg):
                     request[arg] = kwargs.get(arg)
         return request
-    except KeyError or IndexError:
+    except (KeyError, IndexError):
         return {}
