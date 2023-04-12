@@ -9,7 +9,11 @@ from typing import List
 from typing import Tuple
 
 from coverage import Coverage
+from coverage import version_info as coverage_version
 from coverage.numbits import numbits_to_nums
+
+
+EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
 
 
 @contextlib.contextmanager
@@ -66,7 +70,7 @@ class CIVisibilityReporter:
                 "where context_id = ?"
             )
             data = [context_id]
-            bitmaps = list(con._execute(query, data))
+            bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
             return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
 
     def build(self, test_id=None, root=None):

@@ -158,7 +158,7 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "1":
+        if compat.PY3 and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "1":
             from ddtrace.internal.ci_visibility.coverage import cover
 
             with cover(span, root=str(item.config.rootdir)):

@@ -11,6 +11,7 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
@@ -750,6 +751,7 @@ class PytestTestCase(TracerTestCase):
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
+    @pytest.mark.skipif(compat.PY2, reason="Coverage does not work on Python 2")
     def test_pytest_will_report_coverage(self):
         self.testdir.makepyfile(
             test_module="""
@@ -773,5 +775,6 @@ class PytestTestCase(TracerTestCase):
 
         assert "test.coverage" in spans[0].get_tags()
         tag_data = json.loads(spans[0].get_tag("test.coverage"))
-        assert tag_data["files"][0]["filename"] == "test_cov.py"
-        assert tag_data["files"][1]["filename"] == "test_module.py"
+        filenames = [data["filename"] for data in tag_data["files"]]
+        assert "test_cov.py" in filenames
+        assert "test_module.py" in filenames
