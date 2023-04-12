@@ -3,6 +3,8 @@ import zlib
 
 import attr
 
+from ddtrace.internal.compat import PY2
+
 
 @attr.s(eq=True, hash=True)
 class Evidence(object):
@@ -14,21 +16,20 @@ class Evidence(object):
 class Location(object):
     path = attr.ib(type=str)
     line = attr.ib(type=int)
-    spanId = attr.ib(type=int, eq=False, hash=False)
+    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)
 
 
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
     type = attr.ib(type=str)
-    evidence = attr.ib(type=Evidence)
+    evidence = attr.ib(type=Evidence, repr=False)
     location = attr.ib(type=Location)
-    hash = attr.ib(init=False, eq=False, hash=False)
+    hash = attr.ib(init=False, eq=False, hash=False, repr=False)
 
     def __attrs_post_init__(self):
-        self.hash = zlib.crc32(":".join({self.location.path, str(self.location.line), self.type}))
-        # DEV: Uncomment when we add support for Python 2
-        # if six.PY2:
-        #     self.hash += (1 << 32)
+        self.hash = zlib.crc32(repr(self).encode())
+        if PY2:
+            self.hash += 1 << 32
 
 
 @attr.s(eq=True, hash=True)
