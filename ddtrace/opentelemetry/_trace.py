@@ -12,9 +12,9 @@ from opentelemetry.trace.span import Span as OtelSpan
 from opentelemetry.trace.span import TraceFlags
 
 import ddtrace
-from ddtrace._opentelemetry.span import Span
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.opentelemetry._span import Span
 
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class TracerProvider(OtelTracerProvider):
         schema_url=None,
     ):
         # type: (str, Optional[str], Optional[str]) -> OtelTracer
-        """Returns an opentelmetry compatible Tracer."""
+        """Returns an opentelemetry compatible Tracer."""
         return Tracer(self._ddtracer)
 
 

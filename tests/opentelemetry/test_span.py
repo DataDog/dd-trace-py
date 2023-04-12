@@ -165,7 +165,7 @@ def test_otel_get_span_context(oteltracer):
     span_context = otelspan.get_span_context()
     assert span_context.trace_id == otelspan._ddspan.trace_id
     assert span_context.span_id == otelspan._ddspan.span_id
-    # A ddtrace._opentelemetry.Span can never be remote.
+    # A ddtrace.opentelemetry._span can never be remote.
     # opentelemetry.trace.NonRecordingSpan is used to represent a "remote span".
     assert span_context.is_remote is False
     # By default ddtrace set sampled=True for all spans
