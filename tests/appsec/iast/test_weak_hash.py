@@ -10,8 +10,8 @@ from tests.appsec.iast.fixtures.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.weak_algorithms import parametrized_week_hash
 
 
-WEAK_ALGOS_FIXTURES_PATH = "/tests/appsec/iast/fixtures/weak_algorithms.py"
-WEAK_HASH_FIXTURES_PATH = "/tests/appsec/iast/test_weak_hash.py"
+WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
+WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/test_weak_hash.py"
 
 
 @pytest.mark.parametrize(
