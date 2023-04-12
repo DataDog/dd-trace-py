@@ -1,12 +1,12 @@
 from doctest import DocTest
 import json
-import os
 import re
 from typing import Dict
 
 import pytest
 
 import ddtrace
+from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -158,7 +158,7 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if compat.PY3 and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "1":
+        if compat.PY3 and config._ci_visibility_code_coverage_enabled:
             from ddtrace.internal.ci_visibility.coverage import cover
 
             with cover(span, root=str(item.config.rootdir)):
