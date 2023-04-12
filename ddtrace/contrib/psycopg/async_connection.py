@@ -26,7 +26,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
 
         super(Psycopg3TracedAsyncConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
 
-    async def execute(self, *args, **kwargs):  # noqa
+    async def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
         span_name = "{}.{}".format(self._self_datadog_name, "execute")
 
