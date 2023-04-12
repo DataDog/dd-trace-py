@@ -7,10 +7,6 @@ from typing import Iterable
 from typing import List
 from typing import Tuple
 
-from coverage import Coverage
-from coverage import version_info as coverage_version
-from coverage.numbits import numbits_to_nums
-
 from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
@@ -21,20 +17,28 @@ from .constants import COVERAGE_TAG_NAME
 
 log = get_logger(__name__)
 
+try:
+    from coverage import Coverage
+    from coverage import version_info as coverage_version
+    from coverage.numbits import numbits_to_nums
+except ImportError:
+    Coverage = None
+    log.warning(
+        "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
+        "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+    )
+
+
 # this public attribute became private after coverage==6.3
 EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
 
 
 def enabled():
+    if Coverage is None:
+        return False
     if compat.PY2:
         return False
     if config._ci_visibility_code_coverage_enabled:
-        if find_loader("coverage") is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
         return True
     return False
 
