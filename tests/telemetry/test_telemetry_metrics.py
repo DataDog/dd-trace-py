@@ -31,8 +31,12 @@ def _assert_metric(
     }
     assert events[0]["request_type"] == type_paypload
 
+    # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(payload, type_paypload, seq_id)
-    assert sorted(events[0]["payload"]["series"]) == sorted(expected_body["payload"]["series"])
+    expected_body_sorted = expected_body["payload"]["series"].sort(key=lambda x: x['metric'], reverse=False)
+    result_event = events[0]["payload"]["series"].sort(key=lambda x: x['metric'], reverse=False)
+
+    assert result_event == expected_body_sorted
 
 
 def _assert_logs(
