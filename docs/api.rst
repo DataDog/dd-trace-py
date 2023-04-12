@@ -33,6 +33,9 @@ Tracing
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:
 
+.. automodule:: ddtrace.opentelemetry
+    :members:
+
 
 Runtime Metrics
 ===============

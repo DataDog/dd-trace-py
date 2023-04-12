@@ -78,12 +78,7 @@ def _add_rules_to_list(features, feature, message, ruleset):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> bool
     if features and tracer._appsec_processor:
-        ruleset = {
-            "rules": None,
-            "rules_data": None,
-            "exclusions": None,
-            "rules_override": None,
-        }  # type: dict[str, Optional[list[Any]]]
+        ruleset = {}  # type: dict[str, Optional[list[Any]]]
         _add_rules_to_list(features, "rules_data", "rules data", ruleset)
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset)
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset)

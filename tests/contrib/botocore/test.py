@@ -339,7 +339,11 @@ class BotocoreTest(TracerTestCase):
             trace_data_injected = json.loads(trace_json)
             assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
             assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
@@ -370,8 +374,11 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "test-botocore-tracing.sqs"
             assert span.resource == "sqs.sendmessage"
             assert span.get_tag("params.MessageAttributes._datadog.StringValue") is None
-
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
@@ -413,7 +420,11 @@ class BotocoreTest(TracerTestCase):
             trace_data_injected = json.loads(trace_json)
             assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
             assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
             trace_data_in_message = json.loads(trace_json_message)
@@ -456,7 +467,11 @@ class BotocoreTest(TracerTestCase):
             assert span.resource == "sqs.sendmessage"
             trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
             assert trace_json is None
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
@@ -489,7 +504,11 @@ class BotocoreTest(TracerTestCase):
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
             assert span.resource == "sqs.sendmessagebatch"
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
             trace_data_in_message = json.loads(trace_json_message)
@@ -536,7 +555,11 @@ class BotocoreTest(TracerTestCase):
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
             assert span.resource == "sqs.sendmessagebatch"
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
             assert len(response["Messages"]) == 1
             trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
             trace_data_in_message = json.loads(trace_json_message)
@@ -582,7 +605,11 @@ class BotocoreTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         assert span.service == "test-botocore-tracing.sqs"
         assert span.resource == "sqs.sendmessagebatch"
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(
+            QueueUrl=queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
         assert len(response["Messages"]) == 1
         trace_in_message = "MessageAttributes" in response["Messages"][0]
         assert trace_in_message is False
@@ -1314,7 +1341,11 @@ class BotocoreTest(TracerTestCase):
             spans = self.get_spans()
 
             # get SNS messages via SQS
-            response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
 
             # clean up resources
             sqs.delete_queue(QueueUrl=sqs_url)
@@ -1458,7 +1489,11 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(
+            QueueUrl=queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1531,7 +1566,11 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(
+            QueueUrl=queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1605,7 +1644,11 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(
+            QueueUrl=queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1626,6 +1669,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_json is None
 
         # receive message using SQS and ensure headers are present
+        assert response.get("Messages"), response
         assert len(response["Messages"]) == 1
         msg = response["Messages"][0]
         assert msg is not None
