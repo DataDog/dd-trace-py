@@ -306,6 +306,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
+@pytest.mark.parametrize("span_type", ["web", "http", None])
 @pytest.mark.parametrize(
     "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
     [
@@ -357,9 +358,11 @@ def test_set_http_meta(
     path_params,
     cookies,
     appsec_enabled,
+    span_type,
 ):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
+    span.span_type = span_type
     with override_global_config({"_appsec_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
@@ -414,7 +417,7 @@ def test_set_http_meta(
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
 
-    if appsec_enabled:
+    if appsec_enabled and span.span_type == "web":
         if uri is not None:
             assert _context.get_item("http.request.uri", span=span) == uri
         if method is not None:
@@ -743,8 +746,8 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
-        (u"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "\u3132\u3134\u3137\u3138"),
+        ("", ["runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py2(
