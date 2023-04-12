@@ -39,6 +39,8 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
 from ..sma import SimpleMovingAverage
+from .writer_client import AgentWriterClientV3
+from .writer_client import AgentWriterClientV4
 from .writer_client import WRITER_CLIENTS
 from .writer_client import WriterClientBase
 
