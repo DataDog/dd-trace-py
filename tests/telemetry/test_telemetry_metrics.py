@@ -49,8 +49,12 @@ def _assert_logs(
 
     assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_LOGS]) == seq_id
 
+    # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
-    assert events[0] == expected_body, "Event: %s\nExpected body: %s" % (events[0], expected_body)
+    expected_body_sorted = expected_body["payload"].sort(key=lambda x: x["message"], reverse=False)
+    result_event = events[0]["payload"].sort(key=lambda x: x["message"], reverse=False)
+
+    assert result_event == expected_body_sorted
 
 
 def test_send_metric_flush_and_generate_metrics_series_is_restarted(test_agent_metrics_session, mock_time):
