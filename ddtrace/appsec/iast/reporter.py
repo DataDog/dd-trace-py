@@ -1,4 +1,5 @@
 from typing import Set
+import zlib
 
 import attr
 
@@ -24,11 +25,10 @@ class Vulnerability(object):
     hash = attr.ib(init=False, eq=False, hash=False)
 
     def __attrs_post_init__(self):
-        if self.evidence.value is not None:
-            self.hash = hash(self.type) ^ hash(self.evidence) ^ hash(self.location)
-        else:
-            valueparts = (vp["value"] for vp in self.evidence.valueParts)
-            self.hash = hash(self.type) ^ hash(valueparts) ^ hash(self.location)
+        self.hash = zlib.crc32(":".join({self.location.path, str(self.location.line), self.type}))
+        # DEV: Uncomment when we add support for Python 2
+        # if six.PY2:
+        #     self.hash += (1 << 32)
 
 
 @attr.s(eq=True, hash=True)
