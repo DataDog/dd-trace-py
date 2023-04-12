@@ -700,7 +700,7 @@ class AgentWriter(HTTPWriter):
 
     def _downgrade(self, payload, response, client):
         if client.ENDPOINT == "v0.5/traces":
-            self._clients = [AgentWriterClientV4()]
+            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
@@ -711,7 +711,7 @@ class AgentWriter(HTTPWriter):
             )
             return None
         if client.ENDPOINT == "v0.4/traces":
-            self._clients = [AgentWriterClientV3()]
+            self._clients = [AgentWriterClientV3(self._buffer_size, self._max_payload_size)]
             # These endpoints share the same encoding, so we can try sending the
             # same payload over the downgraded endpoint.
             return payload
