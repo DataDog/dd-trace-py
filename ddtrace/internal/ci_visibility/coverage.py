@@ -11,6 +11,8 @@ from coverage import Coverage
 from coverage import version_info as coverage_version
 from coverage.numbits import numbits_to_nums
 
+from .constants import COVERAGE_TAG_NAME
+
 
 # this public attribute became private after coverage==6.3
 EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
@@ -29,7 +31,7 @@ def cover(span, root=None, **kwargs):
     cov.switch_context(str(span.trace_id))
     yield cov
     cov.stop()
-    span.set_tag("test.coverage", build_payload(cov, test_id=str(span.trace_id), root=root))
+    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=str(span.trace_id), root=root))
 
 
 def segments(lines):

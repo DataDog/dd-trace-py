@@ -22,6 +22,7 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
@@ -364,7 +365,7 @@ def test_encode_traces_civisibility_v2_coverage():
     }
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
-    coverage_span.set_tag("test.coverage", coverage_json)
+    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
     traces = [
         [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
     ]

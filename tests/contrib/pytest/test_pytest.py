@@ -13,6 +13,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -773,8 +774,8 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
-        assert "test.coverage" in spans[0].get_tags()
-        tag_data = json.loads(spans[0].get_tag("test.coverage"))
+        assert COVERAGE_TAG_NAME in spans[0].get_tags()
+        tag_data = json.loads(spans[0].get_tag(COVERAGE_TAG_NAME))
         filenames = [data["filename"] for data in tag_data["files"]]
         assert "test_cov.py" in filenames
         assert "test_module.py" in filenames

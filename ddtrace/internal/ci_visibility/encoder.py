@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from .._encoding import BufferedEncoder
 from .._encoding import packb as msgpack_packb
 from ..encoding import JSONEncoderV2
+from .constants import COVERAGE_TAG_NAME
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -76,7 +77,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
     def put(self, spans):
-        spans_with_coverage = [span for span in spans if "test.coverage" in span.get_tags()]
+        spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
         if spans_with_coverage:
             return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
@@ -85,7 +86,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             CIVisibilityCoverageEncoderV02._convert_span(span)
             for trace in traces
             for span in trace
-            if "test.coverage" in span.get_tags()
+            if COVERAGE_TAG_NAME in span.get_tags()
         ]
         if not normalized_covs:
             return
@@ -99,5 +100,5 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             "span_id": span.span_id,
             "test_session_id": "bar",
             "test_suite_id": "foo",
-            "files": json.loads(span.get_tag("test.coverage"))["files"],
+            "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }

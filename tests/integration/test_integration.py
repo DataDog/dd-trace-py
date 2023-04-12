@@ -15,6 +15,7 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -964,7 +965,7 @@ def test_civisibility_event_endpoints():
             s.finish()
             span = t.trace("operation2", service="my-svc2")
             span.set_tag(
-                "test.coverage",
+                COVERAGE_TAG_NAME,
                 '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
                 + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
             )
