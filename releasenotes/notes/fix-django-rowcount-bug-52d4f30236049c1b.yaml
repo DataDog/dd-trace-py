@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Adds fix for bug where Django cache return object throws an error if it does not implement __bool__(). 
+    Adds check for if the returned cache object was a provided default value, and sets row_count to 0 
+    if so.
