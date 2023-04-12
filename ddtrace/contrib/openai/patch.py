@@ -8,10 +8,13 @@ from .. import trace_utils
 from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
+from ._openai import CHAT_COMPLETIONS
+from ._openai import COMPLETIONS
+from ._openai import EMBEDDINGS
+from ._openai import process_request
+from ._openai import process_response
+from ._openai import supported
 from ._utils import append_tag_prefixes
-from ._utils import engine_resource_name
-from ._utils import process_request
-from ._utils import process_response
 from ._utils import process_text
 
 
@@ -25,7 +28,6 @@ config._add(
 REQUEST_TAG_PREFIX = "request"
 RESPONSE_TAG_PREFIX = "response"
 ERROR_TAG_PREFIX = "error"
-ENGINE = "engine"
 
 _statsd = None
 
@@ -54,30 +56,17 @@ def patch():
     wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
     wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.acreate", patched_async_create(openai))
 
-    try:
-        # Added in v0.27
-        import openai.api_resources.chat_completion
-    except ImportError:
-        pass
-    else:
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_engine_create(openai))
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_async_engine_create(openai))
+    if supported(CHAT_COMPLETIONS):
+        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_endpoint(openai))
+        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_async_endpoint(openai))
 
-    try:
-        import openai.api_resources.completion
-    except ImportError:
-        pass
-    else:
-        wrap(openai, "api_resources.completion.Completion.create", patched_engine_create(openai))
-        wrap(openai, "api_resources.completion.Completion.acreate", patched_async_engine_create(openai))
+    if supported(COMPLETIONS):
+        wrap(openai, "api_resources.completion.Completion.create", patched_endpoint(openai))
+        wrap(openai, "api_resources.completion.Completion.acreate", patched_async_endpoint(openai))
 
-    try:
-        import openai.api_resources.embedding
-    except ImportError:
-        raise
-    else:
-        wrap(openai, "api_resources.embedding.Embedding.create", patched_engine_create(openai))
-        wrap(openai, "api_resources.embedding.Embedding.acreate", patched_async_engine_create(openai))
+    if supported(EMBEDDINGS):
+        wrap(openai, "api_resources.embedding.Embedding.create", patched_endpoint(openai))
+        wrap(openai, "api_resources.embedding.Embedding.acreate", patched_async_endpoint(openai))
 
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
@@ -91,9 +80,9 @@ def unpatch():
 
 
 @trace_utils.with_traced_module
-def patched_engine_create(openai, pin, func, instance, args, kwargs):
+def patched_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
-    span = start_engine_span(openai, pin, instance, args, kwargs)
+    span = start_endpoint_span(openai, pin, instance, args, kwargs)
     resp, err = None, None
     try:
         resp = func(*args, **kwargs)
@@ -101,14 +90,13 @@ def patched_engine_create(openai, pin, func, instance, args, kwargs):
     except openai.error.OpenAIError as err:
         err = err
     finally:
-        finish_engine_span(span, resp, err, openai, instance, kwargs)
-
+        finish_endpoint_span(span, resp, err, openai, instance, kwargs)
 
 
 @trace_utils_async.with_traced_module
-async def patched_async_engine_create(openai, pin, func, instance, args, kwargs):
+async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
-    span = start_engine_span(openai, pin, instance, args, kwargs)
+    span = start_endpoint_span(openai, pin, instance, args, kwargs)
     resp, err = None, None
     try:
         resp = await func(*args, **kwargs)
@@ -116,19 +104,16 @@ async def patched_async_engine_create(openai, pin, func, instance, args, kwargs)
     except openai.error.OpenAIError as err:
         err = err
     finally:
-        finish_engine_span(span, resp, err, openai, instance, kwargs)
-
+        finish_endpoint_span(span, resp, err, openai, instance, kwargs)
 
 
 @trace_utils.with_traced_module
 def patched_create(openai, pin, func, instance, args, kwargs):
-    model_name = kwargs.get("model")
-    span = pin.tracer.trace("openai.request", resource=model_name, service=trace_utils.ext_service(pin, config.openai))
-    resp, err = None, None
+    span = pin.tracer.trace(
+        "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
+    )
     try:
-        span.set_tag_str("model", model_name)
-        span.set_tag_str(COMPONENT, config.openai.integration_name)
-        span.set_tag_str(ENGINE, instance.OBJECT_NAME)
+        init_openai_span(span, openai, kwargs.get("model"))
         resp = func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
@@ -140,13 +125,11 @@ def patched_create(openai, pin, func, instance, args, kwargs):
 
 @trace_utils_async.with_traced_module
 async def patched_async_create(openai, pin, func, instance, args, kwargs):
-    model_name = kwargs.get("model")
-    span = pin.tracer.trace("openai.request", resource=model_name, service=trace_utils.ext_service(pin, config.openai))
-    resp, err = None, None
+    span = pin.tracer.trace(
+        "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
+    )
     try:
-        span.set_tag_str("model", model_name)
-        span.set_tag_str(COMPONENT, config.openai.integration_name)
-        span.set_tag_str(ENGINE, instance.OBJECT_NAME)
+        init_openai_span(span, openai, kwargs.get("model"))
         resp = await func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
@@ -156,14 +139,22 @@ async def patched_async_create(openai, pin, func, instance, args, kwargs):
         span.finish()
 
 
-def start_engine_span(openai, pin, instance, args, kwargs):
-    model_name = kwargs.get("model")
-    span = pin.tracer.trace(
-        engine_resource_name(openai, instance), resource=model_name, service=trace_utils.ext_service(pin, config.openai)
-    )
+# set basic openai data for all openai spans
+def init_openai_span(span, openai, model):
+    if model:
+        span.set_tag_str("model", model)
     span.set_tag_str(COMPONENT, config.openai.integration_name)
-    span.set_tag_str(ENGINE, instance.OBJECT_NAME)
-    span.set_tag_str("model", model_name)
+    if hasattr(openai, "api_base") and openai.api_base:
+        span.set_tag_str("api_base", openai.api_base)
+    if hasattr(openai, "api_version") and openai.api_version:
+        span.set_tag_str("api_version", openai.api_version)
+
+
+def start_endpoint_span(openai, pin, instance, args, kwargs):
+    span = pin.tracer.trace(
+        "openai.create", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
+    )
+    init_openai_span(span, openai, kwargs.get("model"))
     set_flattened_tags(
         span,
         append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
@@ -172,7 +163,7 @@ def start_engine_span(openai, pin, instance, args, kwargs):
     return span
 
 
-def finish_engine_span(span, resp, err, openai, instance, kwargs):
+def finish_endpoint_span(span, resp, err, openai, instance, kwargs):
     metric_tags = ["model:%s" % kwargs.get("model"), "engine:%s" % instance.OBJECT_NAME]
     if resp:
         set_flattened_tags(
