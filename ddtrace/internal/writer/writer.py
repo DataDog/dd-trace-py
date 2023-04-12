@@ -302,10 +302,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _encoder(self):
         return self._clients[0].encoder
 
-    def _put_encoder(self, spans):
-        for client in self._clients:
-            client.encoder.put(spans)
-
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
         if tags:

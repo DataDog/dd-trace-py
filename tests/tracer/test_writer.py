@@ -550,18 +550,18 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         # test without base path
         endpoint_assert_path(path)
         writer = writer_class("http://%s:%s/" % (_HOST, _PORT))
-        writer._put_encoder([Span("foobar")])
+        writer._encoder._put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
         writer = writer_class("http://%s:%s" % (_HOST, _PORT))
-        writer._put_encoder([Span("foobar")])
+        writer._encoder._put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
         writer = writer_class("http://%s:%s/test/" % (_HOST, _PORT))
-        writer._put_encoder([Span("foobar")])
+        writer._encoder._put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
 
@@ -574,7 +574,7 @@ def test_flush_connection_timeout_connect(writer_class):
         else:
             exc_type = socket.error
         with pytest.raises(exc_type):
-            writer._put_encoder([Span("foobar")])
+            writer._encoder._put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -583,7 +583,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
         with pytest.raises(socket.timeout):
-            writer._put_encoder([Span("foobar")])
+            writer._encoder._put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -596,14 +596,14 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         else:
             exc_types = (httplib.BadStatusLine,)
         with pytest.raises(exc_types):
-            writer._put_encoder([Span("foobar")])
+            writer._encoder._put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
-    writer._put_encoder([Span("foobar")])
+    writer._encoder._put([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
