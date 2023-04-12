@@ -10,7 +10,6 @@ from typing import Tuple
 from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import find_loader
 
 from .constants import COVERAGE_TAG_NAME
 
@@ -22,7 +21,7 @@ try:
     from coverage import version_info as coverage_version
     from coverage.numbits import numbits_to_nums
 except ImportError:
-    Coverage = None
+    Coverage = None  # type: ignore[misc,assignment]
     log.warning(
         "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
         "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
