@@ -83,28 +83,28 @@ def unpatch():
 def patched_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     span = start_endpoint_span(openai, pin, instance, args, kwargs)
-    resp, err = None, None
+    resp, resp_err = None, None
     try:
         resp = func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
-        err = err
+        resp_err = err
     finally:
-        finish_endpoint_span(span, resp, err, openai, instance, kwargs)
+        finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
 
 
 @trace_utils_async.with_traced_module
 async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
     # resource name is set to the model being used -- if that name is not found, use the engine name
     span = start_endpoint_span(openai, pin, instance, args, kwargs)
-    resp, err = None, None
+    resp, resp_err = None, None
     try:
         resp = await func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
-        err = err
+        resp_err = err
     finally:
-        finish_endpoint_span(span, resp, err, openai, instance, kwargs)
+        finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
 
 
 @trace_utils.with_traced_module
@@ -164,7 +164,7 @@ def start_endpoint_span(openai, pin, instance, args, kwargs):
 
 
 def finish_endpoint_span(span, resp, err, openai, instance, kwargs):
-    metric_tags = ["model:%s" % kwargs.get("model"), "engine:%s" % instance.OBJECT_NAME]
+    metric_tags = ["model:%s" % kwargs.get("model"), "endpoint:%s" % instance.OBJECT_NAME]
     if resp:
         set_flattened_tags(
             span,
@@ -178,6 +178,7 @@ def finish_endpoint_span(span, resp, err, openai, instance, kwargs):
             append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
         )
         _stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
+        span.finish()
         raise err
     span.finish()
     _stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)

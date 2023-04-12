@@ -27,6 +27,7 @@ ENDPOINT_DATA = {
         "response": ["id", "object", "created", "choices", "usage"],
         # request field where model input is stored
         "model_input": "messages",
+        # request field where model output is stored
         "model_output": "choices",
         "output_processor": expand,
     },
@@ -52,14 +53,16 @@ ENDPOINT_DATA = {
         "response": ["id", "object", "created", "choices", "usage"],
         # request field where model input is stored
         "model_input": "prompt",
+        # request field where model output is stored
         "model_output": "choices",
         "output_processor": expand,
     },
     EMBEDDINGS: {
         "request": ["model", "input", "user"],
-        "response": ["model" "data", "object", "usage"],
+        "response": ["model", "data", "object", "usage"],
         # request field where model input is stored
         "model_input": "input",
+        # request field where model output is stored
         "model_output": "data",
         "output_processor": summarize_embedding,
     },
