@@ -55,6 +55,11 @@ log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
 
+
+class NoEncodableSpansError(Exception):
+    pass
+
+
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
@@ -453,6 +458,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))

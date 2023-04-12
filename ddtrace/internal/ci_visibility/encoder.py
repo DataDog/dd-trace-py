@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from .._encoding import BufferedEncoder
 from .._encoding import packb as msgpack_packb
 from ..encoding import JSONEncoderV2
+from ..writer.writer import NoEncodableSpansError
 from .constants import COVERAGE_TAG_NAME
 
 
@@ -78,8 +79,9 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
-        if spans_with_coverage:
-            return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
+        if not spans_with_coverage:
+            raise NoEncodableSpansError()
+        return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
     def _build_payload(self, traces):
         normalized_covs = [
