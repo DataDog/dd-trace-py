@@ -751,7 +751,7 @@ class PytestTestCase(TracerTestCase):
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
-    @pytest.mark.skipif(compat.PY2, reason="Coverage does not work on Python 2")
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage(self):
         self.testdir.makepyfile(
             test_module="""

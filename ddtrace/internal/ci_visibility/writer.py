@@ -53,12 +53,10 @@ class CIVisibilityWriter(HTTPWriter):
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
-        buffer_size=None,  # type: Optional[int]
-        max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
-        report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
+        report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
@@ -75,18 +73,12 @@ class CIVisibilityWriter(HTTPWriter):
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
-            buffer_size=buffer_size,
-            max_payload_size=max_payload_size,
             timeout=timeout,
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
             headers=headers,
         )
-
-    @property
-    def _intake_endpoint(self):
-        return "{}/{}".format(self.intake_url, self._clients[0].ENDPOINT)
 
     def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
@@ -95,12 +87,10 @@ class CIVisibilityWriter(HTTPWriter):
     def recreate(self):
         # type: () -> HTTPWriter
         return self.__class__(
-            self.intake_url,
+            intake_url=self.intake_url,
             sampler=self._sampler,
             priority_sampler=self._priority_sampler,
             processing_interval=self._interval,
-            buffer_size=self._buffer_size,
-            max_payload_size=self._max_payload_size,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,

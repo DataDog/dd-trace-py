@@ -3,7 +3,6 @@ from itertools import count
 from itertools import groupby
 import json
 import os
-import sys
 from typing import Iterable
 from typing import List
 from typing import Tuple
@@ -30,7 +29,7 @@ def cover(span, root=None, **kwargs):
     cov.switch_context(str(span.trace_id))
     yield cov
     cov.stop()
-    span.set_tag("test.coverage", CIVisibilityReporter(cov).build(test_id=str(span.trace_id), root=root))
+    span.set_tag("test.coverage", build_payload(cov, test_id=str(span.trace_id), root=root))
 
 
 def segments(lines):
@@ -50,60 +49,32 @@ def segments(lines):
     return [as_segments(g) for _, g in groupby(executed, grouper)]
 
 
-class CIVisibilityReporter:
-    """A reporter for writing CI Visibility JSON coverage results."""
-
-    report_type = "CI Visibility JSON report"
-
-    def __init__(self, coverage):
-        self.coverage = coverage
-        self.config = self.coverage.config
-
-    def _lines(self, context):
-        data = self.coverage.get_data()
-        context_id = data._context_id(context)
-        data._start_using()
-        with data._connect() as con:
-            query = (
-                "select file.path, line_bits.numbits "
-                "from line_bits "
-                "join file on line_bits.file_id = file.id "
-                "where context_id = ?"
-            )
-            data = [context_id]
-            bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
-            return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
-
-    def build(self, test_id=None, root=None):
-        """Generate a CI Visibility structure."""
-        return json.dumps(
-            {
-                "files": [
-                    {
-                        "filename": os.path.relpath(filename, root) if root is not None else filename,
-                        "segments": segments(lines),
-                    }
-                    for filename, lines in self._lines(test_id).items()
-                ]
-            }
+def _lines(coverage, context):
+    data = coverage.get_data()
+    context_id = data._context_id(context)
+    data._start_using()
+    with data._connect() as con:
+        query = (
+            "select file.path, line_bits.numbits "
+            "from line_bits "
+            "join file on line_bits.file_id = file.id "
+            "where context_id = ?"
         )
+        data = [context_id]
+        bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
+        return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
 
-    def report(self, outfile=None, test_id=None, root=None):
-        """Generate a CI Visibility report.
 
-        `outfile` is a file object to write the json to.
-        """
-        outfile = outfile or sys.stdout
-
-        json.dump(
-            {
-                "type": "coverage",
-                "version": 1,
-                "content": {
-                    "test_id": test_id,
-                    "files": self.build(test_id=test_id, root=root),
-                },
-            },
-            outfile,
-            indent=(4 if self.config.json_pretty_print else None),
-        )
+def build_payload(coverage, test_id=None, root=None):
+    """Generate a CI Visibility payload."""
+    return json.dumps(
+        {
+            "files": [
+                {
+                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                    "segments": segments(lines),
+                }
+                for filename, lines in _lines(coverage, test_id).items()
+            ]
+        }
+    )
