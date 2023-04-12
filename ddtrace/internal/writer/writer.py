@@ -20,27 +20,29 @@ from ddtrace import config
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
-from . import agent
-from . import compat
-from . import periodic
-from . import service
-from ..constants import KEEP_SPANS_RATE_KEY
-from ..internal.telemetry import telemetry_metrics_writer
-from ..internal.telemetry import telemetry_writer
-from ..internal.utils.formats import asbool
-from ..internal.utils.formats import parse_tags_str
-from ..internal.utils.time import StopWatch
-from ..sampler import BasePrioritySampler
-from ..sampler import BaseSampler
-from ._encoding import BufferFull
-from ._encoding import BufferItemTooLarge
-from ._encoding import BufferedEncoder
-from .agent import get_connection
-from .encoding import JSONEncoderV2
-from .encoding import MSGPACK_ENCODERS
-from .logger import get_logger
-from .runtime import container
-from .sma import SimpleMovingAverage
+from .. import agent
+from .. import compat
+from .. import periodic
+from .. import service
+from ...constants import KEEP_SPANS_RATE_KEY
+from ...internal.telemetry import telemetry_metrics_writer
+from ...internal.telemetry import telemetry_writer
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import parse_tags_str
+from ...internal.utils.time import StopWatch
+from ...sampler import BasePrioritySampler
+from ...sampler import BaseSampler
+from .._encoding import BufferFull
+from .._encoding import BufferItemTooLarge
+from ..agent import get_connection
+from ..encoding import JSONEncoderV2
+from ..logger import get_logger
+from ..runtime import container
+from ..sma import SimpleMovingAverage
+from .writer_client import AgentWriterClientV3
+from .writer_client import AgentWriterClientV4
+from .writer_client import WRITER_CLIENTS
+from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -63,51 +65,6 @@ DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
 DEFAULT_REUSE_CONNECTIONS = False
-
-
-class WriterClientBase(object):
-    ENDPOINT = ""
-
-    def __init__(
-        self,
-        encoder,  # type: BufferedEncoder
-    ):
-        self.encoder = encoder
-
-
-class AgentWriterClientV5(WriterClientBase):
-    ENDPOINT = "v0.5/traces"
-
-    def __init__(self, buffer_size, max_payload_size):
-        super(AgentWriterClientV5, self).__init__(
-            MSGPACK_ENCODERS["v0.5"](
-                max_size=buffer_size,
-                max_item_size=max_payload_size,
-            )
-        )
-
-
-class AgentWriterClientV4(WriterClientBase):
-    ENDPOINT = "v0.4/traces"
-
-    def __init__(self, buffer_size, max_payload_size):
-        super(AgentWriterClientV4, self).__init__(
-            MSGPACK_ENCODERS["v0.4"](
-                max_size=buffer_size,
-                max_item_size=max_payload_size,
-            )
-        )
-
-
-class AgentWriterClientV3(AgentWriterClientV4):
-    ENDPOINT = "v0.3/traces"
-
-
-WRITER_CLIENTS = {
-    "v0.3": AgentWriterClientV3,
-    "v0.4": AgentWriterClientV4,
-    "v0.5": AgentWriterClientV5,
-}
 
 
 def get_writer_buffer_size():
@@ -344,10 +301,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     @property
     def _encoder(self):
         return self._clients[0].encoder
-
-    def _put_encoder(self, spans):
-        for client in self._clients:
-            client.encoder.put(spans)
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
