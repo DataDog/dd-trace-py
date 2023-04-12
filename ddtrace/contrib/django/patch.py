@@ -77,7 +77,7 @@ config._add(
 
 
 _NotSet = object()
-psycopg_cursor_cls = PsycopgTracedCursor = _NotSet
+psycopg_cursor_cls = Psycopg2TracedCursor = _NotSet
 
 
 def patch_conn(django, conn):
@@ -111,7 +111,7 @@ def patch_conn(django, conn):
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
         try:
-            if cursor.cursor.__class__.__module__.startswith("psycopg"):
+            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
                 from ddtrace.contrib.psycopg2.patch import Psycopg2TracedCursor
 
