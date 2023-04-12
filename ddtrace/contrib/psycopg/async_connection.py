@@ -40,7 +40,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
                 raise ex.with_traceback(None)
 
         return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
-    
+
 
 async def patched_connect_async(connect_func, _, args, kwargs):
     if kwargs.get("traced_conn_cls", None):
