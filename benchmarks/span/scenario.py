@@ -4,7 +4,7 @@ import bm.utils as utils
 from ddtrace import tracer
 
 
-# To reduce noise avoid setting finished spans to the agent. Instead write encoded spans to stdout
+# To reduce noise avoid sending finished spans to the agent
 utils.set_log_writer(tracer)
 
 
