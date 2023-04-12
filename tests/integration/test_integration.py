@@ -557,7 +557,8 @@ def test_bad_payload():
         def encode_traces(self, traces):
             return ""
 
-    t._writer._encoder = BadEncoder()
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
@@ -590,7 +591,8 @@ def test_bad_payload_log_payload(monkeypatch):
         def encode_traces(self, traces):
             return b"bad_payload"
 
-    t._writer._encoder = BadEncoder()
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
@@ -681,8 +683,8 @@ def test_downgrade(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    t._writer._downgrade(None, None)
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
+    t._writer._downgrade(None, None, t._writer._clients[0])
+    assert t._writer._clients[0].ENDPOINT == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
