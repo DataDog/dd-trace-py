@@ -1,6 +1,12 @@
 import bm
 import bm.utils as utils
 
+from ddtrace import tracer
+
+
+# To reduce noise avoid setting finished spans to the agent. Instead write encoded spans to stdout
+utils.set_log_writer(tracer)
+
 
 class Span(bm.Scenario):
     nspans = bm.var(type=int)
@@ -24,7 +30,7 @@ class Span(bm.Scenario):
         def _(loops):
             for _ in range(loops):
                 for i in range(self.nspans):
-                    s = utils.gen_span("test." + str(i))
+                    s = tracer.trace("test." + str(i))
                     if settags:
                         s.set_tags(tags)
                     if setmetrics:

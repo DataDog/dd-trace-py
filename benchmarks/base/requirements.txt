@@ -3,4 +3,5 @@
 pyperf
 pyyaml
 attrs
+mock
 httpretty==0.9.7
