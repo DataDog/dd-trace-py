@@ -65,6 +65,51 @@ DEFAULT_PROCESSING_INTERVAL = 1.0
 DEFAULT_REUSE_CONNECTIONS = False
 
 
+class WriterClientBase(object):
+    ENDPOINT = ""
+
+    def __init__(
+        self,
+        encoder,  # type: BufferedEncoder
+    ):
+        self.encoder = encoder
+
+
+class AgentWriterClientV5(WriterClientBase):
+    ENDPOINT = "v0.5/traces"
+
+    def __init__(self, buffer_size, max_payload_size):
+        super(AgentWriterClientV5, self).__init__(
+            MSGPACK_ENCODERS["v0.5"](
+                max_size=buffer_size,
+                max_item_size=max_payload_size,
+            )
+        )
+
+
+class AgentWriterClientV4(WriterClientBase):
+    ENDPOINT = "v0.4/traces"
+
+    def __init__(self, buffer_size, max_payload_size):
+        super(AgentWriterClientV4, self).__init__(
+            MSGPACK_ENCODERS["v0.4"](
+                max_size=buffer_size,
+                max_item_size=max_payload_size,
+            )
+        )
+
+
+class AgentWriterClientV3(AgentWriterClientV4):
+    ENDPOINT = "v0.3/traces"
+
+
+WRITER_CLIENTS = {
+    "v0.3": AgentWriterClientV3,
+    "v0.4": AgentWriterClientV4,
+    "v0.5": AgentWriterClientV5,
+}
+
+
 def get_writer_buffer_size():
     # type: () -> int
     return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
@@ -233,11 +278,14 @@ class LogWriter(TraceWriter):
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to an arbitrary HTTP intake endpoint."""
 
+    RETRY_ATTEMPTS = 3
+    HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "tracer"
+
     def __init__(
         self,
         intake_url,  # type: str
-        endpoint,  # type: str
-        encoder,  # type: BufferedEncoder
+        clients,  # type: List[WriterClientBase]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -262,9 +310,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._headers = headers or {}
         self._timeout = timeout
 
-        self._endpoint = endpoint
-
-        self._encoder = encoder
+        self._clients = clients
         self.dogstatsd = dogstatsd
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
@@ -278,10 +324,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),  # type: ignore[attr-defined]
+                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),  # type: ignore[attr-defined]
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
@@ -290,6 +336,18 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     @property
     def _intake_endpoint(self):
         return "{}/{}".format(self.intake_url, self._endpoint)
+
+    @property
+    def _endpoint(self):
+        return self._clients[0].ENDPOINT
+
+    @property
+    def _encoder(self):
+        return self._clients[0].encoder
+
+    def _put_encoder(self, spans):
+        for client in self._clients:
+            client.encoder.put(spans)
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -329,8 +387,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers):
-        # type: (bytes, Dict[str, str]) -> Response
+    def _put(self, data, headers, client):
+        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -338,7 +396,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
-                self._conn.request(self.HTTP_METHOD, self._endpoint, data, headers)  # type: ignore[attr-defined]
+                self._conn.request(
+                    self.HTTP_METHOD,
+                    client.ENDPOINT,
+                    data,
+                    headers,
+                )
                 resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -360,12 +423,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _get_finalized_headers(self, count):
         return self._headers.copy()
 
-    def _send_payload(self, payload, count):
+    def _send_payload(self, payload, count, client):
         headers = self._get_finalized_headers(count)
 
         self._metrics_dist("http.requests")
 
-        response = self._put(payload, headers)
+        response = self._put(payload, headers, client)
 
         if response.status >= 400:
             self._metrics_dist("http.errors", tags=["type:%s" % response.status])
@@ -394,7 +457,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+        for client in self._clients:
+            self._write_with_client(client, spans=spans)
+
+    def _write_with_client(self, client, spans=None):
+        # type: (WriterClientBase, Optional[List[Span]]) -> None
         if spans is None:
             return
 
@@ -411,13 +478,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._set_keep_rate(spans)
 
         try:
-            self._encoder.put(spans)
+            client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             log.warning(
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
-                self._encoder.max_item_size,
+                client.encoder.max_item_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
@@ -425,9 +492,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             payload_size = e.args[0]
             log.warning(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                len(self._encoder),
-                self._encoder.size,
-                self._encoder.max_size,
+                len(client.encoder),
+                client.encoder.size,
+                client.encoder.max_size,
                 payload_size,
                 self.status.value,
             )
@@ -440,50 +507,54 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
-        # type: (bool) -> None
         try:
-            n_traces = len(self._encoder)
-            try:
-                encoded = self._encoder.encode()
-                if encoded is None:
-                    return
-            except Exception:
-                log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-                self._metrics_dist("encoder.dropped.traces", n_traces)
-                return
-
-            try:
-                self._retry_upload(self._send_payload, encoded, n_traces)
-            except tenacity.RetryError as e:
-                self._metrics_dist("http.errors", tags=["type:err"])
-                self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", n_traces)
-                if raise_exc:
-                    e.reraise()
-                else:
-                    log.error(
-                        "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
-                        n_traces,
-                        self._intake_endpoint,
-                        e.last_attempt.attempt_number,
-                        e.last_attempt.exception(),
-                    )
-            finally:
-                if config.health_metrics_enabled and self.dogstatsd:
-                    namespace = self.STATSD_NAMESPACE  # type: ignore[attr-defined]
-                    # Note that we cannot use the batching functionality of dogstatsd because
-                    # it's not thread-safe.
-                    # https://github.com/DataDog/datadogpy/issues/439
-                    # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
-                    self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                    for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution(
-                            "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
-                        )
+            for client in self._clients:
+                self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
             self._metrics_reset()
+
+    def _flush_queue_with_client(self, client, raise_exc=False):
+        # type: (WriterClientBase, bool) -> None
+        n_traces = len(client.encoder)
+        try:
+            encoded = client.encoder.encode()
+            if encoded is None:
+                return
+        except Exception:
+            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            self._metrics_dist("encoder.dropped.traces", n_traces)
+            return
+
+        try:
+            self._retry_upload(self._send_payload, encoded, n_traces, client)
+        except tenacity.RetryError as e:
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.bytes", len(encoded))
+            self._metrics_dist("http.dropped.traces", n_traces)
+            if raise_exc:
+                e.reraise()
+            else:
+                log.error(
+                    "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+                    n_traces,
+                    self._intake_endpoint,
+                    e.last_attempt.attempt_number,
+                    e.last_attempt.exception(),
+                )
+        finally:
+            if config.health_metrics_enabled and self.dogstatsd:
+                namespace = self.STATSD_NAMESPACE
+                # Note that we cannot use the batching functionality of dogstatsd because
+                # it's not thread-safe.
+                # https://github.com/DataDog/datadogpy/issues/439
+                # This really isn't ideal as now we're going to do a ton of socket calls.
+                self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
+                self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
+                for name, metric in self._metrics.items():
+                    self.dogstatsd.distribution(
+                        "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
+                    )
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -558,21 +629,16 @@ class AgentWriter(HTTPWriter):
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 
+        buffer_size = buffer_size or get_writer_buffer_size()
+        max_payload_size = max_payload_size or get_writer_max_payload_size()
         try:
-            encoder_cls = MSGPACK_ENCODERS[self._api_version]
+            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:
             raise ValueError(
                 "Unsupported api version: '%s'. The supported versions are: %r"
-                % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+                % (self._api_version, ", ".join(sorted(WRITER_CLIENTS.keys())))
             )
-        buffer_size = buffer_size or get_writer_buffer_size()
-        max_payload_size = max_payload_size or get_writer_max_payload_size()
-        encoder = encoder_cls(
-            max_size=buffer_size,
-            max_item_size=max_payload_size,
-        )
 
-        endpoint = "%s/traces" % self._api_version
         _headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
@@ -590,14 +656,13 @@ class AgentWriter(HTTPWriter):
                 }
             )
 
-        _headers.update({"Content-Type": encoder.content_type})
+        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
-            endpoint=endpoint,
-            encoder=encoder,
+            clients=[client],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -633,13 +698,9 @@ class AgentWriter(HTTPWriter):
     def _agent_endpoint(self):
         return self._intake_endpoint
 
-    def _downgrade(self, payload, response):
-        if self._endpoint == "v0.5/traces":
-            self._endpoint = "v0.4/traces"
-            self._encoder = MSGPACK_ENCODERS["v0.4"](
-                max_size=self._buffer_size,
-                max_item_size=self._max_payload_size,
-            )
+    def _downgrade(self, payload, response, client):
+        if client.ENDPOINT == "v0.5/traces":
+            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
@@ -649,29 +710,29 @@ class AgentWriter(HTTPWriter):
                 "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
             )
             return None
-        if self._endpoint == "v0.4/traces":
-            self._endpoint = "v0.3/traces"
+        if client.ENDPOINT == "v0.4/traces":
+            self._clients = [AgentWriterClientV3(self._buffer_size, self._max_payload_size)]
             # These endpoints share the same encoding, so we can try sending the
             # same payload over the downgraded endpoint.
             return payload
         raise ValueError()
 
-    def _send_payload(self, payload, count):
-        response = super(AgentWriter, self)._send_payload(payload, count)
+    def _send_payload(self, payload, count, client):
+        response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
+            log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
             try:
-                payload = self._downgrade(payload, response)
+                payload = self._downgrade(payload, response, client)
             except ValueError:
                 log.error(
                     "unsupported endpoint '%s': received response %s from intake (%s)",
-                    self._endpoint,
+                    client.ENDPOINT,
                     response.status,
                     self.intake_url,
                 )
             else:
                 if payload is not None:
-                    self._send_payload(payload, count)
+                    self._send_payload(payload, count, client)
         elif response.status < 400 and (self._priority_sampler or isinstance(self._sampler, BasePrioritySampler)):
             result_traces_json = response.get_json()
             if result_traces_json and "rate_by_service" in result_traces_json:

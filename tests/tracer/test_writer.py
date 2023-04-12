@@ -80,10 +80,11 @@ class AgentWriterTests(BaseTestCase):
             writer.stop()
             writer.join()
 
+        client_count = len(writer._clients) if hasattr(writer, "_clients") else 1
         statsd.distribution.assert_has_calls(
             [
-                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
-                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
+                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]),
+                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
                 mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                 mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
@@ -125,10 +126,13 @@ class AgentWriterTests(BaseTestCase):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.flush_queue()
+            client_count = len(writer._clients) if hasattr(writer, "_clients") else 1
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
+                    mock.call(
+                        "datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]
+                    ),
+                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
                     mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
@@ -145,8 +149,10 @@ class AgentWriterTests(BaseTestCase):
 
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
+                    mock.call(
+                        "datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]
+                    ),
+                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
                     mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
@@ -231,7 +237,8 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=False)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
-            writer._encoder = writer_encoder
+            for client in writer._clients:
+                client.encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -241,7 +248,8 @@ class AgentWriterTests(BaseTestCase):
 
             assert writer_metrics_reset.call_count == 1
 
-            assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
+            expected_count = n_traces * (len(writer._clients) if hasattr(writer, "_clients") else 1)
+            assert expected_count == writer._metrics["encoder.dropped.traces"]["count"]
 
     def test_keep_rate(self):
         statsd = mock.Mock()
@@ -347,13 +355,19 @@ class CIVisibilityWriterTests(AgentWriterTests):
 
     def test_metadata_included(self):
         writer = CIVisibilityWriter("http://localhost:9126")
-        writer._encoder.put([Span("foobar")])
-        payload = writer._encoder.encode()
-        unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
-        assert unpacked_metadata[b"language"] == b"python"
-        assert unpacked_metadata[b"runtime-id"] == get_runtime_id().encode("utf-8")
-        assert unpacked_metadata[b"library_version"] == ddtrace.__version__.encode("utf-8")
-        assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
+        for client in writer._clients:
+            client.encoder.put([Span("foobar")])
+            payload = client.encoder.encode()
+            try:
+                unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
+            except KeyError:
+                continue
+            assert unpacked_metadata[b"language"] == b"python"
+            assert unpacked_metadata[b"runtime-id"] == get_runtime_id().encode("utf-8")
+            assert unpacked_metadata[b"library_version"] == ddtrace.__version__.encode("utf-8")
+            assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
+            return
+        pytest.fail("At least one ci visibility payload must include metadata")
 
 
 class LogWriterTests(BaseTestCase):
@@ -512,18 +526,18 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         # test without base path
         endpoint_assert_path(path)
         writer = writer_class("http://%s:%s/" % (_HOST, _PORT))
-        writer._encoder.put([Span("foobar")])
+        writer._put_encoder([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
         writer = writer_class("http://%s:%s" % (_HOST, _PORT))
-        writer._encoder.put([Span("foobar")])
+        writer._put_encoder([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
         writer = writer_class("http://%s:%s/test/" % (_HOST, _PORT))
-        writer._encoder.put([Span("foobar")])
+        writer._put_encoder([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
 
@@ -536,7 +550,7 @@ def test_flush_connection_timeout_connect(writer_class):
         else:
             exc_type = socket.error
         with pytest.raises(exc_type):
-            writer._encoder.put([Span("foobar")])
+            writer._put_encoder([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -545,7 +559,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
         with pytest.raises(socket.timeout):
-            writer._encoder.put([Span("foobar")])
+            writer._put_encoder([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
@@ -558,14 +572,14 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         else:
             exc_types = (httplib.BadStatusLine,)
         with pytest.raises(exc_types):
-            writer._encoder.put([Span("foobar")])
+            writer._put_encoder([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
-    writer._encoder.put([Span("foobar")])
+    writer._put_encoder([Span("foobar")])
     writer.flush_queue(raise_exc=True)
 
 
