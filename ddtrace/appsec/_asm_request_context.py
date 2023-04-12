@@ -34,6 +34,12 @@ thread will have a different context.
 
 
 class ASM_Environment:
+    """
+    an object of this class contains all asm data (waf and telemetry)
+    for a single request. It is bound to a single asm request context.
+    It is contained into a ContextVar.
+    """
+
     def __init__(self, active=False):  # type: (bool) -> None
         self.active = active
         self.span = None
@@ -60,6 +66,12 @@ def register(span):
 
 
 class _DataHandler:
+    """
+    An object of this class is created by each asm request context.
+    It handles the creation and destruction of ASM_Environment object.
+    It allows the ASM context to be reentrant.
+    """
+
     main_id = 0
 
     def __init__(self):
@@ -229,6 +241,9 @@ def asm_request_context_manager(
     remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None
 ):
     # type: (Optional[str], Any, bool, Optional[Callable]) -> Generator[_DataHandler|None, None, None]
+    """
+    The ASM context manager
+    """
     if True or config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
