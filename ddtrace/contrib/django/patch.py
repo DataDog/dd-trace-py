@@ -81,16 +81,16 @@ psycopg_cursor_cls = PsycopgTracedCursor = _NotSet
 
 
 def patch_conn(django, conn):
-    global psycopg_cursor_cls, PsycopgTracedCursor
+    global psycopg_cursor_cls, Psycopg2TracedCursor
 
     if psycopg_cursor_cls is _NotSet:
         try:
             from psycopg2._psycopg import cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.utils import PsycopgTracedCursor
+            from ddtrace.contrib.psycopg2.patch import Psycopg2TracedCursor
         except ImportError:
             psycopg_cursor_cls = None
-            PsycopgTracedCursor = None
+            Psycopg2TracedCursor = None
 
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
@@ -113,9 +113,9 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg"):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.utils import PsycopgTracedCursor
+                from ddtrace.contrib.psycopg2.patch import Psycopg2TracedCursor
 
-                traced_cursor_cls = PsycopgTracedCursor
+                traced_cursor_cls = Psycopg2TracedCursor
         except AttributeError:
             pass
 
