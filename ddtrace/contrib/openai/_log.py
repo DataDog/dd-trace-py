@@ -43,10 +43,11 @@ def log(level, msg, tags, attrs):
     timestamp = datetime.datetime.now().isoformat()
 
     log = {
-        "message": "%s %s %s" % (timestamp, level, msg),
+        "message": "%s %s" % (timestamp, msg),
         "hostname": os.getenv("DD_HOSTNAME", get_hostname()),
         "ddsource": "python",
         "service": "openai",
+        "status": level,
     }
     if config.env:
         tags.append("env:%s" % config.env)

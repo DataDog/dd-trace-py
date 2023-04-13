@@ -1,7 +1,9 @@
 import os
+import sys
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
+from ddtrace.contrib.trace_utils import set_tag_array
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -13,9 +15,7 @@ from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
 from ._metrics import stats_client
-from ._openai import CHAT_COMPLETIONS
 from ._openai import COMPLETIONS
-from ._openai import EMBEDDINGS
 from ._openai import process_request
 from ._openai import process_response
 from ._openai import supported
@@ -29,17 +29,13 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        # TODO: truncate threshold on prompts/completions
         "_default_service": "openai",
     },
 )
 
 
 log = get_logger(__file__)
-
-
-REQUEST_TAG_PREFIX = "request"
-RESPONSE_TAG_PREFIX = "response"
-ERROR_TAG_PREFIX = "error"
 
 
 def patch():
@@ -53,6 +49,7 @@ def patch():
     # the real response time of the request to OpenAI.
     # FIXME: try to set a pin on the requests instance that the openAI library uses
     #        so that we only override it for that instance.
+    #  Pin.clone(service="openai").onto(openai.web_....requests.ClientSession)
     config.requests._default_service = None
 
     # TODO: we can probably remove these as there will be spans from the requests integration
@@ -60,17 +57,17 @@ def patch():
     # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
     # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.acreate", patched_async_create(openai))
 
-    if supported(CHAT_COMPLETIONS):
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_endpoint(openai))
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_async_endpoint(openai))
+    # if supported(CHAT_COMPLETIONS):
+    #     wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_endpoint(openai))
+    #     wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_async_endpoint(openai))
 
     if supported(COMPLETIONS):
-        wrap(openai, "api_resources.completion.Completion.create", patched_endpoint(openai))
-        wrap(openai, "api_resources.completion.Completion.acreate", patched_async_endpoint(openai))
+        wrap(openai, "api_resources.completion.Completion.create", patched_completion_create(openai))
+        wrap(openai, "api_resources.completion.Completion.acreate", patched_completion_acreate(openai))
 
-    if supported(EMBEDDINGS):
-        wrap(openai, "api_resources.embedding.Embedding.create", patched_endpoint(openai))
-        wrap(openai, "api_resources.embedding.Embedding.acreate", patched_async_endpoint(openai))
+    # if supported(EMBEDDINGS):
+    #     wrap(openai, "api_resources.embedding.Embedding.create", patched_endpoint(openai))
+    #     wrap(openai, "api_resources.embedding.Embedding.acreate", patched_async_endpoint(openai))
 
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
@@ -78,9 +75,6 @@ def patch():
     if config.openai.logs_enabled:
         ddsite = os.getenv("DD_SITE", "datadoghq.com")
         ddapikey = os.getenv("DD_API_KEY")
-        # TODO: replace with proper check
-        assert ddapikey
-
         if not ddapikey:
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
 
@@ -88,7 +82,7 @@ def patch():
             site=ddsite,
             api_key=ddapikey,
         )
-        # TODO: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
+        # FIXME: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
         log.debug("started log writer")
 
 
@@ -99,8 +93,15 @@ def unpatch():
     pass
 
 
-def _set_completion_request_tags(span, kwargs):
-    """Set span tags for a completion or chat completion request."""
+def _completion_create(openai, pin, instance, args, kwargs):
+    span = pin.tracer.trace(
+        "openai.request", resource="completions", service=trace_utils.ext_service(pin, config.openai)
+    )
+    init_openai_span(span, openai)
+
+    model = get_argument_value(args, kwargs, -1, "model")
+    prompt = get_argument_value(args, kwargs, -1, "prompt")
+    span.set_tag_str("model", model)
     kw_attrs = [
         "model",
         "suffix",
@@ -123,65 +124,90 @@ def _set_completion_request_tags(span, kwargs):
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
+    resp, error = yield span
 
-def _set_completion_response_tags(span, kwargs):
-    kw_attrs = [
-        "id",
-        "object",
-        "created",
-        "choices",
-        "usage",
+    metric_tags = [
+        "model:%s" % kwargs.get("model"),
+        "endpoint:%s" % instance.OBJECT_NAME,
+        "error:%d" % (1 if error else 0),
     ]
-    for kw_attr in kw_attrs:
-        if kw_attr in kwargs:
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+    completions = ""
+
+    if error is not None:
+        span.set_exc_info(*sys.exc_info())
+        if isinstance(error, openai.error.OpenAIError):
+            # TODO?: handle specific OpenAIError types
+            pass
+        stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+    if resp:
+        if "choices" in resp:
+            choices = resp["choices"]
+            if len(choices) > 1:
+                completions = "\n".join(["%s: %s" % (c.get("index"), c.get("text")) for c in choices])
+            else:
+                completions = choices[0].get("text")
+
+            span.set_tag("response.choices.num", len(choices))
+            for choice in choices:
+                idx = choice["index"]
+                span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
+                span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
+        for kw_attr in ["id", "object", "usage"]:
+            if kw_attr in kwargs:
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+        usage_metrics(resp.get("usage"), metric_tags)
+
+    # TODO: determine best format for multiple choices/completions
+    ddlogs.log(
+        "info" if error is None else "error",
+        "sampled completion",
+        tags=["model:%s" % kwargs.get("model")],
+        attrs={
+            "prompt": prompt,
+            "completion": completions,  # TODO: should be completions (plural)?
+        },
+    )
+    span.finish()
+    stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
 @trace_utils.with_traced_module
-def patched_endpoint(openai, pin, func, instance, args, kwargs):
-    span = pin.tracer.trace(
-        "openai.create", resource="completions", service=trace_utils.ext_service(pin, config.openai)
-    )
-    model = get_argument_value(args, kwargs, -1, "model")
-    prompt = get_argument_value(args, kwargs, -1, "prompt")
-    span.set_tag_str("model", model)
-    _set_completion_request_tags(span, kwargs)
-
+def patched_completion_create(openai, pin, func, instance, args, kwargs):
+    g = _completion_create(openai, pin, instance, args, kwargs)
+    g.send(None)
     resp, resp_err = None, None
     try:
         resp = func(*args, **kwargs)
         return resp
-    except openai.error.OpenAIError as err:
+    except Exception as err:
         resp_err = err
+        raise
     finally:
-        completions = "\n".join(["%s: %s" % (c.get("index"), c.get("text")) for c in resp.get("choices")])
-        ddlogs.log(
-            "INFO",
-            "sampled completion",
-            tags=["model:%s" % kwargs.get("model")],
-            attrs={
-                "prompt": prompt,
-                "completion": completions,
-            },
-        )
-        metric_tags = ["model:%s" % kwargs.get("model"), "endpoint:%s" % instance.OBJECT_NAME]
-        usage_metrics(resp.get("usage"), metric_tags)
-        span.finish()
-        stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
+        try:
+            g.send((resp, resp_err))
+        except StopIteration:
+            # expected
+            pass
 
 
 @trace_utils_async.with_traced_module
-async def patched_async_endpoint(openai, pin, func, instance, args, kwargs):
-    # resource name is set to the model being used -- if that name is not found, use the engine name
-    span = start_endpoint_span(openai, pin, instance, args, kwargs)
+async def patched_completion_acreate(openai, pin, func, instance, args, kwargs):
+    g = _completion_create(openai, pin, instance, args, kwargs)
+    g.send(None)
     resp, resp_err = None, None
     try:
         resp = await func(*args, **kwargs)
         return resp
-    except openai.error.OpenAIError as err:
+    except Exception as err:
         resp_err = err
+        raise
     finally:
-        finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
+        try:
+            g.send((resp, resp_err))
+        except StopIteration:
+            # expected
+            pass
 
 
 @trace_utils.with_traced_module
@@ -190,7 +216,7 @@ def patched_create(openai, pin, func, instance, args, kwargs):
         "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
     )
     try:
-        init_openai_span(span, openai, kwargs.get("model"))
+        init_openai_span(span, openai)
         resp = func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
@@ -206,7 +232,7 @@ async def patched_async_create(openai, pin, func, instance, args, kwargs):
         "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
     )
     try:
-        init_openai_span(span, openai, kwargs.get("model"))
+        init_openai_span(span, openai)
         resp = await func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
@@ -217,9 +243,7 @@ async def patched_async_create(openai, pin, func, instance, args, kwargs):
 
 
 # set basic openai data for all openai spans
-def init_openai_span(span, openai, model):
-    if model:
-        span.set_tag_str("model", model)
+def init_openai_span(span, openai):
     span.set_tag_str(COMPONENT, config.openai.integration_name)
     if hasattr(openai, "api_base") and openai.api_base:
         span.set_tag_str("api_base", openai.api_base)
@@ -231,7 +255,7 @@ def start_endpoint_span(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.create", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
     )
-    init_openai_span(span, openai, kwargs.get("model"))
+    init_openai_span(span, openai)
     set_flattened_tags(
         span,
         append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
