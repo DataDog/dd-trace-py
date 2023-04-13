@@ -16,6 +16,8 @@ from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_ENDPOINT
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_PROXY_AGENT_ENDPOINT
+from .constants import EVP_SUBDOMAIN_HEADER_NAME
+from .constants import EVP_SUBDOMAIN_HEADER_VALUE
 from .encoder import CIVisibilityEncoderV01
 
 
@@ -72,6 +74,7 @@ class CIVisibilityWriter(HTTPWriter):
             reuse_connections=reuse_connections,
             headers=headers,
         )
+        self._set_state(self._check_agent())
 
     def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
@@ -106,9 +109,4 @@ class CIVisibilityWriter(HTTPWriter):
             self._state = new_state
             self._endpoint = EVP_PROXY_AGENT_ENDPOINT
             self.intake_url = agent.get_trace_url()
-            self._headers["X-Datadog-EVP-Subdomain"] = "citestcycle-intake"
-
-    def flush_queue(self, raise_exc=False):
-        if self._state != self.STATE_AGENTPROXY:
-            self._set_state(self._check_agent())
-        super(CIVisibilityWriter, self).flush_queue(raise_exc=raise_exc)
+            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
