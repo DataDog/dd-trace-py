@@ -384,8 +384,8 @@ def test_encode_traces_civisibility_v2_coverage():
     all_spans = [span for trace in traces for span in trace]
     for given_span, received_cov in zip(all_spans, received_covs):
         expected_cov = {
-            b"test_session_id": b"bar",
-            b"test_suite_id": b"foo",
+            b"test_session_id": b"",
+            b"test_suite_id": b"",
             b"span_id": given_span.span_id,
             b"files": [
                 {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
