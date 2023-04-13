@@ -17,6 +17,7 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class PytestTestCase(TracerTestCase):
@@ -770,7 +771,7 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with override_env(dict(DD_CIVISIBILITY_CODE_COVERAGE_ENABLED="1")):
+        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
