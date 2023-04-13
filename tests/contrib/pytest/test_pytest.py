@@ -797,14 +797,14 @@ class PytestTestCase(TracerTestCase):
          1 session span, 2 package spans, 2 module spans, and 2 test spans with correct parenting.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
-        os.chdir(package_a_dir)
+        os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
                 """def test_ok():
                 assert True"""
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
-        os.chdir(package_b_dir)
+        os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
                 """def test_not_ok():
@@ -835,14 +835,14 @@ class PytestTestCase(TracerTestCase):
          1 session span, 1 package span, 1 module span, and 1 test span with correct parenting.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
-        os.chdir(package_a_dir)
+        os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
                 """def test_ok():
                 assert True"""
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
-        os.chdir(package_b_dir)
+        os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
                 """def test_not_ok():
