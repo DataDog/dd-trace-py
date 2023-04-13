@@ -9,31 +9,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.v2.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
-
-DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
-
-
-def get_poll_interval_seconds():
-    # type:() -> float
-    if os.getenv("DD_REMOTECONFIG_POLL_SECONDS"):
-        deprecate(
-            "Using environment variable 'DD_REMOTECONFIG_POLL_SECONDS' is deprecated",
-            message="Please use DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS instead.",
-            removal_version="2.0.0",
-        )
-    return float(
-        os.getenv(
-            "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS",
-            default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS),
-        )
-    )
 
 
 class RemoteConfigPoller(periodic.PeriodicService):

@@ -16,8 +16,8 @@ from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryJs
 from ddtrace.internal.remoteconfig.v2._pubsub import PubSubMergeFirst
 from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.v2.utils import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.v2.worker import RemoteConfigPoller
-from ddtrace.internal.remoteconfig.v2.worker import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format

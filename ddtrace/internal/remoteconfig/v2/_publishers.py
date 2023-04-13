@@ -47,7 +47,9 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
             config = self._preprocess_results_func(config, pubsub_instance)
 
         log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), str(config)[:100])
-        self._data_connector.write(asdict(metadata), config)
+        if metadata:
+            metadata = asdict(metadata)
+        self._data_connector.write(metadata, config)
 
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):

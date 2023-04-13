@@ -233,6 +233,11 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         self._configs = {}
         self._next_status_update_timestamp()
 
+    def _get_data_from_connector_and_exec(self, checksum=0, test_tracer=None):
+        super(DebuggerRemoteConfigSubscriber, self)._get_data_from_connector_and_exec(
+            checksum=checksum, test_tracer=test_tracer
+        )
+
     def _exec_callback(self, data, test_tracer=None):
         log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
         if data:

@@ -6,6 +6,7 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicThread
+from ddtrace.internal.remoteconfig.v2.utils import get_poll_interval_seconds
 
 
 log = get_logger(__name__)
@@ -86,12 +87,14 @@ class RemoteConfigSubscriber(SubscriberBase):
                 checksum = self._get_data_from_connector_and_exec(checksum)
             except Exception:
                 log.debug("[%s] Subscriber %s error", os.getpid(), self._name, exc_info=True)
-            time.sleep(1)
+            time.sleep(get_poll_interval_seconds())
 
     def start(self):
         log.debug("[%s][P: %s] Subscriber %s start %s", os.getpid(), os.getppid(), self._name, self.running)
         if not self.running:
-            self._th_worker = PeriodicThread(target=self._worker, interval=1, on_shutdown=self.stop)
+            self._th_worker = PeriodicThread(
+                target=self._worker, interval=get_poll_interval_seconds(), on_shutdown=self.stop
+            )
             self._th_worker.start()
 
     def force_restart(self):

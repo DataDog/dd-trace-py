@@ -16,7 +16,7 @@ from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
@@ -634,15 +634,16 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 def test_probe_status_logging(monkeypatch):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
+    remoteconfig_poller.disable()
+    remoteconfig_poller._interval = 0.1
 
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+    from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
         for cb in self._products.values():
-            cb(None, None)
+            cb.publish(None, None)
 
     RemoteConfigClient.request = request
 
@@ -682,15 +683,16 @@ def test_probe_status_logging(monkeypatch):
 
 def test_probe_status_logging_reemit_on_modify(monkeypatch):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
+    remoteconfig_poller.disable()
+    remoteconfig_poller._interval = 0.1
 
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+    from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
         for cb in self._products.values():
-            cb(None, None)
+            cb.publish(None, None)
 
     RemoteConfigClient.request = request
 

@@ -3,6 +3,7 @@ from ctypes import c_char
 import json
 import multiprocessing
 import os
+from uuid import UUID
 
 import six
 
@@ -11,6 +12,14 @@ from ddtrace.internal.compat import to_unicode
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+class UUIDEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, UUID):
+            # if the obj is uuid, we simply return the value of uuid
+            return obj.hex
+        return json.JSONEncoder.default(self, obj)
 
 
 class ConnectorBase(six.with_metaclass(abc.ABCMeta)):
@@ -65,9 +74,9 @@ class ConnectorSharedMemoryMetadataJson(ConnectorBase):
 
     def write(self, metadata, config_raw):
         if PY2:
-            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}))
+            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}, cls=UUIDEncoder))
         else:
-            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}), encoding="utf-8")
+            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}, cls=UUIDEncoder), encoding="utf-8")
 
         self.data.value = data
 
