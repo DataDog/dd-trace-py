@@ -10,6 +10,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
+from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
@@ -758,3 +759,29 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 2
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
+
+    def test_pytest_will_report_git_metadata(self):
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        def test_will_work():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(git.COMMIT_MESSAGE)
+        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE)
+        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME)
+        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL)
+        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE)
+        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME)
+        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL)
+        assert test_span.get_tag(git.BRANCH)
+        assert test_span.get_tag(git.COMMIT_SHA)
