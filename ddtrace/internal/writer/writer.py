@@ -417,6 +417,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def write(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
+        if self._sync_mode:
+            self.flush_queue()
 
     def _write_with_client(self, client, spans=None):
         # type: (WriterClientBase, Optional[List[Span]]) -> None
@@ -463,8 +465,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
-            if self._sync_mode:
-                self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
         try:
