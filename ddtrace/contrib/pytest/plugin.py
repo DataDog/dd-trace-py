@@ -190,6 +190,7 @@ def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
+
     if isinstance(item.parent.parent, pytest.Package):
         if _extract_span(item.parent.parent) is None:
             _start_test_module_span(item)
