@@ -16,6 +16,8 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -529,7 +531,7 @@ def test_evp_proxy_response():
         assert t._writer._state == CIVisibilityWriter.STATE_AGENTPROXY
         assert t._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
         assert t._writer.intake_url == agent.get_trace_url()
-        assert t._writer._headers["X-Datadog-EVP-Subdomain"] == "citestcycle-intake"
+        assert t._writer._headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_HEADER_VALUE
 
 
 def test_bad_endpoint():
