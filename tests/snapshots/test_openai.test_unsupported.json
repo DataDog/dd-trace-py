@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "requests.request",
+    "service": "",
+    "resource": "requests.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "requests",
+      "http.method": "POST",
+      "http.status_code": "200",
+      "http.url": "https://api.openai.com/v1/moderations",
+      "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
+      "language": "python",
+      "runtime-id": "06bba5112fd544faa4829ff8bf30b581",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 51112
+    },
+    "duration": 906140000,
+    "start": 1681415333385781000
+  }]]

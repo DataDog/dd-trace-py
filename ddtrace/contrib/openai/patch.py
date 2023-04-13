@@ -228,11 +228,10 @@ def _completion_create(openai, pin, instance, args, kwargs):
         "openai.request", resource="completions", service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
-
-    model = get_argument_value(args, kwargs, -1, "model")
-    prompt = get_argument_value(args, kwargs, -1, "prompt")
-    span.set_tag_str("model", model)
-
+    model = kwargs.get("model")
+    prompt = kwargs.get("prompt")
+    if model:
+        span.set_tag_str("model", model)
     for kw_attr in ENDPOINT_DATA[COMPLETIONS]["request"]:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
@@ -268,7 +267,8 @@ def _completion_create(openai, pin, instance, args, kwargs):
         span.set_tag("response.id", resp["id"])
         span.set_tag("response.object", resp["object"])
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
-            span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
+            if token_type in resp["usage"]:
+                span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         usage_metrics(resp.get("usage"), metric_tags)
 
     # TODO: determine best format for multiple choices/completions
@@ -291,9 +291,11 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     )
     init_openai_span(span, openai)
 
-    model = get_argument_value(args, kwargs, -1, "model")
-    messages = get_argument_value(args, kwargs, -1, "messages")
-    span.set_tag_str("model", model)
+    model = kwargs.get("model")
+    prompt = kwargs.get("prompt")
+    if model:
+        span.set_tag_str("model", model)
+
     for kw_attr in ENDPOINT_DATA[CHAT_COMPLETIONS]["request"]:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
@@ -330,7 +332,8 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         span.set_tag("response.id", resp["id"])
         span.set_tag("response.object", resp["object"])
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
-            span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
+            if token_type in resp["usage"]:
+                span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         usage_metrics(resp.get("usage"), metric_tags)
 
     # TODO: determine best format for multiple choices/completions
@@ -351,8 +354,9 @@ def _embedding_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace("openai.request", resource="embedding", service=trace_utils.ext_service(pin, config.openai))
     init_openai_span(span, openai)
 
-    model = get_argument_value(args, kwargs, -1, "model")
-    span.set_tag_str("model", model)
+    model = kwargs.get("model")
+    if model:
+        span.set_tag_str("model", model)
     for kw_attr in ENDPOINT_DATA[COMPLETIONS]["request"]:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])

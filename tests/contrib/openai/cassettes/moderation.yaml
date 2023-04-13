@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"model": "ada", "prompt": "Hello world", "temperature": 0.8, "n": 2, "stop":
-      ".", "max_tokens": 10}'
+    body: '{"input": "Here is some perfectly innocuous text that follows all OpenAI
+      content policies."}'
     headers:
       Accept:
       - '*/*'
@@ -10,7 +10,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '100'
+      - '92'
       Content-Type:
       - application/json
       User-Agent:
@@ -21,34 +21,33 @@ interactions:
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
       traceparent:
-      - 00-000000000000000031843437dfde9efc-943b3c40c5db2fc7-01
+      - 00-0000000000000000bc06f13215675915-78dc52c0d296b955-01
       tracestate:
       - dd=s:1;t.dm:-0
       x-datadog-parent-id:
-      - '10681197190134312903'
+      - '8708926767547988309'
       x-datadog-sampling-priority:
       - '1'
       x-datadog-tags:
       - _dd.p.dm=-0
       x-datadog-trace-id:
-      - '3568034219368029948'
+      - '13548781726400469269'
     method: POST
-    uri: https://api.openai.com/v1/completions
+    uri: https://api.openai.com/v1/moderations
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA4yQUUvDMBSF3/0V2XmO0M5tjrwqSl9FEOZkZMm1zZrkliZlldH/Lk6wr3LePg7f
-        gXOBs1AwofO396vxmR/6zVPdVSfabdsi7Wz7GLy5e3mDBB9PZDIUMo35YDh0nrLjCAnTk85kocrN
-        tlyV63WxlAhsyUNBW/1TadgZSlDvl6sACot9/E0l2shn8cWDMDoKyyJwT5Bw0dIIVUh4rruejwkq
-        Dt5LfLroUnPoSSeOUPAU69xgkn92oaMVldBBWD7HxR7XLbw2LgmXZnn5f/mHxJB0TVAXdD2HLh8y
-        txQT1FJifmSmhUTmrP1MltN08w0AAP//AwDIRTk2dgEAAA==
+        H4sIAAAAAAAAA2xPy0rDQBT9l1k36dzM607WlSK4ceNCERmS2yQyScrMVKIl/y6h2lrq8jw558i6
+        mpWsH+uQGTlt9+/P/kslOfWEG7t9wvuH2gx34yNbLSbyrGSJppQtILjUjUPGuWQrFigefIqsfDmy
+        nXdNQzUrd85HWrHKJWrG0FFk5ZFFmg7On8XWJTqDj270NFQXIpLfZa0L/R9mia/7bhhDvGpZpzaQ
+        SzR0Q3PTuG6C27dd9SPM51Wfb7Eaw/U0nVuhgGsjrJJGCK0o4/p3q8qlRCGQg5JQSKlP4mU75hwL
+        UGC5MQVaXNLm6gvkopAKhECDSlu7VNibb5BrLjQqI6xRVkowJ9vtWcyRG1sIkBwlABSUAfx3XuRo
+        OVpAo4QyRiBlHOf5df4GAAD//wMANmhD5AoCAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b763ecc8c7a43bf-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 7b763ecf48491912-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -56,39 +55,23 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 13 Apr 2023 19:51:42 GMT
+      - Thu, 13 Apr 2023 19:51:43 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
       alt-svc:
       - h3=":443"; ma=86400, h3-29=":443"; ma=86400
-      openai-model:
-      - ada
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '77'
+      - '653'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
-      x-ratelimit-limit-requests:
-      - '3000'
-      x-ratelimit-limit-tokens:
-      - '250000'
-      x-ratelimit-remaining-requests:
-      - '2999'
-      x-ratelimit-remaining-tokens:
-      - '249979'
-      x-ratelimit-reset-requests:
-      - 20ms
-      x-ratelimit-reset-tokens:
-      - 4ms
       x-request-id:
-      - 7bb281cf4a71625b36873d9964dd1076
+      - a628e3f683bd5ffe643f43133e0a0415
     status:
       code: 200
       message: OK

@@ -14,7 +14,7 @@ from ddtrace.contrib.openai.patch import unpatch
 #       API key.
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
-openai.api_key = "not-a-real-key"
+openai.api_key = "<not-a-real-key>"
 openai_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
     record_mode="once",
@@ -35,8 +35,7 @@ def patch_openai():
     unpatch()
 
 
-# @pytest.mark.snapshot
-@pytest.mark.skipif(not hasattr(openai, "Completion"), reason="ChatCompletion not supported for this version of openai")
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_completion():
     with openai_vcr.use_cassette("completion.yaml"):
         openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
@@ -44,11 +43,10 @@ def test_completion():
     from ddtrace.contrib.openai._log import _logs_writer
 
     _logs_writer.periodic()
-    assert 0
 
 
 @pytest.mark.asyncio
-# @pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 async def test_acompletion():
     with openai_vcr.use_cassette("completion_async.yaml"):
         await openai.Completion.acreate(
@@ -58,30 +56,9 @@ async def test_acompletion():
     from ddtrace.contrib.openai._log import _logs_writer
 
     _logs_writer.periodic()
-    assert 0
 
 
-"""
-
-@pytest.mark.snapshot
-@pytest.mark.skipif(not hasattr(openai, "Completion"), reason="completion not supported for this version of openai")
-def test_misuse():
-    try:
-        openai.Completion.create(input="wrong arg")
-    except openai.error.InvalidRequestError:
-        # this error is expected
-        pass
-
-
-@pytest.mark.snapshot
-@pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
-def test_unsupported():
-    # no openai spans expected
-    with openai_vcr.use_cassette("moderation.yaml"):
-        openai.Moderation.create(
-            input="Here is some perfectly innocuous text that follows all OpenAI content policies."
-        )
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.skipif(
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
 )
@@ -100,12 +77,76 @@ def test_chat_completion():
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.skipif(
-    not hasattr(openai, "Embedding") or not hasattr(openai.Embedding, "OBJECT_NAME"),
+    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
+)
+async def test_achat_completion():
+    with openai_vcr.use_cassette("chat_completion_async.yaml"):
+        await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Who won the world series in 2020?"},
+                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                {"role": "user", "content": "Where was it played?"},
+            ],
+            top_p=0.9,
+            n=2,
+        )
+
+    from ddtrace.contrib.openai._log import _logs_writer
+
+    _logs_writer.periodic()
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.skipif(
+    not hasattr(openai, "Embedding"),
     reason="embedding not supported for this version of openai",
 )
 def test_embedding():
     with openai_vcr.use_cassette("embedding.yaml"):
-        openai.Embedding.create(input="hi this is evan", model="text-embedding-ada-002")
-"""
+        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.skipif(
+    not hasattr(openai, "Embedding"),
+    reason="embedding not supported for this version of openai",
+)
+async def test_embedding():
+    with openai_vcr.use_cassette("embedding_async.yaml"):
+        await openai.Embedding.acreate(input="hellow world", model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
+def test_unsupported():
+    # no openai spans expected
+    with openai_vcr.use_cassette("moderation.yaml"):
+        openai.Moderation.create(
+            input="Here is some perfectly innocuous text that follows all OpenAI content policies."
+        )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+@pytest.mark.skipif(not hasattr(openai, "Completion"), reason="completion not supported for this version of openai")
+def test_misuse():
+    try:
+        openai.Completion.create(input="wrong arg")
+    except openai.error.InvalidRequestError:
+        # this error is expected
+        pass
+
+
+# @pytest.mark.snapshot
+# @pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
+# def test_unsupported():
+#     # no openai spans expected
+#     with openai_vcr.use_cassette("moderation.yaml"):
+#         openai.Moderation.create(
+#             input="Here is some perfectly innocuous text that follows all OpenAI content policies."
+#         )

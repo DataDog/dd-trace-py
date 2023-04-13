@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "openai",
-    "resource": "openai.request",
+    "resource": "completions",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,38 +10,58 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
       "component": "openai",
-      "engine": "completions",
       "language": "python",
+      "model": "ada",
       "request.model": "ada",
       "request.prompt": "Hello world",
       "request.stop": ".",
-      "response.choices.0.finish_reason": "stop",
+      "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "None",
-      "response.choices.0.text": "",
-      "response.choices.1.finish_reason": "stop",
+      "response.choices.1.finish_reason": "length",
       "response.choices.1.logprobs": "None",
-      "response.choices.1.text": "",
-      "response.id": "cmpl-73ySgG6R6KMUo1roOG2tsL179fGTX",
-      "response.model": "ada",
+      "response.id": "cmpl-74xGoCr6FgpIjeZ8k0sZdkDmlc3RW",
       "response.object": "text_completion",
-      "runtime-id": "edf9c087922d43679151375414640765"
+      "runtime-id": "ce37d27cce3643d2b81f46aa9cc8351b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 86608,
+      "process_id": 52445,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
-      "response.choices.0.index": 0,
-      "response.choices.1.index": 1,
-      "response.created": 1681181754,
+      "response.choices.num": 2,
+      "response.usage.completion_tokens": 20,
       "response.usage.prompt_tokens": 2,
-      "response.usage.total_tokens": 2
+      "response.usage.total_tokens": 22
     },
-    "duration": 21733000,
-    "start": 1681227555283891000
-  }]]
+    "duration": 238585000,
+    "start": 1681415502722993000
+  },
+     {
+       "name": "requests.request",
+       "service": "openai",
+       "resource": "requests.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "component": "requests",
+         "http.method": "POST",
+         "http.status_code": "200",
+         "http.url": "https://api.openai.com/v1/completions",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 217443000,
+       "start": 1681415502737235000
+     }]]

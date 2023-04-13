@@ -17,29 +17,40 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - OpenAI/v1 PythonBindings/0.27.4
+      - OpenAI/v1 PythonBindings/0.27.2
       X-OpenAI-Client-User-Agent:
-      - '{"bindings_version": "0.27.4", "httplib": "requests", "lang": "python", "lang_version":
-        "3.9.11", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
-        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
-        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
+        "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
+        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+      traceparent:
+      - 00-0000000000000000feeb1fc5c6cf442f-f82a4788ef192446-01
+      tracestate:
+      - dd=s:1;t.dm:-0
+      x-datadog-parent-id:
+      - '17882183923880502342'
+      x-datadog-sampling-priority:
+      - '1'
+      x-datadog-tags:
+      - _dd.p.dm=-0
+      x-datadog-trace-id:
+      - '18368810439465190447'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA5SPzWobMRRG932Ky11rzIx/als7k7TBEFqKg7MoxcjStUepRldI19S1mXcvpolL
-        du72wPdxzhm9Q422NWK7FKrpeLFayBd7Oub5bG3DarcK6/U3k07L0ydUyNsXsvK6GFjuUiDxHFGh
-        zWSEHOrm46wZDqezSa2wY0cBNe6TVKPBpJJD3nJVj+oGFR6K2RPqM6bMXZKN8E+KBfVkqvDf9RWP
-        pwqFxYQraepxr9C27C0V1N/P2FF5O80cCDWaUnwRE+WiyFEoXvSfWoJhPazhmXNwsKLsqcAvUyAF
-        85scGAEDkQ6STYDihRQ8BN4SPPodwWdPwYGPsMjBx71wVPBER1MUuAOBMEhLcPd1vbyvmjkkEx11
-        3g6wV7jz0Zd2k8kUjqixCCdU6KOjI+q6V/9X8S7Ax79V70NuEb9Brel/9B/+AAAA//8DALNWo4Ux
-        AgAA
+        H4sIAAAAAAAAA8yOzU7CQBRG9z7F5FsPpIVWYHa6kEbdiTFoDBnaSzs6nVs7lwghfXdD4s8ruD3J
+        OTknuAoGZWOlbDs/mmWHIne32WNzdyye1+vldeFXH76oZ9m8gAZv36iUb2Ncctt5EscBGmVPVqiC
+        SS/naZbmebrQaLkiD4O6k9F0nI9k3295lEyTFBr7aGuCOaHrue1kI/xOIcLkM42/9C+eZhrCYv0v
+        WaSDRtmwKynCvJzQUvxp9uwJBjZGF8UGOR9yEArn+1VDapJMEvXEva/UA/WOovq0UXXeHqlSVtTS
+        85bUvduRunHkK+WCuuq9C7Vw0GpFBxvHGDR2LrjYbHqykQMMonAHDRcqOsAkg/6XX+nwOlx8AQAA
+        //8DAN65bmn/AQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b64596efdf5ff78-BOS
+      - 7b763f31a8910f77-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -49,7 +60,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Apr 2023 15:44:29 GMT
+      - Thu, 13 Apr 2023 19:52:00 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -61,21 +72,21 @@ interactions:
       openai-model:
       - gpt-3.5-turbo-0301
       openai-organization:
-      - user-f23xvdxbrssd56y1ghcjdcue
+      - datadog-4
       openai-processing-ms:
-      - '19456'
+      - '963'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '20'
+      - '3500'
       x-ratelimit-remaining-requests:
-      - '19'
+      - '3499'
       x-ratelimit-reset-requests:
-      - 3s
+      - 17ms
       x-request-id:
-      - 7bf0cc199790aec81b383ea959d0b1da
+      - f0e8a96d706748b12f2bb949e3462dee
     status:
       code: 200
       message: OK

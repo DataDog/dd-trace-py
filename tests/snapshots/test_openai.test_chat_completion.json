@@ -1,8 +1,8 @@
 [[
   {
-    "name": "openai.chat.create",
+    "name": "openai.request",
     "service": "openai",
-    "resource": "gpt-3.5-turbo",
+    "resource": "chat.completions",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,61 +10,60 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
       "language": "python",
       "model": "gpt-3.5-turbo",
-      "runtime-id": "9bd81ad5783b401f8c0f9d2fad19c20c"
+      "request.messages": "[{'role': 'system', 'content': 'You are a helpful assistant.'}, {'role': 'user', 'content': 'Who won the world series in 2020?'}, {'role': 'assistant', 'content': 'The Los Angeles Dodgers won the World Series in 2020.'}, {'role': 'user', 'content': 'Where was it played?'}]",
+      "request.model": "gpt-3.5-turbo",
+      "response.choices.0.finish_reason": "stop",
+      "response.choices.0.logprobs": "None",
+      "response.choices.0.text": "None",
+      "response.choices.1.finish_reason": "stop",
+      "response.choices.1.logprobs": "None",
+      "response.choices.1.text": "None",
+      "response.id": "chatcmpl-74xH5iJ4UhKyHZYYGBHlTqlHg748H",
+      "response.object": "chat.completion",
+      "runtime-id": "0a77d074fe654116bcb9b171f37eaf84"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 87912
+      "process_id": 52539,
+      "request.n": 2,
+      "request.top_p": 0.9,
+      "response.choices.0.prompt": 0,
+      "response.choices.1.prompt": 0,
+      "response.choices.num": 2,
+      "response.usage.completion_tokens": 34,
+      "response.usage.prompt_tokens": 57,
+      "response.usage.total_tokens": 91
     },
-    "duration": 3235000,
-    "start": 1681227892898188000
+    "duration": 1176648000,
+    "start": 1681415518862625000
   },
      {
-       "name": "openai.request",
+       "name": "requests.request",
        "service": "openai",
-       "resource": "openai.request",
+       "resource": "requests.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
+       "type": "http",
        "error": 0,
        "meta": {
-         "component": "openai",
-         "engine": "chat.completions",
-         "request.messages.0.content": "You are a helpful assistant.",
-         "request.messages.0.role": "system",
-         "request.messages.1.content": "Who won the world series in 2020?",
-         "request.messages.1.role": "user",
-         "request.messages.2.content": "The Los Angeles Dodgers won the World Series in 2020.",
-         "request.messages.2.role": "assistant",
-         "request.messages.3.content": "Where was it played?",
-         "request.messages.3.role": "user",
-         "request.model": "gpt-3.5-turbo",
-         "response.choices.0.finish_reason": "stop",
-         "response.choices.0.message.content": "The 2020 World Series was played at a neutral site, Globe Life Field in Arlington, Texas, due to the COVID-19 pandemic.",
-         "response.choices.0.message.role": "assistant",
-         "response.choices.1.finish_reason": "stop",
-         "response.choices.1.message.content": "The World Series in 2020 was played at Globe Life Field in Arlington, Texas.",
-         "response.choices.1.message.role": "assistant",
-         "response.id": "chatcmpl-74ASAtNczxr98VclSfSlVVQapzIzE",
-         "response.model": "gpt-3.5-turbo-0301",
-         "response.object": "chat.completion"
+         "component": "requests",
+         "http.method": "POST",
+         "http.status_code": "200",
+         "http.url": "https://api.openai.com/v1/chat/completions",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.27.2",
+         "span.kind": "client"
        },
        "metrics": {
-         "request.n": 2,
-         "request.top_p": 0.9,
-         "response.choices.0.index": 0,
-         "response.choices.1.index": 1,
-         "response.created": 1681227850,
-         "response.usage.completion_tokens": 47,
-         "response.usage.prompt_tokens": 57,
-         "response.usage.total_tokens": 104
+         "_dd.measured": 1
        },
-       "duration": 3131000,
-       "start": 1681227892898257000
+       "duration": 1173733000,
+       "start": 1681415518863805000
      }]]
