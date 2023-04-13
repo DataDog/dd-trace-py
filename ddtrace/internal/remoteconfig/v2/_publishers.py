@@ -3,7 +3,6 @@ import copy
 import os
 from typing import TYPE_CHECKING
 
-import attrs
 import six
 
 from ddtrace.internal.logger import get_logger
@@ -42,11 +41,12 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
 
     def __call__(self, pubsub_instance, metadata, config):
         # type: (Any, Optional[Any], Any) -> None
+        from attrs import asdict
         if self._preprocess_results_func:
             config = self._preprocess_results_func(config, pubsub_instance)
 
         log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), str(config)[:100])
-        self._data_connector.write(attrs.asdict(metadata), config)
+        self._data_connector.write(asdict(metadata), config)
 
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
