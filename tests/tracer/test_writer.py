@@ -107,11 +107,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
                 mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
-                mock.call(
-                    "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
-                    1,
-                    tags=["reason:t_too_big"],
-                ),
+                mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"]),
                 mock.call(
                     "datadog.%s.buffer.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=["reason:t_too_big"]
                 ),
@@ -133,11 +129,7 @@ class AgentWriterTests(BaseTestCase):
                 [
                     mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
                     mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
-                    mock.call(
-                        "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS,
-                        tags=[],
-                    ),
+                    mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
@@ -155,11 +147,7 @@ class AgentWriterTests(BaseTestCase):
                 [
                     mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
                     mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
-                    mock.call(
-                        "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS,
-                        tags=[],
-                    ),
+                    mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
@@ -175,11 +163,7 @@ class AgentWriterTests(BaseTestCase):
                 [
                     mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=[]),
                     mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=[]),
-                    mock.call(
-                        "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS,
-                        tags=[],
-                    ),
+                    mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
