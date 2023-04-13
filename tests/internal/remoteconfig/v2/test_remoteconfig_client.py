@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import time
 
 import mock
@@ -47,6 +48,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
     mock_callback = MagicMock()
 
     def _mock_appsec_callback(features, test_tracer=None):
@@ -81,7 +83,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
     rc_client.register_product("ASM_FEATURES", asm_callback)
     asm_callback.start_subscriber()
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
-    time.sleep(2)
+    time.sleep(0.5)
     mock_callback.assert_called_once_with(expected_results)
     assert applied_configs == client_configs
     rc_client._products = {}
@@ -303,6 +305,8 @@ def test_apply_default_callback():
 
 
 def test_apply_merge_callback():
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
+
     class callbackClass:
         result = None
 
@@ -319,13 +323,15 @@ def test_apply_merge_callback():
     callback.start_subscriber()
     for callback_to_dispach in test_list_callbacks:
         callback_to_dispach.publish()
-    time.sleep(1)
+    time.sleep(0.5)
     assert callbackClass.result == {"b": [1, 2, 3]}
     assert len(test_list_callbacks) > 0
     callback.stop()
 
 
 def test_apply_merge_multiple_callback():
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
+
     class callbackClass:
         result = None
 
@@ -346,7 +352,7 @@ def test_apply_merge_multiple_callback():
     callback2.start_subscriber()
     assert len(test_list_callbacks) == 1
     test_list_callbacks[0].publish()
-    time.sleep(2)
+    time.sleep(0.5)
 
     assert callbackClass.result == ({"a": [1], "b": [2]})
     callback1.stop()
@@ -354,6 +360,8 @@ def test_apply_merge_multiple_callback():
 
 
 def test_apply_merge_different_callback():
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
+
     class Callback1And2Class:
         result = None
 
@@ -384,7 +392,7 @@ def test_apply_merge_different_callback():
     assert len(test_list_callbacks) == 2
     test_list_callbacks[0].publish()
     test_list_callbacks[1].publish()
-    time.sleep(2)
+    time.sleep(0.5)
 
     assert Callback3Class.result == ({"c": [2]})
     assert Callback1And2Class.result == ({"a": [1], "b": [2]})
@@ -393,6 +401,8 @@ def test_apply_merge_different_callback():
 
 
 def test_apply_merge_different_target_callback():
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
+
     class Callback1And2Class:
         result = None
 
@@ -423,7 +433,7 @@ def test_apply_merge_different_target_callback():
     assert len(test_list_callbacks) == 2
     test_list_callbacks[0].publish()
     test_list_callbacks[1].publish()
-    time.sleep(2)
+    time.sleep(0.5)
 
     assert Callback3Class.result == ({"b": [3]})
     assert Callback1And2Class.result == ({"a": [1], "b": [2]})
