@@ -292,7 +292,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     init_openai_span(span, openai)
 
     model = kwargs.get("model")
-    prompt = kwargs.get("prompt")
+    messages = kwargs.get("messages")
     if model:
         span.set_tag_str("model", model)
 
