@@ -14,6 +14,7 @@ from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
+from .coverage import enabled as coverage_enabled
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
@@ -67,9 +68,12 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
+        clients = [CIVisibilityEventClient()]
+        if coverage_enabled():
+            clients.append(CIVisibilityCoverageClient())
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[CIVisibilityEventClient(), CIVisibilityCoverageClient()],
+            clients=clients,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
