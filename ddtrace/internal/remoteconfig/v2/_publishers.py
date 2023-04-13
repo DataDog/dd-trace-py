@@ -42,6 +42,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __call__(self, pubsub_instance, metadata, config):
         # type: (Any, Optional[Any], Any) -> None
         from attrs import asdict
+
         if self._preprocess_results_func:
             config = self._preprocess_results_func(config, pubsub_instance)
 
