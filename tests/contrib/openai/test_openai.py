@@ -62,6 +62,25 @@ async def test_acompletion():
 
 
 """
+
+@pytest.mark.snapshot
+@pytest.mark.skipif(not hasattr(openai, "Completion"), reason="completion not supported for this version of openai")
+def test_misuse():
+    try:
+        openai.Completion.create(input="wrong arg")
+    except openai.error.InvalidRequestError:
+        # this error is expected
+        pass
+
+
+@pytest.mark.snapshot
+@pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
+def test_unsupported():
+    # no openai spans expected
+    with openai_vcr.use_cassette("moderation.yaml"):
+        openai.Moderation.create(
+            input="Here is some perfectly innocuous text that follows all OpenAI content policies."
+        )
 @pytest.mark.snapshot
 @pytest.mark.skipif(
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"

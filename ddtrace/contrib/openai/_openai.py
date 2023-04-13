@@ -90,34 +90,34 @@ def supported(endpoint):
     return False
 
 
-def process_response(openai, endpoint, resp):
-    # alter the response tag value based on the `engine`
-    # (completions, chat.completions, embeddings)
-    try:
-        update_engine_names(openai)
-        resp = openai.util.convert_to_dict(resp)
-        ret = {}
-        for arg in ENDPOINT_DATA[endpoint]["response"]:
-            if arg == ENDPOINT_DATA[endpoint]["model_output"]:
-                ret[arg] = ENDPOINT_DATA[endpoint]["output_processor"](resp[arg])
-            else:
-                if resp.get(arg):
-                    ret[arg] = resp.get(arg)
-        return ret
-    except (KeyError, IndexError):
-        return {}
+# def process_response(openai, endpoint, resp):
+#     # alter the response tag value based on the `engine`
+#     # (completions, chat.completions, embeddings)
+#     try:
+#         update_engine_names(openai)
+#         resp = openai.util.convert_to_dict(resp)
+#         ret = {}
+#         for arg in ENDPOINT_DATA[endpoint]["response"]:
+#             if arg == ENDPOINT_DATA[endpoint]["model_output"]:
+#                 ret[arg] = ENDPOINT_DATA[endpoint]["output_processor"](resp[arg])
+#             else:
+#                 if resp.get(arg):
+#                     ret[arg] = resp.get(arg)
+#         return ret
+#     except (KeyError, IndexError):
+#         return {}
 
 
-def process_request(openai, engine, args, kwargs):
-    try:
-        update_engine_names(openai)
-        request = {}
-        for arg in ENDPOINT_DATA[engine]["request"]:
-            if arg == ENDPOINT_DATA[engine]["model_input"]:
-                request[arg] = expand(kwargs.get(arg))
-            else:
-                if kwargs.get(arg):
-                    request[arg] = kwargs.get(arg)
-        return request
-    except (KeyError, IndexError):
-        return {}
+# def process_request(openai, engine, args, kwargs):
+#     try:
+#         update_engine_names(openai)
+#         request = {}
+#         for arg in ENDPOINT_DATA[engine]["request"]:
+#             if arg == ENDPOINT_DATA[engine]["model_input"]:
+#                 request[arg] = expand(kwargs.get(arg))
+#             else:
+#                 if kwargs.get(arg):
+#                     request[arg] = kwargs.get(arg)
+#         return request
+#     except (KeyError, IndexError):
+#         return {}

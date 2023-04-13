@@ -25,7 +25,7 @@ def summarize_embedding(data):
 def append_tag_prefixes(key_prefixes, data):
     # type: (List[str], Dict[str, str]) -> Dict[str, str]
     prefix = ".".join(key_prefixes) + "."
-    return [(prefix + str(k), v) for k, v in data.items()]
+    return [(prefix + str(k) + ".", v) for k, v in data.items()]
 
 
 def process_text(text):
