@@ -222,6 +222,13 @@ class RemoteConfigClient(object):
         # type: (str) -> None
         self._products.pop(product_name, None)
 
+    def get_pubsubs(self):
+        for pubsub in set(self._products.values()):
+            yield pubsub
+
+    def reset_products(self):
+        self._products = dict()
+
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:

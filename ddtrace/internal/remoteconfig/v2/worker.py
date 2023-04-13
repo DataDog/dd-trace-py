@@ -31,9 +31,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def __init__(self):
         super(RemoteConfigPoller, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
-        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
         self._state = self._agent_check
         self._parent_id = os.getpid()
+        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def _agent_check(self):
         # type: () -> None
@@ -110,12 +110,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
             os.getppid(),
             self._parent_id,
         )
-        for pubsub in set(self._client._products.values()):
+        for pubsub in self._client.get_pubsubs():
             pubsub.restart_subscriber()
 
     def _poll_data(self, test_tracer=None):
         """Force subscribers to poll new data. This function is only used in tests"""
-        for pubsub in set(self._client._products.values()):
+        for pubsub in self._client.get_pubsubs():
             pubsub._poll_data(test_tracer=test_tracer)
 
     def stop_subscribers(self):
@@ -129,7 +129,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             os.getpid(),
             self._parent_id,
         )
-        for pubsub in self._client._products.values():
+        for pubsub in self._client.get_pubsubs():
             pubsub.stop()
 
     def disable(self):
@@ -138,7 +138,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             return
 
         self.stop_subscribers()
-
+        self._client.reset_products()
         forksafe.unregister(self.start_subscribers)
         atexit.unregister(self.disable)
 

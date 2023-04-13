@@ -67,6 +67,7 @@ def mock_config():
     ],
 )
 def test_poller_env_version(env, version, expected, mock_config):
+    remoteconfig_poller.disable()
     probes = []
 
     def cb(e, ps):
@@ -115,6 +116,7 @@ def test_poller_env_version(env, version, expected, mock_config):
 
 
 def test_poller_events(mock_config):
+    remoteconfig_poller.disable()
     events = set()
 
     def cb(e, ps):
@@ -196,6 +198,7 @@ def test_poller_events(mock_config):
 
 
 def test_multiple_configs():
+    remoteconfig_poller.disable()
     events = set()
 
     def cb(e, ps):
@@ -380,6 +383,7 @@ def test_parse_log_probe_default_rates():
 
 
 def test_modified_probe_events(mock_config):
+    remoteconfig_poller.disable()
     events = []
 
     def cb(e, ps):
