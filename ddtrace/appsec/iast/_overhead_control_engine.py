@@ -23,13 +23,8 @@ log = get_logger(__name__)
 
 
 def get_request_sampling_value():  # type: () -> float
-    # Percentage of requests analyzed by IAST
-    if "DD_IAST_REQUEST_SAMPLING" in os.environ:
-        return float(os.environ["DD_IAST_REQUEST_SAMPLING"])
-    # For unit tests, use 100%
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return 100.0
-    return 30.0
+    # Percentage of requests analyzed by IAST (default: 30%)
+    return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
 
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
