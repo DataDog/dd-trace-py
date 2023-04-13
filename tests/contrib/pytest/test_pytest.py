@@ -12,6 +12,7 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -553,7 +554,6 @@ class PytestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
-
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
@@ -563,6 +563,15 @@ class PytestTestCase(TracerTestCase):
         assert len(decoded_trace) == 6
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+
+        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
+        ci_agentless_encoder.put(spans)
+        trace = ci_agentless_encoder.encode()
+        decoded_trace = self.tracer.encoder._decode(trace)
+        assert len(decoded_trace[b"events"]) == 4
+        for event in decoded_trace[b"events"]:
+            assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
+        pass
 
     def test_pytest_doctest_module(self):
         """Test that pytest with doctest works as expected."""

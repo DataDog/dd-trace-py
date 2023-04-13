@@ -24,13 +24,14 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         super(CIVisibilityEncoderV01, self).__init__()
         self._lock = threading.RLock()
         self._init_buffer()
+        self._metadata = {}
 
     def __len__(self):
         with self._lock:
             return len(self.buffer)
 
     def set_metadata(self, metadata):
-        self._metadata = metadata or dict()
+        self._metadata.update(metadata)
 
     def _init_buffer(self):
         with self._lock:
@@ -50,7 +51,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             return payload
 
     def _build_payload(self, traces):
-        normalized_spans = [CIVisibilityEncoderV01._convert_span(span) for trace in traces for span in trace]
+        normalized_spans = [
+            CIVisibilityEncoderV01._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace
+        ]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb(
@@ -58,8 +61,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         )
 
     @staticmethod
-    def _convert_span(span):
-        # type: (Span) -> Dict[str, Any]
+    def _convert_span(span, dd_origin):
+        # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._convert_span(span)
         sp["type"] = span.span_type
         sp["duration"] = span.duration_ns
@@ -69,6 +72,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             version = CIVisibilityEncoderV01.TEST_FUNCTION_EVENT_VERSION
         else:
             version = CIVisibilityEncoderV01.TEST_EVENT_VERSION
+        if dd_origin is not None:
+            sp["meta"].update({"_dd.origin": dd_origin})
         if span.span_type == "test":
             event_type = span.get_tag(EVENT_TYPE)
         else:
