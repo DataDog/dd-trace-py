@@ -357,7 +357,8 @@ def _embedding_create(openai, pin, instance, args, kwargs):
     model = kwargs.get("model")
     if model:
         span.set_tag_str("model", model)
-    for kw_attr in ENDPOINT_DATA[COMPLETIONS]["request"]:
+
+    for kw_attr in ENDPOINT_DATA[EMBEDDINGS]["request"]:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 

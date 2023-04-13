@@ -21,16 +21,16 @@
       "response.choices.0.logprobs": "None",
       "response.choices.1.finish_reason": "length",
       "response.choices.1.logprobs": "None",
-      "response.id": "cmpl-74xGoCr6FgpIjeZ8k0sZdkDmlc3RW",
+      "response.id": "cmpl-74xboMF2aXvHX7qml53stYFoBGXIt",
       "response.object": "text_completion",
-      "runtime-id": "ce37d27cce3643d2b81f46aa9cc8351b"
+      "runtime-id": "9d104683dea840e0a8764e1303466818"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52445,
+      "process_id": 61039,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
@@ -39,8 +39,8 @@
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 22
     },
-    "duration": 238585000,
-    "start": 1681415502722993000
+    "duration": 243789000,
+    "start": 1681416804547270000
   },
      {
        "name": "requests.request",
@@ -62,6 +62,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 217443000,
-       "start": 1681415502737235000
+       "duration": 222287000,
+       "start": 1681416804561413000
      }]]
