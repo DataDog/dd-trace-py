@@ -29,6 +29,13 @@ config._add(
 log = get_logger(__file__)
 
 
+def _openai_log(*args, **kwargs):
+    if not config.openai.logs_enabled:
+        return
+    ddlogs.log(*args, **kwargs)
+
+
+
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
@@ -64,10 +71,7 @@ def patch():
         if not ddapikey:
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
 
-        ddlogs.start(
-            site=ddsite,
-            api_key=ddapikey,
-        )
+        ddlogs.start(site=ddsite, api_key=ddapikey)
         # FIXME: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
         log.debug("started log writer")
 
@@ -248,9 +252,6 @@ def _completion_create(openai, pin, instance, args, kwargs):
 
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        if isinstance(error, openai.error.OpenAIError):
-            # TODO?: handle specific OpenAIError types
-            pass
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "choices" in resp:
@@ -270,10 +271,10 @@ def _completion_create(openai, pin, instance, args, kwargs):
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
             if token_type in resp["usage"]:
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
-        usage_metrics(resp.get("usage"), metric_tags)
+        _usage_metrics(resp.get("usage"), metric_tags)
 
     # TODO: determine best format for multiple choices/completions
-    ddlogs.log(
+    _openai_log(
         "info" if error is None else "error",
         "sampled completion",
         tags=["model:%s" % kwargs.get("model")],
@@ -325,9 +326,6 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        if isinstance(error, openai.error.OpenAIError):
-            # TODO?: handle specific OpenAIError types
-            pass
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "choices" in resp:
@@ -348,10 +346,10 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
             if token_type in resp["usage"]:
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
-        usage_metrics(resp.get("usage"), metric_tags)
+        _usage_metrics(resp.get("usage"), metric_tags)
 
     # TODO: determine best format for multiple choices/completions
-    ddlogs.log(
+    _openai_log(
         "info" if error is None else "error",
         "sampled completion",
         tags=["model:%s" % kwargs.get("model")],
@@ -398,13 +396,13 @@ def _embedding_create(openai, pin, instance, args, kwargs):
             if kw_attr in kwargs:
                 span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
 
-        usage_metrics(resp.get("usage"), metric_tags)
+        _usage_metrics(resp.get("usage"), metric_tags)
 
     span.finish()
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
-def usage_metrics(usage, metrics_tags):
+def _usage_metrics(usage, metrics_tags):
     if not usage:
         return
     for token_type in ["prompt", "completion", "total"]:
@@ -415,3 +413,9 @@ def usage_metrics(usage, metrics_tags):
         name = "{}.{}".format("tokens", token_type)
         # want to capture total count for token distribution
         stats_client().distribution(name, num_tokens, tags=metrics_tags)
+
+
+def _process_text(text):
+    if isinstance(text, str):
+        text = text.replace("\n", "\\n")
+    return text
