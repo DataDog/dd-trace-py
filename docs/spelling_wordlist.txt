@@ -135,12 +135,14 @@ obfuscator
 opensearch
 opentracer
 opentracing
+otel
 parameterized
 perf
 pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf

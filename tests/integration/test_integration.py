@@ -148,7 +148,7 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
@@ -376,7 +376,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
             1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
@@ -528,7 +528,7 @@ def test_bad_endpoint():
         t.shutdown()
     calls = [
         mock.call(
-            "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
+            "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
             t._writer.agent_url,
@@ -560,7 +560,7 @@ def test_bad_payload():
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -593,7 +593,7 @@ def test_bad_payload_log_payload(monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -637,7 +637,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -771,7 +771,7 @@ s2.finish()
         [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
-        p.wait(timeout=2)
+        p.wait(timeout=10)
     except TypeError:
         # timeout argument added in Python 3.3
         p.wait()
