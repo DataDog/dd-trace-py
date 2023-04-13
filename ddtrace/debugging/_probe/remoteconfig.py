@@ -230,7 +230,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
     def __init__(self, data_connector, callback, name):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
-        self._configs = {}
+        self._configs = dict()
         self._next_status_update_timestamp()
 
     def _get_data_from_connector_and_exec(self, checksum=0, test_tracer=None):
@@ -243,11 +243,12 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         if data:
             metadata = data["metadata"]
             config = data["config"]
+            rc_config = data["config"]
             # DEV: We emit a status update event here to avoid having to spawn a
             # separate thread for this.
             if time.time() > self._status_timestamp:
                 log.debug("Emitting probe status log messages")
-                probes = [probe for config in self._configs.values() for probe in config.values()]
+                probes = [probe for rc_config in self._configs.values() for probe in rc_config.values()]
                 self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
                 self._next_status_update_timestamp()
             if metadata is None:
@@ -255,6 +256,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
                 return
 
             self._update_probes_for_config(metadata["id"], config)
+            self._update_probes_for_config(metadata["id"], rc_config)
 
     def _next_status_update_timestamp(self):
         # type: () -> None

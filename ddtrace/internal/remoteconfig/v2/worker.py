@@ -134,18 +134,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def disable(self):
         # type: () -> None
+        self.stop_subscribers()
+        self._client.reset_products()
+
         if self.status == ServiceStatus.STOPPED:
             return
 
-        self.stop_subscribers()
-        self._client.reset_products()
         forksafe.unregister(self.start_subscribers)
         atexit.unregister(self.disable)
 
         self.stop()
 
-    def on_shutdown(self):
-        self.disable()
+    # def on_shutdown(self):
+    #     self.disable()
 
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
