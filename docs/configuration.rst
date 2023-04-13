@@ -501,10 +501,10 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.9.0:
 
-   DD_CIVISIBILITY_AGENTLESS_ENABLED:
+   DD_CIVISIBILITY_ENABLED:
      type: Boolean
      default: False
-     description: Configures the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``.
+     description: Configures the ``CIVisibility`` service to use a test-reporting ``CIVisibilityWriter``.
      version_added:
         v1.12.0:
 
