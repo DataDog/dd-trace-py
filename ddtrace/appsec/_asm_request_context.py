@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 
 
@@ -108,11 +109,9 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 
 def set_waf_address(address, value, span):  # type: (str, Any, Any) -> None
-    from ddtrace.internal._context import set_item
-
     set_value("waf_addresses", address, value)
     if span:
-        set_item(address, value, span=span)
+        _context.set_item(address, value, span=span)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
