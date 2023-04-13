@@ -1,7 +1,5 @@
 import json
 import threading
-
-# from typing import NotRequired
 from typing import List
 from typing import TypedDict
 
@@ -43,6 +41,7 @@ class V2LogWriter(PeriodicService):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
         self._lock = threading.Lock()
+        # TODO: buffer limit
         self._buffer = []  # type: List[V2LogEvent]
         self._timeout = timeout  # type: float
         self._api_key = api_key  # type: str

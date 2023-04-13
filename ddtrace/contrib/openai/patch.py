@@ -1,18 +1,17 @@
 import os
-import typing
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import set_flattened_tags
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
+from . import _log as ddlogs
 from .. import trace_utils
 from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
-from ._logging import V2LogWriter
 from ._metrics import stats_client
 from ._openai import CHAT_COMPLETIONS
 from ._openai import COMPLETIONS
@@ -22,10 +21,6 @@ from ._openai import process_response
 from ._openai import supported
 from ._utils import append_tag_prefixes
 from ._utils import process_text
-
-
-if typing.TYPE_CHECKING:
-    from typing import List
 
 
 config._add(
@@ -47,43 +42,6 @@ RESPONSE_TAG_PREFIX = "response"
 ERROR_TAG_PREFIX = "error"
 
 
-_logs_writer = None
-
-
-def _log(level, msg, tags):
-    # type: (str, str, List[str]) -> None
-    global _logs_writer
-
-    if _logs_writer is None or config.openai.logs_enabled is False:
-        return
-
-    import datetime
-
-    timestamp = datetime.datetime.now().isoformat()
-    from ddtrace import tracer
-
-    curspan = tracer.current_span()
-
-    log = {
-        "message": "%s %s %s" % (timestamp, level, msg),
-        "hostname": os.getenv("DD_HOSTNAME", get_hostname()),
-        "ddsource": "python",
-        "service": "openai",
-    }
-    if config.env:
-        tags.append("env:%s" % config.env)
-    if config.version:
-        tags.append("version:%s" % config.version)
-    log["ddtags"] = ",".join(t for t in tags)
-    log["prompt"] = "hello world"
-    log[
-        "completion"
-    ] = "A Hello, World! program is generally a computer program that ignores any input and outputs or displays a message similar to Hello, World!."
-    log["dd.trace_id"] = str(curspan.trace_id)
-    log["dd.span_id"] = str(curspan.span_id)
-    _logs_writer.enqueue(log)
-
-
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
@@ -91,8 +49,16 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
-    wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.acreate", patched_async_create(openai))
+    # The requests integration sets a default service name of `requests` which hides
+    # the real response time of the request to OpenAI.
+    # FIXME: try to set a pin on the requests instance that the openAI library uses
+    #        so that we only override it for that instance.
+    config.requests._default_service = None
+
+    # TODO: we can probably remove these as there will be spans from the requests integration
+    # which will show the retries
+    # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
+    # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.acreate", patched_async_create(openai))
 
     if supported(CHAT_COMPLETIONS):
         wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_endpoint(openai))
@@ -110,20 +76,18 @@ def patch():
     setattr(openai, "__datadog_patch", True)
 
     if config.openai.logs_enabled:
-        ddsite = (os.getenv("DD_SITE", "datadoghq.com"),)
+        ddsite = os.getenv("DD_SITE", "datadoghq.com")
         ddapikey = os.getenv("DD_API_KEY")
         # TODO: replace with proper check
         assert ddapikey
 
-        writer = V2LogWriter(
+        if not ddapikey:
+            raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
+
+        ddlogs.start(
             site=ddsite,
             api_key=ddapikey,
-            interval=1.0,
-            timeout=2.0,
         )
-        global _logs_writer
-        _logs_writer = writer
-        _logs_writer.start()
         # TODO: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
         log.debug("started log writer")
 
@@ -135,19 +99,75 @@ def unpatch():
     pass
 
 
+def _set_completion_request_tags(span, kwargs):
+    """Set span tags for a completion or chat completion request."""
+    kw_attrs = [
+        "model",
+        "suffix",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "n",
+        "stream",
+        "logprobs",
+        "echo",
+        "stop",
+        "presence_penalty",
+        "frequency_penalty",
+        "best_of",
+        "logit_bias",
+        "user",
+        "prompt",
+    ]
+    for kw_attr in kw_attrs:
+        if kw_attr in kwargs:
+            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+
+def _set_completion_response_tags(span, kwargs):
+    kw_attrs = [
+        "id",
+        "object",
+        "created",
+        "choices",
+        "usage",
+    ]
+    for kw_attr in kw_attrs:
+        if kw_attr in kwargs:
+            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+
 @trace_utils.with_traced_module
 def patched_endpoint(openai, pin, func, instance, args, kwargs):
-    # resource name is set to the model being used -- if that name is not found, use the engine name
-    span = start_endpoint_span(openai, pin, instance, args, kwargs)
+    span = pin.tracer.trace(
+        "openai.create", resource="completions", service=trace_utils.ext_service(pin, config.openai)
+    )
+    model = get_argument_value(args, kwargs, -1, "model")
+    prompt = get_argument_value(args, kwargs, -1, "prompt")
+    span.set_tag_str("model", model)
+    _set_completion_request_tags(span, kwargs)
+
     resp, resp_err = None, None
-    _log("INFO", "test prompt", tags=["model:%s" % kwargs.get("model")])
     try:
         resp = func(*args, **kwargs)
         return resp
     except openai.error.OpenAIError as err:
         resp_err = err
     finally:
-        finish_endpoint_span(span, resp, resp_err, openai, instance, kwargs)
+        completions = "\n".join(["%s: %s" % (c.get("index"), c.get("text")) for c in resp.get("choices")])
+        ddlogs.log(
+            "INFO",
+            "sampled completion",
+            tags=["model:%s" % kwargs.get("model")],
+            attrs={
+                "prompt": prompt,
+                "completion": completions,
+            },
+        )
+        metric_tags = ["model:%s" % kwargs.get("model"), "endpoint:%s" % instance.OBJECT_NAME]
+        usage_metrics(resp.get("usage"), metric_tags)
+        span.finish()
+        stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
 @trace_utils_async.with_traced_module
