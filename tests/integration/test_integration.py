@@ -526,13 +526,6 @@ def test_evp_proxy_response():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         t = Tracer()
         t.configure(writer=CIVisibilityWriter())
-        assert t._writer._state != CIVisibilityWriter.STATE_AGENTPROXY
-        assert t._writer._endpoint != EVP_PROXY_AGENT_ENDPOINT
-        assert t._writer.intake_url != agent.get_trace_url()
-        assert t._writer._headers.get("X-Datadog-EVP-Subdomain") != "citestcycle-intake"
-        s = t.trace("operation")
-        s.finish()
-        t.shutdown()
         assert t._writer._state == CIVisibilityWriter.STATE_AGENTPROXY
         assert t._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
         assert t._writer.intake_url == agent.get_trace_url()
