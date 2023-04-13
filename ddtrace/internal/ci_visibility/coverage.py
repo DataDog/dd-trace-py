@@ -99,9 +99,9 @@ def build_payload(coverage, test_id=None, root=None):
     {
         "filename": <String>,
         "segments": [
-            [Int, Int, Int, Int, Int],
+            [Int, Int, Int, Int, Int],  # noqa
         ]
-    },
+    }
 
     For each segment of code for which there is coverage, there are always five integer values:
         The first number indicates the start line line of the code block (index starting in 1)
