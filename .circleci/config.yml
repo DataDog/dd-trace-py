@@ -378,7 +378,6 @@ jobs:
 
   tracer:
     <<: *contrib_job_large
-    parallelism: 11
     steps:
       - run_test:
           pattern: "tracer"
