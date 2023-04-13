@@ -463,6 +463,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(pys="2.7"),
