@@ -2,6 +2,7 @@ import json
 import os
 import sys
 
+import mock
 import pytest
 
 import ddtrace
@@ -14,16 +15,28 @@ from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
 
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
+
+
 class PytestTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch):
+    def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
+        self.git_repo = git_repo
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
@@ -770,18 +783,20 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
-        spans = self.pop_spans()
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            ggr.return_value = self.git_repo
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
 
         assert len(spans) == 1
         test_span = spans[0]
 
-        assert test_span.get_tag(git.COMMIT_MESSAGE)
-        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE)
-        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME)
-        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL)
-        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE)
-        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME)
-        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL)
-        assert test_span.get_tag(git.BRANCH)
-        assert test_span.get_tag(git.COMMIT_SHA)
+        assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE) == "2021-01-19T09:24:53-0400"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME) == "John Doe"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL) == "john@doe.com"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
+        assert test_span.get_tag(git.BRANCH) == "master"
+        assert test_span.get_tag(git.COMMIT_SHA) == "b3672ea5cbc584124728c48a443825d2940e0ddd"
