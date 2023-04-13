@@ -79,23 +79,6 @@ def _set_waf_request_metrics():
             if has_info and list_result_info[0].version:
                 common_tags["event_rules_version"] = list_result_info[0].version
 
-            if list_results:
-                # runtime is the result in microseconds. Update to milliseconds
-                ddwaf_result_runtime = sum(float(ddwaf_result.runtime) for ddwaf_result in list_results)
-                ddwaf_result_total_runtime = sum(float(ddwaf_result.runtime) for ddwaf_result in list_results)
-                telemetry_metrics_writer.add_distribution_metric(
-                    TELEMETRY_NAMESPACE_TAG_APPSEC,
-                    "waf.duration",
-                    float(ddwaf_result_runtime / 1e3),
-                    tags=common_tags,
-                )
-                telemetry_metrics_writer.add_distribution_metric(
-                    TELEMETRY_NAMESPACE_TAG_APPSEC,
-                    "waf.duration_ext",
-                    float(ddwaf_result_total_runtime / 1e3),
-                    tags=common_tags,
-                )
-
             tags_request = {
                 "rule_triggered": is_triggered,
                 "request_blocked": is_blocked,
@@ -108,7 +91,6 @@ def _set_waf_request_metrics():
                 1.0,
                 tags=tags_request,
             )
-            # TODO: add log metric to report info.failed and info.errors
     except Exception:
         log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
     finally:
