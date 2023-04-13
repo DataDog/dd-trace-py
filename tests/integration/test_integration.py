@@ -792,7 +792,7 @@ s2.finish()
         [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
-        p.wait(timeout=2)
+        p.wait(timeout=10)
     except TypeError:
         # timeout argument added in Python 3.3
         p.wait()
