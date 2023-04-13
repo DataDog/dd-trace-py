@@ -92,7 +92,27 @@ def _lines(coverage, context):
 
 
 def build_payload(coverage, test_id=None, root=None):
-    """Generate a CI Visibility payload."""
+    """
+    Generate a CI Visibility payload, formatted as follows:.
+
+    {
+        "filename": <String>,
+        "segments": [
+            [Int, Int, Int, Int, Int],
+            ...
+        ]
+    },
+
+    For each segment of code for which there is coverage, there are always five integer values:
+        The first number indicates the start line line of the code block (index starting in 1)
+        The second number indicates the start column of the code block (index starting in 1). Use value -1 if the
+            column is unknown.
+        The third number indicates the end line of the code block
+        The fourth number indicates the end column of the code block
+        The fifth number indicates the number of executions of the block
+            If the number is >0 then it indicates the number of executions
+            If the number is -1 then it indicates that the number of executions are unknown
+    """
     return json.dumps(
         {
             "files": [
