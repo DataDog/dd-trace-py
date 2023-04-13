@@ -100,7 +100,6 @@ def build_payload(coverage, test_id=None, root=None):
         "filename": <String>,
         "segments": [
             [Int, Int, Int, Int, Int],
-            ...
         ]
     },
 

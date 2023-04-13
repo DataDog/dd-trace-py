@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from typing import List
 from typing import Optional
 
 import ddtrace
@@ -68,7 +69,7 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
-        clients = [CIVisibilityEventClient()]
+        clients = [CIVisibilityEventClient()]  # type: List[WriterClientBase]
         if coverage_enabled():
             clients.append(CIVisibilityCoverageClient())
         super(CIVisibilityWriter, self).__init__(
