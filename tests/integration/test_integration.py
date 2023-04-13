@@ -972,12 +972,12 @@ def test_civisibility_event_endpoints():
             span.finish()
             conn = t._writer._conn
             t.shutdown()
-        assert conn.request.call_count == 2
+        assert conn.request.call_count == 3
         assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
         assert (
             b"svc-no-cov" in conn.request.call_args_list[0].args[2]
         ), "requests to the cycle endpoint should include non-coverage spans"
-        assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
+        assert conn.request.call_args_list[2].args[1] == "api/v2/citestcov"
         assert (
-            b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+            b"svc-no-cov" not in conn.request.call_args_list[2].args[2]
         ), "requests to the coverage endpoint should not include non-coverage spans"
