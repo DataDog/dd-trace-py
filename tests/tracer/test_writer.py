@@ -80,15 +80,12 @@ class AgentWriterTests(BaseTestCase):
             writer.stop()
             writer.join()
 
-        client_count = len(writer._clients)
         statsd.distribution.assert_has_calls(
             [
-                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]),
-                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
-                mock.call(
-                    "datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS * client_count, tags=[]
-                ),
-                mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, client_count, tags=["type:err"]),
+                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
+                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
+                mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
+                mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                 mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
             ],
             any_order=True,
@@ -106,23 +103,20 @@ class AgentWriterTests(BaseTestCase):
             writer.stop()
             writer.join()
 
-        client_count = len([client for client in writer._clients if client.encoder.max_item_size > 0])
         statsd.distribution.assert_has_calls(
             [
-                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]),
-                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
+                mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
+                mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
                 mock.call(
                     "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
-                    client_count,
+                    1,
                     tags=["reason:t_too_big"],
                 ),
                 mock.call(
                     "datadog.%s.buffer.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=["reason:t_too_big"]
                 ),
-                mock.call(
-                    "datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS * client_count, tags=[]
-                ),
-                mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, client_count, tags=["type:err"]),
+                mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, writer.RETRY_ATTEMPTS, tags=[]),
+                mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                 mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
             ],
             any_order=True,
@@ -135,19 +129,16 @@ class AgentWriterTests(BaseTestCase):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.flush_queue()
-            client_count = len(writer._clients)
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call(
-                        "datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]
-                    ),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
                     mock.call(
                         "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS * client_count,
+                        writer.RETRY_ATTEMPTS,
                         tags=[],
                     ),
-                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, client_count, tags=["type:err"]),
+                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
                 any_order=True,
@@ -162,16 +153,14 @@ class AgentWriterTests(BaseTestCase):
 
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call(
-                        "datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10 * client_count, tags=[]
-                    ),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50 * client_count, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 10, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 50, tags=[]),
                     mock.call(
                         "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS * client_count,
+                        writer.RETRY_ATTEMPTS,
                         tags=[],
                     ),
-                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, client_count, tags=["type:err"]),
+                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
                 any_order=True,
@@ -182,17 +171,16 @@ class AgentWriterTests(BaseTestCase):
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=True)
             writer.write([Span(name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            client_count = len(writer._clients)
             statsd.distribution.assert_has_calls(
                 [
-                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, client_count, tags=[]),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5 * client_count, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=[]),
+                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=[]),
                     mock.call(
                         "datadog.%s.http.requests" % writer.STATSD_NAMESPACE,
-                        writer.RETRY_ATTEMPTS * client_count,
+                        writer.RETRY_ATTEMPTS,
                         tags=[],
                     ),
-                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, client_count, tags=["type:err"]),
+                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
                     mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=[]),
                 ],
                 any_order=True,
@@ -211,8 +199,8 @@ class AgentWriterTests(BaseTestCase):
 
             assert writer_metrics_reset.call_count == 1
 
-            assert 1 * len(writer._clients) == writer._metrics["http.errors"]["count"]
-            assert 10 * len(writer._clients) == writer._metrics["http.dropped.traces"]["count"]
+            assert 1 == writer._metrics["http.errors"]["count"]
+            assert 10 == writer._metrics["http.dropped.traces"]["count"]
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
@@ -230,7 +218,7 @@ class AgentWriterTests(BaseTestCase):
 
             writer_metrics_reset.assert_called_once()
 
-        client_count = len([client for client in writer._clients if client.encoder.max_item_size > 0])
+        client_count = len(writer._clients)
         assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
         assert ["reason:t_too_big"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
@@ -248,7 +236,7 @@ class AgentWriterTests(BaseTestCase):
 
             writer_metrics_reset.assert_called_once()
 
-            client_count = len([client for client in writer._clients if client.encoder.max_size > 0])
+            client_count = len(writer._clients)
             assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
             assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
