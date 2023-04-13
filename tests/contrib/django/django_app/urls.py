@@ -92,4 +92,5 @@ urlpatterns = [
     path(r"checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
     handler(r"^taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler(r"^taint-checking-disabled/$", views.taint_checking_disabled_view, name="taint_checking_disabled_view"),
+    handler(r"^sqli/$", views.sqli, name="sqli"),
 ]

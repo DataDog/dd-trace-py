@@ -4,9 +4,11 @@ Class based views used for Django tests.
 
 from functools import partial
 import hashlib
+from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
+from django.db import connection
 from django.http import Http404
 from django.http import HttpResponse
 from django.template import loader
@@ -21,6 +23,10 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.trace_utils import set_user
+
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 class UserList(ListView):
@@ -235,12 +241,19 @@ def checkuser_view(request, user_id):
     return HttpResponse(status=200)
 
 
+def sqli(request):
+    with connection.cursor() as cursor:
+        cursor.execute(request.GET["q"])
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     else:
 
-        def is_pyobject_tainted(x):
+        def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
             return True
 
     # TODO: Taint request body
@@ -258,7 +271,7 @@ def taint_checking_disabled_view(request):
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     else:
 
-        def is_pyobject_tainted(x):
+        def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
             return False
 
     assert not is_pyobject_tainted(request.body)
