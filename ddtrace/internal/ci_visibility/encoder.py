@@ -3,9 +3,10 @@ from typing import Any
 from typing import Dict
 from typing import TYPE_CHECKING
 
-from .._encoding import BufferedEncoder
-from .._encoding import packb as msgpack_packb
-from ..encoding import JSONEncoderV2
+from ddtrace.internal._encoding import BufferedEncoder
+from ddtrace.internal._encoding import packb as msgpack_packb
+from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
+from ddtrace.internal.encoding import JSONEncoderV2
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -17,6 +18,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
     TEST_EVENT_VERSION = 1
+    TEST_FUNCTION_EVENT_VERSION = 2
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -63,8 +65,12 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
+        if span.get_tag(EVENT_TYPE) == "test":
+            version = CIVisibilityEncoderV01.TEST_FUNCTION_EVENT_VERSION
+        else:
+            version = CIVisibilityEncoderV01.TEST_EVENT_VERSION
         if span.span_type == "test":
-            event_type = "test"
+            event_type = span.get_tag(EVENT_TYPE)
         else:
             event_type = "span"
-        return {"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION, "type": event_type, "content": sp}
+        return {"version": version, "type": event_type, "content": sp}
