@@ -457,6 +457,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -1572,9 +1573,9 @@ venv = Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
                     pkgs={
-                        "pytest": ">=4.0,<4.6",
+                        "pytest": ">=4.0,<=4.6",
                         "msgpack": latest,
-                        "pytest-cov": "==2.5.0",
+                        "pytest-cov": "==2.12.1",
                     },
                 ),
                 Venv(
