@@ -8,10 +8,13 @@ from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 
 
+# VCR is used to capture and store network requests made to OpenAI.
+# This is done to avoid making real calls to the API which could introduce
+# flakiness and cost.
 # To (re)-generate the cassettes: replace this with a real key, delete the
 # old cassettes and re-run the tests.
 # NOTE: be sure to check the generated cassettes so they don't contain your
-#       API key.
+#       API key. Keys should be redacted by the filter_headers option below.
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 openai.api_key = "<not-a-real-key>"
@@ -33,16 +36,15 @@ def patch_openai():
     patch(aiohttp=True, openai=True, requests=True)
     yield
     unpatch()
+    from ddtrace.contrib.openai._log import _logs_writer
+
+    _logs_writer.periodic()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_completion():
     with openai_vcr.use_cassette("completion.yaml"):
         openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
-
-    from ddtrace.contrib.openai._log import _logs_writer
-
-    _logs_writer.periodic()
 
 
 @pytest.mark.asyncio
@@ -52,10 +54,6 @@ async def test_acompletion():
         await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
         )
-
-    from ddtrace.contrib.openai._log import _logs_writer
-
-    _logs_writer.periodic()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -95,10 +93,6 @@ async def test_achat_completion():
             top_p=0.9,
             n=2,
         )
-
-    from ddtrace.contrib.openai._log import _logs_writer
-
-    _logs_writer.periodic()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])

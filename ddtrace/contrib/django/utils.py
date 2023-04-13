@@ -103,6 +103,20 @@ def get_django_2_route(request, resolver_match):
     return None
 
 
+def set_tag_array(span, prefix, value):
+    """Helper to set a span tag as a single value or an array"""
+    if not value:
+        return
+
+    if len(value) == 1:
+        if value[0]:
+            span.set_tag_str(prefix, value[0])
+    else:
+        for i, v in enumerate(value, start=0):
+            if v:
+                span.set_tag_str("".join((prefix, ".", str(i))), v)
+
+
 def get_request_uri(request):
     """
     Helper to rebuild the original request url
@@ -199,11 +213,11 @@ def _set_resolver_tags(pin, span, request):
                 resource = " ".join((request.method, handler))
 
         span.set_tag_str("django.view", resolver_match.view_name)
-        trace_utils.set_tag_array(span, "django.namespace", resolver_match.namespaces)
+        set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
         # Django >= 2.0.0
         if hasattr(resolver_match, "app_names"):
-            trace_utils.set_tag_array(span, "django.app", resolver_match.app_names)
+            set_tag_array(span, "django.app", resolver_match.app_names)
 
     except Resolver404:
         # Normalize all 404 requests into a single resource name
@@ -249,7 +263,7 @@ def _extract_body(request):
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = request.data.dict() if rest_framework else request.POST.dict()
-            elif content_type == "application/json":
+            elif content_type in ("application/json", "text/json"):
                 req_body = (
                     json.loads(request.data.decode("UTF-8"))
                     if rest_framework
@@ -261,6 +275,8 @@ def _extract_body(request):
                     if rest_framework
                     else xmltodict.parse(request.body.decode("UTF-8"))
                 )
+            elif request.method == "POST" and request.POST:
+                req_body = dict(request.POST)
             else:  # text/plain, others: don't use them
                 req_body = None
         except (
@@ -350,7 +366,7 @@ def _after_request_tags(pin, span, request, response):
                 else:
                     template_names = None
 
-                trace_utils.set_tag_array(span, "django.response.template", template_names)
+                set_tag_array(span, "django.response.template", template_names)
 
             url = get_request_uri(request)
 

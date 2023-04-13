@@ -4,7 +4,6 @@ import sys
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 from . import _log as ddlogs
@@ -13,11 +12,6 @@ from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import wrap
 from ._metrics import stats_client
-from ._openai import CHAT_COMPLETIONS
-from ._openai import COMPLETIONS
-from ._openai import EMBEDDINGS
-from ._openai import ENDPOINT_DATA
-from ._openai import supported
 
 
 config._add(
@@ -49,30 +43,17 @@ def patch():
     #  Pin.clone(service="openai").onto(openai.web_....requests.ClientSession)
     config.requests._default_service = None
 
-    # TODO: we can probably remove these as there will be spans from the requests integration
-    # which will show the retries
-    # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.create", patched_create(openai))
-    # wrap(openai, "api_resources.abstract.engine_api_resource.EngineAPIResource.acreate", patched_async_create(openai))
-
-    # if supported(CHAT_COMPLETIONS):
-    #     wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_endpoint(openai))
-    #     wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_async_endpoint(openai))
-
-    if supported(COMPLETIONS):
+    if hasattr(openai.api_resources, "completion"):
         wrap(openai, "api_resources.completion.Completion.create", patched_completion_create(openai))
         wrap(openai, "api_resources.completion.Completion.acreate", patched_completion_acreate(openai))
 
-    if supported(CHAT_COMPLETIONS):
+    if hasattr(openai.api_resources, "chat_completion"):
         wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_chat_completion_create(openai))
         wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_chat_completion_acreate(openai))
 
-    if supported(EMBEDDINGS):
+    if hasattr(openai.api_resources, "embedding"):
         wrap(openai, "api_resources.embedding.Embedding.create", patched_embedding_create(openai))
         wrap(openai, "api_resources.embedding.Embedding.acreate", patched_embedding_acreate(openai))
-
-    # if supported(EMBEDDINGS):
-    #     wrap(openai, "api_resources.embedding.Embedding.create", patched_endpoint(openai))
-    #     wrap(openai, "api_resources.embedding.Embedding.acreate", patched_async_endpoint(openai))
 
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
@@ -223,6 +204,26 @@ def init_openai_span(span, openai):
         span.set_tag_str("org_id", openai.org_id)
 
 
+_completion_request_attrs = [
+    "model",
+    "suffix",
+    "max_tokens",
+    "temperature",
+    "top_p",
+    "n",
+    "stream",
+    "logprobs",
+    "echo",
+    "stop",
+    "presence_penalty",
+    "frequency_penalty",
+    "best_of",
+    "logit_bias",
+    "user",
+    "prompt",
+]
+
+
 def _completion_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.request", resource="completions", service=trace_utils.ext_service(pin, config.openai)
@@ -232,7 +233,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
     prompt = kwargs.get("prompt")
     if model:
         span.set_tag_str("model", model)
-    for kw_attr in ENDPOINT_DATA[COMPLETIONS]["request"]:
+    for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
@@ -285,6 +286,20 @@ def _completion_create(openai, pin, instance, args, kwargs):
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
 
+_chat_completion_request_attrs = [
+    "model",
+    "top_p",
+    "n",
+    "stream",
+    "stop",
+    "max_tokens",
+    "presence_penalty",
+    "frequency_penalty",
+    "logit_bias",
+    "messages",
+]
+
+
 def _chat_completion_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.request", resource="chat.completions", service=trace_utils.ext_service(pin, config.openai)
@@ -296,7 +311,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if model:
         span.set_tag_str("model", model)
 
-    for kw_attr in ENDPOINT_DATA[CHAT_COMPLETIONS]["request"]:
+    for kw_attr in _chat_completion_request_attrs:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
@@ -358,7 +373,7 @@ def _embedding_create(openai, pin, instance, args, kwargs):
     if model:
         span.set_tag_str("model", model)
 
-    for kw_attr in ENDPOINT_DATA[EMBEDDINGS]["request"]:
+    for kw_attr in ["model", "input", "user"]:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
@@ -401,80 +416,3 @@ def usage_metrics(usage, metrics_tags):
         name = "{}.{}".format("tokens", token_type)
         # want to capture total count for token distribution
         stats_client().distribution(name, num_tokens, tags=metrics_tags)
-
-
-# @trace_utils.with_traced_module
-# def patched_create(openai, pin, func, instance, args, kwargs):
-#     span = pin.tracer.trace(
-#         "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
-#     )
-#     try:
-#         init_openai_span(span, openai)
-#         resp = func(*args, **kwargs)
-#         return resp
-#     except openai.error.OpenAIError as err:
-#         span.set_tag_str("error", err.__class__.__name__)
-#         raise err
-#     finally:
-#         span.finish()
-
-
-# @trace_utils_async.with_traced_module
-# async def patched_async_create(openai, pin, func, instance, args, kwargs):
-#     span = pin.tracer.trace(
-#         "openai.request", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
-#     )
-#     try:
-#         init_openai_span(span, openai)
-#         resp = await func(*args, **kwargs)
-#         return resp
-#     except openai.error.OpenAIError as err:
-#         span.set_tag_str("error", err.__class__.__name__)
-#         raise err
-#     finally:
-#         span.finish()
-
-
-# # set basic openai data for all openai spans
-# def init_openai_span(span, openai):
-#     span.set_tag_str(COMPONENT, config.openai.integration_name)
-#     if hasattr(openai, "api_base") and openai.api_base:
-#         span.set_tag_str("api_base", openai.api_base)
-#     if hasattr(openai, "api_version") and openai.api_version:
-#         span.set_tag_str("api_version", openai.api_version)
-#     if hasattr(openai, "organization") and openai.organization:
-#          span.set_tag_str("org_id", openai.org_id)
-
-
-# def start_endpoint_span(openai, pin, instance, args, kwargs):
-#     span = pin.tracer.trace(
-#         "openai.create", resource=instance.OBJECT_NAME, service=trace_utils.ext_service(pin, config.openai)
-#     )
-#     init_openai_span(span, openai)
-#     set_flattened_tags(
-#         span,
-#         append_tag_prefixes([REQUEST_TAG_PREFIX], process_request(openai, instance.OBJECT_NAME, args, kwargs)),
-#         processor=process_text,
-#     )
-#     return span
-
-
-# def finish_endpoint_span(span, resp, err, openai, instance, kwargs):
-#     metric_tags = ["model:%s" % kwargs.get("model"), "endpoint:%s" % instance.OBJECT_NAME]
-#     if resp:
-#         set_flattened_tags(
-#             span,
-#             append_tag_prefixes([RESPONSE_TAG_PREFIX], process_response(openai, instance.OBJECT_NAME, resp)),
-#             processor=process_text,
-#         )
-#         usage_metrics(resp.get("usage"), metric_tags)
-#     elif err:
-#         set_flattened_tags(
-#             span,
-#             append_tag_prefixes([RESPONSE_TAG_PREFIX, ERROR_TAG_PREFIX], {"code": err.code, "message": str(err)}),
-#         )
-#         stats_client().increment("error.{}".format(err.__class__.__name__), 1, tags=metric_tags)
-#         span.finish()
-#         raise err
-#     span.finish()
-#     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)

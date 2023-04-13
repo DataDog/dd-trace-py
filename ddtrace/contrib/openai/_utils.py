@@ -12,16 +12,6 @@ def expand(data):
     return data
 
 
-def summarize_embedding(data):
-    try:
-        return {
-            "num-embeddings": len(data),
-            "embedding-length": len(data[0]["embedding"]),
-        }
-    except (KeyError, IndexError):
-        return {}
-
-
 def append_tag_prefixes(key_prefixes, data):
     # type: (List[str], Dict[str, str]) -> Dict[str, str]
     prefix = ".".join(key_prefixes) + "."

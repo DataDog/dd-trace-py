@@ -605,21 +605,6 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def set_tag_array(span, prefix, value):
-    # type: (Span, str, List[str]) -> None
-    """Helper to set a span tag as a single value or an array"""
-    if not value:
-        return
-
-    if len(value) == 1:
-        if value[0]:
-            span.set_tag_str(prefix, value[0])
-    else:
-        for i, v in enumerate(value, start=0):
-            if v:
-                span.set_tag_str("".join((prefix, ".", str(i))), v)
-
-
 def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
     # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None
     """Set user tags.
