@@ -81,6 +81,10 @@ class Operation(object):
 
 
 class OverheadControl(object):
+    """This class is meant to control the overhead introduced by IAST analysis.
+    The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
+    """
+
     _request_quota = MAX_REQUESTS
     _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
@@ -90,9 +94,9 @@ class OverheadControl(object):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span):  # type: (Span) -> None
-        """Block a request's quota at start of the request.
-
-        TODO: Implement sampling request in this method
+        """Decide wether if IAST analysis will be done for this request.
+        - Block a request's quota at start of the request to limit simultanous requests analyzed.
+        - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
         if self._request_quota > 0 and self._sampler.sample(span):
             self._request_quota -= 1
