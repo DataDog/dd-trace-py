@@ -377,10 +377,9 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
 
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
-        """It's time to test the {version} release candidate! The owners of pull requests with release notes in version are {author_slack_handles}. 
-Everyone mentioned here: before the end of the day tomorrow, please ensure that you've filled in the testing strategy in the release notebook {nb_url} on all release notes you're the owner of, according to the expectations here. 
-Please also note when you expect the testing itself to be completed (ASAP preferred).
-You can start doing your tests immediately, using {version}. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.
+        """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}. 
+Everyone mentioned here: before the end of the day tomorrow, please ensure that you've filled in the testing strategy in the release notebook {nb_url} on all release notes you're the owner of, according to the expectations here: https://datadoghq.atlassian.net/wiki/spaces/APMPY/pages/2868085694/Staging+testing+expectations+for+dd-trace-py+contributors
+You can start doing your tests immediately, using {version}.
 
 Check the release notebook {nb_url} for asynchronous updates on the release process. If you have questions or need help with anything, let me know! I'm here to help. Thanks all for your dedication to maintaining a rock-solid library.""".format(  # noqa
             version=name, author_slack_handles=author_slack_handles, nb_url=nb_url
