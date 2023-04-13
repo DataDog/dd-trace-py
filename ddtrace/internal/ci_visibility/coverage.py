@@ -44,6 +44,7 @@ def enabled():
 
 @contextlib.contextmanager
 def cover(span, root=None, **kwargs):
+    """Calculates code coverage on the given span and saves it as a tag"""
     coverage_kwargs = {
         "data_file": None,
         "source": [root] if root else None,
