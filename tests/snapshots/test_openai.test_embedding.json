@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "openai",
+    "resource": "embedding",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "model": "text-embedding-ada-002",
+      "request.input": "hellow world",
+      "request.model": "text-embedding-ada-002",
+      "response.model": "text-embedding-ada-002",
+      "runtime-id": "ec831e4d0c2249df811c37cb37788de5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 44694,
+      "response.data.embedding-length": 1536,
+      "response.data.num-embeddings": 1
+    },
+    "duration": 2018000,
+    "start": 1681424626094089000
+  }]]

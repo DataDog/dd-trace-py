@@ -14,9 +14,9 @@
       "http.method": "POST",
       "http.status_code": "200",
       "http.url": "https://api.openai.com/v1/moderations",
-      "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
+      "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
       "language": "python",
-      "runtime-id": "06bba5112fd544faa4829ff8bf30b581",
+      "runtime-id": "272457bc9e9e4f52a9f12a7ed2e0e024",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,8 +25,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 51112
+      "process_id": 43779
     },
-    "duration": 906140000,
-    "start": 1681415333385781000
+    "duration": 2325000,
+    "start": 1681424413424250000
   }]]

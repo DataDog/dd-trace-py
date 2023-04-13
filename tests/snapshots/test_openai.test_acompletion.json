@@ -1,0 +1,41 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "openai",
+    "resource": "completions/curie",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "model": "curie",
+      "request.model": "curie",
+      "request.prompt": "As Descartes said, I think, therefore",
+      "response.choices.0.finish_reason": "length",
+      "response.choices.0.logprobs": "None",
+      "response.id": "cmpl-74hgB8vmjXBGfiEBDq5eeL58sjUOb",
+      "response.object": "text_completion",
+      "runtime-id": "ec831e4d0c2249df811c37cb37788de5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 44694,
+      "request.max_tokens": 150,
+      "request.n": 1,
+      "request.temperature": 0.8,
+      "response.choices.num": 1,
+      "response.usage.completion_tokens": 150,
+      "response.usage.prompt_tokens": 10,
+      "response.usage.total_tokens": 160
+    },
+    "duration": 2483000,
+    "start": 1681424625325888000
+  }]]

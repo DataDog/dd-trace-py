@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "openai",
-    "resource": "completions",
+    "resource": "completions/ada",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -23,14 +23,14 @@
       "response.choices.1.logprobs": "None",
       "response.id": "cmpl-74xboMF2aXvHX7qml53stYFoBGXIt",
       "response.object": "text_completion",
-      "runtime-id": "9d104683dea840e0a8764e1303466818"
+      "runtime-id": "272457bc9e9e4f52a9f12a7ed2e0e024"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 61039,
+      "process_id": 43779,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
@@ -39,8 +39,8 @@
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 22
     },
-    "duration": 243789000,
-    "start": 1681416804547270000
+    "duration": 16882000,
+    "start": 1681424412058860000
   },
      {
        "name": "requests.request",
@@ -56,12 +56,12 @@
          "http.method": "POST",
          "http.status_code": "200",
          "http.url": "https://api.openai.com/v1/completions",
-         "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
          "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 222287000,
-       "start": 1681416804561413000
+       "duration": 3909000,
+       "start": 1681424412069361000
      }]]

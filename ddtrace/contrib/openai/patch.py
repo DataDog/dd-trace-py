@@ -225,14 +225,14 @@ _completion_request_attrs = [
 
 
 def _completion_create(openai, pin, instance, args, kwargs):
+    model = kwargs.get("model")
     span = pin.tracer.trace(
-        "openai.request", resource="completions", service=trace_utils.ext_service(pin, config.openai)
+        "openai.request", resource="completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
-    model = kwargs.get("model")
+    span.set_tag_str("model", model)
+
     prompt = kwargs.get("prompt")
-    if model:
-        span.set_tag_str("model", model)
     for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
@@ -301,15 +301,14 @@ _chat_completion_request_attrs = [
 
 
 def _chat_completion_create(openai, pin, instance, args, kwargs):
+    model = kwargs.get("model")
     span = pin.tracer.trace(
-        "openai.request", resource="chat.completions", service=trace_utils.ext_service(pin, config.openai)
+        "openai.request", resource="chat.completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
+    span.set_tag_str("model", model)
 
-    model = kwargs.get("model")
     messages = kwargs.get("messages")
-    if model:
-        span.set_tag_str("model", model)
 
     for kw_attr in _chat_completion_request_attrs:
         if kw_attr in kwargs:
@@ -366,12 +365,12 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
 
 def _embedding_create(openai, pin, instance, args, kwargs):
-    span = pin.tracer.trace("openai.request", resource="embedding", service=trace_utils.ext_service(pin, config.openai))
-    init_openai_span(span, openai)
-
     model = kwargs.get("model")
-    if model:
-        span.set_tag_str("model", model)
+    span = pin.tracer.trace(
+        "openai.request", resource="embedding/%s" % model, service=trace_utils.ext_service(pin, config.openai)
+    )
+    init_openai_span(span, openai)
+    span.set_tag_str("model", model)
 
     for kw_attr in ["model", "input", "user"]:
         if kw_attr in kwargs:

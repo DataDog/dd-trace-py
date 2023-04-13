@@ -1,0 +1,74 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "system", "content": "You
+      are a helpful assistant."}, {"role": "user", "content": "Who won the world series
+      in 2020?"}, {"role": "assistant", "content": "The Los Angeles Dodgers won the
+      World Series in 2020."}, {"role": "user", "content": "Where was it played?"}],
+      "top_p": 0.9, "n": 2}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.4
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.4", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.11", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-74zdG9R7K378TExrWFrgmBTWW7jYY","object":"chat.completion","created":1681424582,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":45,"total_tokens":102},"choices":[{"message":{"role":"assistant","content":"The
+        2020 World Series was played at Globe Life Field in Arlington, Texas, United
+        States."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
+        2020 World Series was played in Arlington, Texas at Globe Life Field, the
+        home stadium of the Texas Rangers."},"finish_reason":"stop","index":1}]}
+
+        '
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7b771c7368a83b87-BOS
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 13 Apr 2023 22:23:03 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - user-f23xvdxbrssd56y1ghcjdcue
+      openai-processing-ms:
+      - '2065'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3'
+      x-ratelimit-remaining-requests:
+      - '1'
+      x-ratelimit-reset-requests:
+      - 37.872s
+      x-request-id:
+      - 6fcdbe28922d3af089f0c9a265ac1648
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/chat/completions
+version: 1
