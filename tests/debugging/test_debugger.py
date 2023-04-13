@@ -642,11 +642,12 @@ def test_probe_status_logging(monkeypatch):
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
+        for cb in self.get_pubsubs():
             cb.publish(None, None)
+        return True
 
     RemoteConfigClient.request = request
-
+    sleep(0.5)
     try:
         with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
@@ -691,11 +692,12 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
+        for cb in self.get_pubsubs():
             cb.publish(None, None)
+        return True
 
     RemoteConfigClient.request = request
-
+    sleep(0.5)
     try:
         with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(

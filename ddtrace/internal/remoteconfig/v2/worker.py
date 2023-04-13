@@ -156,12 +156,15 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
-    def register(self, product, pubsub_instance):
-        # type: (str, PubSubBase) -> None
+    def register(self, product, pubsub_instance, skip_enabled=False):
+        # type: (str, PubSubBase, bool) -> None
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            if self.enable():
+            enabled = True
+            if not skip_enabled:
+                enabled = self.enable()
+            if enabled:
                 self._client.register_product(product, pubsub_instance)
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)

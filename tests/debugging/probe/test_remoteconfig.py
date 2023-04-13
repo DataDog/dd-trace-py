@@ -213,7 +213,7 @@ def test_multiple_configs():
     try:
         adapter = ProbeRCAdapter("", cb)
         # Wait to allow the next call to the adapter to generate a status event
-        remoteconfig_poller.register("TEST", adapter)
+        remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
         adapter.publish(
             config_metadata("spanProbe_probe1"),
             {
