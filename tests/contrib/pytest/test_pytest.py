@@ -568,7 +568,7 @@ class PytestTestCase(TracerTestCase):
         ci_agentless_encoder.put(spans)
         trace = ci_agentless_encoder.encode()
         decoded_trace = self.tracer.encoder._decode(trace)
-        assert len(decoded_trace[b"events"]) == 4
+        assert len(decoded_trace[b"events"]) == 6
         for event in decoded_trace[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
         pass
@@ -782,7 +782,7 @@ class PytestTestCase(TracerTestCase):
         file_b = self.testdir.makepyfile(
             test_b="""
         def test_not_ok():
-            assert False
+            assert 0
         """
         )
         file_names.append(os.path.basename(file_b.strpath))
@@ -817,7 +817,7 @@ class PytestTestCase(TracerTestCase):
         with open("test_b.py", "w+") as fd:
             fd.write(
                 """def test_not_ok():
-                assert True"""
+                assert 0"""
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
@@ -855,7 +855,7 @@ class PytestTestCase(TracerTestCase):
         with open("test_b.py", "w+") as fd:
             fd.write(
                 """def test_not_ok():
-                assert True"""
+                assert 0"""
             )
         self.testdir.chdir()
         self.inline_run("--ignore=test_package_a", "--ddtrace")
