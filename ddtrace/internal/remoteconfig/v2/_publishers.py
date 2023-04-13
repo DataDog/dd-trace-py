@@ -3,6 +3,7 @@ import copy
 import os
 from typing import TYPE_CHECKING
 
+import attrs
 import six
 
 from ddtrace.internal.logger import get_logger
@@ -41,41 +42,38 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
 
     def __call__(self, pubsub_instance, metadata, config):
         # type: (Any, Optional[Any], Any) -> None
-        try:
-            if self._preprocess_results_func:
-                config = self._preprocess_results_func(config, pubsub_instance)
-            if type(config) == dict:
-                log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), str(config)[:100])
-                self._data_connector.write(metadata, config)
-        except Exception:
-            log.debug("[%s]: Publisher error", os.getpid(), exc_info=True)
+        if self._preprocess_results_func:
+            config = self._preprocess_results_func(config, pubsub_instance)
+
+        log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), str(config)[:100])
+        self._data_connector.write(attrs.asdict(metadata), config)
 
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_results):
         super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_results)
-        self.configs = {}
+        self._configs = {}
 
     def append(self, target, config):
-        if not self.configs.get(target):
-            self.configs[target] = {}
+        if not self._configs.get(target):
+            self._configs[target] = {}
 
         if config is False:
             # Remove old config from the configs dict. _remove_previously_applied_configurations function should
             # call to this method
-            del self.configs[target]
+            del self._configs[target]
         elif config is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method
             if isinstance(config, dict):
-                self.configs[target].update(config)
+                self._configs[target].update(config)
             else:
                 raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
 
     def dispatch(self, pubsub_instance):
         config_result = {}
         try:
-            for target, config in self.configs.items():
+            for target, config in self._configs.items():
                 for key, value in config.items():
                     if isinstance(value, list):
                         config_result[key] = config_result.get(key, []) + value

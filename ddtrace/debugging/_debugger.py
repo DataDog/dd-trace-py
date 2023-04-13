@@ -58,7 +58,7 @@ from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
@@ -257,8 +257,9 @@ class Debugger(Service):
             log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
         # Register the debugger with the RCM client.
-        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
-
+        di_callback = self.__rc_adapter__("", self._on_configuration)
+        di_callback.start_subscriber()
+        remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
     def _on_encoder_buffer_full(self, item, encoded):

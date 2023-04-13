@@ -6,7 +6,7 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemory
+from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryJson
 from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
 from ddtrace.internal.remoteconfig.v2._pubsub import PubSubMergeFirst
 from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
@@ -33,7 +33,7 @@ log = get_logger(__name__)
 
 class AppSecRC(PubSubMergeFirst):
     __subscriber_class__ = RemoteConfigSubscriber
-    __shared_data = ConnectorSharedMemory()
+    __shared_data = ConnectorSharedMemoryJson()
 
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)

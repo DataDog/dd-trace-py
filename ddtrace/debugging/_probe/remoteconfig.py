@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Any
 from typing import Callable
@@ -24,8 +25,9 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
+from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryMetadataJson
+from ddtrace.internal.remoteconfig.v2._pubsub import PubSub
+from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.utils.cache import LFUCache
 
 
@@ -209,9 +211,6 @@ def get_probes(config_id, config):
     return [probe_factory(config)]
 
 
-log = get_logger(__name__)
-
-
 class ProbePollerEvent(object):
     NEW_PROBES = 0
     DELETED_PROBES = 1
@@ -222,18 +221,35 @@ class ProbePollerEvent(object):
 ProbePollerEventType = int
 
 
-class ProbeRCAdapter(RemoteConfigCallBack):
+class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     """Probe configuration adapter for the RCM client.
 
     This adapter turns configuration events from the RCM client into probe
     events that can be handled easily by the debugger.
     """
 
-    def __init__(self, callback):
-        # type: (Callable[[ProbePollerEventType, Iterable[Probe]], None]) -> None
-        self._callback = callback
-        self._configs = {}  # type: Dict[str, Dict[str, Probe]]
+    def __init__(self, data_connector, callback, name):
+        super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
+        self._configs = {}
         self._next_status_update_timestamp()
+
+    def _exec_callback(self, data, test_tracer=None):
+        log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
+        if data:
+            metadata = data["metadata"]
+            config = data["config"]
+            # DEV: We emit a status update event here to avoid having to spawn a
+            # separate thread for this.
+            if time.time() > self._status_timestamp:
+                log.debug("Emitting probe status log messages")
+                probes = [probe for config in self._configs.values() for probe in config.values()]
+                self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
+                self._next_status_update_timestamp()
+            if metadata is None:
+                log.debug("no RCM metadata")
+                return
+
+            self._update_probes_for_config(metadata["id"], config)
 
     def _next_status_update_timestamp(self):
         # type: () -> None
@@ -266,19 +282,11 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         else:
             self._configs.pop(config_id, None)
 
-    def __call__(self, metadata, config):
-        # type: (Optional[ConfigMetadata], Any) -> None
 
-        # DEV: We emit a status update event here to avoid having to spawn a
-        # separate thread for this.
-        if time.time() > self._status_timestamp:
-            log.debug("Emitting probe status log messages")
-            probes = [probe for config in self._configs.values() for probe in config.values()]
-            self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
-            self._next_status_update_timestamp()
+class ProbeRCAdapter(PubSub):
+    __subscriber_class__ = DebuggerRemoteConfigSubscriber
+    __shared_data = ConnectorSharedMemoryMetadataJson()
 
-        if metadata is None:
-            log.debug("no RCM metadata")
-            return
-
-        self._update_probes_for_config(metadata.id, config)
+    def __init__(self, _preprocess_results, callback):
+        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "ASM")

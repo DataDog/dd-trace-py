@@ -12,7 +12,7 @@ import pytest
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemory
+from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryJson
 from ddtrace.internal.remoteconfig.v2._pubsub import PubSubMergeFirst
 from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
@@ -26,7 +26,7 @@ from tests.utils import override_env
 
 class RCMockPubSub(PubSubMergeFirst):
     __subscriber_class__ = RemoteConfigSubscriber
-    __shared_data = ConnectorSharedMemory()
+    __shared_data = ConnectorSharedMemoryJson()
 
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)

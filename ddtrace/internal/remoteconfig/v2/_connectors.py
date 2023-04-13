@@ -19,7 +19,7 @@ class ConnectorBase(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def write(self, metadata, config):
+    def write(self, metadata, config_raw):
         pass
 
 
@@ -27,9 +27,9 @@ class ConnectorFile(ConnectorBase):
     def __init__(self, filename="shared_data.json"):
         self._target_file = os.path.join(ROOT_DIR, filename)
 
-    def write(self, metadata, config):
+    def write(self, metadata, config_raw):
         fl = open(self._target_file, "w")
-        fl.write(json.dumps(config))
+        fl.write(json.dumps(config_raw))
         fl.close()
 
     def read(self):
@@ -39,7 +39,7 @@ class ConnectorFile(ConnectorBase):
         return json.loads(config)
 
 
-class ConnectorSharedMemory(ConnectorBase):
+class ConnectorSharedMemoryJson(ConnectorBase):
     def __init__(self):
         self.data = multiprocessing.Array(c_char, 603432, lock=False)
 
@@ -48,6 +48,26 @@ class ConnectorSharedMemory(ConnectorBase):
             data = bytes(json.dumps(config_raw))
         else:
             data = bytes(json.dumps(config_raw), encoding="utf-8")
+
+        self.data.value = data
+
+    def read(self):
+        config = {}
+        config_raw = to_unicode(self.data.value)
+        if config_raw:
+            config = json.loads(config_raw)
+        return config
+
+
+class ConnectorSharedMemoryMetadataJson(ConnectorBase):
+    def __init__(self):
+        self.data = multiprocessing.Array(c_char, 603432, lock=False)
+
+    def write(self, metadata, config_raw):
+        if PY2:
+            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}))
+        else:
+            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}), encoding="utf-8")
 
         self.data.value = data
 

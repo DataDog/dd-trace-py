@@ -14,6 +14,7 @@ from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._probe.remoteconfig import probe_factory
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
 
@@ -104,7 +105,11 @@ def test_poller_env_version(env, version, expected, mock_config):
             ]
         )
 
-        ProbeRCAdapter(cb)(config_metadata(), {})
+        adapter = ProbeRCAdapter("", cb)
+        remoteconfig_poller.register("TEST", adapter)
+
+        adapter.publish(config_metadata(), {})
+        remoteconfig_poller._poll_data()
 
         assert set(_.probe_id for _ in probes) == expected
 
@@ -148,9 +153,11 @@ def test_poller_events(mock_config):
     old_interval = config.diagnostics_interval
     config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(cb)
+        adapter = ProbeRCAdapter("", cb)
+        remoteconfig_poller.register("TEST", adapter)
 
-        adapter(metadata, {})
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
         mock_config.remove_probes("probe1", "probe2")
         mock_config.add_probes(
             [
@@ -170,11 +177,13 @@ def test_poller_events(mock_config):
                 ),
             ]
         )
-        adapter(metadata, {})
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
 
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter(metadata, {})
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
 
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
@@ -199,9 +208,10 @@ def test_multiple_configs():
     old_interval = config.diagnostics_interval
     config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(cb)
-
-        adapter(
+        adapter = ProbeRCAdapter("", cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter)
+        adapter.publish(
             config_metadata("spanProbe_probe1"),
             {
                 "id": "probe1",
@@ -213,6 +223,7 @@ def test_multiple_configs():
                 "resource": "resourceX",
             },
         )
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -220,7 +231,7 @@ def test_multiple_configs():
             }
         )
 
-        adapter(
+        adapter.publish(
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
@@ -232,6 +243,7 @@ def test_multiple_configs():
                 "kind": "COUNTER",
             },
         )
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -239,7 +251,7 @@ def test_multiple_configs():
             }
         )
 
-        adapter(
+        adapter.publish(
             config_metadata("logProbe_probe3"),
             {
                 "id": "probe3",
@@ -251,6 +263,7 @@ def test_multiple_configs():
                 "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             },
         )
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -264,7 +277,8 @@ def test_multiple_configs():
         #  1. after sleep 0.5 probe status should report 2 probes
         #  2. bad config raises ValueError
         with pytest.raises(ValueError):
-            adapter(config_metadata("not-supported"), {})
+            adapter.publish(config_metadata("not-supported"), {})
+            remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -273,7 +287,8 @@ def test_multiple_configs():
         )
 
         # remove configuration
-        adapter(config_metadata("metricProbe_probe2"), None)
+        adapter.publish(config_metadata("metricProbe_probe2"), None)
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -386,10 +401,12 @@ def test_modified_probe_events(mock_config):
     old_interval = config.diagnostics_interval
     config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(cb)
+        adapter = ProbeRCAdapter("", cb)
         # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter)
         sleep(0.5)
-        adapter(metadata, {})
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
 
         mock_config.add_probes(
             [
@@ -402,11 +419,12 @@ def test_modified_probe_events(mock_config):
                 )
             ]
         )
-        adapter(metadata, {})
-
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter(metadata, {})
+        adapter.publish(metadata, {})
+        remoteconfig_poller._poll_data()
 
         assert events == [
             (ProbePollerEvent.STATUS_UPDATE, frozenset()),
