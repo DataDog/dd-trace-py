@@ -1,6 +1,8 @@
 import bm
 import bm.utils as utils
 
+from ddtrace import config
+
 
 class Span(bm.Scenario):
     nspans = bm.var(type=int)
@@ -8,6 +10,7 @@ class Span(bm.Scenario):
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
     finishspan = bm.var_bool()
+    traceid128 = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
@@ -20,6 +23,7 @@ class Span(bm.Scenario):
 
         # run scenario to include finishing spans
         finishspan = self.finishspan
+        config._128_bit_trace_id_enabled = self.traceid128
 
         def _(loops):
             for _ in range(loops):

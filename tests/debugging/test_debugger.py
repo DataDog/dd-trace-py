@@ -8,7 +8,9 @@ import mock
 from mock.mock import call
 import pytest
 
+import ddtrace
 from ddtrace.debugging._capture.model import CaptureState
+from ddtrace.debugging._capture.tracing import SPAN_NAME
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
@@ -22,9 +24,11 @@ from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import create_span_function_probe
 from tests.internal.remoteconfig import rcm_endpoint
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
+from tests.utils import TracerTestCase
 from tests.utils import call_program
 
 
@@ -163,63 +167,6 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         assert d.uploader.queue
 
-        (payload,) = d.uploader.payloads
-        assert payload
-
-        (snapshot,) = payload
-        assert snapshot
-        assert snapshot["debugger.snapshot"]["probe"]["id"] == probe_id
-
-
-@pytest.mark.parametrize(
-    "probe, trigger",
-    [
-        (
-            create_snapshot_function_probe(
-                probe_id="probe-instance-method",
-                module="tests.submod.stuff",
-                func_qname="Stuff.instancestuff",
-                rate=1000.0,
-            ),
-            lambda: Stuff().instancestuff(42),
-        ),
-        (
-            create_snapshot_line_probe(
-                probe_id="probe-instance-method",
-                source_file="tests/submod/stuff.py",
-                line=36,
-                rate=1000.0,
-            ),
-            lambda: Stuff().instancestuff(42),
-        ),
-    ],
-)
-def test_debugger_probe_active_inactive(probe, trigger):
-    global Stuff
-
-    with debugger() as d:
-        probe_id = probe.probe_id
-
-        d.add_probes(probe)
-        sleep(0.5)
-
-        assert probe in d._probe_registry
-        assert all(e["debugger"]["diagnostics"] for _ in d.uploader.payloads for e in _)
-        d.uploader.queue[:] = []
-        trigger()
-
-        probe.active = False
-
-        sleep(0.5)
-
-        # Test that the probe was ejected
-        assert probe in d._probe_registry
-
-        assert d.uploader.queue
-
-        trigger()
-
-        assert d.uploader.queue
         (payload,) = d.uploader.payloads
         assert payload
 
@@ -510,7 +457,7 @@ def create_stuff_line_metric_probe(kind, value=None):
         kind=kind,
         name="test.counter",
         tags={"foo": "bar"},
-        value=value,
+        value=DDExpression(dsl="test", callable=dd_compile(value)) if value is not None else None,
     )
 
 
@@ -524,7 +471,7 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
 
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(40)
         assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
@@ -532,7 +479,7 @@ def test_debugger_metric_probe_count_value(mock_metrics):
 
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(41)
         assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
@@ -540,7 +487,7 @@ def test_debugger_metric_probe_guage_value(mock_metrics):
 
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(42)
         assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
@@ -548,7 +495,7 @@ def test_debugger_metric_probe_histogram_value(mock_metrics):
 
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
-        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile({"ref": "bar"})))
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         sleep(0.5)
         Stuff().instancestuff(43)
         assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
@@ -729,6 +676,68 @@ def test_probe_status_logging(monkeypatch):
 
             sleep(0.5)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
+    finally:
+        RemoteConfigClient.request = old_request
+
+
+def test_probe_status_logging_reemit_on_modify(monkeypatch):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
+    RemoteConfig.disable()
+
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    old_request = RemoteConfigClient.request
+
+    def request(self, *args, **kwargs):
+        for cb in self._products.values():
+            cb(None, None)
+
+    RemoteConfigClient.request = request
+
+    try:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+            d.add_probes(
+                create_snapshot_line_probe(
+                    version=1,
+                    probe_id="line-probe-ok",
+                    source_file="tests/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                ),
+            )
+            d.modify_probes(
+                create_snapshot_line_probe(
+                    version=2,
+                    probe_id="line-probe-ok",
+                    source_file="tests/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                ),
+            )
+
+            queue = d.probe_status_logger.queue
+
+            def count_status(queue):
+                return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
+
+            def versions(queue, status):
+                return [
+                    _["debugger"]["diagnostics"]["probeVersion"]
+                    for _ in queue
+                    if _["debugger"]["diagnostics"]["status"] == status
+                ]
+
+            sleep(0.2)
+            assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
+            assert versions(queue, "INSTALLED") == [1, 2]
+            assert versions(queue, "RECEIVED") == [1]
+
+            queue[:] = []
+
+            sleep(0.5)
+            assert count_status(queue) == {"INSTALLED": 1}
+            assert versions(queue, "INSTALLED") == [2]
+
     finally:
         RemoteConfigClient.request = old_request
 
@@ -935,10 +944,7 @@ def test_debugger_log_live_probe_generate_messages():
         sleep(0.5)
 
         (msgs,) = d.uploader.payloads
-        (
-            msg1,
-            msg2,
-        ) = msgs
+        msg1, msg2 = msgs
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
@@ -947,3 +953,174 @@ def test_debugger_log_live_probe_generate_messages():
         assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger.snapshot"]["captures"]
+
+
+class SpanProbeTestCase(TracerTestCase):
+    def setUp(self):
+        super(SpanProbeTestCase, self).setUp()
+        self.backup_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
+
+    def tearDown(self):
+        ddtrace.tracer = self.backup_tracer
+        super(SpanProbeTestCase, self).tearDown()
+
+    def test_debugger_span_probe(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags={"tag": "value"}
+                )
+            )
+
+            mutator(arg=[])
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            tags = span.get_tags()
+            assert tags["debugger.probeid"] == "span-probe"
+            assert tags["tag"] == "value"
+
+    def test_debugger_span_not_created_when_condition_was_false(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="span-probe",
+                    module="tests.submod.stuff",
+                    func_qname="mutator",
+                    condition=DDExpression(
+                        dsl="not(contains(arg,42))", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
+                    ),
+                )
+            )
+
+            mutator(arg=[42])  # should not trigger span
+
+            self.assert_span_count(0)
+
+            mutator(arg=[])  # should trigger span
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tags()["debugger.probeid"] == "span-probe"
+
+    def test_debugger_snap_probe_linked_to_parent_span(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="exit-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span"):
+                mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == "parent_span"
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tag("debugger.probeid") == "exit-probe"
+
+            assert span.parent_id == root.span_id
+
+    def test_debugger_snap_probe_root(self):
+        from tests.submod.stuff import caller
+
+        @self.tracer.wrap("child")
+        def child():
+            pass
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(
+                    probe_id="root-dynamic-span-probe", module="tests.submod.stuff", func_qname="caller"
+                )
+            )
+
+            caller(child)
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == SPAN_NAME
+            assert root.resource == "caller"
+            assert root.get_tag("debugger.probeid") == "root-dynamic-span-probe"
+
+            assert span.name == "child"
+
+            assert span.parent_id is root.span_id
+
+
+def test_debugger_modified_probe():
+    from tests.submod.stuff import Stuff
+
+    with debugger(upload_flush_interval=0.1) as d:
+        d.add_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                version=1,
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template("hello world")
+            )
+        )
+
+        Stuff().instancestuff()
+
+        sleep(0.2)
+
+        ((msg,),) = d.uploader.payloads
+        assert "hello world" == msg["message"], msg
+        assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
+
+        d.modify_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                version=2,
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template("hello brave new world")
+            )
+        )
+
+        Stuff().instancestuff()
+
+        sleep(0.2)
+
+        _, (msg,) = d.uploader.payloads
+        assert "hello brave new world" == msg["message"], msg
+        assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
+
+
+def test_debugger_continue_wrapping_after_first_failure():
+    with debugger() as d:
+        probe_nok = create_snapshot_function_probe(
+            probe_id="function-probe-nok",
+            module="tests.submod.stuff",
+            func_qname="nonsense",
+        )
+        probe_ok = create_snapshot_function_probe(
+            probe_id="function-probe-ok",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+        )
+        d.add_probes(probe_nok, probe_ok)
+
+        assert probe_nok in d._probe_registry
+        assert probe_ok in d._probe_registry
+
+        assert not d._probe_registry[probe_nok.probe_id].installed
+        assert d._probe_registry[probe_ok.probe_id].installed

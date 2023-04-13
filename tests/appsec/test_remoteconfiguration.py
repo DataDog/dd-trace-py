@@ -10,6 +10,7 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._remoteconfiguration import RCAppSecCallBack
 from ddtrace.appsec._remoteconfiguration import RCAppSecFeaturesCallBack
@@ -18,8 +19,6 @@ from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
-from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
@@ -27,6 +26,7 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
+from ddtrace.internal.utils.formats import asbool
 from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR
 from tests.utils import override_env
@@ -49,7 +49,7 @@ def remote_config_worker(tracer):
 
 
 def _set_and_get_appsec_tags(tracer):
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(
             span,
             {},
@@ -57,7 +57,7 @@ def _set_and_get_appsec_tags(tracer):
             status_code="404",
             request_cookies={"cookie1": "im the cookie1"},
         )
-    return span.get_tag(APPSEC_JSON)
+    return span.get_tag(APPSEC.JSON)
 
 
 def test_rc_enabled_by_default(tracer):
@@ -83,9 +83,9 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=False)), override_env({APPSEC_ENV: appsec_enabled}):
+    with override_global_config(dict(_appsec_enabled=False)), override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
-            del os.environ[APPSEC_ENV]
+            del os.environ[APPSEC.ENV]
 
         RCAppSecFeaturesCallBack(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
@@ -102,9 +102,9 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: appsec_enabled}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
-            del os.environ[APPSEC_ENV]
+            del os.environ[APPSEC.ENV]
 
         rc_config = {"asm": {"enabled": True}}
         if rc_value is False:
@@ -118,20 +118,37 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "Afw="),
-        ("false", "true", "Afw="),
-        ("true", "false", "Afw="),
+        ("true", "true", "Afw="),  # All capabilities except ASM_ACTIVATION
+        ("false", "true", ""),
+        ("true", "false", ""),
         ("false", "false", ""),
-        ("true", "", "Af4="),
+        ("true", "", "Ag=="),  # ASM_ACTIVATION
         ("false", "", ""),
     ],
 )
-def test_rc_capabilities(rc_enabled, appsec_enabled, capability):
+def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     env = {"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}
+    config = {}
+    tracer.configure(appsec_enabled=False, api_version="v0.4")
     if appsec_enabled:
-        env[APPSEC_ENV] = appsec_enabled
+        env[APPSEC.ENV] = appsec_enabled
+        config["appsec_enabled"] = asbool(appsec_enabled)
+        config["api_version"] = "v0.4"
     with override_env(env):
-        assert _appsec_rc_capabilities() == capability
+        tracer.configure(**config)
+        assert _appsec_rc_capabilities(test_tracer=tracer) == capability
+
+
+def test_rc_activation_capabilities(tracer, remote_config_worker):
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    with override_env(env), override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
+        rc_config = {"asm": {"enabled": True}}
+
+        assert not RemoteConfig._worker
+
+        RCAppSecFeaturesCallBack(tracer)(None, rc_config)
+
+        assert _appsec_rc_capabilities(test_tracer=tracer) == "Af4="  # All capabilities
 
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):
@@ -836,7 +853,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    with override_env({APPSEC_ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "rules_data": [
@@ -864,12 +881,12 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                     span,
                     Config(),
                 )
-            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
-    with override_env({APPSEC_ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "rules_data": [
@@ -893,11 +910,11 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
                     span,
                     Config(),
                 )
-            assert span.get_tag(APPSEC_JSON) is None
+            assert span.get_tag(APPSEC.JSON) is None
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    with override_env({APPSEC_ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "rules_data": [
@@ -921,13 +938,13 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                     span,
                     Config(),
                 )
-            assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+            assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
             assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):
     RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/appsec/rules.json")
-    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}), open(
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:
         tracer.configure(appsec_enabled=True, api_version="v0.4")
@@ -940,7 +957,7 @@ def test_rc_rules_data(tracer):
 
 
 def test_rc_rules_data_error_empty(tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {}
         assert not _appsec_rules_data(tracer, config)
@@ -948,7 +965,7 @@ def test_rc_rules_data_error_empty(tracer):
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 2 is handling that test differently")
 def test_rc_rules_data_error_ddwaf(tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC_ENV: "true"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules": [{"invalid": mock.MagicMock()}],

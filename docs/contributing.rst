@@ -58,9 +58,29 @@ To ensure the ddtrace library produces consistent and secure logs the following 
 * Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
 * Log data is sensitive and should not contain application secrets or other sensitive data.
 
+Changing Test Requirements
+==========================
+
+`.riot/requirements` contains requirements files generated with `pip-compile` for every environment specified by `riotfile.py`.
+Riot uses these files to build its environments, and they do not get rebuilt automatically when the riotfile changes.
+Thus, if you make changes to the riotfile, you need to run either `scripts/compile-and-prune-test-requirements` or `riot run -c <mytests>`
+to regenerate the requirements files for the environments that changed. You can commit and pull request changes to files in `.riot/requirements`
+alongside the corresponding changes to `riotfile.py`.
+
 
 .. toctree::
     :hidden:
 
     contributing-integrations
     releasenotes
+
+Pre-commit Hooks
+================
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are also **optionally** available to be automated to run
+when you call git commit as pre-commit hooks to catch any formatting errors before you commit.
+To initialize the pre-commit hook script to run in your development branch, run the following command:
+
+    $ rm .git/hooks/pre-commit
+

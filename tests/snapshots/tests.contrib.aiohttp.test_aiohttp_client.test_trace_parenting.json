@@ -52,6 +52,9 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
+          "meta": {
+            "component": "aiohttp"
+          },
           "duration": 2464000,
           "start": 1646794413226798000
         }]]

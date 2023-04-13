@@ -20,7 +20,9 @@ from six import PY3
 import ddtrace
 from ddtrace.debugging._capture.collector import CapturedEventCollector
 from ddtrace.debugging._capture.metric_sample import MetricSample
+from ddtrace.debugging._capture.model import CapturedEvent
 from ddtrace.debugging._capture.snapshot import Snapshot
+from ddtrace.debugging._capture.tracing import DynamicSpan
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
@@ -37,6 +39,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
@@ -274,33 +277,34 @@ class Debugger(Service):
         """
         try:
             actual_frame = sys._getframe(1)
-
+            event = None  # type: Optional[CapturedEvent]
             if isinstance(probe, MetricLineProbe):
-                sample = MetricSample(
+                event = MetricSample(
                     probe=probe,
                     frame=actual_frame,
                     thread=threading.current_thread(),
                     context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
                 )
-                sample.line(actual_frame.f_locals)
-                self._collector.push(sample)
-                return
-
-            if isinstance(probe, LogLineProbe):
+            elif isinstance(probe, LogLineProbe):
                 if probe.take_snapshot:
                     # TODO: Global limit evaluated before probe conditions
                     if self._global_rate_limiter.limit() is RateLimitExceeded:
                         return
 
-                snapshot = Snapshot(
+                event = Snapshot(
                     probe=probe,
                     frame=actual_frame,
                     thread=threading.current_thread(),
                     context=self._tracer.current_trace_context(),
                 )
-                snapshot.line(exc_info=sys.exc_info())
-                self._collector.push(snapshot)
+            else:
+                log.error("Unsupported probe type: %r", type(probe))
+                return
+
+            event.line()
+
+            self._collector.push(event)
 
         except Exception:
             log.error("Failed to execute debugger probe hook", exc_info=True)
@@ -327,9 +331,10 @@ class Debugger(Service):
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
+            event = None  # type: Optional[CapturedEvent]
             for probe in wrappers.values():
                 if isinstance(probe, MetricFunctionProbe):
-                    metricSample = MetricSample(
+                    event = MetricSample(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
@@ -337,17 +342,27 @@ class Debugger(Service):
                         context=trace_context,
                         meter=self._probe_meter,
                     )
-                    open_contexts.append(self._collector.attach(metricSample))
-                    pass
                 elif isinstance(probe, LogFunctionProbe):
-                    snapshot = Snapshot(
+                    event = Snapshot(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
                         args=allargs,
                         context=trace_context,
                     )
-                    open_contexts.append(self._collector.attach(snapshot))
+                elif isinstance(probe, SpanFunctionProbe):
+                    event = DynamicSpan(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
+                        context=trace_context,
+                    )
+                else:
+                    log.error("Unsupported probe type: %s", type(probe))
+                    continue
+
+                open_contexts.append(self._collector.attach(event))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)
@@ -514,7 +529,7 @@ class Debugger(Service):
                 )
                 self._probe_registry.set_error(probe, message)
                 log.error(message)
-                return
+                continue
 
             if hasattr(function, "__dd_wrappers__"):
                 # TODO: Check if this can be made into a set instead
@@ -600,6 +615,7 @@ class Debugger(Service):
                         # We didn't have the probe. This shouldn't have happened!
                         log.error("Modified probe %r was not found in registry.", probe)
                         continue
+                    self._probe_registry.update(probe)
 
             return
 

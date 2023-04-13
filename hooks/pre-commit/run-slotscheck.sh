@@ -1,1 +1,0 @@
-../scripts/run-slotscheck.sh

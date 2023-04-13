@@ -1,0 +1,7 @@
+fixes:
+  - |
+    tracing: This fix resolves an issue where a very long string as a span attribute would cause that span not to
+    be delivered. It replaces string span attributes larger than DD_TRACE_WRITER_BUFFER_SIZE_BYTES (which as of
+    this version defaults to 8388608) with a small string containing debug information and not containing any
+    of the original attribute string.
+

@@ -3,6 +3,8 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
@@ -130,3 +132,15 @@ def patch_builtins(klass, attr, value):
             pass
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+        value = wrapped(*args, **kwargs)
+
+        name = str(args[0]) if len(args) else "http.request.body"
+        return taint_pyobject(value, Input_info(name, value, origin))
+
+    return wrapped(*args, **kwargs)

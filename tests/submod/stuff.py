@@ -139,3 +139,7 @@ def mutator(arg):
 
 def age_checker(people, age, name=None):
     return filter(lambda person: person.age > age, people)
+
+
+def caller(f, *args, **kwargs):
+    return f(*args, **kwargs)
