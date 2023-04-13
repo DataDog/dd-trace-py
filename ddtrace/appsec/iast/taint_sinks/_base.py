@@ -74,7 +74,7 @@ class VulnerabilityBase(Operation):
 
                 # Remove CWD prefix
                 if file_name.startswith(CWD):
-                    file_name = file_name[len(CWD) :]
+                    file_name = os.path.relpath(file_name, start=CWD)
 
                 if isinstance(evidence_value, (str, bytes, bytearray)):
                     evidence = Evidence(value=evidence_value)
