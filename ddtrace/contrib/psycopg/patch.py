@@ -28,11 +28,23 @@ from ...internal.utils.wrappers import unwrap
 from ...propagation._database_monitoring import _DBM_Propagator
 
 
+def _psycopg_sql_injector(dbm_comment, sql_statement):
+    for psycopg_module in config.psycopg["_patched_modules"]:
+        if (
+            hasattr(psycopg_module, "sql")
+            and hasattr(psycopg_module.sql, "Composable")
+            and isinstance(sql_statement, psycopg_module.sql.Composable)
+        ):
+            return psycopg_module.sql.SQL(dbm_comment) + sql_statement
+    return _default_sql_injector(dbm_comment, sql_statement)
+
+
 config._add(
     "psycopg",
     dict(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
+        _patched_modules=set(),
         trace_fetch_methods=asbool(
             os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
             or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
@@ -41,18 +53,10 @@ config._add(
             os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
             or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
+        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",
     ),
 )
-
-
-def psycopg_sql_injector_factory(psycopg_module):
-    def _psycopg_sql_injector(dbm_comment, sql_statement):
-        if isinstance(sql_statement, psycopg_module.sql.Composable):
-            return psycopg_module.sql.SQL(dbm_comment) + sql_statement
-        return _default_sql_injector(dbm_comment, sql_statement)
-
-    return _psycopg_sql_injector
 
 
 def _psycopg_modules():
@@ -84,22 +88,23 @@ def _patch(psycopg_module):
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
+        # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
         config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
-
-        config.psycopg["_dbm_propagator"] = _DBM_Propagator(0, "query", psycopg_sql_injector_factory(psycopg_module))
+        _patch_extensions(_psycopg2_extensions)
 
         wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        _patch_extensions(_psycopg2_extensions)
-    else:
-        config.psycopg["_dbm_propagator"] = _DBM_Propagator(0, "query", psycopg_sql_injector_factory(psycopg_module))
 
+        config.psycopg["_patched_modules"].add(psycopg_module)
+    else:
         wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         wrapt.wrap_function_wrapper(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         wrapt.wrap_function_wrapper(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
 
         wrapt.wrap_function_wrapper(psycopg_module.AsyncConnection, "connect", patched_connect_async)
         wrapt.wrap_function_wrapper(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
+
+        config.psycopg["_patched_modules"].add(psycopg_module)
 
 
 def unpatch():
