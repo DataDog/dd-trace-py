@@ -1,8 +1,10 @@
+import os
 from typing import List
 from typing import Optional
 
 import openai
 import pytest
+import vcr
 
 from ddtrace import Pin
 from ddtrace import Span
@@ -12,14 +14,34 @@ from ddtrace.filters import TraceFilter
 from tests.contrib.openai.openai_vcr import openai_vcr
 
 
+# VCR is used to capture and store network requests made to OpenAI.
+# This is done to avoid making real calls to the API which could introduce
+# flakiness and cost.
+# To (re)-generate the cassettes: replace this with a real key, delete the
+# old cassettes and re-run the tests.
+# NOTE: be sure to check the generated cassettes so they don't contain your
+#       API key. Keys should be redacted by the filter_headers option below.
+# NOTE: that different cassettes have to be used between sync and async
+#       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
+openai.api_key = "<not-a-real-key>"
+openai_vcr = vcr.VCR(
+    cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
+    record_mode="once",
+    match_on=["path"],
+    filter_headers=["authorization", "OpenAI-Organization"],
+    # Ignore requests to the agent
+    ignore_localhost=True,
+)
+
+
 class FilterOrg(TraceFilter):
+    """Replace the organization tag on spans with fake data."""
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         for span in trace:
             if span.get_tag("organization"):
                 span.set_tag_str("organization", "not-a-real-org")
-            else:
-                raise ValueError("span must have tag organization")
         return trace
 
 
@@ -153,6 +175,7 @@ def test_integration_sync():
     tests_path = os.path.dirname(os.path.dirname(ddtrace.__file__))
     sys.path.insert(0, tests_path)
     from tests.contrib.openai.openai_vcr import openai_vcr
+    from tests.contrib.openai.test_openai import FilterOrg
 
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
