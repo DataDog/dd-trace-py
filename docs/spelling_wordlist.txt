@@ -183,6 +183,7 @@ sqlite
 stacktrace
 starlette
 stringable
+subclass
 subdomains
 submodule
 submodules
