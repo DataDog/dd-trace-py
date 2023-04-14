@@ -111,11 +111,20 @@ def magic_header_key(request):
 
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
-    path("path-params/<int:year>/<str:month>/", path_params_view, name="path-params-view"),
     handler("body/$", body_view, name="body_view"),
     handler("weak-hash/$", weak_hash_view, name="weak_hash"),
     handler("block/$", block_callable_view, name="block"),
-    path("checkuser/<str:user_id>/", checkuser_view, name="checkuser"),
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
 ]
+
+if django.VERSION >= (2, 0, 0):
+    urlpatterns += [
+        path("path-params/<int:year>/<str:month>/", path_params_view, name="path-params-view"),
+        path("checkuser/<str:user_id>/", checkuser_view, name="checkuser"),
+    ]
+else:
+    urlpatterns += [
+        path(r"path-params/(?P<year>[0-9]{4})/(?P<month>\w+)/$", path_params_view, name="path-params-view"),
+        path(r"checkuser/(?P<user_id>\w+)/$", checkuser_view, name="checkuser"),
+    ]
