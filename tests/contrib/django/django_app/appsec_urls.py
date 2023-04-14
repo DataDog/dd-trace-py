@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 import django
 from django.http import HttpResponse
-from django.urls import path
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
@@ -16,6 +15,11 @@ if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
 else:
     from django.urls import re_path as handler
+
+if django.VERSION >= (2, 0, 0):
+    from django.urls import path
+else:
+    from django.conf.urls import url as path
 
 
 if TYPE_CHECKING:

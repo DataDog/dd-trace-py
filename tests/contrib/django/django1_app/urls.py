@@ -1,6 +1,5 @@
+from django.conf.urls import include
 from django.conf.urls import url
-from django.urls import include
-from django.urls import path
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
@@ -31,5 +30,5 @@ urlpatterns = [
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^alter-resource/$", views.alter_resource, name="alter-resource"),
     url(r"^identify/$", views.identify, name="identify"),
-    path("appsec/", include("tests.contrib.django.django_app.appsec_urls")),
+    url("appsec/", include("tests.contrib.django.django_app.appsec_urls")),
 ]
