@@ -226,6 +226,9 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
             },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
         ),
         Venv(
             pys=select_pys(),
@@ -460,6 +463,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -761,6 +765,9 @@ venv = Venv(
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
                 Venv(
@@ -1575,9 +1582,9 @@ venv = Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
                     pkgs={
-                        "pytest": ">=4.0,<4.6",
+                        "pytest": ">=4.0,<=4.6",
                         "msgpack": latest,
-                        "pytest-cov": "==2.5.0",
+                        "pytest-cov": "==2.12.1",
                     },
                 ),
                 Venv(
@@ -2300,6 +2307,9 @@ venv = Venv(
             name="dbapi",
             command="pytest {cmdargs} tests/contrib/dbapi",
             pys=select_pys(),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
         ),
         Venv(
             name="dogpile_cache",
