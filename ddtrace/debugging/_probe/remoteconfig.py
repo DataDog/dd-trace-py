@@ -230,7 +230,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
     def __init__(self, data_connector, callback, name):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
-        self._configs = dict()
+        self._configs = {}  # type: Dict[str, Dict[str, Probe]]
         self._next_status_update_timestamp()
 
     def _get_data_from_connector_and_exec(self, checksum=0, test_tracer=None):

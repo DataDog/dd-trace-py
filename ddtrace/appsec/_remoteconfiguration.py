@@ -42,7 +42,18 @@ class AppSecRC(PubSubMergeFirst):
 
 def enable_appsec_rc(test_tracer=None, start_subscribers=True):
     # type: (Optional[Tracer], Any) -> None
-    # Tracer is a parameter for testing propose
+    """Remote config will be used by ASM libraries to receive four different updates from the backend.
+    Each update has it’s own product:
+    - ASM_FEATURES product - To allow users enable or disable ASM remotely
+    - ASM product - To allow clients to activate of disactivate rules
+    - ASM_DD product - To allow the library to receive rules updates
+    - ASM_DATA product - To allow the library to receive list of blocked IPs and users
+
+    If environment variable `DD_APPSEC_ENABLED` is not set, register ASM_FEATURE which could enable ASM remotly. If
+    it set to true, register the rest of products
+
+    Parameters `test_tracer` and `start_subscribers` are needed for testing proposes
+    """
     # Import tracer here to avoid a circular import
     if test_tracer is None:
         from ddtrace import tracer
@@ -51,6 +62,7 @@ def enable_appsec_rc(test_tracer=None, start_subscribers=True):
 
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
     asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+
     if _appsec_rc_features_is_enabled():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
@@ -58,6 +70,7 @@ def enable_appsec_rc(test_tracer=None, start_subscribers=True):
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+
     if start_subscribers:
         asm_callback.start_subscriber()
 
@@ -104,6 +117,9 @@ def _appsec_rules_data(features, test_tracer):
 
 def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None):
     # type: (Any, Optional[PubSubBase]) -> Mapping[str, Any]
+    """The main process has the responsibility to enable or disable the ASM products. The child processes don't
+    care about that, the children only need to know about payload content.
+    """
     if not pubsub_instance:
         pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
 

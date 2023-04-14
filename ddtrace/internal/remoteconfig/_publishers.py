@@ -36,6 +36,10 @@ class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
 
 
 class RemoteConfigPublisher(RemoteConfigPublisherBase):
+    """Standard Remote Config Publisher: each time Remote Config Client receives a new payload, RemoteConfigPublisher
+    shared it to all process.
+    """
+
     def __init__(self, data_connector, preprocess_results):
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_results)
 
@@ -53,11 +57,17 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
 
 
 class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
+    """Each time Remote Config Client receives a new payload, Publisher stores the target file path and its payload.
+    When the Client finishes to update/add the configuration, Client calls to `publisher.dispatch` which merges all
+    payloads and send it to the subscriber
+    """
+
     def __init__(self, data_connector, preprocess_results):
         super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_results)
         self._configs = {}
 
     def append(self, target, config):
+        # type: (str, Optional[Any]) -> None
         if not self._configs.get(target):
             self._configs[target] = {}
 
