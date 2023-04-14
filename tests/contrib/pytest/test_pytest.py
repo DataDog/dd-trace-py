@@ -766,10 +766,38 @@ class PytestTestCase(TracerTestCase):
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
 
-    def test_pytest_modules(self):
+    def test_pytest_session(self):
+        """Test that running pytest will generate a test session span."""
+        self.inline_run("--ddtrace")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].get_tag("type") == "test_session_end"
+        assert spans[0].get_tag("test_session_id") == str(spans[0].trace_id)
+        assert spans[0].get_tag("test.command") == "pytest --ddtrace"
+
+    def test_pytest_suite(self):
+        """Test that running pytest on a test file will generate a test suite span."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+        assert spans[1].get_tag("type") == "test_suite_end"
+        assert spans[1].get_tag("test_session_id") == str(spans[0].trace_id)
+        assert spans[1].get_tag("test_suite_id") == str(spans[1].span_id)
+        assert spans[1].get_tag("test.bundle") == ""
+        assert spans[1].get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert spans[1].get_tag("test.suite") == str(file_name).split(".py")[0]
+
+    def test_pytest_suites(self):
         """
         Test that running pytest on two files with 1 test each will generate
-         1 session span, 2 module spans, 2 test spans with correct parenting.
+         1 test session span, 2 test suite spans, 2 test spans with correct parenting.
         """
         file_names = []
         file_a = self.testdir.makepyfile(
@@ -800,10 +828,30 @@ class PytestTestCase(TracerTestCase):
         assert spans[4].name == "pytest.test"
         assert spans[4].parent_id == spans[3].span_id
 
-    def test_pytest_packages(self):
+    def test_pytest_module(self):
+        """Test that running pytest on a test package will generate a test module span."""
+        package_a_dir = self.testdir.mkpydir("test_package_a")
+        os.chdir(str(package_a_dir))
+        with open("test_a.py", "w+") as fd:
+            fd.write(
+                """def test_ok():
+                assert True"""
+            )
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        assert spans[1].get_tag("type") == "test_module_end"
+        assert spans[1].get_tag("test_session_id") == str(spans[0].trace_id)
+        assert spans[1].get_tag("test_module_id") == str(spans[1].span_id)
+        assert spans[1].get_tag("test.command") == "pytest --ddtrace"
+        assert spans[1].get_tag("test.module") == str(package_a_dir).split("/")[-1]
+        assert spans[1].get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
+
+    def test_pytest_modules(self):
         """
         Test that running pytest on two packages with 1 test each will generate
-         1 session span, 2 package spans, 2 module spans, and 2 test spans with correct parenting.
+         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans with correct parenting.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
@@ -841,7 +889,7 @@ class PytestTestCase(TracerTestCase):
     def test_pytest_packages_skip_one(self):
         """
         Test that running pytest on two packages with 1 test each, but skipping one package will generate
-         1 session span, 1 package span, 1 module span, and 1 test span with correct parenting.
+         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans with correct parenting.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
@@ -868,3 +916,35 @@ class PytestTestCase(TracerTestCase):
         assert spans[2].parent_id == spans[1].span_id
         assert spans[3].name == "pytest.test"
         assert spans[3].parent_id == spans[2].span_id
+
+    def test_pytest_module_path(self):
+        """
+        Test that running pytest on two nested packages with 1 test each will generate
+         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans,
+         with the module spans including correct module paths.
+        """
+        package_outer_dir = self.testdir.mkpydir("test_outer_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_outer_abc.py", "w+") as fd:
+            fd.write(
+                """def test_ok():
+                assert True"""
+            )
+        os.mkdir("test_inner_package")
+        os.chdir("test_inner_package")
+        with open("__init__.py", "w+"):
+            pass
+        with open("test_inner_abc.py", "w+") as fd:
+            fd.write(
+                """def test_ok():
+                assert True"""
+            )
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+        spans = self.pop_spans()
+
+        assert len(spans) == 7
+        assert spans[1].get_tag("test.module") == "test_outer_package"
+        assert spans[1].get_tag("test.module_path") == "test_outer_package"
+        assert spans[4].get_tag("test.module") == "test_inner_package"
+        assert spans[4].get_tag("test.module_path") == "test_outer_package/test_inner_package"
