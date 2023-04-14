@@ -205,7 +205,7 @@ def init_openai_span(span, openai):
     if hasattr(openai, "api_version") and openai.api_version:
         span.set_tag_str("api_version", openai.api_version)
     if hasattr(openai, "organization") and openai.organization:
-        span.set_tag_str("org_id", openai.org_id)
+        span.set_tag_str("organization", openai.organization)
 
 
 _completion_request_attrs = [
@@ -240,6 +240,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
     sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
 
     prompt = kwargs.get("prompt")
+
     for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
             if kw_attr == "prompt":
@@ -267,11 +268,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if resp:
         if "choices" in resp:
             choices = resp["choices"]
-            if len(choices) > 1:
-                completions = "\n".join(["%s: %s" % (c.get("index"), c.get("text")) for c in choices])
-            else:
-                completions = choices[0].get("text")
-
+            completions = choices
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
@@ -287,11 +284,17 @@ def _completion_create(openai, pin, instance, args, kwargs):
             if token_type in resp["usage"]:
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
+    
     if sample_prompt_completion:
         # TODO: determine best format for multiple choices/completions
+        name = ""
+        if not error:
+            p = prompt[0] if isinstance(prompt, list) else prompt
+            c = completions[0].get('text')
+            name = "PROMPT: {} COMPLETION: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
-            "sampled completion",
+            name,
             tags=["model:%s" % kwargs.get("model")],
             attrs={
                 "prompt": prompt,
@@ -360,10 +363,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if resp:
         if "choices" in resp:
             choices = resp["choices"]
-            if len(choices) > 1:
-                completions = "\n".join(["%s: %s" % (c.get("index"), c.get("message")) for c in choices])
-            else:
-                completions = choices[0].get("message")
+            completions = choices
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
@@ -385,12 +385,16 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     if sample_prompt_completion:
         # TODO: determine best format for multiple choices/completions
+        if not error:
+            p = "({}) {}".format(messages[-1].get("role"), messages[-1].get("content"))
+            c =  "({}) {}".format(completions[0].get("message").get("role"), completions[0].get("message").get("content"))
+            name = "MESSAGE: {} RESPONSE: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
-            "sampled completion",
+            name,
             tags=["model:%s" % kwargs.get("model")],
             attrs={
-                "messages.hi.hi": messages,
+                "messages": messages,
                 "completion": completions,  # TODO: should be completions (plural)?
             },
         )
@@ -455,8 +459,8 @@ def _usage_metrics(usage, metrics_tags):
         stats_client().distribution(name, num_tokens, tags=metrics_tags)
 
 
-def _process_text(text):
-    text = text.replace("\n", "\\n")
-    if len(text) > 512:
-        text = text[:500] + "...TRUNCATED"
+def _process_text(text, truncate=512):
+    text = " ".join(text.split())
+    if len(text) > truncate:
+        text = text[:truncate-3] + "..."
     return text
