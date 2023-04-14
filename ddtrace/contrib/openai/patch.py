@@ -289,19 +289,13 @@ def _completion_create(openai, pin, instance, args, kwargs):
         _usage_metrics(resp.get("usage"), metric_tags)
 
     if sample_prompt_completion:
-        # TODO: determine best format for multiple choices/completions
-        name = ""
-        if not error:
-            p = prompt[0] if isinstance(prompt, list) else prompt
-            c = completions[0].get("text")
-            name = "PROMPT: {} COMPLETION: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
-            name,
+            "sampled completion",
             tags=metric_tags,
             attrs={
                 "prompt": prompt,
-                "completion": completions,  # TODO: should be completions (plural)?
+                "choices": resp["choices"] if resp and "choices" in resp else [],
             },
         )
     span.finish()
@@ -390,20 +384,13 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         _usage_metrics(resp.get("usage"), metric_tags)
 
     if sample_prompt_completion:
-        # TODO: determine best format for multiple choices/completions
-        if not error:
-            p = "({}) {}".format(messages[-1].get("role"), messages[-1].get("content"))
-            c = "({}) {}".format(
-                completions[0].get("message").get("role"), completions[0].get("message").get("content")
-            )
-            name = "MESSAGE: {} RESPONSE: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
-            name,
+            "sampled chat completion",
             tags=metric_tags,
             attrs={
                 "messages": messages,
-                "completion": completions,  # TODO: should be completions (plural)?
+                "completion": completions,
             },
         )
     span.finish()
