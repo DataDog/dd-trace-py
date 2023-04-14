@@ -286,6 +286,8 @@ class Config(object):
                 log.warning("Invalid obfuscation pattern, disabling query string tracing")
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
+        self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)
