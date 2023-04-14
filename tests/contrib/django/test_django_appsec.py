@@ -9,6 +9,7 @@ from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -394,6 +395,7 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+        oce.reconfigure()
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
@@ -737,6 +739,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
     with override_global_config(dict(_iast_enabled=True)):
+        oce.reconfigure()
         tracer._iast_enabled = True
         setup(bytes.join, bytearray.join)
         clear_taint_mapping()
@@ -761,6 +764,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
     with override_global_config(dict(_iast_enabled=False)):
+        oce.reconfigure()
         tracer._iast_enabled = False
         clear_taint_mapping()
         setup(bytes.join, bytearray.join)

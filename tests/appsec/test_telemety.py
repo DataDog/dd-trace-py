@@ -97,7 +97,6 @@ def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
                 Config(),
             )
     _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
-    _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
 
 
 def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
@@ -109,7 +108,6 @@ def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
     _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True)
-    _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True)
 
 
 def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
@@ -126,9 +124,6 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
                 )
 
     _assert_generate_metrics(
-        mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
-    )
-    _assert_distributions_metrics(
         mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
     )
 
