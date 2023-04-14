@@ -18,3 +18,11 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
 
 class Psycopg3FetchTracedCursor(Psycopg3TracedCursor, dbapi.FetchTracedCursor):
     """Psycopg3FetchTracedCursor for psycopg"""
+
+
+class Psycopg2TracedCursor(Psycopg3TracedCursor):
+    """TracedCursor for psycopg2"""
+
+
+class Psycopg2FetchTracedCursor(Psycopg3FetchTracedCursor):
+    """FetchTracedCursor for psycopg2"""

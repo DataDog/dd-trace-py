@@ -1,9 +1,6 @@
+from importlib import import_module
 import inspect
 import os
-
-import psycopg
-from psycopg.sql import Composable
-from psycopg.sql import SQL
 
 from ddtrace import Pin
 from ddtrace import config
@@ -11,14 +8,17 @@ from ddtrace.contrib import dbapi
 from ddtrace.contrib.psycopg.async_connection import patched_connect_async
 from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
 from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
-from ddtrace.contrib.psycopg.connection import patched_connect
+from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
-from ddtrace.contrib.psycopg.utils import psycopg_sql_injector_factory
+from ddtrace.contrib.psycopg.extensions import _patch_extensions
+from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
+from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
+from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
-from ...internal.utils.version import parse_version
+from ...internal.utils.wrappers import unwrap
 from ...propagation._database_monitoring import _DBM_Propagator
 
 
@@ -27,91 +27,135 @@ config._add(
     dict(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
-        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
-        _dbm_propagator=_DBM_Propagator(
-            0, "query", psycopg_sql_injector_factory(composable_class=Composable, sql_class=SQL)
+        trace_fetch_methods=asbool(
+            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
+            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+        ),
+        trace_connect=asbool(
+            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
+            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
         dbms_name="postgresql",
     ),
 )
 
-# Original methods
-_connect = psycopg.connect
-_connection_connect = psycopg.Connection.connect
-_cursor_init = psycopg.Cursor
-_async_connection_connect = psycopg.AsyncConnection.connect
-_async_cursor_init = psycopg.AsyncCursor
+
+def psycopg_sql_injector_factory(psycopg_module):
+    def _psycopg_sql_injector(dbm_comment, sql_statement):
+        if isinstance(sql_statement, psycopg_module.sql.Composable):
+            return psycopg_module.sql.SQL(dbm_comment) + sql_statement
+        return _default_sql_injector(dbm_comment, sql_statement)
+
+    return _psycopg_sql_injector
 
 
-PSYCOPG_VERSION = parse_version(psycopg.__version__)
+def _psycopg_modules():
+    module_names = (
+        "psycopg",
+        "psycopg2",
+    )
+    for module_name in module_names:
+        try:
+            yield import_module(module_name)
+        except ImportError:
+            pass
 
 
+# NB: We are patching the default elasticsearch.transport module
 def patch():
+    for psycopg_module in _psycopg_modules():
+        _patch(psycopg_module)
+
+
+def _patch(psycopg_module):
     """Patch monkey patches psycopg's connection function
     so that the connection's functions are traced.
     """
-    if getattr(psycopg, "_datadog_patch", False):
+    if getattr(psycopg_module, "_datadog_patch", False):
         return
-    setattr(psycopg, "_datadog_patch", True)
+    setattr(psycopg_module, "_datadog_patch", True)
 
-    Pin(_config=config.psycopg).onto(psycopg)
-    config.psycopg.base_module = psycopg
+    Pin(_config=config.psycopg).onto(psycopg_module)
 
-    wrapt.wrap_function_wrapper(psycopg, "connect", patched_connect)
-    wrapt.wrap_function_wrapper(psycopg.Connection, "connect", patched_connect)
-    wrapt.wrap_function_wrapper(psycopg, "Cursor", init_cursor_from_connection)
+    if psycopg_module.__name__ == "psycopg2":
+        _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
+        config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
 
-    wrapt.wrap_function_wrapper(psycopg.AsyncConnection, "connect", patched_connect_async)
-    wrapt.wrap_function_wrapper(psycopg, "AsyncCursor", init_cursor_from_connection)
+        config.psycopg["_dbm_propagator"] = _DBM_Propagator(0, "query", psycopg_sql_injector_factory(psycopg_module))
+
+        wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+        _patch_extensions(_psycopg2_extensions)
+    else:
+        config.psycopg["_dbm_propagator"] = _DBM_Propagator(0, "query", psycopg_sql_injector_factory(psycopg_module))
+
+        wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+        wrapt.wrap_function_wrapper(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
+        wrapt.wrap_function_wrapper(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
+
+        wrapt.wrap_function_wrapper(psycopg_module.AsyncConnection, "connect", patched_connect_async)
+        wrapt.wrap_function_wrapper(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
 
 
 def unpatch():
-    if getattr(psycopg, "_datadog_patch", False):
-        setattr(psycopg, "_datadog_patch", False)
-        psycopg.connect = _connect
-        psycopg.Connection.connect = _connection_connect
-        psycopg.Cursor = _cursor_init
-        psycopg.AsyncConnection.connect = _async_connection_connect
-        psycopg.AsyncCursor = _async_cursor_init
+    for psycopg_module in _psycopg_modules():
+        _unpatch(psycopg_module)
 
-        pin = Pin.get_from(psycopg)
+
+def _unpatch(psycopg_module):
+    if getattr(psycopg_module, "_datadog_patch", False):
+        setattr(psycopg_module, "_datadog_patch", False)
+
+        if psycopg_module.__name__ == "psycopg2":
+            unwrap(psycopg_module, "connect")
+            _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
+            _unpatch_extensions(_psycopg2_extensions)
+        else:
+            unwrap(psycopg_module, "connect")
+            unwrap(psycopg_module.Connection, "connect")
+            unwrap(psycopg_module, "Cursor")
+            unwrap(psycopg_module.AsyncConnection, "connect")
+            unwrap(psycopg_module, "AsyncCursor")
+
+        pin = Pin.get_from(psycopg_module)
         if pin:
-            pin.remove_from(psycopg)
+            pin.remove_from(psycopg_module)
 
 
-def init_cursor_from_connection(wrapped_cursor_cls, _, args, kwargs):
-    connection = kwargs.pop("connection", None)
-    if not connection:
-        args = list(args)
-        connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None))
-    pin = Pin.get_from(connection).clone()
-    cfg = globals()["config"]._config["psycopg"]
+def init_cursor_from_connection_factory(psycopg_module):
+    def init_cursor_from_connection(wrapped_cursor_cls, _, args, kwargs):
+        connection = kwargs.pop("connection", None)
+        if not connection:
+            args = list(args)
+            connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None))
+        pin = Pin.get_from(connection).clone()
+        cfg = config.psycopg
 
-    if cfg and getattr(cfg, "trace_fetch_methods") and cfg.trace_fetch_methods:
-        trace_fetch_methods = True
-    else:
-        trace_fetch_methods = False
+        if cfg and getattr(cfg, "trace_fetch_methods") and cfg.trace_fetch_methods:
+            trace_fetch_methods = True
+        else:
+            trace_fetch_methods = False
 
-    if issubclass(wrapped_cursor_cls, psycopg.AsyncCursor):
-        traced_cursor_cls = Psycopg3FetchTracedAsyncCursor if trace_fetch_methods else Psycopg3TracedAsyncCursor
-    else:
-        traced_cursor_cls = Psycopg3FetchTracedCursor if trace_fetch_methods else Psycopg3TracedCursor
+        if issubclass(wrapped_cursor_cls, psycopg_module.AsyncCursor):
+            traced_cursor_cls = Psycopg3FetchTracedAsyncCursor if trace_fetch_methods else Psycopg3TracedAsyncCursor
+        else:
+            traced_cursor_cls = Psycopg3FetchTracedCursor if trace_fetch_methods else Psycopg3TracedCursor
 
-    args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
-    # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
-    if "row_factory" in args_mapping and "row_factory" not in kwargs:
-        # check for row_factory in args by checking for functions
-        row_factory = None
-        for i in range(len(args)):
-            if callable(args[i]):
-                row_factory = args.pop(i)
-                break
-        # else just use the connection row factory
-        if row_factory is None:
-            row_factory = connection.row_factory
-        cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
-    else:
-        cursor = wrapped_cursor_cls(connection, *args, **kwargs)
+        args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
+        # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
+        if "row_factory" in args_mapping and "row_factory" not in kwargs:
+            # check for row_factory in args by checking for functions
+            row_factory = None
+            for i in range(len(args)):
+                if callable(args[i]):
+                    row_factory = args.pop(i)
+                    break
+            # else just use the connection row factory
+            if row_factory is None:
+                row_factory = connection.row_factory
+            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
+        else:
+            cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 
-    return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
+        return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
+
+    return init_cursor_from_connection

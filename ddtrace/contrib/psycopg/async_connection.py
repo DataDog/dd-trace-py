@@ -43,11 +43,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
 
 
 async def patched_connect_async(connect_func, _, args, kwargs):
-    if kwargs.get("traced_conn_cls", None):
-        traced_conn_cls = kwargs.get("traced_conn_cls")
-        kwargs.pop("traced_conn_cls")
-    else:
-        traced_conn_cls = Psycopg3TracedAsyncConnection
+    traced_conn_cls = Psycopg3TracedAsyncConnection
 
     _config = globals()["config"]._config
     module_name = (

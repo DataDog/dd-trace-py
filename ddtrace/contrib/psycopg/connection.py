@@ -3,9 +3,11 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.contrib.psycopg.cursor import Psycopg2FetchTracedCursor
+from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
-from ddtrace.contrib.psycopg.utils import _patch_extensions
+from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -17,14 +19,11 @@ from ddtrace.internal.constants import COMPONENT
 
 class Psycopg3TracedConnection(dbapi.TracedConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
-        package = conn.__class__.__module__.split(".")[0]
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
-            cursor_cls = (
-                Psycopg3FetchTracedCursor if config._config[package].trace_fetch_methods else Psycopg3TracedCursor
-            )
+            cursor_cls = Psycopg3FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedCursor
 
-        super(Psycopg3TracedConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
+        super(Psycopg3TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
 
     def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
@@ -42,7 +41,18 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
         return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
 
 
-def patch_conn(conn, traced_conn_cls=Psycopg3TracedConnection, pin=None):
+class Psycopg2TracedConnection(dbapi.TracedConnection):
+    """TracedConnection wraps a Connection with tracing code."""
+
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
+
+        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
+
+
+def patch_conn(conn, traced_conn_cls, pin=None):
     """Wrap will patch the instance so that its queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
@@ -73,35 +83,28 @@ def patch_conn(conn, traced_conn_cls=Psycopg3TracedConnection, pin=None):
     return c
 
 
-def patched_connect(connect_func, _, args, kwargs):
-    if kwargs.get("traced_conn_cls", None):
-        traced_conn_cls = kwargs.get("traced_conn_cls")
-        kwargs.pop("traced_conn_cls")
-    else:
-        traced_conn_cls = Psycopg3TracedConnection
+def patched_connect_factory(psycopg_module):
+    def patched_connect(connect_func, _, args, kwargs):
+        traced_conn_cls = Psycopg3TracedConnection if psycopg_module.__name__ == "psycopg" else Psycopg2TracedConnection
 
-    _config = globals()["config"]._config
-    module_name = (
-        connect_func.__module__
-        if len(connect_func.__module__.split(".")) == 1
-        else connect_func.__module__.split(".")[0]
-    )
-    pin = Pin.get_from(_config[module_name].base_module)
+        pin = Pin.get_from(psycopg_module)
 
-    if not pin or not pin.enabled() or not pin._config.trace_connect:
-        conn = connect_func(*args, **kwargs)
-    else:
-        with pin.tracer.trace(
-            "{}.{}".format(connect_func.__module__, connect_func.__name__),
-            service=ext_service(pin, pin._config),
-            span_type=SpanTypes.SQL,
-        ) as span:
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-            span.set_tag_str(COMPONENT, pin._config.integration_name)
-            if span.get_tag(db.SYSTEM) is None:
-                span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
-
-            span.set_tag(SPAN_MEASURED_KEY)
+        if not pin or not pin.enabled() or not pin._config.trace_connect:
             conn = connect_func(*args, **kwargs)
+        else:
+            with pin.tracer.trace(
+                "{}.{}".format(connect_func.__module__, connect_func.__name__),
+                service=ext_service(pin, pin._config),
+                span_type=SpanTypes.SQL,
+            ) as span:
+                span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+                span.set_tag_str(COMPONENT, pin._config.integration_name)
+                if span.get_tag(db.SYSTEM) is None:
+                    span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
-    return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+                span.set_tag(SPAN_MEASURED_KEY)
+                conn = connect_func(*args, **kwargs)
+
+        return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+
+    return patched_connect

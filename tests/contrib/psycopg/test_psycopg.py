@@ -12,6 +12,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -19,6 +20,7 @@ from tests.utils import assert_is_measured
 from tests.utils import snapshot
 
 
+PSYCOPG_VERSION = parse_version(psycopg.__version__)
 TEST_PORT = POSTGRES_CONFIG["port"]
 
 

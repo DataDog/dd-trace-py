@@ -9,14 +9,17 @@ from psycopg2 import extras
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.psycopg2.patch import PSYCOPG2_VERSION
-from ddtrace.contrib.psycopg2.patch import patch
-from ddtrace.contrib.psycopg2.patch import unpatch
+from ddtrace.contrib.psycopg.patch import patch
+from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import snapshot
+
+
+PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
 
 
 if PSYCOPG2_VERSION >= (2, 7):
@@ -134,7 +137,7 @@ class PsycopgCore(TracerTestCase):
             ),
         )
         root = self.get_root_span()
-        assert root.get_tag("component") == "psycopg2"
+        assert root.get_tag("component") == "psycopg"
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
@@ -160,7 +163,7 @@ class PsycopgCore(TracerTestCase):
         assert_is_measured(self.get_spans()[1])
         self.reset()
 
-        with self.override_config("psycopg2", dict(trace_fetch_methods=True)):
+        with self.override_config("psycopg", dict(trace_fetch_methods=True)):
             db = self._get_conn()
             ot_tracer = init_tracer("psycopg-svc", self.tracer)
 
@@ -335,7 +338,7 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("psycopg2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("psycopg", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             conn = self._get_conn()
             conn.cursor().execute("""select 'blah'""")
 
@@ -345,7 +348,7 @@ class PsycopgCore(TracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("psycopg2", dict(analytics_enabled=True)):
+        with self.override_config("psycopg", dict(analytics_enabled=True)):
             conn = self._get_conn()
             conn.cursor().execute("""select 'blah'""")
 
