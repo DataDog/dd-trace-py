@@ -390,7 +390,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
             "sampled completion",
             tags=["model:%s" % kwargs.get("model")],
             attrs={
-                "messages": messages,
+                "messages.hi.hi": messages,
                 "completion": completions,  # TODO: should be completions (plural)?
             },
         )

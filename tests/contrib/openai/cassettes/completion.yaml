@@ -20,33 +20,21 @@ interactions:
         "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
-      traceparent:
-      - 00-00000000000000007dae5bd014c1da35-925bdfe355d2d702-01
-      tracestate:
-      - dd=s:1;t.dm:-0
-      x-datadog-parent-id:
-      - '10546269119908599554'
-      x-datadog-sampling-priority:
-      - '1'
-      x-datadog-tags:
-      - _dd.p.dm=-0
-      x-datadog-trace-id:
-      - '9056276849948219957'
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA4yQQU8CMRSE7/6KOueasIhgeuSAeuDkBSOGlO1jt9r2re1bAQn/3eDBvXqcL5Nv
-        kjnBOxjUsQs3s8lhy8vF2K6+Hlezzxjubou8LHj+sHoSaPD2nWqBgdBBNjXHLpB4TtCoM1khB1NN
-        76tJNb0fTTQiOwowsM5eKi37mgrM6+lXAAOt+uJTo6QlteMQeH9JNcdok1N77oNTDYk6cq84keId
-        NHxydIAZaQRuuszbApP6EDR2PvnSbjLZwgkGgVIjLc76b/B6ndZpeVTJRlK+qLnN+aieKXxTVja5
-        QV/9X/+m0RfbEMwJXebYyUb4g1KBGWsMNw10pCEsNgxkfD5f/QAAAP//AwDlN8r6iwEAAA==
+        H4sIAAAAAAAAA4TQPU4DMRQE4J5TmKmNxIb84YaKJgUFiqIAQpFjv+w6eP1W6xcIilbKIWi4Xk6C
+        QpGUaUejT5rZIXgYuLqJN6PBIw+Gcz8bLWXSd5PZ69Pn82pOL9O1jKDByzU5gYHQVhaO6yaSBE7Q
+        cC1ZIQ9TDMdFf9y7L+40avYUYWC9PVYqDo4yzNvuH4DBgzrsf1RFMTI0QvK0hbnViFw2LS8zTNrE
+        qLEKKeRq0ZLNnGCQhRt0+uRcqyl7+62+6LD/bUmVHFKphJWrbCpJSUVnv7jsR0qlVOjeNTbZlgSz
+        Q9Ny3chC+INShulpnA84pcfVwmLjORl03dUfAAAA//8DAGQ+pT5lAQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b765e952d9842f1-EWR
+      - 7b7cac92ef904344-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -56,7 +44,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 13 Apr 2023 20:13:24 GMT
+      - Fri, 14 Apr 2023 14:35:13 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -70,7 +58,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '86'
+      - '75'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -88,7 +76,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 4ms
       x-request-id:
-      - eb00348ada3ccd88b4d59f91996472c3
+      - 7a426f3c209c5a907afea4b4f3fb039c
     status:
       code: 200
       message: OK

@@ -33,7 +33,7 @@ def patch_openai():
     # FIXME: aiohttp spans are not being generated in these tests, it looks like they should be
     #        as a new aiohttp session is created for each request (which should get instrumented).
     #        The __init__ wrapped is called but the _request one is not...
-    patch(aiohttp=True, openai=True, requests=True)
+    patch(openai=True)
     yield
     unpatch()
     from ddtrace.contrib.openai._log import _logs_writer
@@ -111,9 +111,9 @@ def test_embedding():
     not hasattr(openai, "Embedding"),
     reason="embedding not supported for this version of openai",
 )
-async def test_embedding():
+async def test_aembedding():
     with openai_vcr.use_cassette("embedding_async.yaml"):
-        await openai.Embedding.acreate(input="hellow world", model="text-embedding-ada-002")
+        await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -134,13 +134,3 @@ def test_misuse():
     except openai.error.InvalidRequestError:
         # this error is expected
         pass
-
-
-# @pytest.mark.snapshot
-# @pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
-# def test_unsupported():
-#     # no openai spans expected
-#     with openai_vcr.use_cassette("moderation.yaml"):
-#         openai.Moderation.create(
-#             input="Here is some perfectly innocuous text that follows all OpenAI content policies."
-#         )

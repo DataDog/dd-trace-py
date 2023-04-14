@@ -20,34 +20,22 @@ interactions:
         "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
-      traceparent:
-      - 00-00000000000000006adb1e79fe725582-5b3d2d5d5c56e08b-01
-      tracestate:
-      - dd=s:1;t.dm:-0
-      x-datadog-parent-id:
-      - '6574460910035198091'
-      x-datadog-sampling-priority:
-      - '1'
-      x-datadog-tags:
-      - _dd.p.dm=-0
-      x-datadog-trace-id:
-      - '7699781497228776834'
     method: POST
     uri: https://api.openai.com/v1/moderations
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA2xPy0rDQBT9l1k36dzcedzJVoWCuBIFEZFpepsE06TMTEul5N8lVKulLs+Tc46i
-        XYlSbIZVyKw6LLfLm7uHAvfP9wtc8IdSNi0fn17SrZhNJu5EKRIfUjaB4FM79JmUSsxE4LjrUhTl
-        61GsO1/XvBLl2neRZ6LyieshtBxFeRSRDzvfncXGJz6DfTt03Fe/RORunTU+bP4wU3y+afshxIuW
-        eWoC+8R929dXjfM6+G3TVt/CeF71+R6rIVxOM7lDDdJYdFpZRKM5k+Znq86VIkSSoBUUSpmT+Lud
-        ckkFaHDS2oIcTWl78QVyLJQGRLKkjXNThbv6BrmRaEhbdFY7pcCebNdnKSdpXYGgJCkAKDgD+O88
-        5uQkOSCrUVuLxJmkcXwbvwAAAP//AwA+8H9zCgIAAA==
+        H4sIAAAAAAAAA2xPXWvCMBT9L3m2Nbf5uunrELYXt9cxxgj12gZiM5I4FOl/H8VNJ+7xfHLOifkN
+        a9kublJl1Cqiega9Gh7Nej2G48MTWRdfX9S4ZovZRIG1rNChVDNIrvg4VpxLtmCJ8j6UzNq3E9sG
+        1/e0Ye3WhUwL1rlCfUyeMmtPLNNh78JFHFyhC/jyMdDYXYlMYVsNLu3+MHN8ufNjTPmmZVmGRK7Q
+        6Mf+rnHZJ/c5+O5HmC6rjh+5i+l2mq6tUMC1EVZJI4RWVHH9u1XVUqIQyEFJaKTUZ/G6HWuODSiw
+        3JgGLc5pc/MFatFIBUKgQaWtnSvs3TeoNRcalRHWKCslmLPt/izWyI1tBEiOEgAaqgD+Oy9qtBwt
+        oFFCGSOQKo7T9D59AwAA//8DAEK2kRQKAgAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b765e978aafc348-EWR
+      - 7b7caca36e26c351-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -55,7 +43,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 13 Apr 2023 20:13:25 GMT
+      - Fri, 14 Apr 2023 14:35:16 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -65,13 +53,13 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '777'
+      - '359'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-request-id:
-      - ed148f4e2e61fa53fdac0ab21c1e6c82
+      - 5453727562234d6f1fa7f2d494dbade7
     status:
       code: 200
       message: OK

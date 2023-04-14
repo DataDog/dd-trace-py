@@ -14,56 +14,40 @@
       "component": "openai",
       "language": "python",
       "model": "gpt-3.5-turbo",
-      "request.messages": "[{'role': 'system', 'content': 'You are a helpful assistant.'}, {'role': 'user', 'content': 'Who won the world series in 2020?'}, {'role': 'assistant', 'content': 'The Los Angeles Dodgers won the World Series in 2020.'}, {'role': 'user', 'content': 'Where was it played?'}]",
+      "request.message.0.content": "You are a helpful assistant.",
+      "request.message.0.role": "system",
+      "request.message.1.content": "Who won the world series in 2020?",
+      "request.message.1.role": "user",
+      "request.message.2.content": "The Los Angeles Dodgers won the World Series in 2020.",
+      "request.message.2.role": "assistant",
+      "request.message.3.content": "Where was it played?",
+      "request.message.3.role": "user",
       "request.model": "gpt-3.5-turbo",
       "response.choices.0.finish_reason": "stop",
       "response.choices.0.logprobs": "None",
-      "response.choices.0.text": "None",
+      "response.choices.0.message.content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+      "response.choices.0.message.role": "assistant",
       "response.choices.1.finish_reason": "stop",
       "response.choices.1.logprobs": "None",
-      "response.choices.1.text": "None",
-      "response.id": "chatcmpl-74zdDNgakUYU8JDgrUkozK0K3gATP",
+      "response.choices.1.message.content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+      "response.choices.1.message.role": "assistant",
+      "response.id": "chatcmpl-75EoPULYTHBVwmFjuqx1eBsGIO4gH",
       "response.object": "chat.completion",
-      "runtime-id": "ec831e4d0c2249df811c37cb37788de5"
+      "runtime-id": "a2525b90400e432b994f362b8cab62a9"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 44694,
+      "process_id": 5773,
       "request.n": 2,
       "request.top_p": 0.9,
-      "response.choices.0.prompt": 0,
-      "response.choices.1.prompt": 0,
       "response.choices.num": 2,
       "response.usage.completion_tokens": 34,
       "response.usage.prompt_tokens": 57,
       "response.usage.total_tokens": 91
     },
-    "duration": 7346000,
-    "start": 1681424625671136000
-  },
-     {
-       "name": "requests.request",
-       "service": "openai",
-       "resource": "requests.request",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "http",
-       "error": 0,
-       "meta": {
-         "component": "requests",
-         "http.method": "POST",
-         "http.status_code": "200",
-         "http.url": "https://api.openai.com/v1/chat/completions",
-         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
-         "span.kind": "client"
-       },
-       "metrics": {
-         "_dd.measured": 1
-       },
-       "duration": 4303000,
-       "start": 1681424625673291000
-     }]]
+    "duration": 1436823000,
+    "start": 1681482933777880000
+  }]]

@@ -17,17 +17,17 @@
       "request.model": "curie",
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.logprobs": "None",
-      "response.id": "cmpl-74hgB8vmjXBGfiEBDq5eeL58sjUOb",
+      "response.choices.0.text": " I am.\\n\\n\\n\\nI love God. I believe in an all-powerful, loving God who created the universe, and I see that He loves me. I am his child.\\n\\n\\n\\nBy nature, I am a child of God. There is no other within me. The seed of spiritual perfection\\n\\n\\n\\nwhich is planted in my soul by God is the only seed whose fruit is absolute holiness.\\n\\n\\n\\nThe only fruit to which I can contribute is the fruit of my own perfection.\\n\\n\\n\\nI am a child of God. I am a little god in the making. My soul is a tabernacle, ...TRUNCATED",
+      "response.id": "cmpl-75Eo62fPvXZkaEg00yOUDVE4hiEQx",
       "response.object": "text_completion",
-      "runtime-id": "ec831e4d0c2249df811c37cb37788de5"
+      "runtime-id": "20b216860502481a9b12e10cc22abbdc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 44694,
+      "process_id": 5676,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -36,6 +36,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 2483000,
-    "start": 1681424625325888000
+    "duration": 1280197000,
+    "start": 1681482914184490000
   }]]
