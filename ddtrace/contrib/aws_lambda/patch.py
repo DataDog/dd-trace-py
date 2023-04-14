@@ -2,8 +2,6 @@ from importlib import import_module
 import os
 import signal
 
-from datadog_lambda.cold_start import is_cold_start
-
 from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -14,7 +12,25 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
 
-log = get_logger(__name__)
+class DDLambdaLogger:
+    """Uses `DDLogger` to log only on cold start invocations."""
+
+    def __init__(self):
+        from datadog_lambda.cold_start import is_cold_start
+
+        self.logger = get_logger(__name__)
+        self.is_cold_start = is_cold_start()
+
+    def exception(self, msg, *args, exc_info=True, **kwargs):
+        if self.is_cold_start:
+            self.logger.error(msg, *args, exc_info=exc_info, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        if self.is_cold_start:
+            self.logger.warning(msg, *args, **kwargs)
+
+
+log = DDLambdaLogger()
 
 
 class TimeoutChannel:
@@ -73,8 +89,7 @@ class TimeoutChannel:
             root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
             root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
         else:
-            if is_cold_start():
-                log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
+            log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 
         current_span = tracer.current_span()
         if current_span is not None:
@@ -182,8 +197,7 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-        if is_cold_start():
-            log.exception("Error patching handler. Timeout spans will not be generated.")
+        log.exception("Error patching handler. Timeout spans will not be generated.")
 
         return
 
@@ -204,7 +218,6 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-        if is_cold_start():
-            log.exception("Error unpatching handler.")
+        log.exception("Error unpatching handler.")
 
         return
