@@ -5,7 +5,7 @@ __lambda_container_initialized = False
 def set_cold_start():
     """Set the value of the cold start global.
 
-    This should be executed once per AWS Lambda execution before the executio.n
+    This should be executed once per AWS Lambda execution before the execution.
     """
     global __cold_start
     global __lambda_container_initialized

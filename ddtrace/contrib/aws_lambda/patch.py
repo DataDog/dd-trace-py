@@ -2,6 +2,8 @@ from importlib import import_module
 import os
 import signal
 
+from .cold_start import is_cold_start
+from .cold_start import set_cold_start
 from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -16,8 +18,6 @@ class DDLambdaLogger:
     """Uses `DDLogger` to log only on cold start invocations."""
 
     def __init__(self):
-        from .cold_start import is_cold_start
-
         self.logger = get_logger(__name__)
         self.is_cold_start = is_cold_start()
 
@@ -135,6 +135,7 @@ class DatadogInstrumentation(object):
             self.context = get_argument_value(args, kwargs, 2, "context")
 
     def _before(self, args, kwargs):
+        set_cold_start()
         self._set_context(args, kwargs)
         self.timeoutChannel = TimeoutChannel(self.context)
 
