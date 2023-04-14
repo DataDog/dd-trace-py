@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 
 from ddtrace import config
@@ -33,7 +34,6 @@ def _openai_log(*args, **kwargs):
     if not config.openai.logs_enabled:
         return
     ddlogs.log(*args, **kwargs)
-
 
 
 def patch():
@@ -234,12 +234,23 @@ def _completion_create(openai, pin, instance, args, kwargs):
         "openai.request", resource="completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
-    span.set_tag_str("model", model)
+    if model:
+        span.set_tag_str("model", model)
+
+    sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
 
     prompt = kwargs.get("prompt")
     for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+            if kw_attr == "prompt":
+                if sample_prompt_completion:
+                    if isinstance(prompt, list):
+                        for idx, p in enumerate(prompt):
+                            span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
+                    else:
+                        span.set_tag_str("request.prompt", _process_text(kwargs[kw_attr]))
+            else:
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
     resp, error = yield span
 
@@ -264,25 +275,29 @@ def _completion_create(openai, pin, instance, args, kwargs):
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
-                span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
+                if choice.get("finish_reason"):
+                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
+                if choice.get("logprobs"):
+                    span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
+                if sample_prompt_completion:
+                    span.set_tag("response.choices.%d.text" % idx, _process_text(choice.get("text")))
         span.set_tag("response.id", resp["id"])
         span.set_tag("response.object", resp["object"])
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
             if token_type in resp["usage"]:
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
-
-    # TODO: determine best format for multiple choices/completions
-    _openai_log(
-        "info" if error is None else "error",
-        "sampled completion",
-        tags=["model:%s" % kwargs.get("model")],
-        attrs={
-            "prompt": prompt,
-            "completion": completions,  # TODO: should be completions (plural)?
-        },
-    )
+    if sample_prompt_completion:
+        # TODO: determine best format for multiple choices/completions
+        _openai_log(
+            "info" if error is None else "error",
+            "sampled completion",
+            tags=["model:%s" % kwargs.get("model")],
+            attrs={
+                "prompt": prompt,
+                "completion": completions,  # TODO: should be completions (plural)?
+            },
+        )
     span.finish()
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
@@ -297,7 +312,6 @@ _chat_completion_request_attrs = [
     "presence_penalty",
     "frequency_penalty",
     "logit_bias",
-    "messages",
 ]
 
 
@@ -307,9 +321,25 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         "openai.request", resource="chat.completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
-    span.set_tag_str("model", model)
+    if model:
+        span.set_tag_str("model", model)
+
+    sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
 
     messages = kwargs.get("messages")
+    if sample_prompt_completion:
+
+        def set_message_tag(message):
+            content = _process_text(message.get("content"))
+            role = _process_text(message.get("role"))
+            span.set_tag_str("request.message.%d.content" % idx, content)
+            span.set_tag_str("request.message.%d.role" % idx, role)
+
+        if isinstance(messages, list):
+            for idx, message in enumerate(messages):
+                set_message_tag(message)
+        else:
+            set_message_tag(messages)
 
     for kw_attr in _chat_completion_request_attrs:
         if kw_attr in kwargs:
@@ -331,16 +361,21 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         if "choices" in resp:
             choices = resp["choices"]
             if len(choices) > 1:
-                completions = "\n".join(["%s: %s" % (c.get("index"), c.get("text")) for c in choices])
+                completions = "\n".join(["%s: %s" % (c.get("index"), c.get("message")) for c in choices])
             else:
-                completions = choices[0].get("text")
+                completions = choices[0].get("message")
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
                 span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
                 span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
-                span.set_tag("response.choices.%d.text" % idx, choice.get("text"))
-                span.set_tag("response.choices.%d.prompt" % idx, 0)
+                if sample_prompt_completion and choice.get("message"):
+                    span.set_tag(
+                        "response.choices.%d.message.content" % idx, _process_text(choice.get("message").get("content"))
+                    )
+                    span.set_tag(
+                        "response.choices.%d.message.role" % idx, _process_text(choice.get("message").get("role"))
+                    )
         span.set_tag("response.id", resp["id"])
         span.set_tag("response.object", resp["object"])
         for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
@@ -348,16 +383,17 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-    # TODO: determine best format for multiple choices/completions
-    _openai_log(
-        "info" if error is None else "error",
-        "sampled completion",
-        tags=["model:%s" % kwargs.get("model")],
-        attrs={
-            "messages": messages,
-            "completion": completions,  # TODO: should be completions (plural)?
-        },
-    )
+    if sample_prompt_completion:
+        # TODO: determine best format for multiple choices/completions
+        _openai_log(
+            "info" if error is None else "error",
+            "sampled completion",
+            tags=["model:%s" % kwargs.get("model")],
+            attrs={
+                "messages": messages,
+                "completion": completions,  # TODO: should be completions (plural)?
+            },
+        )
     span.finish()
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
@@ -368,10 +404,14 @@ def _embedding_create(openai, pin, instance, args, kwargs):
         "openai.request", resource="embedding/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
     init_openai_span(span, openai)
-    span.set_tag_str("model", model)
+    if model:
+        span.set_tag_str("model", model)
 
     for kw_attr in ["model", "input", "user"]:
         if kw_attr in kwargs:
+            if kw_attr == "input" and isinstance(kwargs["input"], list):
+                for idx, inp in enumerate(kwargs["input"]):
+                    span.set_tag_str("request.input.%d" % idx, _process_text(inp))
             span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
     resp, error = yield span
@@ -416,6 +456,7 @@ def _usage_metrics(usage, metrics_tags):
 
 
 def _process_text(text):
-    if isinstance(text, str):
-        text = text.replace("\n", "\\n")
+    text = text.replace("\n", "\\n")
+    if len(text) > 512:
+        text = text[:500] + "...TRUNCATED"
     return text
