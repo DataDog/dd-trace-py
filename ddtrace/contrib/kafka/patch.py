@@ -14,7 +14,6 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import ObjectProxy
 
 
 _Producer = confluent_kafka.Producer
@@ -27,43 +26,9 @@ config._add(
 )
 
 
-class TracedProducer(ObjectProxy):
-    def __init__(self, *args, **kwargs):
-        producer = _Producer(*args, **kwargs)
-        super(TracedProducer, self).__init__(producer)
-        Pin().onto(self)
-
-    def produce(self, *args, **kwargs):
-        func = self.__wrapped__.produce
-        topic = get_argument_value(args, kwargs, 0, "topic")
-        try:
-            value = get_argument_value(args, kwargs, 1, "value")
-        except ArgumentError:
-            value = None
-        message_key = kwargs.get("key", "")
-        partition = kwargs.get("partition", -1)
-
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
-            return func(*args, **kwargs)
-
-        with pin.tracer.trace(
-            kafkax.PRODUCE,
-            service=trace_utils.ext_service(pin, config.kafka),
-            span_type=SpanTypes.WORKER,
-        ) as span:
-            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-            span.set_tag_str(COMPONENT, config.kafka.integration_name)
-            span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-            span.set_tag_str(kafkax.TOPIC, topic)
-            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
-            span.set_tag(kafkax.PARTITION, partition)
-            span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
-            span.set_tag(SPAN_MEASURED_KEY)
-            rate = config.kafka.get_analytics_sample_rate()
-            if rate is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-            return func(*args, **kwargs)
+class TracedProducer(confluent_kafka.Producer):
+    def produce(self, topic, value=None, *args, **kwargs):
+        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
@@ -73,46 +38,13 @@ class TracedProducer(ObjectProxy):
     __nonzero__ = __bool__
 
 
-class TracedConsumer(ObjectProxy):
+class TracedConsumer(confluent_kafka.Consumer):
+    def __init__(self, config):
+        super(TracedConsumer, self).__init__(config)
+        self._group_id = config["group.id"]
 
-    __slots__ = "_group_id"
-
-    def __init__(self, *args, **kwargs):
-        consumer = _Consumer(*args, **kwargs)
-        super(TracedConsumer, self).__init__(consumer)
-        self._group_id = get_argument_value(args, kwargs, 0, "config")["group.id"]
-        Pin().onto(self)
-
-    def poll(self, *args, **kwargs):
-        func = self.__wrapped__.poll
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
-            return func(*args, **kwargs)
-
-        with pin.tracer.trace(
-            kafkax.CONSUME,
-            service=trace_utils.ext_service(pin, config.kafka),
-            span_type=SpanTypes.WORKER,
-        ) as span:
-            message = func(*args, **kwargs)
-            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-            span.set_tag_str(COMPONENT, config.kafka.integration_name)
-            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-            span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
-            span.set_tag_str(kafkax.GROUP_ID, self._group_id)
-            if message is not None:
-                message_key = message.key() or ""
-                message_offset = message.offset() or -1
-                span.set_tag_str(kafkax.TOPIC, message.topic())
-                span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
-                span.set_tag(kafkax.PARTITION, message.partition())
-                span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
-                span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-            span.set_tag(SPAN_MEASURED_KEY)
-            rate = config.kafka.get_analytics_sample_rate()
-            if rate is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-            return message
+    def poll(self, timeout=1):
+        return super(TracedConsumer, self).poll(timeout)
 
 
 def patch():
@@ -120,13 +52,84 @@ def patch():
         return
     setattr(confluent_kafka, "_datadog_patch", True)
 
-    setattr(confluent_kafka, "Producer", TracedProducer)
-    setattr(confluent_kafka, "Consumer", TracedConsumer)
+    confluent_kafka.Producer = TracedProducer
+    confluent_kafka.Consumer = TracedConsumer
+
+    trace_utils.wrap(TracedProducer, "produce", traced_produce)
+    trace_utils.wrap(TracedConsumer, "poll", traced_poll)
+    Pin().onto(confluent_kafka.Producer)
+    Pin().onto(confluent_kafka.Consumer)
 
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         setattr(confluent_kafka, "_datadog_patch", False)
 
-    setattr(confluent_kafka, "Producer", _Producer)
-    setattr(confluent_kafka, "Consumer", _Consumer)
+    trace_utils.unwrap(TracedProducer, "produce")
+    trace_utils.unwrap(TracedConsumer, "poll")
+
+    confluent_kafka.Producer = _Producer
+    confluent_kafka.Consumer = _Consumer
+
+
+def traced_produce(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    topic = get_argument_value(args, kwargs, 0, "topic")
+    try:
+        value = get_argument_value(args, kwargs, 1, "value")
+    except ArgumentError:
+        value = None
+    message_key = kwargs.get("key", "")
+    partition = kwargs.get("partition", -1)
+
+    with pin.tracer.trace(
+        kafkax.PRODUCE,
+        service=trace_utils.ext_service(pin, config.kafka),
+        span_type=SpanTypes.WORKER,
+    ) as span:
+        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span.set_tag_str(kafkax.TOPIC, topic)
+        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+        span.set_tag(kafkax.PARTITION, partition)
+        span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
+        span.set_tag(SPAN_MEASURED_KEY)
+        rate = config.kafka.get_analytics_sample_rate()
+        if rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        return func(*args, **kwargs)
+
+
+def traced_poll(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    with pin.tracer.trace(
+        kafkax.CONSUME,
+        service=trace_utils.ext_service(pin, config.kafka),
+        span_type=SpanTypes.WORKER,
+    ) as span:
+        message = func(*args, **kwargs)
+        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
+        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+        if message is not None:
+            message_key = message.key() or ""
+            message_offset = message.offset() or -1
+            span.set_tag_str(kafkax.TOPIC, message.topic())
+            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+            span.set_tag(kafkax.PARTITION, message.partition())
+            span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
+            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+        span.set_tag(SPAN_MEASURED_KEY)
+        rate = config.kafka.get_analytics_sample_rate()
+        if rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        return message
