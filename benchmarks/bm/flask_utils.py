@@ -30,9 +30,9 @@ def server(scenario, custom_post_response):
     env = {
         "PERF_TRACER_ENABLED": str(scenario.tracer_enabled),
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
-        "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
-        "PERF_IAST_ENABLED": str(scenario.iast_enabled),
-        "PERF_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
+        "DD_APPSEC_ENABLED": str(scenario.appsec_enabled),
+        "DD_IAST_ENABLED": str(scenario.iast_enabled),
+        "_DD_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
     }
     # copy over current environ
     env.update(os.environ)
@@ -60,19 +60,13 @@ def server(scenario, custom_post_response):
 
 def post_fork(server, worker):
     # Set lower defaults for ensuring profiler collect is run
-    if os.environ.get("PERF_PROFILER_ENABLED") == "1":
+    if os.environ.get("PERF_PROFILER_ENABLED") == "True":
         os.environ.update(
             {"DD_PROFILING_ENABLED": "1", "DD_PROFILING_API_TIMEOUT": "0.1", "DD_PROFILING_UPLOAD_INTERVAL": "10"}
         )
-    if os.environ.get("PERF_APPSEC_ENABLED") == "1":
-        os.environ.update({"DD_APPSEC_ENABLED ": "1"})
-    if os.environ.get("PERF_IAST_ENABLED") == "1":
-        os.environ.update({"DD_IAST_ENABLED ": "1"})
-    if os.environ.get("PERF_TELEMETRY_METRICS_ENABLED") == "1":
-        os.environ.update({"_DD_TELEMETRY_METRICS_ENABLED ": "1"})
     # This will not work with gevent workers as the gevent hub has not been
     # initialized when this hook is called.
-    if os.environ.get("PERF_TRACER_ENABLED") == "1":
+    if os.environ.get("PERF_TRACER_ENABLED") == "True":
         import ddtrace.bootstrap.sitecustomize  # noqa
 
 
