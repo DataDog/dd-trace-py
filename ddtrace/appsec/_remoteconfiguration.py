@@ -6,11 +6,11 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryJson
-from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
-from ddtrace.internal.remoteconfig.v2._pubsub import PubSubMergeFirst
-from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
-from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryJson
+from ddtrace.internal.remoteconfig._pubsub import PubSubBase
+from ddtrace.internal.remoteconfig._pubsub import PubSubMergeFirst
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 
 

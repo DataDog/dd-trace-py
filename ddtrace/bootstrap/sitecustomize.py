@@ -268,7 +268,7 @@ try:
 
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-        from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
         enable_appsec_rc()

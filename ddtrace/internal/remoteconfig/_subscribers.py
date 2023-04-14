@@ -6,7 +6,7 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicThread
-from ddtrace.internal.remoteconfig.v2.utils import get_poll_interval_seconds
+from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 
 
 log = get_logger(__name__)

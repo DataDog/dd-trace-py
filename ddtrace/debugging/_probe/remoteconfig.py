@@ -25,9 +25,9 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.v2._connectors import ConnectorSharedMemoryMetadataJson
-from ddtrace.internal.remoteconfig.v2._pubsub import PubSub
-from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryMetadataJson
+from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.utils.cache import LFUCache
 
 

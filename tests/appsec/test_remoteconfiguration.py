@@ -22,11 +22,11 @@ from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
-from ddtrace.internal.remoteconfig.v2.client import AgentPayload
-from ddtrace.internal.remoteconfig.v2.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.v2.client import RemoteConfigClient
-from ddtrace.internal.remoteconfig.v2.client import TargetFile
-from ddtrace.internal.remoteconfig.v2.worker import remoteconfig_poller
+from ddtrace.internal.remoteconfig.client import AgentPayload
+from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.client import TargetFile
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR

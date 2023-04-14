@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Optional
 
-    from ddtrace.internal.remoteconfig.v2._pubsub import PubSubBase
+    from ddtrace.internal.remoteconfig._pubsub import PubSubBase
 
 log = get_logger(__name__)
 

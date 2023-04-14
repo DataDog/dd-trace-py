@@ -67,11 +67,11 @@ import abc
 import six
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig.v2._connectors import ConnectorBase
-from ddtrace.internal.remoteconfig.v2._publishers import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig.v2._publishers import RemoteConfigPublisherBase
-from ddtrace.internal.remoteconfig.v2._publishers import RemoteConfigPublisherMergeFirst
-from ddtrace.internal.remoteconfig.v2._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig._connectors import ConnectorBase
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 log = get_logger(__name__)
