@@ -297,15 +297,23 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type () -> List[Metric]
         """Returns a list of all generated metrics and clears the namespace's list"""
         with self._lock:
-            namespace_metrics = self._namespace.get()
-            self._namespace._flush()
+            try:
+                namespace_metrics = self._namespace.get()
+            except Exception:
+                log.debug("Unexpected error in Telemetry Metrics", exc_info=True)
+            finally:
+                self._namespace._flush()
         return namespace_metrics
 
     def _flush_log_metrics(self):
         # type () -> List[Metric]
         with self._lock:
-            log_metrics = self._logs.copy()
-            self._logs = []
+            try:
+                log_metrics = list(self._logs)
+            except Exception:
+                log.debug("Unexpected error in Logs Metrics", exc_info=True)
+            finally:
+                self._logs = []
         return log_metrics
 
     def _generate_metrics_event(self, namespace_metrics):
