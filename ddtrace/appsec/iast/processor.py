@@ -26,7 +26,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request()
+        oce.acquire_request(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -38,6 +38,10 @@ class AppSecIastSpanProcessor(SpanProcessor):
               (e.g. by sampling), then it is not set.
         """
         if span.span_type != SpanTypes.WEB:
+            return
+
+        if not oce._enabled:
+            span.set_metric(IAST.ENABLED, 0.0)
             return
 
         span.set_metric(IAST.ENABLED, 1.0)
