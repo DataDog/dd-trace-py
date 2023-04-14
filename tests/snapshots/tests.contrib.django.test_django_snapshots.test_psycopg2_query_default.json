@@ -39,7 +39,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "component": "psycopg2",
+         "component": "psycopg",
          "db.application": "None",
          "db.name": "test_postgres",
          "db.system": "postgresql",

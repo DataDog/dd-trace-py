@@ -5,9 +5,15 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import dbapi
-from ddtrace.contrib.psycopg.async_connection import patched_connect_async
-from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
-from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
+
+
+try:
+    from ddtrace.contrib.psycopg.async_connection import patched_connect_async
+    from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
+    from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
+# catch async function syntax errors when using Python<3.7 with no async support
+except SyntaxError:
+    pass
 from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
