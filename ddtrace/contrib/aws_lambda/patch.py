@@ -16,7 +16,7 @@ class DDLambdaLogger:
     """Uses `DDLogger` to log only on cold start invocations."""
 
     def __init__(self):
-        from datadog_lambda.cold_start import is_cold_start
+        from .cold_start import is_cold_start
 
         self.logger = get_logger(__name__)
         self.is_cold_start = is_cold_start()
