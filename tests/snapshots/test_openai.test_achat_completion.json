@@ -14,7 +14,6 @@
       "component": "openai",
       "language": "python",
       "model": "gpt-3.5-turbo",
-      "organization": "not-a-real-org",
       "request.message.0.content": "You are a helpful assistant.",
       "request.message.0.role": "system",
       "request.message.1.content": "Who won the world series in 2020?",
@@ -34,14 +33,14 @@
       "response.choices.1.message.role": "assistant",
       "response.id": "chatcmpl-75JGAbcy5DDIrAEv5LhJm5pI2yHWW",
       "response.object": "chat.completion",
-      "runtime-id": "34d8f373ef994431851f81321d627084"
+      "runtime-id": "ed3b868b778a4d35af35a17dd784c036"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 84341,
+      "process_id": 88089,
       "request.n": 2,
       "request.top_p": 0.9,
       "response.choices.num": 2,
@@ -49,6 +48,6 @@
       "response.usage.prompt_tokens": 57,
       "response.usage.total_tokens": 91
     },
-    "duration": 1212625000,
-    "start": 1681500030729776000
+    "duration": 1375000,
+    "start": 1681514298682407000
   }]]

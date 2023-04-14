@@ -1,36 +1,15 @@
-import os
 from typing import List
 from typing import Optional
 
 import openai
 import pytest
-import vcr
 
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
-
-
-# VCR is used to capture and store network requests made to OpenAI.
-# This is done to avoid making real calls to the API which could introduce
-# flakiness and cost.
-# To (re)-generate the cassettes: replace this with a real key, delete the
-# old cassettes and re-run the tests.
-# NOTE: be sure to check the generated cassettes so they don't contain your
-#       API key. Keys should be redacted by the filter_headers option below.
-# NOTE: that different cassettes have to be used between sync and async
-#       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
-openai.api_key = "<not-a-real-key>"
-openai_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=["authorization", "OpenAI-Organization"],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
+from tests.contrib.openai.openai_vcr import openai_vcr
 
 
 class FilterOrg(TraceFilter):
@@ -51,13 +30,7 @@ def patch_openai():
     #        The __init__ wrapped is called but the _request one is not...
     patch(openai=True)
     pin = Pin.get_from(openai)
-    pin.tracer.configure(
-        settings={
-            "FILTERS": [
-                FilterOrg(),
-            ],
-        }
-    )
+    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
     yield
     unpatch()
     from ddtrace.contrib.openai._log import _logs_writer
@@ -158,3 +131,41 @@ def test_misuse():
     except openai.error.InvalidRequestError:
         # this error is expected
         pass
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_integration_sync():
+    """OpenAI uses requests for its synchronous requests.
+
+    Running in a subprocess with ddtrace-run should produce traces
+    with both OpenAI and requests spans.
+    """
+    import os
+    import sys
+
+    import openai
+
+    import ddtrace
+
+    # TODO: need this to be able to import the vcr, maybe do this for all
+    #       subprocess tests?
+    tests_path = os.path.dirname(os.path.dirname(ddtrace.__file__))
+    sys.path.insert(0, tests_path)
+    from tests.contrib.openai.openai_vcr import openai_vcr
+
+    pin = ddtrace.Pin.get_from(openai)
+    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+
+    with openai_vcr.use_cassette("chat_completion_2.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Write a hello world program in python"},
+            ],
+        )
+
+    # FIXME: find out why logs aren't being flushed at process exit
+    from ddtrace.contrib.openai._log import _logs_writer
+
+    _logs_writer.periodic()

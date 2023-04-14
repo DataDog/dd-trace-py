@@ -271,7 +271,6 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if resp:
         if "choices" in resp:
             choices = resp["choices"]
-            completions = choices
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
