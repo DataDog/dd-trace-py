@@ -1,11 +1,16 @@
 import os
+from typing import List
+from typing import Optional
 
 import openai
 import pytest
 import vcr
 
+from ddtrace import Pin
+from ddtrace import Span
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
+from ddtrace.filters import TraceFilter
 
 
 # VCR is used to capture and store network requests made to OpenAI.
@@ -18,7 +23,6 @@ from ddtrace.contrib.openai.patch import unpatch
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 openai.api_key = "<not-a-real-key>"
-openai.organization = ""
 openai_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
     record_mode="once",
@@ -29,12 +33,31 @@ openai_vcr = vcr.VCR(
 )
 
 
+class FilterOrg(TraceFilter):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        for span in trace:
+            if span.get_tag("organization"):
+                span.set_tag_str("organization", "not-a-real-org")
+            else:
+                raise ValueError("span must have tag organization")
+        return trace
+
+
 @pytest.fixture(autouse=True)
 def patch_openai():
     # FIXME: aiohttp spans are not being generated in these tests, it looks like they should be
     #        as a new aiohttp session is created for each request (which should get instrumented).
     #        The __init__ wrapped is called but the _request one is not...
     patch(openai=True)
+    pin = Pin.get_from(openai)
+    pin.tracer.configure(
+        settings={
+            "FILTERS": [
+                FilterOrg(),
+            ],
+        }
+    )
     yield
     unpatch()
     from ddtrace.contrib.openai._log import _logs_writer

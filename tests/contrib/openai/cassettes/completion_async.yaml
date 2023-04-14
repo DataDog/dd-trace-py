@@ -16,25 +16,25 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\"id\":\"cmpl-75IJh2i3QHqXxiDYep3Sh6eQbYbGZ\",\"object\":\"text_completion\"\
-        ,\"created\":1681496405,\"model\":\"curie\",\"choices\":[{\"text\":\" I am.\
-        \ And that means that my body, my mind, and my consciousness are all separate\
-        \ and distinct. This is the root of the dualism referred to as Cartesian dualism.\
-        \ It is my mind that is affecting my body by my thoughts and my emotions.\
-        \ I know that I am not the brain, the heart, or the liver and I am not the\
-        \ mind either. I am not a physical body.\\n\\nHowever, there is another part\
-        \ of me that is not physical and that is the \u201CI\u201D in the statement,\
-        \ \u201CI think, therefore I am.\u201D I am that so-called \u201CI\u201D that\
-        \ is not physical. The \u201CI\u201D that is not physical is not\",\"index\"\
-        :0,\"logprobs\":null,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\"\
-        :10,\"completion_tokens\":150,\"total_tokens\":160}}\n"
+      string: '{"id":"cmpl-75JFqIplT7tfvyMJWUiA2EmQDNbeK","object":"text_completion","created":1681500010,"model":"curie","choices":[{"text":"
+        I am. And the fact that there is a physical world out there to which our senses
+        give us access is not a matter of opinion or theory, but a truth about the
+        facts of the universe. A fact is a truth about the universe.\n\n\n\n\n\nC.
+        On Credulity\n\n\n\nI will now offer a short list of what I can see as the
+        most important ideas concerning the mind in the tradition. These facts are
+        pretty widely agreed upon, and so I will assume that they are true.\n\n\n\n\n\nOur
+        minds are physical. The mind is physical and we are minds. The mind is not
+        something that is added on to the brain, separated from it, or somehow independent
+        of it. The mind is one","index":0,"logprobs":null,"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":150,"total_tokens":160}}
+
+        '
     headers:
       Access-Control-Allow-Origin:
       - '*'
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7df5f72d798c96-EWR
+      - 7b7e4df9d8e80f8b-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -44,7 +44,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 18:20:06 GMT
+      - Fri, 14 Apr 2023 19:20:11 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -56,7 +56,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1149'
+      - '1209'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -74,7 +74,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 36ms
       x-request-id:
-      - 4da2c4134a4e6f7b20f5f73f9b195038
+      - cd3da46c402f4adf4862bf28a3e122b6
     status:
       code: 200
       message: OK

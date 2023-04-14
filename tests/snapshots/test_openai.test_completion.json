@@ -14,31 +14,31 @@
       "component": "openai",
       "language": "python",
       "model": "ada",
+      "organization": "not-a-real-org",
       "request.model": "ada",
       "request.prompt": "Hello world",
       "request.stop": ".",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.text": "08:12:02 <Fiona",
-      "response.choices.1.finish_reason": "stop",
-      "response.choices.1.text": "",
-      "response.id": "cmpl-75IJhDccMu9DDHNDGBm2nA97BR2ex",
+      "response.choices.0.text": "!\" \u2013 \u2013 \u2013",
+      "response.choices.1.text": "!\" She smiled, trying to look casual",
+      "response.id": "cmpl-75JFqT6QxxdcAeudeuZlU8Lu33anS",
       "response.object": "text_completion",
-      "runtime-id": "7e3bba981e8d4239a28bfcfd7f0cabbf"
+      "runtime-id": "df851855e3ea430088eb06eb3e7e8f4f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 59602,
+      "process_id": 84213,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
       "response.choices.num": 2,
-      "response.usage.completion_tokens": 10,
+      "response.usage.completion_tokens": 18,
       "response.usage.prompt_tokens": 2,
-      "response.usage.total_tokens": 12
+      "response.usage.total_tokens": 20
     },
-    "duration": 441886000,
-    "start": 1681496404959655000
+    "duration": 269860000,
+    "start": 1681500010056579000
   }]]

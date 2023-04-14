@@ -14,20 +14,21 @@
       "component": "openai",
       "language": "python",
       "model": "curie",
+      "organization": "not-a-real-org",
       "request.model": "curie",
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.text": "I am. And that means that my body, my mind, and my consciousness are all separate and distinct. This is the root of the dualism referred to as Cartesian dualism. It is my mind that is affecting my body by my thoughts and my emotions. I know that I am not the brain, the heart, or the liver and I am not the mind either. I am not a physical body. However, there is another part of me that is not physical and that is the \u201cI\u201d in the statement, \u201cI think, therefore I am.\u201d I am that so-called \u201cI\u201d that [TRUNCATED...]",
-      "response.id": "cmpl-75IJh2i3QHqXxiDYep3Sh6eQbYbGZ",
+      "response.choices.0.text": "I am. And the fact that there is a physical world out there to which our senses give us access is not a matter of opinion or theory, but a truth about the facts of the universe. A fact is a truth about the universe. C. On Credulity I will now offer a short list of what I can see as the most important ideas concerning the mind in the tradition. These facts are pretty widely agreed upon, and so I will assume that they are true. Our minds are physical. The mind is physical and we are minds. The m[TRUNCATED...]",
+      "response.id": "cmpl-75JFqIplT7tfvyMJWUiA2EmQDNbeK",
       "response.object": "text_completion",
-      "runtime-id": "7e3bba981e8d4239a28bfcfd7f0cabbf"
+      "runtime-id": "df851855e3ea430088eb06eb3e7e8f4f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 59602,
+      "process_id": 84213,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -36,6 +37,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 1254866000,
-    "start": 1681496405576683000
+    "duration": 1315849000,
+    "start": 1681500010506680000
   }]]
