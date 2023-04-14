@@ -19,9 +19,9 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-75EoRlPL5WXPmyzzgDgdI9OJW3vXA","object":"chat.completion","created":1681482935,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
+      string: '{"id":"chatcmpl-75IK1Ezp0cDL5lRQzoNoJTxOaeJLe","object":"chat.completion","created":1681496425,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
         2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
-        2020 World Series was played in Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
+        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
 
         '
     headers:
@@ -30,7 +30,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7cad1b18920c96-EWR
+      - 7b7df671fd1b4301-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -40,7 +40,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 14:35:36 GMT
+      - Fri, 14 Apr 2023 18:20:26 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -52,7 +52,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1350'
+      - '1255'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -64,7 +64,7 @@ interactions:
       x-ratelimit-reset-requests:
       - 17ms
       x-request-id:
-      - 248ed3f2529c557dc176d522b96714a1
+      - 5752632e246b23289223f7036703ff0a
     status:
       code: 200
       message: OK

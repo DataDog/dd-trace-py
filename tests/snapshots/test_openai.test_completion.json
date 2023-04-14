@@ -17,28 +17,28 @@
       "request.model": "ada",
       "request.prompt": "Hello world",
       "request.stop": ".",
-      "response.choices.0.finish_reason": "stop",
-      "response.choices.0.text": "? \u2014 hello",
-      "response.choices.1.finish_reason": "length",
-      "response.choices.1.text": "! Today we\u2019re going to change the",
-      "response.id": "cmpl-75Eo56XdV7btJ4cJVZNvRfXeYTjt7",
+      "response.choices.0.finish_reason": "length",
+      "response.choices.0.text": "08:12:02 <Fiona",
+      "response.choices.1.finish_reason": "stop",
+      "response.choices.1.text": "",
+      "response.id": "cmpl-75IJhDccMu9DDHNDGBm2nA97BR2ex",
       "response.object": "text_completion",
-      "runtime-id": "20b216860502481a9b12e10cc22abbdc"
+      "runtime-id": "7e3bba981e8d4239a28bfcfd7f0cabbf"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
+      "process_id": 59602,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
       "response.choices.num": 2,
-      "response.usage.completion_tokens": 13,
+      "response.usage.completion_tokens": 10,
       "response.usage.prompt_tokens": 2,
-      "response.usage.total_tokens": 15
+      "response.usage.total_tokens": 12
     },
-    "duration": 255615000,
-    "start": 1681482913615886000
+    "duration": 441886000,
+    "start": 1681496404959655000
   }]]

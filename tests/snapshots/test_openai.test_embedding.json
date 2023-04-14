@@ -17,17 +17,17 @@
       "request.input": "hello world",
       "request.model": "text-embedding-ada-002",
       "response.model": "text-embedding-ada-002",
-      "runtime-id": "20b216860502481a9b12e10cc22abbdc"
+      "runtime-id": "7e3bba981e8d4239a28bfcfd7f0cabbf"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
+      "process_id": 59602,
       "response.data.embedding-length": 1536,
       "response.data.num-embeddings": 1
     },
-    "duration": 299384000,
-    "start": 1681482915691483000
+    "duration": 5233000,
+    "start": 1681496406974953000
   }]]

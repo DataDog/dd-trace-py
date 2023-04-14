@@ -16,23 +16,25 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: '{"id":"cmpl-75Eo62fPvXZkaEg00yOUDVE4hiEQx","object":"text_completion","created":1681482914,"model":"curie","choices":[{"text":"
-        I am.\n\n\n\nI love God. I believe in an all-powerful, loving God who created
-        the universe, and I see that He loves me. I am his child.\n\n\n\nBy nature,
-        I am a child of God. There is no other within me. The seed of spiritual perfection\n\n\n\nwhich
-        is planted in my soul by God is the only seed whose fruit is absolute holiness.\n\n\n\nThe
-        only fruit to which I can contribute is the fruit of my own perfection.\n\n\n\nI
-        am a child of God. I am a little god in the making. My soul is a tabernacle,
-        and I am\n\n\n\nthe temple of the Holy Ghost.\n\n\n\nI am not","index":0,"logprobs":null,"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":150,"total_tokens":160}}
-
-        '
+      string: "{\"id\":\"cmpl-75IJh2i3QHqXxiDYep3Sh6eQbYbGZ\",\"object\":\"text_completion\"\
+        ,\"created\":1681496405,\"model\":\"curie\",\"choices\":[{\"text\":\" I am.\
+        \ And that means that my body, my mind, and my consciousness are all separate\
+        \ and distinct. This is the root of the dualism referred to as Cartesian dualism.\
+        \ It is my mind that is affecting my body by my thoughts and my emotions.\
+        \ I know that I am not the brain, the heart, or the liver and I am not the\
+        \ mind either. I am not a physical body.\\n\\nHowever, there is another part\
+        \ of me that is not physical and that is the \u201CI\u201D in the statement,\
+        \ \u201CI think, therefore I am.\u201D I am that so-called \u201CI\u201D that\
+        \ is not physical. The \u201CI\u201D that is not physical is not\",\"index\"\
+        :0,\"logprobs\":null,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\"\
+        :10,\"completion_tokens\":150,\"total_tokens\":160}}\n"
     headers:
       Access-Control-Allow-Origin:
       - '*'
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7cac9629d142ca-EWR
+      - 7b7df5f72d798c96-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -42,7 +44,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 14:35:15 GMT
+      - Fri, 14 Apr 2023 18:20:06 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -54,7 +56,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1164'
+      - '1149'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -72,7 +74,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 36ms
       x-request-id:
-      - 8efecfeed58db53cb73b7f9205c2a946
+      - 4da2c4134a4e6f7b20f5f73f9b195038
     status:
       code: 200
       message: OK

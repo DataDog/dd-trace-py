@@ -260,6 +260,9 @@ def _completion_create(openai, pin, instance, args, kwargs):
         "endpoint:%s" % instance.OBJECT_NAME,
         "error:%d" % (1 if error else 0),
     ]
+    if openai.organization:
+        metric_tags.append("organization:%s" % openai.organization)
+
     completions = ""
 
     if error is not None:
@@ -284,18 +287,18 @@ def _completion_create(openai, pin, instance, args, kwargs):
             if token_type in resp["usage"]:
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
-    
+
     if sample_prompt_completion:
         # TODO: determine best format for multiple choices/completions
         name = ""
         if not error:
             p = prompt[0] if isinstance(prompt, list) else prompt
-            c = completions[0].get('text')
+            c = completions[0].get("text")
             name = "PROMPT: {} COMPLETION: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
             name,
-            tags=["model:%s" % kwargs.get("model")],
+            tags=metric_tags,
             attrs={
                 "prompt": prompt,
                 "completion": completions,  # TODO: should be completions (plural)?
@@ -355,6 +358,9 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         "endpoint:%s" % instance.OBJECT_NAME,
         "error:%d" % (1 if error else 0),
     ]
+    if openai.organization:
+        metric_tags.append("organization:%s" % openai.organization)
+
     completions = ""
 
     if error is not None:
@@ -387,12 +393,14 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         # TODO: determine best format for multiple choices/completions
         if not error:
             p = "({}) {}".format(messages[-1].get("role"), messages[-1].get("content"))
-            c =  "({}) {}".format(completions[0].get("message").get("role"), completions[0].get("message").get("content"))
+            c = "({}) {}".format(
+                completions[0].get("message").get("role"), completions[0].get("message").get("content")
+            )
             name = "MESSAGE: {} RESPONSE: {}".format(_process_text(p), _process_text(c))
         _openai_log(
             "info" if error is None else "error",
             name,
-            tags=["model:%s" % kwargs.get("model")],
+            tags=metric_tags,
             attrs={
                 "messages": messages,
                 "completion": completions,  # TODO: should be completions (plural)?
@@ -425,7 +433,8 @@ def _embedding_create(openai, pin, instance, args, kwargs):
         "endpoint:%s" % instance.OBJECT_NAME,
         "error:%d" % (1 if error else 0),
     ]
-
+    if openai.organization:
+        metric_tags.append("organization:%s" % openai.organization)
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         if isinstance(error, openai.error.OpenAIError):
@@ -462,5 +471,5 @@ def _usage_metrics(usage, metrics_tags):
 def _process_text(text, truncate=512):
     text = " ".join(text.split())
     if len(text) > truncate:
-        text = text[:truncate-3] + "..."
+        text = text[: truncate - 14] + "[TRUNCATED...]"
     return text

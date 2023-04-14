@@ -17,17 +17,17 @@
       "request.model": "curie",
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.text": " I am.\\n\\n\\n\\nI love God. I believe in an all-powerful, loving God who created the universe, and I see that He loves me. I am his child.\\n\\n\\n\\nBy nature, I am a child of God. There is no other within me. The seed of spiritual perfection\\n\\n\\n\\nwhich is planted in my soul by God is the only seed whose fruit is absolute holiness.\\n\\n\\n\\nThe only fruit to which I can contribute is the fruit of my own perfection.\\n\\n\\n\\nI am a child of God. I am a little god in the making. My soul is a tabernacle, ...TRUNCATED",
-      "response.id": "cmpl-75Eo62fPvXZkaEg00yOUDVE4hiEQx",
+      "response.choices.0.text": "I am. And that means that my body, my mind, and my consciousness are all separate and distinct. This is the root of the dualism referred to as Cartesian dualism. It is my mind that is affecting my body by my thoughts and my emotions. I know that I am not the brain, the heart, or the liver and I am not the mind either. I am not a physical body. However, there is another part of me that is not physical and that is the \u201cI\u201d in the statement, \u201cI think, therefore I am.\u201d I am that so-called \u201cI\u201d that [TRUNCATED...]",
+      "response.id": "cmpl-75IJh2i3QHqXxiDYep3Sh6eQbYbGZ",
       "response.object": "text_completion",
-      "runtime-id": "20b216860502481a9b12e10cc22abbdc"
+      "runtime-id": "7e3bba981e8d4239a28bfcfd7f0cabbf"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 5676,
+      "process_id": 59602,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -36,6 +36,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 1280197000,
-    "start": 1681482914184490000
+    "duration": 1254866000,
+    "start": 1681496405576683000
   }]]
