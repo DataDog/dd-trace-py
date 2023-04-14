@@ -46,7 +46,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.8.2"
+LIBDDWAF_VERSION = "1.9.0"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -408,7 +408,7 @@ setup(
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
         ],
         "opentelemetry_context": [
-            "ddcontextvars_context = ddtrace._opentelemetry._context:DDRuntimeContext",
+            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
         ],
     },
     classifiers=[

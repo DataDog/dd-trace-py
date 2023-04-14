@@ -1,5 +1,7 @@
 AArch
 AnyCallable
+autoreload
+autoreloading
 CPython
 Fargate
 Firehose
@@ -133,12 +135,14 @@ obfuscator
 opensearch
 opentracer
 opentracing
+otel
 parameterized
 perf
 pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf
@@ -171,6 +175,7 @@ RLock
 sanic
 screenshots
 serializable
+sha
 sql
 sqlalchemy
 sqlite

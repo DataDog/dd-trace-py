@@ -9,6 +9,7 @@ from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -389,6 +390,7 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+        oce.reconfigure()
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
@@ -722,10 +724,11 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import setup
 
     with override_global_config(dict(_iast_enabled=True)):
+        oce.reconfigure()
         tracer._iast_enabled = True
         setup(bytes.join, bytearray.join)
         clear_taint_mapping()
@@ -746,10 +749,11 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import setup
 
     with override_global_config(dict(_iast_enabled=False)):
+        oce.reconfigure()
         tracer._iast_enabled = False
         clear_taint_mapping()
         setup(bytes.join, bytearray.join)
@@ -766,3 +770,19 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
+
+
+def test_request_suspicious_request_match_case_sensitive(client, test_spans, tracer):
+    # value uppercase must be monitored
+    with override_global_config(dict(_appsec_enabled=True)):
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=QUERY_STRING")
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["crs-933-131"]
+    # value lowercase must not be monitored
+    with override_global_config(dict(_appsec_enabled=True)):
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=query_string")
+        assert root_span.get_tag(APPSEC.JSON) is None
+    # appsec disabled must not be monitored
+    with override_global_config(dict(_appsec_enabled=False)):
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=QUERY_STRING")
+        assert root_span.get_tag(APPSEC.JSON) is None

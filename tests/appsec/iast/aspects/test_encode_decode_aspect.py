@@ -4,7 +4,12 @@ import sys
 
 import pytest
 
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._input_info import Input_info
+
+
+def setup():
+    oce._enabled = True
 
 
 def catch_all(fun, args, kwargs):
@@ -32,7 +37,7 @@ def catch_all(fun, args, kwargs):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
@@ -77,7 +82,7 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject

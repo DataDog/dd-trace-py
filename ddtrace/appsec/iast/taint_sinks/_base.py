@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING
 
 from ddtrace import tracer
@@ -30,6 +31,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.appsec.iast._input_info import Input_info
 
 log = get_logger(__name__)
+
+CWD = os.path.abspath(os.getcwd())
 
 
 class VulnerabilityBase(Operation):
@@ -65,9 +68,13 @@ class VulnerabilityBase(Operation):
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
-            frame_info = get_info_frame()
+            frame_info = get_info_frame(CWD)
             if frame_info:
                 file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = os.path.relpath(file_name, start=CWD)
 
                 if isinstance(evidence_value, (str, bytes, bytearray)):
                     evidence = Evidence(value=evidence_value)

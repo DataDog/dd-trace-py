@@ -6,7 +6,9 @@ from flask import request
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.ext import http
@@ -26,6 +28,8 @@ from tests.utils import override_global_config
 
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
 def get_response_body(response):
@@ -367,7 +371,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
             )
-        ):
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
             from ddtrace.appsec.iast._taint_tracking import setup
 
             setup(bytes.join, bytearray.join)
@@ -378,6 +383,43 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            from flask import request
+
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
+            # Note: these are not tainted because of request sampling at 0%
+            assert not is_pyobject_tainted(request.headers["User-Agent"])
+            assert not is_pyobject_tainted(request.query_string)
+            assert not is_pyobject_tainted(request.path)
+            assert not is_pyobject_tainted(request.form.get("name"))
+
+            return request.query_string, 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV_SAMPLING_0):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+
+            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 0.0
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
