@@ -1,0 +1,2 @@
+class CIVisibilityGitClient(object):
+    pass

@@ -16,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings import IntegrationConfig
 
+from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
 
@@ -48,6 +49,7 @@ class CIVisibility(Service):
         self._tags = ci.tags()  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+        self._git_client = CIVisibilityGitClient()
 
         int_service = None
         if self.config is not None:
