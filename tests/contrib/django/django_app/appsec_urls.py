@@ -68,7 +68,7 @@ def checkuser_view(request, user_id):
     return HttpResponse(status=200)
 
 
-def sqli(request):
+def sqli_http_request_parameter(request):
     with connection.cursor() as cursor:
         cursor.execute(request.GET["q"])
 
@@ -119,12 +119,12 @@ def magic_header_key(request):
 
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
-    handler("sqli/$", sqli, name="sqli"),
     handler("body/$", body_view, name="body_view"),
     handler("weak-hash/$", weak_hash_view, name="weak_hash"),
     handler("block/$", block_callable_view, name="block"),
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
+    handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
 ]
 
 if django.VERSION >= (2, 0, 0):

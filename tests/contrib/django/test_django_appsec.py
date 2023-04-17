@@ -761,7 +761,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 
 @pytest.mark.django_db(databases=["default"])
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_full_sqli(client, test_spans, tracer):
+def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -778,7 +778,7 @@ def test_django_tainted_user_agent_iast_enabled_full_sqli(client, test_spans, tr
             tracer,
             payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
             content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli/?q=SELECT 1 FROM sqlite_master",
+            url="/appsec/sqli_http_request_parameter/?q=SELECT 1 FROM sqlite_master",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
@@ -787,12 +787,12 @@ def test_django_tainted_user_agent_iast_enabled_full_sqli(client, test_spans, tr
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
         ]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-        assert loaded["vulnerabilities"][0]["hash"] == 585952197
+        assert loaded["vulnerabilities"][0]["hash"] == 2546403702
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 69
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 73
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
