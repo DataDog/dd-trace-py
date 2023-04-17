@@ -29,7 +29,7 @@ class Span(bm.Scenario):
         def _(loops):
             for _ in range(loops):
                 for i in range(self.nspans):
-                    s = tracer.trace("test." + str(i))
+                    s = tracer.start_span("test." + str(i))
                     if settags:
                         s.set_tags(tags)
                     if setmetrics:
