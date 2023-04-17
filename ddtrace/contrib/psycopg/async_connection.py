@@ -18,9 +18,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = (
-                Psycopg3FetchTracedAsyncCursor
-                if config.psycopg.trace_fetch_methods
-                else Psycopg3TracedAsyncCursor
+                Psycopg3FetchTracedAsyncCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedAsyncCursor
             )
 
         super(Psycopg3TracedAsyncConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
