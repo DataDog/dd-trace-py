@@ -1,3 +1,5 @@
+import time
+
 import mock
 import pytest
 
@@ -88,3 +90,18 @@ def test_repository_name_not_extracted_warning():
         extracted_repository_name = _extract_repository_name_from_url(repository_url)
         assert extracted_repository_name == repository_url
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
+
+
+def test_git_packfile_protocol():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        dummy_tracer = DummyTracer()
+        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+        start_time = time.time()
+        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+        shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
+        assert CIVisibility._instance._git_client is not None
+        assert CIVisibility._instance._git_client._worker is not None
+        CIVisibility.disable()
+        assert (
+            time.time() - start_time <= shutdown_timeout + 0.1
+        ), "CIVisibility.disable() should not block for longer than tracer timeout"

@@ -112,11 +112,11 @@ class CIVisibility(Service):
 
     def _stop_service(self):
         # type: () -> None
+        self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:
-            self.tracer.shutdown()
+            self.tracer.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
-        self._git_client.shutdown()
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
