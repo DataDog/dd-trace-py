@@ -65,3 +65,13 @@ benchmark-set-http-meta:
   extends: .benchmarks
   variables:
     SCENARIO: "set_http_meta"
+
+benchmark-flask-simple:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "flask_simple"
+
+benchmark-flask-sqli:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "flask_sqli"
