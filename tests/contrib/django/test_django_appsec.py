@@ -759,7 +759,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
         assert response.content == b"test/1.2.3"
 
 
-@pytest.mark.django_db(databases=["default"])
+@pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
