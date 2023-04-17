@@ -65,8 +65,10 @@ def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         setattr(confluent_kafka, "_datadog_patch", False)
 
-    trace_utils.unwrap(TracedProducer, "produce")
-    trace_utils.unwrap(TracedConsumer, "poll")
+    if trace_utils.iswrapped(TracedProducer.produce):
+        trace_utils.unwrap(TracedProducer, "produce")
+    if trace_utils.iswrapped(TracedConsumer.poll):
+        trace_utils.unwrap(TracedConsumer, "poll")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
