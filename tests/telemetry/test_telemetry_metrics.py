@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -33,7 +31,12 @@ def _assert_metric(
     }
     assert events[0]["request_type"] == type_paypload
 
-    assert events[0] == _get_request_body(payload, type_paypload, seq_id)
+    # Python 2.7 and Python 3.5 fail with dictionaries and lists order
+    expected_body = _get_request_body(payload, type_paypload, seq_id)
+    expected_body_sorted = expected_body["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
+    result_event = events[0]["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
+
+    assert result_event == expected_body_sorted
 
 
 def _assert_logs(
@@ -46,10 +49,14 @@ def _assert_logs(
 
     assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_LOGS]) == seq_id
 
-    assert events[0] == _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
+    # Python 2.7 and Python 3.5 fail with dictionaries and lists order
+    expected_body = _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
+    expected_body_sorted = expected_body["payload"].sort(key=lambda x: x["message"], reverse=False)
+    result_event = events[0]["payload"].sort(key=lambda x: x["message"], reverse=False)
+
+    assert result_event == expected_body_sorted
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_flush_and_generate_metrics_series_is_restarted(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
@@ -72,7 +79,6 @@ def test_send_metric_flush_and_generate_metrics_series_is_restarted(test_agent_m
         _assert_metric(test_agent_metrics_session, expected_series, seq_id=2)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(test_agent_metrics_session, mock_time):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
@@ -97,7 +103,6 @@ def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(test_age
         _assert_metric(test_agent_metrics_session, expected_series)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(test_agent_metrics_session, mock_time):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
@@ -155,7 +160,6 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent
             )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
@@ -192,7 +196,6 @@ def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
         _assert_metric(test_agent_metrics_session, expected_series)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_rate_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
@@ -224,7 +227,6 @@ def test_send_appsec_rate_metric(test_agent_metrics_session, mock_time):
         _assert_metric(test_agent_metrics_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_gauge_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
@@ -263,7 +265,6 @@ def test_send_appsec_gauge_metric(test_agent_metrics_session, mock_time):
         _assert_metric(test_agent_metrics_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_appsec_distributions_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
@@ -286,7 +287,6 @@ def test_send_appsec_distributions_metric(test_agent_metrics_session, mock_time)
         )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_metric_flush_and_distributions_series_is_restarted(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
@@ -328,7 +328,6 @@ def test_send_metric_flush_and_distributions_series_is_restarted(test_agent_metr
         )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_log_metric_simple(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
@@ -345,7 +344,6 @@ def test_send_log_metric_simple(test_agent_metrics_session, mock_time):
         _assert_logs(test_agent_metrics_session, expected_payload)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_log_metric_simple_tags(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
@@ -363,7 +361,6 @@ def test_send_log_metric_simple_tags(test_agent_metrics_session, mock_time):
         _assert_logs(test_agent_metrics_session, expected_payload)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="mock.ANY doesn't works in py3.5 or lower")
 def test_send_multiple_log_metric(test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
