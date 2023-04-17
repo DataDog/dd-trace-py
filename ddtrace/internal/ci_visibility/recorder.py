@@ -73,11 +73,13 @@ class CIVisibility(Service):
     def _configure_writer(self):
         writer = None
         if ddconfig._ci_visibility_agentless_enabled:
-            site_id = os.environ.get("DD_SITE")
-            if site_id:
-                writer = CIVisibilityWriter(intake_url="https://citestcycle-intake.%s" % site_id)
+            headers = {"dd-api-key": os.environ.get("DD_API_KEY")}
+            if headers["dd-api-key"]:
+                writer = CIVisibilityWriter(
+                    intake_url="https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
+                )
             else:
-                log.error("Environment variable DD_SITE not set - not sending CI Visibility data")
+                log.error("Environment variable DD_API_KEY not set - not sending CI Visibility data")
         elif self._agent_evp_proxy_is_available():
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
