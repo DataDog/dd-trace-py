@@ -49,6 +49,7 @@ class CIVisibility(Service):
         self._tags = ci.tags()  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+
         self._git_client = CIVisibilityGitClient()
 
         int_service = None
@@ -107,6 +108,7 @@ class CIVisibility(Service):
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(settings={"FILTERS": tracer_filters})
+        self._git_client.start()
 
     def _stop_service(self):
         # type: () -> None
@@ -114,6 +116,7 @@ class CIVisibility(Service):
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
+        self._git_client.shutdown()
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
