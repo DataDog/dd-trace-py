@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -16,6 +17,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings import IntegrationConfig
 
+from .. import agent
+from .constants import EVP_PROXY_AGENT_BASE_PATH
+from .constants import EVP_PROXY_AGENT_ENDPOINT
+from .constants import EVP_SUBDOMAIN_HEADER_NAME
+from .constants import EVP_SUBDOMAIN_HEADER_VALUE
 from .writer import CIVisibilityWriter
 
 
@@ -41,9 +47,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
-            writer = CIVisibilityWriter()
-            self.tracer.configure(writer=writer)
+        self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags()  # type: Dict[str, str]
         self._service = service
@@ -66,6 +70,35 @@ class CIVisibility(Service):
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
+
+    def _configure_writer(self):
+        writer = None
+        if ddconfig._ci_visibility_agentless_enabled:
+            site_id = os.environ.get("DD_SITE")
+            if site_id:
+                writer = CIVisibilityWriter(intake_url="https://citestcycle-intake.%s" % site_id)
+            else:
+                log.error("Environment variable DD_SITE not set - not sending CI Visibility data")
+        elif self._agent_evp_proxy_is_available():
+            writer = CIVisibilityWriter(
+                intake_url=agent.get_trace_url(),
+                endpoint=EVP_PROXY_AGENT_ENDPOINT,
+                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+            )
+        if writer is not None:
+            self.tracer.configure(writer=writer)
+
+    def _agent_evp_proxy_is_available(self):
+        try:
+            info = agent.info()
+        except Exception:
+            info = None
+
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and (EVP_PROXY_AGENT_BASE_PATH in endpoints or ("/" + EVP_PROXY_AGENT_BASE_PATH) in endpoints):
+                return True
+        return False
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
