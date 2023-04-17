@@ -538,7 +538,6 @@ def test_civisibility_intake_with_evp_available():
             CIVisibility.disable()
 
 
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_missing_site():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
@@ -548,7 +547,6 @@ def test_civisibility_intake_with_missing_site():
             CIVisibility.disable()
 
 
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_site():
     with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
