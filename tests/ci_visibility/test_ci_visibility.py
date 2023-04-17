@@ -8,11 +8,23 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
+from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.span import Span
+from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
+
+
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
 
 
 def test_filters_test_spans():
@@ -92,16 +104,43 @@ def test_repository_name_not_extracted_warning():
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
 
 
-def test_git_packfile_protocol():
+def test_git_client_worker(git_repo):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         dummy_tracer = DummyTracer()
         dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
         start_time = time.time()
-        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-        shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
-        assert CIVisibility._instance._git_client is not None
-        assert CIVisibility._instance._git_client._worker is not None
-        CIVisibility.disable()
-        assert (
-            time.time() - start_time <= shutdown_timeout + 0.1
-        ), "CIVisibility.disable() should not block for longer than tracer timeout"
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            ggr.return_value = git_repo
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
+            assert CIVisibility._instance._git_client is not None
+            assert CIVisibility._instance._git_client._worker is not None
+            CIVisibility.disable()
+    assert (
+        time.time() - start_time <= shutdown_timeout + 0.1
+    ), "CIVisibility.disable() should not block for longer than tracer timeout"
+
+
+def test_git_client_get_repository_url(git_repo):
+    remote_url = CIVisibilityGitClient._get_repository_url(cwd=git_repo)
+    assert remote_url == "git@github.com:test-repo-url.git"
+
+
+def test_git_client_get_latest_commits():
+    pass
+
+
+def test_git_client_search_commits():
+    pass
+
+
+def test_git_client_get_revisions():
+    pass
+
+
+def test_git_client_build_packfiles():
+    pass
+
+
+def test_git_client_upload_packfiles():
+    pass

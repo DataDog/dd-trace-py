@@ -95,6 +95,11 @@ def extract_user_info(cwd=None):
     }
 
 
+def extract_remote_url(cwd=None):
+    remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
+    return remote_url
+
+
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""

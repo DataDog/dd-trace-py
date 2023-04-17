@@ -1,10 +1,11 @@
 from multiprocessing import Process
-import time
+
+from ddtrace.ext.git import extract_remote_url
 
 
 class CIVisibilityGitClient(object):
-    def start(self):
-        self._worker = Process(target=CIVisibilityGitClient._run_protocol)
+    def start(self, cwd=None):
+        self._worker = Process(target=CIVisibilityGitClient._run_protocol, kwargs={"cwd": cwd})
         self._worker.start()
 
     def shutdown(self, timeout=None):
@@ -12,8 +13,8 @@ class CIVisibilityGitClient(object):
         self._worker = None
 
     @classmethod
-    def _run_protocol(cls):
-        repo_url = cls._get_repository_url()
+    def _run_protocol(cls, cwd=None):
+        repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits()
         backend_commits = cls._search_commits(repo_url, latest_commits)
         rev_list = cls._get_revisions(backend_commits)
@@ -21,8 +22,8 @@ class CIVisibilityGitClient(object):
         cls._upload_packfiles(packfiles)
 
     @classmethod
-    def _get_repository_url(cls):
-        pass
+    def _get_repository_url(cls, cwd=None):
+        return extract_remote_url(cwd=cwd) or "origin"
 
     @classmethod
     def _get_latest_commits(cls):
