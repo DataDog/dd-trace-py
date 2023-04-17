@@ -159,17 +159,10 @@ def test_integration_sync():
     Running in a subprocess with ddtrace-run should produce traces
     with both OpenAI and requests spans.
     """
-    import os
-    import sys
-
     import openai
 
     import ddtrace
 
-    # TODO: need this to be able to import the vcr, maybe do this for all
-    #       subprocess tests?
-    tests_path = os.path.dirname(os.path.dirname(ddtrace.__file__))
-    sys.path.insert(0, tests_path)
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import openai_vcr
 
@@ -200,17 +193,11 @@ def test_integration_async():
     with both OpenAI and requests spans.
     """
     import asyncio
-    import os
-    import sys
 
     import openai
 
     import ddtrace
 
-    # TODO: need this to be able to import the vcr, maybe do this for all
-    #       subprocess tests?
-    tests_path = os.path.dirname(os.path.dirname(ddtrace.__file__))
-    sys.path.insert(0, tests_path)
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import openai_vcr
 
