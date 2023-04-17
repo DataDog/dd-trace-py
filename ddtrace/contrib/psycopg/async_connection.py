@@ -15,16 +15,15 @@ from ddtrace.internal.constants import COMPONENT
 
 class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
-        package = conn.__class__.__module__.split(".")[0]
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = (
                 Psycopg3FetchTracedAsyncCursor
-                if config._config[package].trace_fetch_methods
+                if config.psycopg.trace_fetch_methods
                 else Psycopg3TracedAsyncCursor
             )
 
-        super(Psycopg3TracedAsyncConnection, self).__init__(conn, pin, config._config[package], cursor_cls=cursor_cls)
+        super(Psycopg3TracedAsyncConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
 
     async def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""

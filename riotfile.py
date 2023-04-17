@@ -796,15 +796,15 @@ venv = Venv(
                         "channels": latest,
                     },
                 ),
-                Venv(
-                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "django": ["~=4.2", latest],
-                        "psycopg[binary,pool]": latest,
-                        "channels": latest,
-                    },
-                ),
+                # Venv(
+                #     # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "django": ["~=4.2", latest],
+                #         "psycopg[binary,pool]": latest,
+                #         "channels": latest,
+                #     },
+                # ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
@@ -1174,13 +1174,12 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
                     # Python 3.6 supported up to 3.1.0
-                    # DEV: Use `psycopg[binary]`
-                    pkgs={"psycopg[c]": ["~=3.0.18"]},
+                    pkgs={"psycopg": ["~=3.0.18"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
-                    pkgs={"psycopg[c]": [latest]},
+                    pkgs={"psycopg": [latest]},
                 ),
             ],
         ),
