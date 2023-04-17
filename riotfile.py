@@ -144,6 +144,14 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={
+                "cython-lint": latest,
+            },
+            name="cython-lint",
+            command="cython-lint {cmdargs} .",
+        ),
+        Venv(
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
