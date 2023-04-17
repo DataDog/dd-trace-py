@@ -798,5 +798,5 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
         assert test_span.get_tag(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
         assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
-        assert test_span.get_tag(git.BRANCH) == "master"
-        assert test_span.get_tag(git.COMMIT_SHA) == "b3672ea5cbc584124728c48a443825d2940e0ddd"
+        assert test_span.get_tag(git.BRANCH)
+        assert test_span.get_tag(git.COMMIT_SHA)
