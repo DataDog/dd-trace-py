@@ -265,6 +265,14 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+        _openai_log(
+            "info" if error is None else "error",
+            "openai error",
+            attrs={
+                "prompt": prompt,
+            },
+            tags=metric_tags
+        )
     if resp and not kwargs.get("stream"):
         if "choices" in resp:
             choices = resp["choices"]
@@ -284,16 +292,17 @@ def _completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-    if sample_prompt_completion:
-        _openai_log(
-            "info" if error is None else "error",
-            "sampled completion",
-            tags=metric_tags,
-            attrs={
-                "prompt": prompt,
-                "choices": resp["choices"] if resp and "choices" in resp else [],
-            },
-        )
+        if sample_prompt_completion:
+            _openai_log(
+                "info" if error is None else "error",
+                "sampled completion",
+                tags=metric_tags,
+                attrs={
+                    "prompt": prompt,
+                    "choices": resp["choices"] if resp and "choices" in resp else [],
+                },
+            )
+
     span.finish()
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
@@ -360,6 +369,14 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+        _openai_log(
+            "error",
+            "openai error",
+            tags=metric_tags,
+            attrs={
+                "messages": messages,
+            },
+        )
     if resp and not kwargs.get("stream"):
         if "choices" in resp:
             choices = resp["choices"]
@@ -383,16 +400,16 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-    if sample_prompt_completion:
-        _openai_log(
-            "info" if error is None else "error",
-            "sampled chat completion",
-            tags=metric_tags,
-            attrs={
-                "messages": messages,
-                "completion": completions,
-            },
-        )
+        if sample_prompt_completion:
+            _openai_log(
+                "info" if error is None else "error",
+                "sampled chat completion",
+                tags=metric_tags,
+                attrs={
+                    "messages": messages,
+                    "completion": completions,
+                },
+            )
     span.finish()
     stats_client().distribution("request.duration", span.duration_ns, tags=metric_tags)
 
