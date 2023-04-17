@@ -245,7 +245,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
             for idx, p in enumerate(prompt):
                 span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
         else:
-            span.set_tag_str("request.prompt", _process_text(kwargs[kw_attr]))
+            span.set_tag_str("request.prompt", _process_text(prompt))
 
     for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
@@ -301,7 +301,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
 _chat_completion_request_attrs = [
     "model",
     "messages",
-    "temperature"
+    "temperature",
     "top_p",
     "n",
     "stream",
@@ -310,7 +310,7 @@ _chat_completion_request_attrs = [
     "presence_penalty",
     "frequency_penalty",
     "logit_bias",
-    "user"
+    "user",
 ]
 
 
@@ -327,6 +327,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     messages = kwargs.get("messages")
     if sample_prompt_completion:
+
         def set_message_tag(message):
             content = _process_text(message.get("content"))
             role = _process_text(message.get("role"))
