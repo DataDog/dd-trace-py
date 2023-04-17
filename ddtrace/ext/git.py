@@ -102,7 +102,13 @@ def extract_remote_url(cwd=None):
 
 def extract_latest_commits(cwd=None):
     latest_commits = _git_subprocess_cmd("log --format=%H -n 1000", cwd=cwd)
-    return latest_commits.split("\n")
+    return latest_commits.split("\n") if latest_commits else []
+
+
+def get_rev_list_excluding_commits(commit_shas, cwd=None):
+    exclusions = " ".join(["^%s" % sha for sha in commit_shas])
+    commits = _git_subprocess_cmd("rev-list --objects --filter=blob:none HEAD %s" % exclusions, cwd=cwd)
+    return commits.split("\n") if commits else []
 
 
 def extract_repository_url(cwd=None):

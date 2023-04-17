@@ -1,3 +1,4 @@
+import contextlib
 import time
 
 import mock
@@ -17,6 +18,9 @@ from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
+
+
+TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 
 
 @pytest.fixture
@@ -106,16 +110,22 @@ def test_repository_name_not_extracted_warning():
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
 
 
+@contextlib.contextmanager
+def mock_git_client_search_commits():
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as _do_request:
+        dummy_response = Response(
+            status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA
+        )
+        _do_request.return_value = dummy_response
+        yield
+
+
 def test_git_client_worker(git_repo):
     with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana")):
         dummy_tracer = DummyTracer()
         start_time = time.time()
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
-            with mock.patch(
-                "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request"
-            ) as _do_request:
-                dummy_response = Response(status=200, body='{"data": []}')
-                _do_request.return_value = dummy_response
+            with mock_git_client_search_commits():
                 ggr.return_value = git_repo
                 CIVisibility.enable(tracer=dummy_tracer, service="test-service")
                 assert CIVisibility._instance._git_client is not None
@@ -134,24 +144,22 @@ def test_git_client_get_repository_url(git_repo):
 
 def test_git_client_get_latest_commits(git_repo):
     latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
-    assert latest_commits == ["b3672ea5cbc584124728c48a443825d2940e0ddd"]
+    assert latest_commits == [TEST_SHA]
 
 
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
-    latest_commits = ["b3672ea5cbc584124728c48a443825d2940e0ddd"]
+    latest_commits = [TEST_SHA]
     serde = CIVisibilityGitClientSerDeV1("foo", "bar")
-    with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as _do_request:
-        dummy_response = Response(
-            status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % latest_commits[0]
-        )
-        _do_request.return_value = dummy_response
+    with mock_git_client_search_commits():
         backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits, serde)
     assert latest_commits[0] in backend_commits
 
 
-def test_git_client_get_revisions():
-    pass
+def test_git_client_get_filtered_revisions(git_repo):
+    excluded_commits = [TEST_SHA]
+    filtered_revisions = CIVisibilityGitClient._get_filtered_revisions(excluded_commits, cwd=git_repo)
+    assert filtered_revisions == []
 
 
 def test_git_client_build_packfiles():

@@ -6,6 +6,7 @@ import tenacity
 
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
+from ddtrace.ext.git import get_rev_list_excluding_commits
 
 from .. import compat
 from ..utils.http import Response
@@ -35,7 +36,7 @@ class CIVisibilityGitClient(object):
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(repo_url, latest_commits, serde)
-        rev_list = cls._get_revisions(backend_commits, cwd=cwd)
+        rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         packfiles = cls._build_packfiles(rev_list, cwd=cwd)
         cls._upload_packfiles(packfiles)
 
@@ -75,8 +76,8 @@ class CIVisibilityGitClient(object):
             conn.close()
 
     @classmethod
-    def _get_revisions(cls, backend_commits, cwd=None):
-        pass
+    def _get_filtered_revisions(cls, excluded_commits, cwd=None):
+        return get_rev_list_excluding_commits(excluded_commits, cwd=cwd)
 
     @classmethod
     def _build_packfiles(cls, revisions, cwd=None):
