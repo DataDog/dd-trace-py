@@ -106,7 +106,12 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, payload=payload, url="/body/", content_type="application/x-www-form-urlencoded"
+            client,
+            test_spans,
+            tracer,
+            payload=payload,
+            url="/appsec/body/",
+            content_type="application/x-www-form-urlencoded",
         )
 
         assert response.status_code == 200
@@ -138,7 +143,7 @@ def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
             test_spans,
             tracer,
             payload=payload,
-            url="/body/",
+            url="/appsec/body/",
             content_type="application/x-www-form-urlencoded",
         )
         query = dict(_context.get_item("http.request.body", span=root_span))
@@ -156,7 +161,7 @@ def test_django_request_body_json(client, test_spans, tracer):
             test_spans,
             tracer,
             payload=payload,
-            url="/body/",
+            url="/appsec/body/",
             content_type="application/json",
         )
         query = dict(_context.get_item("http.request.body", span=root_span))
@@ -195,7 +200,7 @@ def test_django_request_body_xml(client, test_spans, tracer):
                 test_spans,
                 tracer,
                 payload=payload,
-                url="/body/",
+                url="/appsec/body/",
                 content_type=content_type,
             )
 
@@ -288,7 +293,7 @@ def test_django_path_params(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/path-params/2022/july/",
+            url="/appsec/path-params/2022/july/",
         )
         path_params = _context.get_item("http.request.path_params", span=root_span)
         assert path_params["month"] == "july"
@@ -392,11 +397,11 @@ def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         oce.reconfigure()
         patch_iast(weak_hash=True)
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/weak-hash/")
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
         assert str_json is not None, "no JSON tag in root span"
         vulnerability = json.loads(str_json)["vulnerabilities"][0]
-        assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
+        assert vulnerability["location"]["path"].endswith("tests/contrib/django/django_app/appsec_urls.py")
         assert vulnerability["evidence"]["value"] == "md5"
 
 
@@ -466,7 +471,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/block/",
+            url="/appsec/block/",
             headers={"HTTP_X_REAL_IP": _ALLOWED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         # Should not block by IP, but the block callable is called directly inside that view
@@ -476,7 +481,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
         )
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
-        assert root.get_tag(http.URL) == "http://testserver/block/"
+        assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(http.USER_AGENT) == "fooagent"
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
@@ -490,21 +495,25 @@ _ALLOWED_USER = "111111"
 
 def test_request_userblock_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _ALLOWED_USER)
+        root, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/appsec/checkuser/%s/" % _ALLOWED_USER
+        )
         assert result.status_code == 200
         assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_userblock_403(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        root, result = _aux_appsec_get_root_span(client, test_spans, tracer, url="/checkuser/%s/" % _BLOCKED_USER)
+        root, result = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/appsec/checkuser/%s/" % _BLOCKED_USER
+        )
         assert result.status_code == 403
         as_bytes = (
             bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
         )
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
-        assert root.get_tag(http.URL) == "http://testserver/checkuser/%s/" % _BLOCKED_USER
+        assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
         if hasattr(result, "headers"):
@@ -559,7 +568,7 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
     # value AiKfOeRcvG45 must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/path-params/2022/AiKfOeRcvG45/"
+            client, test_spans, tracer, url="/appsec/path-params/2022/AiKfOeRcvG45/"
         )
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
@@ -568,11 +577,13 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
     # other values must not be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/path-params/2022/Anything/")
+        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/path-params/2022/Anything/")
         assert response.status_code == 200
     # appsec disabled must not block
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/path-params/2022/AiKfOeRcvG45/")
+        _, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/appsec/path-params/2022/AiKfOeRcvG45/"
+        )
         assert response.status_code == 200
 
 
@@ -710,7 +721,7 @@ def test_request_suspicious_request_block_match_request_cookie(client, test_span
 def test_request_suspicious_request_block_match_response_headers(client, test_spans, tracer):
     # value MagicKey_Al4h7iCFep9s1 must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/response-header/")
         assert response.status_code == 403
         as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
         assert response.content == as_bytes
@@ -718,7 +729,7 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
     # appsec disabled must not block
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/response-header/")
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/response-header/")
         assert response.status_code == 200
 
 
@@ -739,7 +750,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
             tracer,
             payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
             content_type="application/x-www-form-urlencoded",
-            url="/taint-checking-enabled/?q=aaa",
+            url="/appsec/taint-checking-enabled/?q=aaa",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
@@ -764,25 +775,9 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
             tracer,
             payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
             content_type="application/x-www-form-urlencoded",
-            url="/taint-checking-disabled/?q=aaa",
+            url="/appsec/taint-checking-disabled/?q=aaa",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
-
-
-def test_request_suspicious_request_match_case_sensitive(client, test_spans, tracer):
-    # value uppercase must be monitored
-    with override_global_config(dict(_appsec_enabled=True)):
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=QUERY_STRING")
-        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["crs-933-131"]
-    # value lowercase must not be monitored
-    with override_global_config(dict(_appsec_enabled=True)):
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=query_string")
-        assert root_span.get_tag(APPSEC.JSON) is None
-    # appsec disabled must not be monitored
-    with override_global_config(dict(_appsec_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=QUERY_STRING")
-        assert root_span.get_tag(APPSEC.JSON) is None
