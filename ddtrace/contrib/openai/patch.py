@@ -43,12 +43,7 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    # The requests integration sets a default service name of `requests` which hides
-    # the real response time of the request to OpenAI.
-    # FIXME: try to set a pin on the requests instance that the openAI library uses
-    #        so that we only override it for that instance.
-    #  Pin.clone(service="openai").onto(openai.web_....requests.ClientSession)
-    config.requests._default_service = None
+    wrap(openai, "api_requestor._make_session", patched_make_session(openai))
 
     if hasattr(openai.api_resources, "completion"):
         wrap(openai, "api_resources.completion.Completion.create", patched_completion_create(openai))
@@ -82,6 +77,13 @@ def unpatch():
     # E               AttributeError: 'method' object has no attribute '__get__'
     pass
 
+
+@trace_utils.with_traced_module
+def patched_make_session(openai, pin, func, instance, args, kwargs):
+    # override the default service name of requests patching
+    session = func()
+    pin.clone(service="openai").onto(session)
+    return session
 
 @trace_utils.with_traced_module
 def patched_completion_create(openai, pin, func, instance, args, kwargs):
@@ -271,7 +273,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
             attrs={
                 "prompt": prompt,
             },
-            tags=metric_tags
+            tags=metric_tags,
         )
     if resp and not kwargs.get("stream"):
         if "choices" in resp:
