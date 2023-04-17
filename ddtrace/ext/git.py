@@ -71,13 +71,13 @@ def is_ref_a_tag(ref):
     return "tags/" in ref if ref else False
 
 
-def _git_subprocess_cmd(cmd, cwd=None):
+def git_subprocess_cmd(cmd, cwd=None, std_in=None):
     # type: (str, Optional[str]) -> str
     """Helper for invoking the git CLI binary."""
     git_cmd = cmd.split(" ")
     git_cmd.insert(0, "git")
-    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-    stdout, stderr = process.communicate()
+    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
+    stdout, stderr = process.communicate(input=std_in)
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()
     raise ValueError(compat.ensure_text(stderr).strip())
@@ -87,7 +87,7 @@ def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    stdout = _git_subprocess_cmd("show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd)
+    stdout = git_subprocess_cmd("show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd)
     author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split(",")
     return {
         "author": (author_name, author_email, author_date),
@@ -96,26 +96,26 @@ def extract_user_info(cwd=None):
 
 
 def extract_remote_url(cwd=None):
-    remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
+    remote_url = git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
     return remote_url
 
 
 def extract_latest_commits(cwd=None):
-    latest_commits = _git_subprocess_cmd("log --format=%H -n 1000", cwd=cwd)
+    latest_commits = git_subprocess_cmd("log --format=%H -n 1000", cwd=cwd)
     return latest_commits.split("\n") if latest_commits else []
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
     exclusions = " ".join(["^%s" % sha for sha in commit_shas])
-    commits = _git_subprocess_cmd("rev-list --objects --filter=blob:none HEAD %s" % exclusions, cwd=cwd)
-    return commits.split("\n") if commits else []
+    commits = git_subprocess_cmd("rev-list --objects --filter=blob:none HEAD %s" % exclusions, cwd=cwd)
+    return commits
 
 
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
-    repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
+    repository_url = git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
 
@@ -123,28 +123,28 @@ def extract_commit_message(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
+    commit_message = git_subprocess_cmd("show -s --format=%s", cwd=cwd)
     return commit_message
 
 
 def extract_workspace_path(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the root directory path from the git repository in the current directory or one specified by ``cwd``."""
-    workspace_path = _git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
+    workspace_path = git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
     return workspace_path
 
 
 def extract_branch(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
-    branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
+    branch = git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
     return branch
 
 
 def extract_commit_sha(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
-    commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
+    commit_sha = git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
 
 

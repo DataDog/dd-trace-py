@@ -1,12 +1,15 @@
+import contextlib
 import json
-import logging
 from multiprocessing import Process
+import random
+import tempfile
 
 import tenacity
 
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
+from ddtrace.ext.git import git_subprocess_cmd
 
 from .. import compat
 from ..utils.http import Response
@@ -37,8 +40,9 @@ class CIVisibilityGitClient(object):
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(repo_url, latest_commits, serde)
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
-        packfiles = cls._build_packfiles(rev_list, cwd=cwd)
-        cls._upload_packfiles(packfiles)
+        if rev_list:
+            with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_path:
+                cls._upload_packfiles(packfiles_path)
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
@@ -80,8 +84,13 @@ class CIVisibilityGitClient(object):
         return get_rev_list_excluding_commits(excluded_commits, cwd=cwd)
 
     @classmethod
+    @contextlib.contextmanager
     def _build_packfiles(cls, revisions, cwd=None):
-        pass
+        basename = str(random.randint(1, 1000000))
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+            git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % path, cwd=cwd, std_in=revisions)
+            yield path
 
     @classmethod
     def _upload_packfiles(cls, packfiles):

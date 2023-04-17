@@ -1,4 +1,5 @@
 import contextlib
+import os
 import time
 
 import mock
@@ -159,11 +160,27 @@ def test_git_client_search_commits():
 def test_git_client_get_filtered_revisions(git_repo):
     excluded_commits = [TEST_SHA]
     filtered_revisions = CIVisibilityGitClient._get_filtered_revisions(excluded_commits, cwd=git_repo)
-    assert filtered_revisions == []
+    assert filtered_revisions == ""
 
 
-def test_git_client_build_packfiles():
-    pass
+def test_git_client_build_packfiles(git_repo):
+    found_rand = found_idx = found_pack = False
+    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+        assert packfiles_path
+        directory, rand = packfiles_path.rsplit("/", maxsplit=1)
+        assert os.path.isdir(directory)
+        for filename in os.listdir(directory):
+            if rand in filename:
+                found_rand = True
+                if filename.endswith(".idx"):
+                    found_idx = True
+                elif filename.endswith(".pack"):
+                    found_pack = True
+            if found_rand and found_idx and found_pack:
+                break
+        else:
+            pytest.fail()
+    assert not os.path.isdir(directory)
 
 
 def test_git_client_upload_packfiles():
