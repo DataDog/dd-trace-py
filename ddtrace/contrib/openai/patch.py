@@ -21,6 +21,7 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "logs_sample_rate": float(os.getenv("DD_OPENAI_SAMPLE_COMPLETIONS_LOGS", 0.1)),
         "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
         "_default_service": "openai",
     },
@@ -84,6 +85,7 @@ def patched_make_session(openai, pin, func, instance, args, kwargs):
     session = func()
     pin.clone(service="openai").onto(session)
     return session
+
 
 @trace_utils.with_traced_module
 def patched_completion_create(openai, pin, func, instance, args, kwargs):
@@ -240,6 +242,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
         span.set_tag_str("model", model)
 
     sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
+    sample_log = random.randrange(100) < (config.openai.logs_sample_rate * 100)
 
     prompt = kwargs.get("prompt")
     if sample_prompt_completion:
@@ -268,7 +271,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
         _openai_log(
-            "info" if error is None else "error",
+            "error",
             "openai error",
             attrs={
                 "prompt": prompt,
@@ -294,9 +297,9 @@ def _completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-        if sample_prompt_completion:
+        if span.sampled and sample_log:
             _openai_log(
-                "info" if error is None else "error",
+                "info",
                 "sampled completion",
                 tags=metric_tags,
                 attrs={
@@ -335,6 +338,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         span.set_tag_str("model", model)
 
     sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
+    sample_log = random.randrange(100) < (config.openai.logs_sample_rate * 100)
 
     messages = kwargs.get("messages")
     if sample_prompt_completion:
@@ -402,7 +406,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-        if sample_prompt_completion:
+        if span.sampled and sample_log:
             _openai_log(
                 "info" if error is None else "error",
                 "sampled chat completion",
