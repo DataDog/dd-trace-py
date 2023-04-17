@@ -358,10 +358,53 @@ class PymemcacheClientConfiguration(TracerTestCase):
         self.assertEqual(spans[0].service, "mysvc2")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_user_specified_service_default(self):
         """
+        In the default naming schema (v0) -
         When a user specifies a service for the app
-            The pymemcache integration should not use it.
+            The pymemcache integration **should not** use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.pop()
+
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", SPAN_ATTRIBUTE_SCHEMA_VERSIONS='v0'))
+    def test_user_specified_service_v0(self):
+        """
+        In the v0 naming schema -
+        When a user specifies a service for the app
+            The pymemcache integration **should not** use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.pop()
+
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", SPAN_ATTRIBUTE_SCHEMA_VERSIONS='v1'))
+    def test_user_specified_service_v1(self):
+        """
+        In the v1 naming schema -
+        When a user specifies a service for the app
+            The pymemcache integration **should** use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
