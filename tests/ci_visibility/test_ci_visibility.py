@@ -126,8 +126,9 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
-def test_git_client_get_latest_commits():
-    pass
+def test_git_client_get_latest_commits(git_repo):
+    latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
+    assert latest_commits == ["b3672ea5cbc584124728c48a443825d2940e0ddd"]
 
 
 def test_git_client_search_commits():

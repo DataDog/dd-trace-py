@@ -100,6 +100,11 @@ def extract_remote_url(cwd=None):
     return remote_url
 
 
+def extract_latest_commits(cwd=None):
+    latest_commits = _git_subprocess_cmd("log --format=%H -n 1000", cwd=cwd)
+    return latest_commits.split("\n")
+
+
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
