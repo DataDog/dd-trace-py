@@ -265,7 +265,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
-    if resp:
+    if resp and not kwargs.get("stream"):
         if "choices" in resp:
             choices = resp["choices"]
             span.set_tag("response.choices.num", len(choices))
@@ -360,7 +360,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
-    if resp:
+    if resp and not kwargs.get("stream"):
         if "choices" in resp:
             choices = resp["choices"]
             completions = choices

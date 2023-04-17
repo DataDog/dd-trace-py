@@ -170,6 +170,7 @@ def test_integration_sync():
 
     _logs_writer.periodic()
 
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.subprocess(ddtrace_run=True)
@@ -207,4 +208,3 @@ def test_integration_async():
     from ddtrace.contrib.openai._log import _logs_writer
 
     _logs_writer.periodic()
-
