@@ -1,10 +1,11 @@
 import bm
 import bm.utils as utils
 
+from ddtrace import config
 from ddtrace import tracer
 
+
 utils.drop_traces(tracer)
-from ddtrace import config
 
 
 class Span(bm.Scenario):
