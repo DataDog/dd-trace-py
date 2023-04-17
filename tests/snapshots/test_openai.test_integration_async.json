@@ -1,0 +1,41 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "openai",
+    "resource": "chat.completions/gpt-3.5-turbo",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "model": "gpt-3.5-turbo",
+      "request.messages.0.content": "Write a hello world program in python",
+      "request.messages.0.role": "user",
+      "request.model": "gpt-3.5-turbo",
+      "response.choices.0.finish_reason": "stop",
+      "response.choices.0.logprobs": "None",
+      "response.choices.0.message.content": "print(\"Hello, world!\")",
+      "response.choices.0.message.role": "assistant",
+      "response.id": "chatcmpl-76SQbAvXS7vcOnmjkIqENKWDZg9LN",
+      "response.object": "chat.completion",
+      "runtime-id": "35cb2d089be9430382aa22ea30650b1b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7251,
+      "response.choices.num": 1,
+      "response.usage.completion_tokens": 6,
+      "response.usage.prompt_tokens": 15,
+      "response.usage.total_tokens": 21
+    },
+    "duration": 10901000,
+    "start": 1681774310906044000
+  }]]

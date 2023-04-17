@@ -46,9 +46,6 @@ class FilterOrg(TraceFilter):
 
 @pytest.fixture(autouse=True)
 def patch_openai():
-    # FIXME: aiohttp spans are not being generated in these tests, it looks like they should be
-    #        as a new aiohttp session is created for each request (which should get instrumented).
-    #        The __init__ wrapped is called but the _request one is not...
     patch(openai=True)
     pin = Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
