@@ -53,3 +53,22 @@ class TestPatching(SubprocessTestCase):
     def test_patch_all_env_override_httplib_enabled(self):
         _monkey.patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess()
+    def test_patch_exception_on_import(self):
+        # Manual patching should not be affected by the environment variable override.
+        import sqlite3
+
+        del sqlite3.connect
+
+        with self.assertRaises(AttributeError):
+            _monkey.patch(raise_errors=True, sqlite3=True)
+
+    @run_in_subprocess()
+    def test_patch_exception_on_import_no_raise(self):
+        # Manual patching should not be affected by the environment variable override.
+        import sqlite3
+
+        del sqlite3.connect
+
+        _monkey.patch(raise_errors=False, sqlite3=True)
