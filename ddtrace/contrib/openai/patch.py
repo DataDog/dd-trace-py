@@ -263,12 +263,8 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if openai.organization:
         metric_tags.append("organization:%s" % openai.organization)
 
-    completions = ""
-
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        if isinstance(error, openai.error.OpenAIError):
-            span.set_tag_str("request.error", error.__class__.__name__)
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "choices" in resp:
@@ -360,8 +356,6 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        if isinstance(error, openai.error.OpenAIError):
-            span.set_tag_str("request.error", error.__class__.__name__)
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "choices" in resp:
@@ -427,8 +421,6 @@ def _embedding_create(openai, pin, instance, args, kwargs):
         metric_tags.append("organization:%s" % openai.organization)
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        if isinstance(error, openai.error.OpenAIError):
-            span.set_tag_str("request.error", error.__class__.__name__)
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "data" in resp:
