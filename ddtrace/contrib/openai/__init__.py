@@ -1,5 +1,10 @@
 """
-The OpenAI integration instruments the OpenAI Python library.
+The OpenAI integration instruments the OpenAI Python library to emit metrics,
+traces and logs for requests made to the OpenAI completions, chat completions
+and embeddings endpoints.
+
+The OpenAI integration integrates well with the Requests and AIOHTTP ddtrace
+integrations which show the underlying HTTP requests made to OpenAI.
 
 
 Enabling
@@ -12,6 +17,13 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(openai=True)
+
+    # or if doing synchronous requests (the default)
+    patch(openai=True, requests=True)
+
+    # or if doing asynchronous requests
+    # patch(openai=True, aiohttp=True)
+
 
 
 Global Configuration
@@ -40,16 +52,6 @@ Global Configuration
    Default: ``False``
 
 
-.. py:data:: ddtrace.config.openai["prompt_completion_sample_rate"]
-
-   Configure the sample rate for the collection of prompts and completions as logs.
-
-   This option can also be set with the ``DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
-
-
 .. py:data:: ddtrace.config.openai["metrics_enabled"]
 
    Enable collection of OpenAI metrics.
@@ -62,6 +64,16 @@ Global Configuration
    variable.
 
    Default: ``True``
+
+
+.. py:data:: ddtrace.config.openai["prompt_completion_sample_rate"]
+
+   Configure the sample rate for the collection of prompts and completions as logs.
+
+   This option can also be set with the ``DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   variable.
+
+   Default: ``1.0``
 
 
 Instance Configuration

@@ -1,0 +1,71 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Write
+      a hello world program in python"}]}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.4
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.4", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.11", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-76SQbAvXS7vcOnmjkIqENKWDZg9LN","object":"chat.completion","created":1681773601,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":15,"completion_tokens":6,"total_tokens":21},"choices":[{"message":{"role":"assistant","content":"print(\"Hello,
+        world!\")"},"finish_reason":"stop","index":0}]}
+
+        '
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7b9865715f413bab-BOS
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Apr 2023 23:20:02 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - _cfuvid=vtdG5xcWZGY6I0e.nsaiEAoh6zY6vxXZohKhNiZn4UQ-1681773602162-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - user-f23xvdxbrssd56y1ghcjdcue
+      openai-processing-ms:
+      - '511'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3'
+      x-ratelimit-remaining-requests:
+      - '2'
+      x-ratelimit-reset-requests:
+      - 20s
+      x-request-id:
+      - fefbc406134b6e5316432dbfae658ea6
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/chat/completions
+version: 1

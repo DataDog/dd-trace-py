@@ -14,6 +14,8 @@ def stats_client():
     if _statsd is None and config.openai.metrics_enabled:
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
+        # Ideally the metrics client should live on the tracer or some other core
+        # object that is strongly linked with configuration.
 
         # FIXME: the dogstatsd client doesn't support multi-threaded usage
         _statsd = get_dogstatsd_client(

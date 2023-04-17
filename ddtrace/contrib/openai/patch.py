@@ -81,9 +81,13 @@ def unpatch():
 
 @trace_utils.with_traced_module
 def patched_make_session(openai, pin, func, instance, args, kwargs):
-    # override the default service name of requests patching
+    """Patch for `openai.api_requestor._make_session` which sets the service name on the
+    requests session so that spans from the requests integration will use the same service
+    as this integration. This is done so that the service break down will include the actual
+    time spent querying the OpenAI backend.
+    """
     session = func()
-    pin.clone(service="openai").onto(session)
+    pin.clone().onto(session)
     return session
 
 
@@ -284,10 +288,10 @@ def _completion_create(openai, pin, instance, args, kwargs):
             span.set_tag("response.choices.num", len(choices))
             for choice in choices:
                 idx = choice["index"]
-                if choice.get("finish_reason"):
-                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                if choice.get("logprobs"):
-                    span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
+                if "finish_reason" in choice:
+                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice["finish_reason"])
+                if "logprobs" in choice:
+                    span.set_tag("response.choices.%d.logprobs" % idx, choice["logprobs"])
                 if sample_prompt_completion:
                     span.set_tag("response.choices.%d.text" % idx, _process_text(choice.get("text")))
         span.set_tag("response.id", resp["id"])
@@ -476,6 +480,8 @@ def _usage_metrics(usage, metrics_tags):
 
 
 def _process_text(text):
+    if not text:
+        return text
     text = " ".join(text.split())
     if len(text) > config.openai.truncation_threshold:
         text = text[: config.openai.truncation_threshold] + "<TRUNC>"
