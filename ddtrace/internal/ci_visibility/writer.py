@@ -12,9 +12,25 @@ from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
+from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_ENDPOINT
 from .encoder import CIVisibilityEncoderV01
+
+
+class CIVisibilityEventClient(WriterClientBase):
+    def __init__(self, endpoint):
+        encoder = CIVisibilityEncoderV01(0, 0)
+        encoder.set_metadata(
+            {
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
+        super(CIVisibilityEventClient, self).__init__(encoder)
+        self.ENDPOINT = endpoint
 
 
 class CIVisibilityWriter(HTTPWriter):
@@ -39,25 +55,13 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.datadoghq.com"
-        encoder = CIVisibilityEncoderV01(0, 0)
-        encoder.set_metadata(
-            {
-                "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
-            }
-        )
-
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
-
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            endpoint=endpoint or AGENTLESS_ENDPOINT,
-            encoder=encoder,
+            clients=[CIVisibilityEventClient(endpoint or AGENTLESS_ENDPOINT)],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
