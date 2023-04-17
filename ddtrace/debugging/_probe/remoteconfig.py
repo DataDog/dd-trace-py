@@ -183,7 +183,6 @@ def probe_factory(attribs):
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # unused
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             value=_compile_expression(attribs.get("value")),
         )
@@ -196,7 +195,6 @@ def probe_factory(attribs):
             version=attribs.get("version", 0),
             condition=_compile_expression(attribs.get("when")),
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 

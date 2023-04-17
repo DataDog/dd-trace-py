@@ -70,18 +70,6 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
     probe_id = attr.ib(type=str)
     version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
-    rate = attr.ib(type=float, eq=False)
-    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
-
-    @limiter.default
-    def _(self):
-        return RateLimiter(
-            limit_rate=self.rate,
-            tau=1.0 / self.rate if self.rate else 1.0,
-            on_exceed=lambda: log.warning("Rate limit exceeeded for %r", self),
-            call_once=True,
-            raise_on_exceed=False,
-        )
 
     def update(self, other):
         # type: (Probe) -> None
@@ -98,6 +86,22 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 
     def __hash__(self):
         return hash(self.probe_id)
+
+
+@attr.s
+class RateLimitMixin(six.with_metaclass(abc.ABCMeta)):
+    rate = attr.ib(type=float, eq=False)
+    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
+
+    @limiter.default
+    def _(self):
+        return RateLimiter(
+            limit_rate=self.rate,
+            tau=1.0 / self.rate if self.rate else 1.0,
+            on_exceed=lambda: log.warning("Rate limit exceeeded for %r", self),
+            call_once=True,
+            raise_on_exceed=False,
+        )
 
 
 @attr.s
@@ -219,12 +223,12 @@ class LogProbeMixin(object):
 
 
 @attr.s
-class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin):
+class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
 @attr.s
-class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin):
+class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
