@@ -106,6 +106,8 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag(_SESSION_ID, test_suite_span.trace_id)
     test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
     if isinstance(item.parent.parent, pytest.Package):
+        test_module_span = _extract_span(item.parent.parent)
+        test_suite_span.set_tag(_MODULE_ID, test_module_span.span_id)
         test_suite_span.set_tag_str(test.MODULE, item.parent.parent.name)
     test_suite_span.set_tag_str(test.BUNDLE, "")
     test_suite_span.set_tag_str(test.SUITE, item.parent.module.__name__)

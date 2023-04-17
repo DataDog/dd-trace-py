@@ -789,6 +789,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert spans[1].get_tag("type") == "test_suite_end"
         assert spans[1].get_tag("test_session_id") == str(spans[0].trace_id)
+        assert spans[1].get_tag("test_module_id") is None
         assert spans[1].get_tag("test_suite_id") == str(spans[1].span_id)
         assert spans[1].get_tag("test.bundle") == ""
         assert spans[1].get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
@@ -883,6 +884,7 @@ class PytestTestCase(TracerTestCase):
         assert spans[4].parent_id == spans[0].span_id
         assert spans[5].name == "pytest.test_suite"
         assert spans[5].parent_id == spans[4].span_id
+        assert spans[5].get_tag("test_module_id") == str(spans[4].span_id)
         assert spans[6].name == "pytest.test"
         assert spans[6].parent_id == spans[5].span_id
 
@@ -914,6 +916,7 @@ class PytestTestCase(TracerTestCase):
         assert spans[1].parent_id == spans[0].span_id
         assert spans[2].name == "pytest.test_suite"
         assert spans[2].parent_id == spans[1].span_id
+        assert spans[2].get_tag("test_module_id") == str(spans[1].span_id)
         assert spans[3].name == "pytest.test"
         assert spans[3].parent_id == spans[2].span_id
 
