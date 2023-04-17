@@ -9,6 +9,7 @@ import time
 from typing import List
 
 import attr
+import pkg_resources
 import pytest
 
 import ddtrace
@@ -1075,3 +1076,12 @@ def request_token(request):
     token += ".%s" % request.cls.__name__ if request.cls else ""
     token += ".%s" % request.node.name
     return token
+
+
+def package_installed(package_name):
+    try:
+        pkg_resources.get_distribution(package_name)
+    except pkg_resources.DistributionNotFound:
+        return False
+    else:
+        return True
