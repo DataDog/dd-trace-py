@@ -9,7 +9,9 @@ from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
+from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerDeV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests import utils
 from tests.utils import DummyCIVisibilityWriter
@@ -105,17 +107,21 @@ def test_repository_name_not_extracted_warning():
 
 
 def test_git_client_worker(git_repo):
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana")):
         dummy_tracer = DummyTracer()
-        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
         start_time = time.time()
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
-            ggr.return_value = git_repo
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-            shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
-            assert CIVisibility._instance._git_client is not None
-            assert CIVisibility._instance._git_client._worker is not None
-            CIVisibility.disable()
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request"
+            ) as _do_request:
+                dummy_response = Response(status=200, body='{"data": []}')
+                _do_request.return_value = dummy_response
+                ggr.return_value = git_repo
+                CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+                assert CIVisibility._instance._git_client is not None
+                assert CIVisibility._instance._git_client._worker is not None
+                CIVisibility.disable()
+    shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
     assert (
         time.time() - start_time <= shutdown_timeout + 0.1
     ), "CIVisibility.disable() should not block for longer than tracer timeout"
@@ -134,7 +140,13 @@ def test_git_client_get_latest_commits(git_repo):
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = ["b3672ea5cbc584124728c48a443825d2940e0ddd"]
-    backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits)
+    serde = CIVisibilityGitClientSerDeV1("foo", "bar")
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as _do_request:
+        dummy_response = Response(
+            status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % latest_commits[0]
+        )
+        _do_request.return_value = dummy_response
+        backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits, serde)
     assert latest_commits[0] in backend_commits
 
 

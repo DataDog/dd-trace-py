@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -47,15 +48,25 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
+        api_key = os.environ.get("DD_API_KEY")
+        if not api_key:
+            raise ValueError("Required environment variable DD_API_KEY not defined")
         if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
-            writer = CIVisibilityWriter()
+            writer = CIVisibilityWriter(headers={"dd-api-key": api_key})
             self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
 
-        self._git_client = CIVisibilityGitClient()
+        self._git_client = None
+        app_key = os.environ.get("DD_APPLICATION_KEY")
+        if app_key is None:
+            log.warning(
+                "Environment variable DD_APPLICATION_KEY not set, which is required for CI Visibility reporting"
+            )
+        else:
+            self._git_client = CIVisibilityGitClient(api_key=api_key, app_key=app_key)
 
         int_service = None
         if self.config is not None:
@@ -113,11 +124,13 @@ class CIVisibility(Service):
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(settings={"FILTERS": tracer_filters})
-        self._git_client.start(cwd=_get_git_repo())
+        if self._git_client is not None:
+            self._git_client.start(cwd=_get_git_repo())
 
     def _stop_service(self):
         # type: () -> None
-        self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+        if self._git_client is not None:
+            self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:
             self.tracer.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         except Exception:
