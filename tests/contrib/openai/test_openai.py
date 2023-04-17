@@ -169,3 +169,42 @@ def test_integration_sync():
     from ddtrace.contrib.openai._log import _logs_writer
 
     _logs_writer.periodic()
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_integration_async():
+    """OpenAI uses requests for its synchronous requests.
+
+    Running in a subprocess with ddtrace-run should produce traces
+    with both OpenAI and requests spans.
+    """
+    import os
+    import sys
+
+    import openai
+
+    import ddtrace
+
+    # TODO: need this to be able to import the vcr, maybe do this for all
+    #       subprocess tests?
+    tests_path = os.path.dirname(os.path.dirname(ddtrace.__file__))
+    sys.path.insert(0, tests_path)
+    from tests.contrib.openai.openai_vcr import openai_vcr
+
+    pin = ddtrace.Pin.get_from(openai)
+    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+
+    with openai_vcr.use_cassette("achat_completion_2.yaml"):
+        openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Write a hello world program in python"},
+            ],
+        )
+
+    # FIXME: find out why logs aren't being flushed at process exit
+    from ddtrace.contrib.openai._log import _logs_writer
+
+    _logs_writer.periodic()
+

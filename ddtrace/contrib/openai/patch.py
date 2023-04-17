@@ -21,7 +21,7 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        # TODO: truncate threshold on prompts/completions
+        "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
         "_default_service": "openai",
     },
 )
@@ -452,8 +452,8 @@ def _usage_metrics(usage, metrics_tags):
         stats_client().distribution(name, num_tokens, tags=metrics_tags)
 
 
-def _process_text(text, truncate=512):
+def _process_text(text):
     text = " ".join(text.split())
-    if len(text) > truncate:
-        text = text[: truncate - 14] + "[TRUNCATED...]"
+    if len(text) > config.openai.truncation_threshold:
+        text = text[: config.openai.truncation_threshold] + "<TRUNC>"
     return text
