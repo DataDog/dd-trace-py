@@ -331,8 +331,8 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
         def set_message_tag(message):
             content = _process_text(message.get("content"))
             role = _process_text(message.get("role"))
-            span.set_tag_str("request.message.%d.content" % idx, content)
-            span.set_tag_str("request.message.%d.role" % idx, role)
+            span.set_tag_str("request.messages.%d.content" % idx, content)
+            span.set_tag_str("request.messages.%d.role" % idx, role)
 
         if isinstance(messages, list):
             for idx, message in enumerate(messages):
