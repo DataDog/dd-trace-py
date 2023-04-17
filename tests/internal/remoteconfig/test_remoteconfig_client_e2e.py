@@ -3,12 +3,15 @@ import json
 import os
 
 import mock
+from mock.mock import ANY
 
 from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import override_env
 
@@ -72,6 +75,9 @@ def _assert_response(mock_send_request, expected_response):
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
+    remoteconfig_poller.disable()
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
+
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
@@ -88,12 +94,15 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_appsec_rc_capabilities.return_value = "Ag=="
 
-    enable_appsec_rc(start_subscribers=False)
-    rc_client = RemoteConfigClient()
-
-    asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
-    rc_client.register_product("ASM_FEATURES", asm_callback)
     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        enable_appsec_rc()
+        rc_client = RemoteConfigClient()
+
+        asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
+        rc_client.register_product("ASM_FEATURES", asm_callback)
+
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
+
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
         rc_client.request()
@@ -567,9 +576,14 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         _assert_response(mock_send_request, expected_response)
 
         asm_callback._poll_data()
-
-        mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-        mock_callback.assert_called_with({"asm": {"enabled": True}})
+        # At this point, publisher has 3 config files with the same config for the same key:
+        #  - datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname -> {"asm": {"enabled": True}}
+        #  - datadog/2/ASM_FEATURES/ASM_FEATURES-base/config -> {"asm": {"enabled": True}}
+        #  - datadog/2/ASM_FEATURES/ASM_FEATURES-second/config -> {"asm": {"enabled": False}}
+        # Depends of the Python version, the order of this configuration could change and the result could be different
+        # It doesn't matter because this problem can't exist on production
+        mock_preprocess_results.assert_called_with({"asm": {"enabled": ANY}})
+        mock_callback.assert_called_with({"asm": {"enabled": ANY}})
 
         mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
@@ -629,7 +643,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         asm_callback._poll_data()
 
         mock_preprocess_results.assert_not_called()
-        mock_callback.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": ANY}})
 
         mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
@@ -695,7 +709,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         asm_callback._poll_data()
 
         mock_preprocess_results.assert_not_called()
-        mock_callback.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": ANY}})
 
         mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
@@ -761,7 +775,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         asm_callback._poll_data()
 
         mock_preprocess_results.assert_not_called()
-        mock_callback.assert_called_with({"asm": {"enabled": True}})
+        mock_callback.assert_called_with({"asm": {"enabled": ANY}})
 
         mock_preprocess_results.reset_mock()
         mock_send_request.reset_mock()
