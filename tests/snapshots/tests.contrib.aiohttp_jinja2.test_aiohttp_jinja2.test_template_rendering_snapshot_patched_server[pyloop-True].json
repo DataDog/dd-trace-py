@@ -13,10 +13,11 @@
       "component": "aiohttp",
       "http.method": "GET",
       "http.status_code": "200",
-      "http.url": "http://127.0.0.1:54378/template/",
+      "http.url": "http://127.0.0.1:58767/template/",
       "http.useragent": "Python/3.6 aiohttp/3.8.3",
       "language": "python",
-      "runtime-id": "97da340f246646cdb7197748b6ba69c7"
+      "runtime-id": "7fd5e3b1eea443a3a794aafc5862cc64",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,8 +27,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 7893
     },
-    "duration": 858000,
-    "start": 1666811114211023000
+    "duration": 871000,
+    "start": 1667240484815062000
   },
      {
        "name": "aiohttp.template",
@@ -42,6 +43,6 @@
          "aiohttp.template": "/template.jinja2",
          "component": "aiohttp_jinja2"
        },
-       "duration": 539000,
-       "start": 1666811114211123000
+       "duration": 559000,
+       "start": 1667240484815153000
      }]]

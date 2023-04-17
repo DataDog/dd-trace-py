@@ -4,7 +4,12 @@ import sys
 
 import pytest
 
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._input_info import Input_info
+
+
+def setup():
+    oce._enabled = True
 
 
 @pytest.mark.parametrize(
@@ -50,8 +55,10 @@ def test_add_aspect_type_error(obj1, obj2):
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
         ("Hello ", "world", True),
-        (b"bye ", b"bye ", True),
-        ("🙀", "🙀", True),
+        (b"bye ", b"".join((b"bye", b" ")), True),
+        ("🙀", "".join(("🙀", "")), True),
+        ("a", "a", True),
+        (b"a", b"a", True),
         (b"Hi", b"", True),
         (b"Hi ", b" world", True),
         (["a"], ["b"], False),
@@ -62,7 +69,7 @@ def test_add_aspect_type_error(obj1, obj2):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
@@ -72,18 +79,15 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        new_obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
-        assert obj1 is not new_obj1
-    else:
-        new_obj1 = obj1
+        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
 
-    result = ddtrace_aspects.add_aspect(new_obj1, obj2)
-    assert result == new_obj1 + obj2
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+    assert result == obj1 + obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
-        assert result is not new_obj1 + obj2
+        assert result is not obj1 + obj2
     assert is_pyobject_tainted(result) == should_be_tainted
     if should_be_tainted:
-        assert get_tainted_ranges(result) == get_tainted_ranges(new_obj1)
+        assert get_tainted_ranges(result) == get_tainted_ranges(obj1)
 
 
 @pytest.mark.parametrize(
@@ -91,7 +95,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     [
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
-        (u"Hello ", u"world", True),
+        ("Hello ", "world", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
@@ -103,7 +107,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
@@ -124,7 +128,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     assert is_pyobject_tainted(result) == should_be_tainted
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
         tainted_ranges = get_tainted_ranges(result)
-        assert type(tainted_ranges) is list
+        assert type(tainted_ranges) is tuple
         assert all(type(c) is tuple for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:

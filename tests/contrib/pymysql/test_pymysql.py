@@ -69,6 +69,7 @@ class PyMySQLCore(object):
         assert span.error == 0
         assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
         assert span.get_tag("component") == "pymysql"
+        assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "mysql"
         meta = {}
         meta.update(self.DB_INFO)
@@ -93,6 +94,7 @@ class PyMySQLCore(object):
             assert span.error == 0
             assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
             assert span.get_tag("component") == "pymysql"
+            assert span.get_tag("span.kind") == "client"
             assert span.get_tag("db.system") == "mysql"
             meta = {}
             meta.update(self.DB_INFO)

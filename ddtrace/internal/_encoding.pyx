@@ -244,6 +244,11 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
+        if len(string) > self.max_size:
+            string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
+                len(string), self.max_size
+            )
+
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
                 "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
@@ -599,7 +604,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         if ret == 0:
             ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
             if ret != 0: return ret
-            ret = pack_number(&self.pk, span.trace_id)
+            ret = pack_number(&self.pk, span._trace_id_64bits)
             if ret != 0: return ret
 
             if has_parent_id:
@@ -713,7 +718,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = self._pack_string(span.resource)
         if ret != 0: return ret
 
-        _ = span.trace_id
+        _ = span._trace_id_64bits
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         

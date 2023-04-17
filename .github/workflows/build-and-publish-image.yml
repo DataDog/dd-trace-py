@@ -29,10 +29,13 @@ jobs:
     - name: Set up Docker Buildx
       id: buildx
       uses: docker/setup-buildx-action@v2
+      with:
+        # Images after this version (>=v0.10) are incompatible with gcr and aws.
+        version: v0.9.1  # https://github.com/docker/buildx/issues/1533
     - name: Login to Docker
       run: docker login -u publisher -p ${{ secrets.token }} ghcr.io
     - name: Docker Build
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@v4
       with:
         push: true
         tags: ${{ inputs.tags }}

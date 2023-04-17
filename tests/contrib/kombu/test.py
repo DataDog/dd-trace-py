@@ -81,6 +81,7 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(producer_span.get_tag("kombu.routing_key"), u"tasks")
         self.assertEqual(producer_span.resource, "tasks")
         self.assertEqual(producer_span.get_tag("component"), "kombu")
+        self.assertEqual(producer_span.get_tag("span.kind"), "producer")
 
         consumer_span = spans[1]
         assert_is_measured(consumer_span)
@@ -91,6 +92,7 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.get_tag("kombu.exchange"), u"tasks")
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), u"tasks")
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
+        self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
 
     def test_analytics_default(self):
         self._publish_consume()

@@ -432,17 +432,9 @@ def extract_teamcity(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Teamcity environ."""
     return {
-        git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
-        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
-        PIPELINE_ID: env.get("BUILD_ID"),
-        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
-        PIPELINE_URL: (
-            "{0}/viewLog.html?buildId={1}".format(env.get("SERVER_URL"), env.get("BUILD_ID"))
-            if env.get("SERVER_URL") and env.get("BUILD_ID")
-            else None
-        ),
+        JOB_URL: env.get("BUILD_URL"),
+        JOB_NAME: env.get("TEAMCITY_BUILDCONF_NAME"),
         PROVIDER_NAME: "teamcity",
-        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
     }
 
 

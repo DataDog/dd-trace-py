@@ -13,7 +13,8 @@
       "component": "psycopg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "4165259776d24f23aae066cf1adfca38"
+      "runtime-id": "1b018a1ff6344b3a95773b9b631c4ada",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,6 +24,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 98154
     },
-    "duration": 9097000,
-    "start": 1650568907426444000
+    "duration": 5834000,
+    "start": 1667243098505239000
   }]]

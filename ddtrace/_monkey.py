@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
-from .constants import IAST_ENV
+from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
@@ -40,6 +40,7 @@ PATCH_MODULES = {
     "graphql": True,
     "grpc": True,
     "httpx": True,
+    "kafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -115,9 +116,11 @@ _MODULES_FOR_CONTRIB = {
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
-    "futures": ("concurrent.futures",),
+    "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "httplib": ("httplib" if PY2 else "http.client",),
+    "kafka": ("confluent_kafka",),
 }
 
 IAST_PATCH = {
@@ -147,7 +150,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except ImportError:
+        except Exception:
             if raise_errors:
                 raise
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
@@ -197,7 +200,7 @@ def patch_iast(**patch_modules):
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    iast_enabled = config._iast_enabled
     if iast_enabled:
         # TODO: Devise the correct patching strategy for IAST
         for module in (m for m, e in patch_modules.items() if e):
@@ -227,7 +230,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+            when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors))
 
         # manually add module to patched modules
         with _LOCK:

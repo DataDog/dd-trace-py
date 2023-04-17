@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: This fix resolves an issue where existing signals were wrapped multiple times.

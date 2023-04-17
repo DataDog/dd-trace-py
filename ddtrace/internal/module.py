@@ -409,7 +409,12 @@ class ModuleWatchdog(dict):
         self._finding.add(fullname)
 
         try:
-            spec = find_spec(fullname)
+            try:
+                # Best effort
+                spec = find_spec(fullname)
+            except Exception:
+                return None
+
             if spec is None:
                 return None
 

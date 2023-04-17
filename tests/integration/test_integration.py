@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 
 import mock
 import pytest
@@ -11,7 +12,11 @@ import six
 
 import ddtrace
 from ddtrace import Tracer
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from tests.utils import AnyExc
@@ -143,7 +148,7 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
@@ -185,6 +190,24 @@ def test_payload_too_large(encoding, monkeypatch):
         ]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
+
+
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
+def test_resource_name_too_large(monkeypatch):
+    SIZE = 1 << 12  # 4KB
+    monkeypatch.setenv("DD_TRACE_API_VERSION", "v0.5")
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(SIZE))
+
+    t = Tracer()
+    assert t._writer._buffer_size == SIZE
+    s = t.trace("operation", service="foo")
+    s.resource = "B" * (SIZE + 1)
+    try:
+        s.finish()
+    except ValueError:
+        pytest.fail()
+    encoded_spans = t._writer._encoder.encode()
+    assert b"<dropped string of length 4097 because it's too long (max allowed length 4096)>" in encoded_spans
 
 
 @allencodings
@@ -230,7 +253,6 @@ def test_metrics(encoding, monkeypatch):
         assert t._partial_flush_min_spans == 500
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -270,7 +292,6 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
         )
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -355,7 +376,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
             1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
@@ -405,35 +426,96 @@ def test_writer_headers(encoding, monkeypatch):
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
+    # Send the data once because the agent doesn't respond with them on the
+    # first payload.
+    s = t.trace("operation", service=service)
+    s.finish()
+    t.flush()
+
+    sampler_key = "service:{},env:{}".format(service, env)
+    while sampler_key not in t._writer._priority_sampler._by_service_samplers:
+        time.sleep(1)
+        s = t.trace("operation", service=service)
+        s.finish()
+        t.flush()
+
+
+def _turn_tracer_into_dummy(tracer):
+    """Override tracer's writer's write() method to keep traces instead of sending them away"""
+
+    def monkeypatched_write(self, spans=None):
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+            self.spans += spans
+            self.traces += traces
+
+    tracer._writer.spans = []
+    tracer._writer.traces = []
+    tracer._writer.json_encoder = JSONEncoder()
+    tracer._writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+    tracer._writer.write = monkeypatched_write.__get__(tracer._writer, AgentWriter)
+
+
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
 def test_priority_sampling_response(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
-    # Send the data once because the agent doesn't respond with them on the
-    # first payload.
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.flush()
+    _id = time.time()
+    env = "my-env-{}".format(_id)
+    with override_global_config(dict(env=env)):
+        service = "my-svc-{}".format(_id)
+        sampler_key = "service:{},env:{}".format(service, env)
+        t = Tracer()
+        assert sampler_key not in t._writer._priority_sampler._by_service_samplers
+        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+        assert sampler_key in t._writer._priority_sampler._by_service_samplers
+        t.shutdown()
 
-    # If a previous test has run then the agent might reply immediately
-    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
-        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
-        import time
 
-        time.sleep(5)
-        with t.trace("operation", service="my-svc") as s:
-            s.set_tag("env", "my-env")
+@allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
+def test_priority_sampling_rate_honored(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+
+    _id = time.time()
+    env = "my-env-{}".format(_id)
+    with override_global_config(dict(env=env)):
+        service = "my-svc-{}".format(_id)
+        t = Tracer()
+
+        # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
+        for i in range(100):
+            s = t.trace("operation", service="dummysvc{}".format(i))
+            s.finish()
         t.flush()
 
-        # Agent will now reply with the sampling rates
-        with t.trace("operation", service="my-svc") as s:
-            s.set_tag("env", "my-env")
-    t.shutdown()
-    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
+        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+        sampler_key = "service:{},env:{}".format(service, env)
+        assert sampler_key in t._writer._priority_sampler._by_service_samplers
+
+        rate_from_agent = t._writer._priority_sampler._by_service_samplers[sampler_key].sample_rate
+        assert 0 < rate_from_agent < 1
+
+        _turn_tracer_into_dummy(t)
+        captured_span_count = 100
+        for _ in range(captured_span_count):
+            with t.trace("operation", service=service) as s:
+                pass
+            t.flush()
+        assert len(t._writer.traces) == captured_span_count
+        sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
+        sampled_ratio = len(sampled_spans) / captured_span_count
+        diff_magnitude = abs(sampled_ratio - rate_from_agent)
+        assert (
+            diff_magnitude < 0.3
+        ), "the proportion of sampled spans should approximate the sample rate given by the agent"
+
+        t.shutdown()
 
 
 def test_bad_endpoint():
@@ -446,7 +528,7 @@ def test_bad_endpoint():
         t.shutdown()
     calls = [
         mock.call(
-            "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
+            "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
             t._writer.agent_url,
@@ -478,7 +560,7 @@ def test_bad_payload():
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -511,7 +593,7 @@ def test_bad_payload_log_payload(monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -555,7 +637,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
             "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
@@ -689,7 +771,7 @@ s2.finish()
         [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
-        p.wait(timeout=2)
+        p.wait(timeout=10)
     except TypeError:
         # timeout argument added in Python 3.3
         p.wait()

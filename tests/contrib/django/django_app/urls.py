@@ -47,13 +47,6 @@ def shutdown(request):
     return HttpResponse(status=200)
 
 
-def magic_header_key(request):
-    # Endpoint used to block request on response headers
-    res = HttpResponse(status=200)
-    res["Content-Disposition"] = 'attachment; filename="MagicKey_Al4h7iCFep9s1"'
-    return res
-
-
 urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^simple/$", views.BasicView.as_view()),
@@ -72,10 +65,10 @@ urlpatterns = [
     handler(r"^template-view/$", views.template_view, name="template-view"),
     handler(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     handler(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
-    path("path-params/<int:year>/<str:month>/", views.path_params_view, name="path-params-view"),
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),
+    path("appsec/", include("tests.contrib.django.django_app.appsec_urls")),
     # This must precede composed-view.
     handler(r"^some-static-view/$", TemplateView.as_view(template_name="my-template.html")),
     handler(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
@@ -85,9 +78,4 @@ urlpatterns = [
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
     handler(r"^identify/$", views.identify, name="identify"),
-    handler(r"^body/$", views.body_view, name="body_view"),
-    handler(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
-    handler(r"^block/$", views.block_callable_view, name="block"),
-    handler(r"^response-header/$", magic_header_key, name="response-header"),
-    path(r"checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
 ]

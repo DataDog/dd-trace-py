@@ -1,46 +1,69 @@
 import asyncio
 import collections
-import os
 import sys
+import types
 
 import pytest
 
 from ddtrace.profiling import _asyncio
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector.stack import StackCollector
 
 from . import _asyncio_compat
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+def patch_stack_collector(stack_collector):
+    """
+    Patch a stack collect so we can count how many times it has run
+    """
+
+    def _collect(self):
+        self.run_count += 1
+        return self._orig_collect()
+
+    stack_collector.run_count = 0
+    orig = stack_collector.collect
+    stack_collector._orig_collect = orig
+    stack_collector.collect = types.MethodType(_collect, stack_collector)
 
 
 @pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
 def test_asyncio(tmp_path, monkeypatch) -> None:
     sleep_time = 0.2
-    sleep_times = 5
 
-    async def stuff() -> None:
-        await asyncio.sleep(sleep_time)
+    async def stuff(collector) -> None:
+        count = collector.run_count
+        while collector.run_count == count:
+            await asyncio.sleep(sleep_time)
 
-    async def hello() -> None:
-        t1 = _asyncio_compat.create_task(stuff(), name="sleep 1")
-        t2 = _asyncio_compat.create_task(stuff(), name="sleep 2")
-        for _ in range(sleep_times):
-            await stuff()
+    async def hello(collector) -> None:
+        t1 = _asyncio_compat.create_task(stuff(collector), name="sleep 1")
+        t2 = _asyncio_compat.create_task(stuff(collector), name="sleep 2")
+        await stuff(collector)
         return (t1, t2)
 
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", str(tmp_path / "pprof"))
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
+    stack_collector = [collector for collector in p._profiler._collectors if type(collector) == StackCollector][0]
+    patch_stack_collector(stack_collector)
+
     p.start()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     if _asyncio_compat.PY38_AND_LATER:
-        maintask = loop.create_task(hello(), name="main")
+        maintask = loop.create_task(hello(stack_collector), name="main")
     else:
-        maintask = loop.create_task(hello())
+        maintask = loop.create_task(hello(stack_collector))
+
+    # Wait for the collector to run at least once on this thread, while it is doing something
+    # 2.5+ seconds at times
+    count = stack_collector.run_count
+    while count == stack_collector.run_count:
+        pass
+
     t1, t2 = loop.run_until_complete(maintask)
     events = p._profiler._recorder.reset()
     p.stop()
@@ -59,24 +82,32 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
         # This assertion does not work reliably on Python < 3.7
         if _asyncio_compat.PY37_AND_LATER:
+            first_line_this_test_class = test_asyncio.__code__.co_firstlineno
+            co_filename, lineno, co_name, class_name = event.frames[0]
             if event.task_name == "main":
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 30, "hello", "")]
+                assert len(event.frames) == 1
+                assert co_filename == __file__
+                assert first_line_this_test_class + 9 <= lineno <= first_line_this_test_class + 13
+                assert co_name == "hello"
+                assert class_name == ""
                 assert event.nframes == 1
             elif event.task_name == t1_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 24, "stuff", "")]
+                assert co_filename == __file__
+                assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 7
+                assert co_name == "stuff"
+                assert class_name == ""
                 assert event.nframes == 1
             elif event.task_name == t2_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 24, "stuff", "")]
+                assert co_filename == __file__
+                assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 7
+                assert co_name == "stuff"
+                assert class_name == ""
                 assert event.nframes == 1
 
-        if event.thread_name == "MainThread" and (
-            # The task name is empty in asyncio (it's not a task) but the main thread is seen as a task in gevent
-            (event.task_name is None and not TESTING_GEVENT)
-            or (event.task_name == "MainThread" and TESTING_GEVENT)
-        ):
+        if event.thread_name == "MainThread" and event.task_name is None:
             # Make sure we account CPU time
             if event.cpu_time_ns > 0:
                 cpu_time_found = True

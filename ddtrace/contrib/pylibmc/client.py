@@ -7,12 +7,15 @@ import pylibmc
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
+from ddtrace.internal.compat import Iterable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy
@@ -112,7 +115,18 @@ class TracedClient(ObjectProxy):
             if span and args:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
-            return method(*args, **kwargs)
+            if method_name == "get":
+                result = method(*args, **kwargs)
+                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                return result
+            elif method_name == "gets":
+                result = method(*args, **kwargs)
+
+                # returns a tuple object that may be (None, None)
+                span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
+                return result
+            else:
+                return method(*args, **kwargs)
 
     def _trace_multi_cmd(self, method_name, *args, **kwargs):
         """trace the execution of the multi command with the given name."""
@@ -123,7 +137,16 @@ class TracedClient(ObjectProxy):
             if span and pre:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
 
-            return method(*args, **kwargs)
+            if method_name == "get_multi":
+                result = method(*args, **kwargs)
+
+                # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
+                span.set_metric(
+                    db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+                )
+                return result
+            else:
+                return method(*args, **kwargs)
 
     @contextmanager
     def _no_span(self):
@@ -144,6 +167,9 @@ class TracedClient(ObjectProxy):
 
         span.set_tag_str(COMPONENT, config.pylibmc.integration_name)
         span.set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

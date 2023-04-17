@@ -1,0 +1,99 @@
+[[
+  {
+    "name": "otel-root",
+    "service": "",
+    "resource": "otel-root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 34011
+    },
+    "duration": 242452000,
+    "start": 1675884559384158000
+  },
+     {
+       "name": "otel-parent1",
+       "service": "",
+       "resource": "otel-parent1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 110430000,
+       "start": 1675884559409185000
+     },
+        {
+          "name": "otel-child1",
+          "service": "",
+          "resource": "otel-child1",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 65132000,
+          "start": 1675884559454341000
+        },
+     {
+       "name": "orphan1",
+       "service": "",
+       "resource": "orphan1",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 106923000,
+       "start": 1675884559519664000
+     },
+     {
+       "name": "otel-parent2",
+       "service": "",
+       "resource": "otel-parent2",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 34011
+       },
+       "duration": 106832000,
+       "start": 1675884559519740000
+     },
+        {
+          "name": "otel-child2",
+          "service": "",
+          "resource": "otel-child2",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 34011
+          },
+          "duration": 65071000,
+          "start": 1675884559561454000
+        }]]

@@ -16,7 +16,8 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/chunked",
       "language": "python",
-      "runtime-id": "bb2d07942242401fa27e41f08139d6a1"
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -53,7 +54,8 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "component": "wsgi"
+            "component": "wsgi",
+            "span.kind": "server"
           },
           "duration": 31000,
           "start": 1669654618334960000

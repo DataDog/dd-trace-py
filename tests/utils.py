@@ -16,6 +16,8 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
@@ -90,9 +92,11 @@ def override_global_config(values):
         "retrieve_client_ip",
         "report_hostname",
         "health_metrics_enabled",
+        "_telemetry_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
+        "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_propagate_service",
         "env",
@@ -101,6 +105,8 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_waf_timeout",
+        "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
     ]
@@ -432,19 +438,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             setattr(ddtrace, "tracer", original)
 
 
-class DummyWriter(AgentWriter):
-    """DummyWriter is a small fake writer used for tests. not thread-safe."""
-
+class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
-
-        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -452,9 +449,6 @@ class DummyWriter(AgentWriter):
             # put spans in a list like we do in the real execution path
             # with both encoders
             traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
@@ -469,6 +463,41 @@ class DummyWriter(AgentWriter):
         traces = self.traces
         self.traces = []
         return traces
+
+
+class DummyWriter(DummyWriterMixin, AgentWriter):
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
+
+    def __init__(self, *args, **kwargs):
+        # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
+
+        AgentWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+
+
+class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
+    def __init__(self, *args, **kwargs):
+        CIVisibilityWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self._encoded = None
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        CIVisibilityWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        self._encoded = self._encoder._build_payload()
 
 
 class DummyTracer(Tracer):
@@ -500,9 +529,10 @@ class DummyTracer(Tracer):
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriter
+            kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+        if not kwargs.get("writer"):
+            kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
@@ -1027,9 +1057,14 @@ class AnyFloat(object):
 
 
 def call_program(*args, **kwargs):
+    timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    stdout, stderr = subp.communicate()
+    if PY2:
+        # Python 2 doesn't support timeout
+        stdout, stderr = subp.communicate()
+    else:
+        stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
 

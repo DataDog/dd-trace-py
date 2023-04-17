@@ -20,7 +20,8 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "17de79aabc2d4473b3a4e064db0911ce"
+      "runtime-id": "1e8cf9d006664b09ab0fab467116ce65",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

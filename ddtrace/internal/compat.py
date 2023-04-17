@@ -284,6 +284,12 @@ except ImportError:
         pass
 
 
+try:
+    from collections.abc import Iterable  # noqa
+except ImportError:
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
+
+
 def maybe_stringify(obj):
     # type: (Any) -> Optional[str]
     if obj is not None:

@@ -12,6 +12,9 @@ import six
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.internal import gitmetadata
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -19,6 +22,7 @@ from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
 
 
@@ -115,6 +119,13 @@ class TopLevelSpanProcessor(SpanProcessor):
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
+    def _set_git_metadata(self, chunk_root):
+        repository_url, commit_sha = gitmetadata.get_git_tags()
+        if repository_url:
+            chunk_root.set_tag_str("_dd.git.repository_url", repository_url)
+        if commit_sha:
+            chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if not trace:
@@ -126,7 +137,12 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         ctx._update_tags(chunk_root)
+        self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
+        # for 128 bit trace ids
+        if chunk_root.trace_id > MAX_UINT_64BITS:
+            trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
+            chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
         return trace
 
 

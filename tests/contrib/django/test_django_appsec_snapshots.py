@@ -114,7 +114,7 @@ def test_request_ipblock_nomatch_200():
             "DD_APPSEC_RULES": RULES_GOOD_PATH,
         },
     ) as client:
-        result = client.get("/", headers={"Via": _ALLOWED_IP})
+        result = client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
 
@@ -143,7 +143,7 @@ def test_request_ipblock_match_403():
         result = client.get(
             "/",
             headers={
-                "Via": _BLOCKED_IP,
+                "X-Real-Ip": _BLOCKED_IP,
                 "Accept": "text/html",
             },
         )
@@ -178,7 +178,7 @@ def test_request_ipblock_match_403_json():
         result = client.get(
             "/",
             headers={
-                "Via": _BLOCKED_IP,
+                "X-Real-Ip": _BLOCKED_IP,
             },
         )
         assert result.status_code == 403

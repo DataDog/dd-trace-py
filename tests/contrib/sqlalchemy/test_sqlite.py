@@ -41,6 +41,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
         self.assertIsNone(span.get_metric("db.row_count"))
         self.assertEqual(span.get_tag("component"), "sqlalchemy")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.span_type, "sql")
         self.assertTrue(span.duration > 0)
         # check the error

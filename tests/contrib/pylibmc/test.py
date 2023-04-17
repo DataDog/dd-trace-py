@@ -137,6 +137,57 @@ class PylibmcCore(object):
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
 
+    def test_get_rowcount(self):
+        client, tracer = self.get_client()
+        # test
+        start = time.time()
+        client.set_multi({"a": 1, "b": 2})
+        out = client.get("a")
+        assert out == 1
+        out = client.get("c")
+        assert out is None
+        end = time.time()
+        # verify
+        spans = tracer.pop()
+        for s in spans:
+            self._verify_cache_span(s, start, end)
+
+        get_existing_key_span = spans[1]
+        get_missing_key_span = spans[2]
+
+        assert get_existing_key_span.resource == "get"
+        assert get_existing_key_span.get_metric("db.row_count") == 1
+        assert get_missing_key_span.resource == "get"
+        assert get_missing_key_span.get_metric("db.row_count") == 0
+
+    def test_get_multi_rowcount(self):
+        client, tracer = self.get_client()
+        # test
+        start = time.time()
+        client.set_multi({"a": 1, "b": 2})
+        out = client.get_multi(["a", "b"])
+        assert out == {"a": 1, "b": 2}
+        out = client.get_multi(["a", "c"])
+        assert out == {"a": 1}
+        out = client.get_multi(["c", "d"])
+        assert out == {}
+        end = time.time()
+        # verify
+        spans = tracer.pop()
+        for s in spans:
+            self._verify_cache_span(s, start, end)
+
+        get_multi_2_keys_exist_span = spans[1]
+        get_multi_1_keys_exist_span = spans[2]
+        get_multi_0_keys_exist_span = spans[3]
+
+        assert get_multi_2_keys_exist_span.resource == "get_multi"
+        assert get_multi_2_keys_exist_span.get_metric("db.row_count") == 2
+        assert get_multi_1_keys_exist_span.resource == "get_multi"
+        assert get_multi_1_keys_exist_span.get_metric("db.row_count") == 1
+        assert get_multi_0_keys_exist_span.resource == "get_multi"
+        assert get_multi_0_keys_exist_span.get_metric("db.row_count") == 0
+
     def test_get_set_multi_prefix(self):
         client, tracer = self.get_client()
         # test
@@ -152,6 +203,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
             assert s.get_tag("memcached.query") == "%s foo" % s.resource
             assert s.get_tag("component") == "pylibmc"
+            assert s.get_tag("span.kind") == "client"
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -175,6 +227,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
             assert s.get_tag("memcached.query") == "%s %s" % (s.resource, k)
             assert s.get_tag("component") == "pylibmc"
+            assert s.get_tag("span.kind") == "client"
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -188,6 +241,7 @@ class PylibmcCore(object):
         assert s.name == "memcached.cmd"
         assert s.get_tag("out.host") == cfg["host"]
         assert s.get_tag("component") == "pylibmc"
+        assert s.get_tag("span.kind") == "client"
         assert s.get_tag("db.system") == "memcached"
         assert s.get_metric("network.destination.port") == cfg["port"]
 

@@ -15,7 +15,8 @@
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
-      "runtime-id": "657552856ab8420dac8010e8cad5736c"
+      "runtime-id": "5547e917355d4080b87142160fa8bf83",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,8 +29,8 @@
       "process_id": 627,
       "redis.args_length": 3
     },
-    "duration": 1348000,
-    "start": 1666810188742578000
+    "duration": 801000,
+    "start": 1667244350131745000
   }],
 [
   {
@@ -48,7 +49,8 @@
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
-      "runtime-id": "657552856ab8420dac8010e8cad5736c"
+      "runtime-id": "5547e917355d4080b87142160fa8bf83",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -61,6 +63,6 @@
       "process_id": 627,
       "redis.pipeline_length": 1
     },
-    "duration": 935000,
-    "start": 1666810188744023000
+    "duration": 886000,
+    "start": 1667244350132647000
   }]]

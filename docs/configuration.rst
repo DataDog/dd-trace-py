@@ -30,7 +30,7 @@ The following environment variables for the tracer are supported:
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``.
+         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
      version_added:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
@@ -60,11 +60,28 @@ The following environment variables for the tracer are supported:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_ENABLED``
 
+   DD_TRACE_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables OpenTelemetry support. To enable OpenTelemetry without `ddtrace-run` refer
+         to the following :mod:`docs <ddtrace.opentelemetry>`.
+     version_added:
+       v1.12.0:
+
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
+
+   DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         This configuration enables the generation of 128 bit trace ids.
+     version_added:
+       v1.12.0:
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -475,7 +492,7 @@ The following environment variables for the tracer are supported:
 
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
-     default: "0"
+     default: "auto"
      description: |
         Controls whether module cloning logic is executed by ``ddtrace-run``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
         that will be unaffected by future imports of and changes to those modules by application code. Valid values for this variable are ``1``, ``0``, and ``auto``. ``1`` tells
@@ -483,6 +500,13 @@ The following environment variables for the tracer are supported:
         is accessible from the application's runtime.
      version_added:
         v1.9.0:
+
+   DD_CIVISIBILITY_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+     description: Configures the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``.
+     version_added:
+        v1.12.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
