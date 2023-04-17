@@ -17,10 +17,10 @@ class CIVisibilityGitClient(object):
     def _run_protocol(cls, cwd=None):
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(repo_url, latest_commits, cwd=cwd)
+        backend_commits = cls._search_commits(repo_url, latest_commits)
         rev_list = cls._get_revisions(backend_commits, cwd=cwd)
         packfiles = cls._build_packfiles(rev_list, cwd=cwd)
-        cls._upload_packfiles(packfiles, cwd=cwd)
+        cls._upload_packfiles(packfiles)
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
@@ -31,8 +31,8 @@ class CIVisibilityGitClient(object):
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
-    def _search_commits(cls, repo_url, latest_commits, cwd=None):
-        pass
+    def _search_commits(cls, repo_url, latest_commits):
+        return []
 
     @classmethod
     def _get_revisions(cls, backend_commits, cwd=None):
@@ -43,5 +43,5 @@ class CIVisibilityGitClient(object):
         pass
 
     @classmethod
-    def _upload_packfiles(cls, packfiles, cwd=None):
+    def _upload_packfiles(cls, packfiles):
         pass

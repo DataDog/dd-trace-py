@@ -132,7 +132,10 @@ def test_git_client_get_latest_commits(git_repo):
 
 
 def test_git_client_search_commits():
-    pass
+    remote_url = "git@github.com:test-repo-url.git"
+    latest_commits = ["b3672ea5cbc584124728c48a443825d2940e0ddd"]
+    backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits)
+    assert latest_commits[0] in backend_commits
 
 
 def test_git_client_get_revisions():
