@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import new_pyobject_id
 from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
@@ -36,6 +37,10 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
 
 
 def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
+    # Request is not analyzed
+    if not oce.request_has_quota:
+        return pyobject
+
     if not pyobject:  # len(pyobject) < 1
         return pyobject
     assert input_info is not None
