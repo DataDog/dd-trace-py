@@ -240,17 +240,16 @@ def _completion_create(openai, pin, instance, args, kwargs):
     sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
 
     prompt = kwargs.get("prompt")
+    if sample_prompt_completion:
+        if isinstance(prompt, list):
+            for idx, p in enumerate(prompt):
+                span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
+        else:
+            span.set_tag_str("request.prompt", _process_text(kwargs[kw_attr]))
 
     for kw_attr in _completion_request_attrs:
         if kw_attr in kwargs:
-            if kw_attr == "prompt":
-                if sample_prompt_completion:
-                    if isinstance(prompt, list):
-                        for idx, p in enumerate(prompt):
-                            span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
-                    else:
-                        span.set_tag_str("request.prompt", _process_text(kwargs[kw_attr]))
-            else:
+            if kw_attr != "prompt":
                 span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
     resp, error = yield span
@@ -301,6 +300,8 @@ def _completion_create(openai, pin, instance, args, kwargs):
 
 _chat_completion_request_attrs = [
     "model",
+    "messages",
+    "temperature"
     "top_p",
     "n",
     "stream",
@@ -309,6 +310,7 @@ _chat_completion_request_attrs = [
     "presence_penalty",
     "frequency_penalty",
     "logit_bias",
+    "user"
 ]
 
 
@@ -325,7 +327,6 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     messages = kwargs.get("messages")
     if sample_prompt_completion:
-
         def set_message_tag(message):
             content = _process_text(message.get("content"))
             role = _process_text(message.get("role"))
@@ -340,7 +341,8 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     for kw_attr in _chat_completion_request_attrs:
         if kw_attr in kwargs:
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+            if kw_attr != "messages":
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
     resp, error = yield span
 
