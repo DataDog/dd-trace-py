@@ -327,7 +327,7 @@ bytecode = [
     "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
     "bytecode~=0.12.0; python_version=='3.5'",
     "bytecode~=0.13.0; python_version=='3.6'",
-    "bytecode~=0.13.0; python_version=='3.7'",
+    "bytecode~=0.14.0; python_version=='3.7'",
     "bytecode; python_version>='3.8'",
 ]
 
