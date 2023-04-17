@@ -35,6 +35,7 @@ ddtrace/appsec/                     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
+tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
 tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py    @DataDog/asm-python
