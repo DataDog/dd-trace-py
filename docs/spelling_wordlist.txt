@@ -135,6 +135,7 @@ obfuscator
 opensearch
 opentracer
 opentracing
+otel
 parameterized
 perf
 pid
