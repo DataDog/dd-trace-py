@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 import django
 from django.db import connection
 from django.http import HttpResponse
-from django.urls import path
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
@@ -17,6 +16,11 @@ if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
 else:
     from django.urls import re_path as handler
+
+if django.VERSION >= (2, 0, 0):
+    from django.urls import path
+else:
+    from django.conf.urls import url as path
 
 
 if TYPE_CHECKING:
@@ -115,12 +119,21 @@ def magic_header_key(request):
 
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
-    path("path-params/<int:year>/<str:month>/", path_params_view, name="path-params-view"),
+    handler("sqli/$", sqli, name="sqli"),
     handler("body/$", body_view, name="body_view"),
     handler("weak-hash/$", weak_hash_view, name="weak_hash"),
     handler("block/$", block_callable_view, name="block"),
-    path("checkuser/<str:user_id>/", checkuser_view, name="checkuser"),
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
-    handler("sqli/$", sqli, name="sqli"),
 ]
+
+if django.VERSION >= (2, 0, 0):
+    urlpatterns += [
+        path("path-params/<int:year>/<str:month>/", path_params_view, name="path-params-view"),
+        path("checkuser/<str:user_id>/", checkuser_view, name="checkuser"),
+    ]
+else:
+    urlpatterns += [
+        path(r"path-params/(?P<year>[0-9]{4})/(?P<month>\w+)/$", path_params_view, name="path-params-view"),
+        path(r"checkuser/(?P<user_id>\w+)/$", checkuser_view, name="checkuser"),
+    ]
