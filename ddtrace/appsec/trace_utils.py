@@ -146,6 +146,15 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
 
     # Early check to avoid calling the WAF if the request is already blocked
     span = tracer.current_root_span()
+    if not span:
+        log.warning(
+            "No root span in the current execution. should_block_user returning False"
+            "See https://docs.datadoghq.com/security_platform/application_security"
+            "/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+        return False
+
     if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
         return True
 
