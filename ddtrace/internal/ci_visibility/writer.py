@@ -15,11 +15,12 @@ from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_ENDPOINT
+from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .encoder import CIVisibilityEncoderV01
 
 
 class CIVisibilityEventClient(WriterClientBase):
-    def __init__(self, endpoint):
+    def __init__(self):
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
             {
@@ -30,7 +31,14 @@ class CIVisibilityEventClient(WriterClientBase):
             }
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
-        self.ENDPOINT = endpoint
+
+
+class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
+    ENDPOINT = AGENTLESS_ENDPOINT
+
+
+class CIVisibilityProxiedEventClient(CIVisibilityEventClient):
+    ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
 
 
 class CIVisibilityWriter(HTTPWriter):
@@ -52,6 +60,7 @@ class CIVisibilityWriter(HTTPWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        use_evp=False,  # type: bool
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.datadoghq.com"
@@ -61,7 +70,7 @@ class CIVisibilityWriter(HTTPWriter):
             raise ValueError("Required environment variable DD_API_KEY not defined")
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[CIVisibilityEventClient(endpoint or AGENTLESS_ENDPOINT)],
+            clients=[CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,

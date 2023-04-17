@@ -19,7 +19,6 @@ from ddtrace.settings import IntegrationConfig
 
 from .. import agent
 from .constants import EVP_PROXY_AGENT_BASE_PATH
-from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import EVP_SUBDOMAIN_HEADER_VALUE
 from .writer import CIVisibilityWriter
@@ -82,8 +81,8 @@ class CIVisibility(Service):
         elif self._agent_evp_proxy_is_available():
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
-                endpoint=EVP_PROXY_AGENT_ENDPOINT,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+                use_evp=True,
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
