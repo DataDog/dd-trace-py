@@ -71,9 +71,9 @@ class CIVisibilityWriter(HTTPWriter):
             headers=headers,
         )
 
-    def stop(self):
+    def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
-            super(CIVisibilityWriter, self).stop()
+            super(CIVisibilityWriter, self).stop(timeout=timeout)
 
     def recreate(self):
         # type: () -> HTTPWriter
