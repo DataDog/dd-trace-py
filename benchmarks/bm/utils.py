@@ -9,6 +9,7 @@ from six import BytesIO
 
 from ddtrace import Span
 from ddtrace import __version__ as ddtrace_version
+from ddtrace.filters import TraceFilter
 
 
 _Span = Span
@@ -56,6 +57,15 @@ COMMON_DJANGO_META = {
 # DEV: 1.x dropped tracer positional argument
 if ddtrace_version.split(".")[0] == "0":
     _Span = partial(_Span, None)
+
+
+class _DropTraces(TraceFilter):
+    def process_trace(self, trace):
+        return
+
+
+def drop_traces(tracer):
+    tracer.configure(settings={"FILTERS": [_DropTraces()]})
 
 
 def gen_span(name):

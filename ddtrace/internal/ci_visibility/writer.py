@@ -12,8 +12,25 @@ from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
+from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
 from .encoder import CIVisibilityEncoderV01
+
+
+class CIVisibilityEventClient(WriterClientBase):
+    ENDPOINT = "api/v2/citestcycle"
+
+    def __init__(self):
+        encoder = CIVisibilityEncoderV01(0, 0)
+        encoder.set_metadata(
+            {
+                "language": "python",
+                "env": config.env,
+                "runtime-id": get_runtime_id(),
+                "library_version": ddtrace.__version__,
+            }
+        )
+        super(CIVisibilityEventClient, self).__init__(encoder)
 
 
 class CIVisibilityWriter(HTTPWriter):
@@ -37,20 +54,9 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
-        encoder = CIVisibilityEncoderV01(0, 0)
-        encoder.set_metadata(
-            {
-                "language": "python",
-                "env": config.env,
-                "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
-            }
-        )
-
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            endpoint="api/v2/citestcycle",
-            encoder=encoder,
+            clients=[CIVisibilityEventClient()],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
