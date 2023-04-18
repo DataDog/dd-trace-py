@@ -85,7 +85,7 @@ def pytest_configure(config):
     if is_enabled(config):
         try:
             _CIVisibility.enable(config=ddtrace.config.pytest)
-        except ValueError:
+        except EnvironmentError:
             log.warning("Failed to initialize ddtrace")
 
 
