@@ -67,14 +67,3 @@ def set_argument_value(
         raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
 
     return args, kwargs
-
-
-def human_size(nbytes):
-    """Return a human-readable size."""
-    i = 0
-    suffixes = ["B", "KB", "MB", "GB", "TB"]
-    while nbytes >= 1000 and i < len(suffixes) - 1:
-        nbytes /= 1000.0
-        i += 1
-    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
-    return "%s%s" % (f, suffixes[i])

@@ -26,7 +26,6 @@ from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.telemetry import telemetry_metrics_writer
 from ...internal.telemetry import telemetry_writer
-from ...internal.utils import human_size
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
@@ -86,6 +85,17 @@ def get_writer_interval_seconds():
 def get_writer_reuse_connections():
     # type: () -> bool
     return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
+
+
+def _human_size(nbytes):
+    """Return a human-readable size."""
+    i = 0
+    suffixes = ["B", "KB", "MB", "GB", "TB"]
+    while nbytes >= 1000 and i < len(suffixes) - 1:
+        nbytes /= 1000.0
+        i += 1
+    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
+    return "%s%s" % (f, suffixes[i])
 
 
 class TraceWriter(six.with_metaclass(abc.ABCMeta)):
@@ -280,7 +290,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", human_size(len(data)), t, self._intake_endpoint)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint)
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
