@@ -16,6 +16,8 @@ if typing.TYPE_CHECKING:
     from typing import Dict
     from typing import List
 
+    from ddtrace import Span
+
 
 _logs_writer = None
 
@@ -32,23 +34,21 @@ def start(site, api_key):
     _logs_writer.start()
 
 
-def log(level, msg, tags, attrs):
-    # type: (str, str, List[str], Dict[str, str]) -> None
+def log(span, level, msg, tags, attrs):
+    # type: (Span, str, str, List[str], Dict[str, str]) -> None
     global _logs_writer
 
-    if _logs_writer is None or config.openai.logs_enabled is False:
-        return
-
-    curspan = tracer.current_span()
+    curspan = tracer.current_span()  # TODO: pass this
     timestamp = datetime.datetime.now().isoformat()
 
     log = {
         "message": "%s %s" % (timestamp, msg),
-        "hostname": os.getenv("DD_HOSTNAME", get_hostname()),
-        "ddsource": "python",
-        "service": "openai",
+        "hostname": os.getenv("DD_HOSTNAME", get_hostname()),  # TODO: move DD_HOSTNAME logic to get_hostname()
+        "ddsource": "openai",  # TODO: should be OpenAI?
+        "service": span.service,  # TODO: use same as the span
         "status": level,
     }
+    # TODO: these tags should come from caller
     if config.env:
         tags.append("env:%s" % config.env)
     if config.version:

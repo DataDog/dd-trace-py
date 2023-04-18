@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.sampler import RateSampler
 
 from . import _log as ddlogs
 from .. import trace_utils
@@ -20,10 +21,10 @@ config._add(
     {
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
-        "prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "logs_sample_rate": float(os.getenv("DD_OPENAI_SAMPLE_COMPLETIONS_LOGS", 0.1)),
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
-        "_default_service": "openai",
+        "_default_service": "openai",  # TODO: remove this and do DD_SERVICE-openai
     },
 )
 
@@ -31,7 +32,21 @@ config._add(
 log = get_logger(__file__)
 
 
-def _openai_log(*args, **kwargs):
+def _is_pc_sampled_span(span):
+    if not span.sampled:
+        return False
+    global _span_pc_sampler
+    return _span_pc_sampler.sample(span)
+
+
+def _is_pc_sampled_log(span):
+    if not config.openai.logs_enabled or not span.sampled:
+        return False
+    global _log_pc_sampler
+    return _log_pc_sampler.sample(span)
+
+
+def _dd_log(*args, **kwargs):
     if not config.openai.logs_enabled:
         return
     ddlogs.log(*args, **kwargs)
@@ -69,6 +84,9 @@ def patch():
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
 
+    global _span_pc_sampler
+    _span_pc_sampler = RateSampler(sample_rate=config.openai.span_prompt_completion_sample_rate)
+
     if config.openai.logs_enabled:
         ddsite = os.getenv("DD_SITE", "datadoghq.com")
         ddapikey = os.getenv("DD_API_KEY")
@@ -78,6 +96,9 @@ def patch():
         ddlogs.start(site=ddsite, api_key=ddapikey)
         # FIXME: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
         log.debug("started log writer")
+
+        global _log_pc_sampler
+        _log_pc_sampler = RateSampler(sample_rate=config.openai.log_prompt_completion_sample_rate)
 
 
 def unpatch():
@@ -123,7 +144,7 @@ def _patched_endpoint(patch_gen):
 
 def _patched_endpoint_async(patch_gen):
     # Same as _patched_endpoint but async
-    @trace_utils.with_traced_module
+    @trace_utils_async.with_traced_module
     async def patched_endpoint(openai, pin, func, instance, args, kwargs):
         g = patch_gen(openai, pin, instance, args, kwargs)
         g.send(None)
@@ -144,8 +165,8 @@ def _patched_endpoint_async(patch_gen):
     return patched_endpoint
 
 
-# set basic openai data for all openai spans
 def _init_openai_span(span, openai):
+    # set basic openai data for all openai spans
     span.set_tag_str(COMPONENT, config.openai.integration_name)
     if hasattr(openai, "api_base") and openai.api_base:
         span.set_tag_str("api_base", openai.api_base)
@@ -184,11 +205,11 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if model:
         span.set_tag_str("model", model)
 
-    sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
-    sample_log = random.randrange(100) < (config.openai.logs_sample_rate * 100)
+    sample_pc_span = _is_pc_sampled_span(span)
+    sample_pc_log = _is_pc_sampled_log(span)
 
     prompt = kwargs.get("prompt")
-    if sample_prompt_completion:
+    if sample_pc_span:
         if isinstance(prompt, list):
             for idx, p in enumerate(prompt):
                 span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
@@ -213,13 +234,14 @@ def _completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
-        _openai_log(
+        _dd_log(
+            span,
             "error",
             "openai error",
+            tags=metric_tags,
             attrs={
                 "prompt": prompt,
             },
-            tags=metric_tags,
         )
     if resp and not kwargs.get("stream"):
         if "choices" in resp:
@@ -228,10 +250,10 @@ def _completion_create(openai, pin, instance, args, kwargs):
             for choice in choices:
                 idx = choice["index"]
                 if "finish_reason" in choice:
-                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice["finish_reason"])
+                    span.set_tag_str("response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
                 if "logprobs" in choice:
                     span.set_tag("response.choices.%d.logprobs" % idx, choice["logprobs"])
-                if sample_prompt_completion:
+                if sample_pc_span:
                     span.set_tag("response.choices.%d.text" % idx, _process_text(choice.get("text")))
         span.set_tag("response.id", resp["id"])
         span.set_tag("response.object", resp["object"])
@@ -240,8 +262,10 @@ def _completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-        if span.sampled and sample_log:
-            _openai_log(
+        if sample_pc_log:
+            # TODO: don't tag log with error, get it from status
+            _dd_log(
+                span,
                 "info",
                 "sampled completion",
                 tags=metric_tags,
@@ -280,11 +304,11 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if model:
         span.set_tag_str("model", model)
 
-    sample_prompt_completion = random.randrange(100) < (config.openai.prompt_completion_sample_rate * 100)
-    sample_log = random.randrange(100) < (config.openai.logs_sample_rate * 100)
+    sample_pc_span = _is_pc_sampled_span(span)
+    sample_pc_log = _is_pc_sampled_log(span)
 
     messages = kwargs.get("messages")
-    if sample_prompt_completion:
+    if sample_pc_span:
 
         def set_message_tag(message):
             content = _process_text(message.get("content"))
@@ -318,7 +342,8 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
-        _openai_log(
+        _dd_log(
+            span,
             "error",
             "openai error",
             tags=metric_tags,
@@ -335,7 +360,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
                 idx = choice["index"]
                 span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
                 span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
-                if sample_prompt_completion and choice.get("message"):
+                if sample_pc_span and choice.get("message"):
                     span.set_tag(
                         "response.choices.%d.message.content" % idx, _process_text(choice.get("message").get("content"))
                     )
@@ -349,8 +374,9 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
                 span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
         _usage_metrics(resp.get("usage"), metric_tags)
 
-        if span.sampled and sample_log:
-            _openai_log(
+        if sample_pc_log:
+            _dd_log(
+                span,
                 "info" if error is None else "error",
                 "sampled chat completion",
                 tags=metric_tags,
