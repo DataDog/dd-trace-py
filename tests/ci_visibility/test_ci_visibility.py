@@ -138,6 +138,17 @@ def test_git_client_worker(git_repo):
     ), "CIVisibility.disable() should not block for longer than tracer timeout"
 
 
+def test_git_client_worker_nomock(git_repo):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana")):
+        dummy_tracer = DummyTracer()
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            ggr.return_value = git_repo
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility._instance._git_client is not None
+            assert CIVisibility._instance._git_client._worker is not None
+            CIVisibility.disable()
+
+
 def test_git_client_get_repository_url(git_repo):
     remote_url = CIVisibilityGitClient._get_repository_url(cwd=git_repo)
     assert remote_url == "git@github.com:test-repo-url.git"
