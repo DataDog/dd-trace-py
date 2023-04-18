@@ -3,7 +3,6 @@ import json
 from multiprocessing import Process
 import os
 import random
-import tempfile
 
 import tenacity
 
@@ -12,6 +11,7 @@ from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
 from ddtrace.ext.git import git_subprocess_cmd
+from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
 from .. import compat
@@ -89,7 +89,7 @@ class CIVisibilityGitClient(object):
     @contextlib.contextmanager
     def _build_packfiles(cls, revisions, cwd=None):
         basename = str(random.randint(1, 1000000))
-        with tempfile.TemporaryDirectory() as tempdir:
+        with TemporaryDirectory() as tempdir:
             path = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
             git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % path, cwd=cwd, std_in=revisions)
             yield path
@@ -97,7 +97,9 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _upload_packfiles(cls, repo_url, packfiles_path, serde, cwd=None):
         sha = extract_commit_sha(cwd=cwd)
-        directory, rand = packfiles_path.rsplit("/", maxsplit=1)
+        parts = packfiles_path.split("/")
+        directory = "/".join(parts[:-1])
+        rand = parts[-1]
         for filename in os.listdir(directory):
             if not filename.startswith(rand):
                 continue

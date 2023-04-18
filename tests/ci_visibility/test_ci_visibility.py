@@ -167,7 +167,9 @@ def test_git_client_build_packfiles(git_repo):
     found_rand = found_idx = found_pack = False
     with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
         assert packfiles_path
-        directory, rand = packfiles_path.rsplit("/", maxsplit=1)
+        parts = packfiles_path.split("/")
+        directory = "/".join(parts[:-1])
+        rand = parts[-1]
         assert os.path.isdir(directory)
         for filename in os.listdir(directory):
             if rand in filename:
