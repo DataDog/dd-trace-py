@@ -37,6 +37,11 @@ def _extract_repository_name_from_url(repository_url):
         return repository_url
 
 
+def _get_git_repo():
+    # this exists only for the purpose of patching in tests
+    return None
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -48,7 +53,7 @@ class CIVisibility(Service):
         self.tracer = tracer or ddtrace.tracer
         self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
-        self._tags = ci.tags()  # type: Dict[str, str]
+        self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
 
