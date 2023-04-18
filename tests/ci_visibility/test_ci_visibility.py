@@ -112,7 +112,7 @@ def test_repository_name_not_extracted_warning():
 
 
 @contextlib.contextmanager
-def mock_git_client_search_commits():
+def mock_git_client_endpoint():
     with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as _do_request:
         dummy_response = Response(
             status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA
@@ -126,7 +126,7 @@ def test_git_client_worker(git_repo):
         dummy_tracer = DummyTracer()
         start_time = time.time()
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
-            with mock_git_client_search_commits():
+            with mock_git_client_endpoint():
                 ggr.return_value = git_repo
                 CIVisibility.enable(tracer=dummy_tracer, service="test-service")
                 assert CIVisibility._instance._git_client is not None
@@ -152,7 +152,7 @@ def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
     serde = CIVisibilityGitClientSerDeV1("foo", "bar")
-    with mock_git_client_search_commits():
+    with mock_git_client_endpoint():
         backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits, serde)
     assert latest_commits[0] in backend_commits
 
@@ -183,5 +183,9 @@ def test_git_client_build_packfiles(git_repo):
     assert not os.path.isdir(directory)
 
 
-def test_git_client_upload_packfiles():
-    pass
+def test_git_client_upload_packfiles(git_repo):
+    serde = CIVisibilityGitClientSerDeV1("foo", "bar")
+    remote_url = "git@github.com:test-repo-url.git"
+    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+        with mock_git_client_endpoint():
+            CIVisibilityGitClient._upload_packfiles(remote_url, packfiles_path, serde, cwd=git_repo)
