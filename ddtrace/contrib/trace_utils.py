@@ -634,14 +634,14 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             span.set_tag_str(user.ROLE, role)
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
+
+        if config._appsec_enabled:
+            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+            block_request_if_user_blocked(tracer, user_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
-
-    if config._appsec_enabled:
-        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
-
-        block_request_if_user_blocked(tracer, user_id)
