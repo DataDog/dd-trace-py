@@ -202,7 +202,8 @@ class AgentWriterTests(BaseTestCase):
 
             writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
+        client_count = len(writer._clients)
+        assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
         assert ["reason:t_too_big"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_buffer_full(self):
@@ -219,7 +220,8 @@ class AgentWriterTests(BaseTestCase):
 
             writer_metrics_reset.assert_called_once()
 
-            assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
+            client_count = len(writer._clients)
+            assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
             assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_encoding_error(self):
@@ -231,7 +233,8 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=False)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
-            writer._encoder = writer_encoder
+            for client in writer._clients:
+                client.encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -241,7 +244,8 @@ class AgentWriterTests(BaseTestCase):
 
             assert writer_metrics_reset.call_count == 1
 
-            assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
+            expected_count = n_traces * len(writer._clients)
+            assert expected_count == writer._metrics["encoder.dropped.traces"]["count"]
 
     def test_keep_rate(self):
         statsd = mock.Mock()
@@ -347,13 +351,19 @@ class CIVisibilityWriterTests(AgentWriterTests):
 
     def test_metadata_included(self):
         writer = CIVisibilityWriter("http://localhost:9126")
-        writer._encoder.put([Span("foobar")])
-        payload = writer._encoder.encode()
-        unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
-        assert unpacked_metadata[b"language"] == b"python"
-        assert unpacked_metadata[b"runtime-id"] == get_runtime_id().encode("utf-8")
-        assert unpacked_metadata[b"library_version"] == ddtrace.__version__.encode("utf-8")
-        assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
+        for client in writer._clients:
+            client.encoder.put([Span("foobar")])
+            payload = client.encoder.encode()
+            try:
+                unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
+            except KeyError:
+                continue
+            assert unpacked_metadata[b"language"] == b"python"
+            assert unpacked_metadata[b"runtime-id"] == get_runtime_id().encode("utf-8")
+            assert unpacked_metadata[b"library_version"] == ddtrace.__version__.encode("utf-8")
+            assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
+            return
+        pytest.fail("At least one ci visibility payload must include metadata")
 
 
 class LogWriterTests(BaseTestCase):
