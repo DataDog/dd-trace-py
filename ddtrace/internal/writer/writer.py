@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-from json import loads
 import logging
 import os
 import sys
