@@ -545,16 +545,18 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            if [ << pipeline.parameters.coverage >> == true ]; then
-              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
-            else
-              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} --no-cov
-            fi
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - save_coverage
+            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+#            if [ << pipeline.parameters.coverage >> == true ]; then
+#              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+#            else
+#              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} --no-cov
+#            fi
+      - save_coverage
+#      - when:
+#          condition:
+#            << pipeline.parameters.coverage >>
+#          steps:
+#            - save_coverage
 
   integration_testagent:
     <<: *machine_executor
