@@ -51,6 +51,8 @@ def patch_openai():
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
     yield
     unpatch()
+
+    # Force a flush of the logs for the given test case
     from ddtrace.contrib.openai._log import _logs_writer
 
     _logs_writer.periodic()
@@ -176,11 +178,6 @@ def test_integration_sync():
             ],
         )
 
-    # FIXME: find out why logs aren't being flushed at process exit
-    from ddtrace.contrib.openai._log import _logs_writer
-
-    _logs_writer.periodic()
-
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -212,7 +209,3 @@ def test_integration_async():
             )
 
     asyncio.run(task())
-    # FIXME: find out why logs aren't being flushed at process exit
-    from ddtrace.contrib.openai._log import _logs_writer
-
-    _logs_writer.periodic()

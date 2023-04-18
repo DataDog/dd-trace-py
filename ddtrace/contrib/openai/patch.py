@@ -344,7 +344,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
 
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+        stats_client().increment("request.error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
         _dd_log(
             span,
             "error",

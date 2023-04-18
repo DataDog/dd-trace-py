@@ -41,7 +41,7 @@ class V2LogWriter(PeriodicService):
     def __init__(self, site, api_key, interval, timeout):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._buffer = []  # type: List[V2LogEvent]
         # match the API limit
         self._buffer_limit = 1000
@@ -62,6 +62,10 @@ class V2LogWriter(PeriodicService):
                 log.warning("log buffer full (limit is %d), dropping log" % self._buffer_limit)
                 return
             self._buffer.append(log)
+
+    def on_shutdown(self):
+        # type: (...) -> None
+        self.periodic()
 
     def periodic(self):
         # type: () -> None
