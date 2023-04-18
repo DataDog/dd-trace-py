@@ -15,12 +15,12 @@ try:
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
-import bytecode as b
-from bytecode import Bytecode
-from bytecode import Compare
-from bytecode import CompilerFlags
-from bytecode import Instr
-from bytecode import Label
+import ddtrace.vendor.bytecode as b
+from ddtrace.vendor.bytecode import Bytecode
+from ddtrace.vendor.bytecode import Compare
+from ddtrace.vendor.bytecode import CompilerFlags
+from ddtrace.vendor.bytecode import Instr
+from ddtrace.vendor.bytecode import Label
 
 from .compat import PYTHON_VERSION_INFO as PY
 

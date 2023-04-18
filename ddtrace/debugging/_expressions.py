@@ -35,12 +35,12 @@ from typing import Tuple
 from typing import Union
 
 import attr
-from bytecode import Bytecode
-from bytecode import Compare
-from bytecode import Instr
 
 from ddtrace.debugging.safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.vendor.bytecode import Bytecode
+from ddtrace.vendor.bytecode import Compare
+from ddtrace.vendor.bytecode import Instr
 
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]

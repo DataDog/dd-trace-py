@@ -1,9 +1,8 @@
 from types import FunctionType
 from typing import Set
 
-from bytecode import Bytecode
-
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.vendor.bytecode import Bytecode
 
 
 def linenos(f):

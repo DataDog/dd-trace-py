@@ -5,8 +5,8 @@ from typing import Callable
 from typing import List
 from typing import Tuple
 
-from bytecode import Bytecode
-from bytecode import Instr
+from ddtrace.vendor.bytecode import Bytecode
+from ddtrace.vendor.bytecode import Instr
 
 
 HookType = Callable[[Any], Any]
