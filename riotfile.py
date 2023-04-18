@@ -298,7 +298,7 @@ venv = Venv(
         ),
         Venv(
             name="integration",
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            command="pytest {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
