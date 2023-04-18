@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from typing import Optional  # noqa
+import uuid
 
 import pytest
 import tenacity
@@ -18,6 +19,7 @@ from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.vendor import psutil
+from tests.utils import agent_context
 from tests.webclient import Client
 
 
@@ -267,97 +269,107 @@ def _request_403(client, debug_mode=False):
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
 
-@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Run this tests in python 3.10 and 3.11")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
-    with gunicorn_server(remote_configuration_enabled="false") as context:
-        _, gunicorn_client, pid = context
+    token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
+    with agent_context(token=token):
+        with gunicorn_server(remote_configuration_enabled="false") as context:
+            _, gunicorn_client, pid = context
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        _block_ip()
+            _block_ip()
 
-        time.sleep(3)
+            time.sleep(3)
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        _unblock_ip()
+            _unblock_ip()
 
-        time.sleep(1)
+            time.sleep(1)
 
 
-@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Run this tests in python 3.10 and 3.11")
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
-    with gunicorn_server() as context:
-        _, gunicorn_client, pid = context
+    token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
+    with agent_context(token=token):
+        with gunicorn_server() as context:
+            _, gunicorn_client, pid = context
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        _block_ip()
+            _block_ip()
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        time.sleep(3)
+            time.sleep(3)
 
-        _request_403(gunicorn_client)
+            _request_403(gunicorn_client)
 
-        _unblock_ip()
+            _unblock_ip()
 
-        time.sleep(2)
+            time.sleep(2)
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
 
-@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Run this tests in python 3.10 and 3.11")
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
-    with gunicorn_server() as context:
-        _, gunicorn_client, pid = context
+    token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
+    with agent_context(token=token):
+        with gunicorn_server() as context:
+            _, gunicorn_client, pid = context
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        _block_ip()
+            _block_ip()
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
-        time.sleep(3)
+            time.sleep(3)
 
-        _request_403(gunicorn_client)
+            _request_403(gunicorn_client)
 
-        os.kill(int(pid), signal.SIGTERM)
+            os.kill(int(pid), signal.SIGTERM)
 
-        _request_403(gunicorn_client)
+            _request_403(gunicorn_client)
 
-        _unblock_ip()
+            _unblock_ip()
 
-        time.sleep(2)
+            time.sleep(2)
 
-        _request_200(gunicorn_client)
+            _request_200(gunicorn_client)
 
 
-@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10 and 3.11")
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Run this tests in python 3.10 and 3.11")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
-    with gunicorn_server(appsec_enabled="") as context:
-        _, gunicorn_client, pid = context
+    token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
+        str(uuid.uuid4())
+    )
+    with agent_context(token=token):
+        with gunicorn_server(appsec_enabled="") as context:
+            _, gunicorn_client, pid = context
 
-        _request_200(gunicorn_client, debug_mode=False)
+            _request_200(gunicorn_client, debug_mode=False)
 
-        _1_click_activation()
+            _1_click_activation()
 
-        time.sleep(1)
+            time.sleep(1)
 
-        _block_ip_with_1_click_activation()
+            _block_ip_with_1_click_activation()
 
-        _request_200(gunicorn_client, debug_mode=False)
+            _request_200(gunicorn_client, debug_mode=False)
 
-        time.sleep(3)
+            time.sleep(3)
 
-        _request_403(gunicorn_client, debug_mode=False)
+            _request_403(gunicorn_client, debug_mode=False)
 
-        os.kill(int(pid), signal.SIGTERM)
+            os.kill(int(pid), signal.SIGTERM)
 
-        _request_403(gunicorn_client, debug_mode=False)
+            _request_403(gunicorn_client, debug_mode=False)
 
-        _unblock_ip()
+            _unblock_ip()
 
-        time.sleep(1)
+            time.sleep(1)
 
-        _request_200(gunicorn_client, debug_mode=False)
+            _request_200(gunicorn_client, debug_mode=False)
