@@ -1,6 +1,5 @@
 import bm
-
-from ..bm import utils
+import bm.utils as utils
 
 
 class Tracer(bm.Scenario):
