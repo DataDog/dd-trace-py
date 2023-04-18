@@ -35,7 +35,7 @@ class CIVisibilityEventClient(WriterClientBase):
 
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "PUT"
+    HTTP_METHOD = "POST"
     STATSD_NAMESPACE = "civisibilitywriter"
 
     def __init__(
