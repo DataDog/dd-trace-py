@@ -41,9 +41,13 @@ def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
     if not oce.request_has_quota:
         return pyobject
 
-    if not pyobject:  # len(pyobject) < 1
+    # Pyobject must be Text with len > 1
+    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
-    assert input_info is not None
+
+    if input_info is None:
+        return pyobject
+
     len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     taint_dict = get_taint_dict()
