@@ -92,7 +92,7 @@ def _build_package_file_mapping():
 
 
 _FILE_PACKAGE_MAPPING = None  # type: typing.Optional[typing.Dict[str, Distribution]]
-if asbool(os.getenv("DD_PROFILING_ENABLE_CODE_PROVENANCE", False)):
+if asbool(os.getenv("DD_PROFILING_ENABLE_CODE_PROVENANCE", True)):
     # DEV: If code provenance is enabled, create the mapping as soon as this
     # module is imported. This should happen in the parent process to
     # guarantee that the work is not repeated in child worker processes.
