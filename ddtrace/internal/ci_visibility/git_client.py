@@ -73,10 +73,10 @@ class CIVisibilityGitClient(object):
             _headers.update(headers)
         try:
             conn = get_connection(url, timeout)
-            log.debug("Sending request: %s %s %s %s" % ("POST", url, payload, _headers))
-            conn.request("POST", url, payload, _headers)  # type: ignore[attr-defined]
+            log.debug("Sending request: %s %s %s %s", ("POST", url, payload, _headers))
+            conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
-            log.debug("Response status: %s" % resp.status)
+            log.debug("Response status: %s", resp.status)
             return Response.from_http_response(resp)
         finally:
             conn.close()
@@ -111,10 +111,10 @@ class CIVisibilityGitClient(object):
     def retry_request(cls):
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),  # type: ignore[attr-defined]
+                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
-            stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),  # type: ignore[attr-defined]
+            stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
 
