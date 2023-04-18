@@ -2,8 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec._asm_request_context import get_taint_dict
-from ddtrace.appsec._asm_request_context import set_taint_dict
+from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import new_pyobject_id
 from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
 
@@ -33,11 +33,14 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
             new_ranges.append((input_info, start + offset, size))
 
     taint_dict[id(pyobject)] = tuple(new_ranges)
-    set_taint_dict(taint_dict)
     return pyobject
 
 
 def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
+    # Request is not analyzed
+    if not oce.request_has_quota:
+        return pyobject
+
     if not pyobject:  # len(pyobject) < 1
         return pyobject
     assert input_info is not None
@@ -45,7 +48,6 @@ def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     taint_dict = get_taint_dict()
     taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
-    set_taint_dict(taint_dict)
     return pyobject
 
 
@@ -57,15 +59,10 @@ def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
     taint_dict = get_taint_dict()
     assert pyobject not in taint_dict
     taint_dict[id(pyobject)] = ranges
-    set_taint_dict(taint_dict)
 
 
 def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
     return get_taint_dict().get(id(pyobject), tuple())
-
-
-def clear_taint_mapping():  # type: () -> None
-    set_taint_dict({})
 
 
 def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Input_info]]

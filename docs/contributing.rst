@@ -73,3 +73,14 @@ alongside the corresponding changes to `riotfile.py`.
 
     contributing-integrations
     releasenotes
+
+Pre-commit Hooks
+================
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are also **optionally** available to be automated to run
+when you call git commit as pre-commit hooks to catch any formatting errors before you commit.
+To initialize the pre-commit hook script to run in your development branch, run the following command:
+
+    $ rm .git/hooks/pre-commit
+

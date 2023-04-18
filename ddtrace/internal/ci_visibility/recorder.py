@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace import Tracer
+from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -14,6 +15,8 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings import IntegrationConfig
+
+from .writer import CIVisibilityWriter
 
 
 log = get_logger(__name__)
@@ -29,6 +32,11 @@ def _extract_repository_name_from_url(repository_url):
         return repository_url
 
 
+def _get_git_repo():
+    # this exists only for the purpose of patching in tests
+    return None
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -38,8 +46,11 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
+        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
+            writer = CIVisibilityWriter()
+            self.tracer.configure(writer=writer)
         self.config = config  # type: Optional[IntegrationConfig]
-        self._tags = ci.tags()  # type: Dict[str, str]
+        self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
 
