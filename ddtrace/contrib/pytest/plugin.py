@@ -70,11 +70,13 @@ def _start_test_module_span(item):
     Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
     to find the ``pytest.Package`` ``item``.
     """
+    test_session_span = _extract_span(item.session)
     test_module_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_module",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
+        child_of=test_session_span,
     )
     test_module_span.set_tag_str(COMPONENT, "pytest")
     test_module_span.set_tag_str(SPAN_KIND, KIND)
@@ -82,7 +84,6 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_session_span = _extract_span(item.session)
     test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
     test_module_span.set_tag_str(test.MODULE, item.parent.parent.name)
@@ -96,11 +97,17 @@ def _start_test_suite_span(item):
     Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
     to find the ``pytest.Module`` ``item``.
     """
+    test_session_span = _extract_span(item.session)
+    parent_span = test_session_span
+    if isinstance(item.parent.parent, pytest.Package):
+        test_module_span = _extract_span(item.parent.parent)
+        parent_span = test_module_span
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
+        child_of=parent_span,
     )
     test_suite_span.set_tag_str(COMPONENT, "pytest")
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
@@ -108,7 +115,6 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_session_span = _extract_span(item.session)
     test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
     if isinstance(item.parent.parent, pytest.Package):

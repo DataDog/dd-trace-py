@@ -809,8 +809,8 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
-        test_suite_span = spans[1]
-        test_session_span = spans[2]
+        test_suite_span = spans[2]
+        test_session_span = spans[1]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_suite_span.get_tag("test_module_id") is None
@@ -843,6 +843,9 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
+        test_session_span = spans[2]
+        assert test_session_span.name == "pytest.test_session"
+        assert test_session_span.parent_id is None
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for test_span in test_spans:
             assert test_span.name == "pytest.test"
@@ -850,9 +853,7 @@ class PytestTestCase(TracerTestCase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         for test_suite_span in test_suite_spans:
             assert test_suite_span.name == "pytest.test_suite"
-            assert test_suite_span.parent_id is None
-        assert spans[4].name == "pytest.test_session"
-        assert spans[4].parent_id is None
+            assert test_suite_span.parent_id == test_session_span.span_id
 
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
@@ -868,7 +869,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 4
         test_module_span = spans[2]
-        test_session_span = spans[3]
+        test_session_span = spans[1]
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
@@ -900,16 +901,16 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        test_session_span = spans[6]
+        test_session_span = spans[2]
         assert test_session_span.name == "pytest.test_session"
         test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         for span in test_module_spans:
             assert span.name == "pytest.test_module"
-            assert span.parent_id is None
+            assert span.parent_id == test_session_span.span_id
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
-        for span in test_suite_spans:
-            assert span.name == "pytest.test_suite"
-            assert span.parent_id is None
+        for i in range(len(test_suite_spans)):
+            assert test_suite_spans[i].name == "pytest.test_suite"
+            assert test_suite_spans[i].parent_id == test_module_spans[i].span_id
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for i in range(len(test_spans)):
             assert test_spans[i].name == "pytest.test"
@@ -939,14 +940,14 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ignore=test_package_a", "--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 4
-        test_session_span = spans[3]
+        test_session_span = spans[1]
         assert test_session_span.name == "pytest.test_session"
         test_module_span = spans[2]
         assert test_module_span.name == "pytest.test_module"
-        assert test_module_span.parent_id is None
-        test_suite_span = spans[1]
+        assert test_module_span.parent_id == test_session_span.span_id
+        test_suite_span = spans[3]
         assert test_suite_span.name == "pytest.test_suite"
-        assert test_suite_span.parent_id is None
+        assert test_suite_span.parent_id == test_module_span.span_id
         assert test_suite_span.get_tag("test_module_id") == str(test_module_span.span_id)
         test_span = spans[0]
         assert test_span.name == "pytest.test"
