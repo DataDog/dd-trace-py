@@ -11,7 +11,7 @@ _statsd = None
 
 def stats_client():
     global _statsd
-    if _statsd is None and config.openai.metrics_enabled:
+    if _statsd is None:
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
@@ -24,5 +24,6 @@ def stats_client():
             tags=["env:%s" % config.env, "service:%s" % config.service, "version:%s" % config.version],
         )
 
-    # TODO: handle when metrics is disabled
+    # no public api to disable the dogstatsd client :(
+    _statsd._enabled = config.openai.metrics_enabled
     return _statsd
