@@ -138,18 +138,19 @@ def _unpatch(psycopg_module):
             _u(psycopg_module, "connect")
             _u(psycopg_module, "Cursor")
             _u(psycopg_module, "AsyncCursor")
-        try:
-            _u(psycopg_module.Connection, "connect")
-            _u(psycopg_module.AsyncConnection, "connect")
 
-        # _u throws an attribute error for Python 3.11 on method objects because of
-        # no __get__ method on the BoundFunctionWrapper
-        except AttributeError:
-            _original_connection_class = config.psycopg["_patched_functions"]["psycopg.Connection"]
-            _original_asyncconnection_class = config.psycopg["_patched_functions"]["psycopg.AsyncConnection"]
+            try:
+                _u(psycopg_module.Connection, "connect")
+                _u(psycopg_module.AsyncConnection, "connect")
 
-            psycopg_module.Connection = _original_connection_class
-            psycopg_module.AsyncConnection = _original_asyncconnection_class
+            # _u throws an attribute error for Python 3.11 on method objects because of
+            # no __get__ method on the BoundFunctionWrapper
+            except AttributeError:
+                _original_connection_class = config.psycopg["_patched_functions"]["psycopg.Connection"]
+                _original_asyncconnection_class = config.psycopg["_patched_functions"]["psycopg.AsyncConnection"]
+
+                psycopg_module.Connection = _original_connection_class
+                psycopg_module.AsyncConnection = _original_asyncconnection_class
 
         pin = Pin.get_from(psycopg_module)
         if pin:
