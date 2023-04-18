@@ -162,7 +162,6 @@ def test_integration_sync():
     import openai
 
     import ddtrace
-
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import openai_vcr
 
@@ -197,7 +196,6 @@ def test_integration_async():
     import openai
 
     import ddtrace
-
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import openai_vcr
 

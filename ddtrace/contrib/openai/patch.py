@@ -51,8 +51,16 @@ def patch():
         wrap(openai, "api_resources.completion.Completion.acreate", _patched_endpoint_async(_completion_create)(openai))
 
     if hasattr(openai.api_resources, "chat_completion"):
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", _patched_endpoint(_chat_completion_create)(openai))
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", _patched_endpoint_async(_chat_completion_create)(openai))
+        wrap(
+            openai,
+            "api_resources.chat_completion.ChatCompletion.create",
+            _patched_endpoint(_chat_completion_create)(openai),
+        )
+        wrap(
+            openai,
+            "api_resources.chat_completion.ChatCompletion.acreate",
+            _patched_endpoint_async(_chat_completion_create)(openai),
+        )
 
     if hasattr(openai.api_resources, "embedding"):
         wrap(openai, "api_resources.embedding.Embedding.create", _patched_endpoint(_embedding_create)(openai))
@@ -109,6 +117,7 @@ def _patched_endpoint(patch_gen):
             except StopIteration:
                 # expected
                 pass
+
     return patched_endpoint
 
 
@@ -131,6 +140,7 @@ def _patched_endpoint_async(patch_gen):
             except StopIteration:
                 # expected
                 pass
+
     return patched_endpoint
 
 
