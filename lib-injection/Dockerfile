@@ -6,10 +6,10 @@ ARG DDTRACE_PYTHON_VERSION
 RUN python3 -m pip install -U pip==23.0.1
 RUN python3 -m pip install packaging==23.0
 RUN mkdir -p pkgs
-ADD ./dl_megawheel.py .
+ADD ./dl_wheels.py .
 # Note that we only get Python >= 3.7. This is to keep the size of the image
 # as small as possible.
-RUN python3 dl_megawheel.py \
+RUN python3 dl_wheels.py \
         --python-version=3.11 \
         --python-version=3.10 \
         --python-version=3.9 \
