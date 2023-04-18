@@ -116,7 +116,7 @@ jobs:
 
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+        run: tests/runtests.py
 
   graphene-testsuite-3_0:
     runs-on: ubuntu-latest
