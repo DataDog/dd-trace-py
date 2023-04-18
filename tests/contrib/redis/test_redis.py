@@ -312,7 +312,9 @@ class TestRedisPatch(TracerTestCase):
         assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+        env_overrides=dict(
+            DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
+        )
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
@@ -328,7 +330,9 @@ class TestRedisPatch(TracerTestCase):
         assert span.service == "override-redis", span.service
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+        env_overrides=dict(
+            DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"
+        )
     )
     def test_service_precedence_v1(self):
         self.r.get("cheese")
