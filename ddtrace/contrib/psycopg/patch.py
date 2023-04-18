@@ -45,6 +45,7 @@ config._add(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
         _patched_modules=set(),
+        _patched_functions=dict(),
         trace_fetch_methods=asbool(
             os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
             or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
@@ -88,6 +89,8 @@ def _patch(psycopg_module):
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
+        config.psycopg["_patched_functions"].update({"psycopg2.connect": psycopg_module.connect})
+
         # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
         config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
@@ -97,6 +100,16 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
+        config.psycopg["_patched_functions"].update(
+            {
+                "psycopg.connect": psycopg_module.connect,
+                "psycopg.Connection": psycopg_module.Connection,
+                "psycopg.Cursor": psycopg_module.Cursor,
+                "psycopg.AsyncConnection": psycopg_module.AsyncConnection,
+                "psycopg.AsyncCursor": psycopg_module.AsyncCursor,
+            }
+        )
+
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
@@ -125,8 +138,17 @@ def _unpatch(psycopg_module):
             _u(psycopg_module, "connect")
             _u(psycopg_module, "Cursor")
             _u(psycopg_module, "AsyncCursor")
+        try:
             _u(psycopg_module.Connection, "connect")
             _u(psycopg_module.AsyncConnection, "connect")
+
+        # _u throws an attribute error for Python 3.11 on method objects because of no __get__ method on the BoundFunctionWrapper
+        except AttributeError:
+            _original_connection_class = config.psycopg["_patched_functions"]["psycopg.Connection"]
+            _original_asyncconnection_class = config.psycopg["_patched_functions"]["psycopg.AsyncConnection"]
+
+            psycopg_module.Connection = _original_connection_class
+            psycopg_module.AsyncConnection = _original_asyncconnection_class
 
         pin = Pin.get_from(psycopg_module)
         if pin:

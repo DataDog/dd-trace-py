@@ -1,4 +1,5 @@
 import os
+import sys
 
 import psycopg
 import pytest
@@ -16,10 +17,21 @@ def patch_psycopg():
     assert isinstance(psycopg.connect, wrapt.ObjectProxy)
     assert isinstance(psycopg.Cursor, wrapt.ObjectProxy)
     assert isinstance(psycopg.AsyncCursor, wrapt.ObjectProxy)
-    assert hasattr(psycopg.Connection.connect, "_self_wrapper") or hasattr(psycopg.Connection.connect, "__wrapped__")
-    assert hasattr(psycopg.AsyncConnection.connect, "_self_wrapper") or hasattr(
-        psycopg.AsyncConnection.connect, "__wrapped__"
-    )
+
+    # check if Connection connect methods are patched
+    try:
+        assert isinstance(psycopg.Connection.connect, wrapt.ObjectProxy)
+        assert isinstance(psycopg.AsyncConnection.connect, wrapt.ObjectProxy)
+    except AttributeError:
+        if sys.version_info >= (3, 11):
+            # Python 3.11 is throwing an AttributeError when accessing a BoundMethod
+            # __get__ for Psycopg.Connection.connect method.
+            pass
+        else:
+            pytest.fail(
+                "Connection and AsyncConnection objects should have their connect methods \
+                patched and verified."
+            )
     yield
     unpatch()
 

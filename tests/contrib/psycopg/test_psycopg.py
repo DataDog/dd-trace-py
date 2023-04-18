@@ -426,16 +426,3 @@ class PsycopgCore(TracerTestCase):
         rows = cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
-
-
-# @skipIf(psycopg_VERSION < (2, 7), "quote_ident not available in psycopg<2.7")
-# def test_manual_wrap_extension_quote_ident_standalone():
-#     from ddtrace import patch_all
-
-#     patch_all()
-#     from psycopg.extensions import quote_ident
-
-#     # NOTE: this will crash if it doesn't work.
-#     #   TypeError: argument 2 must be a connection or a cursor
-#     conn = psycopg.connect(**POSTGRES_CONFIG)
-#     quote_ident("foo", conn)
