@@ -134,7 +134,7 @@ class MemoryCollector(collector.PeriodicCollector):
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
         stacks = []
-        for (stack, nframes, thread_id), size in _memalloc.heap():
+        for (stack, nframes, thread_id), size in _memalloc.heap()
             if self.ignore_profiler or thread_id in thread_id_ignore_set:
                 continue
             if self.use_libdatadog:
