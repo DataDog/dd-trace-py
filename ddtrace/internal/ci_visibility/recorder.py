@@ -18,6 +18,8 @@ from ddtrace.internal.service import Service
 from ddtrace.settings import IntegrationConfig
 
 from .. import agent
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -81,7 +83,7 @@ class CIVisibility(Service):
             headers = {"dd-api-key": os.environ.get("DD_API_KEY")}
             if headers["dd-api-key"]:
                 writer = CIVisibilityWriter(
-                    intake_url="https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com"),
+                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, os.environ.get("DD_SITE", AGENTLESS_DEFAULT_SITE)),
                     headers=headers,
                 )
             else:

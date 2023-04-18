@@ -13,6 +13,8 @@ from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import AGENTLESS_ENDPOINT
 from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .encoder import CIVisibilityEncoderV01
@@ -62,7 +64,7 @@ class CIVisibilityWriter(HTTPWriter):
         use_evp=False,  # type: bool
     ):
         if not intake_url:
-            intake_url = "https://citestcycle-intake.datadoghq.com"
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             clients=[CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()],
