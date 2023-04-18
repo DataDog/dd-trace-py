@@ -80,7 +80,7 @@ class CIVisibility(Service):
                     headers=headers,
                 )
             else:
-                log.error(
+                raise ValueError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )
