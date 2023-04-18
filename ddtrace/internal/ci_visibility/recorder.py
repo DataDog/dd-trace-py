@@ -76,10 +76,14 @@ class CIVisibility(Service):
             headers = {"dd-api-key": os.environ.get("DD_API_KEY")}
             if headers["dd-api-key"]:
                 writer = CIVisibilityWriter(
-                    intake_url="https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
+                    intake_url="https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com"),
+                    headers=headers,
                 )
             else:
-                log.error("Environment variable DD_API_KEY not set - not sending CI Visibility data")
+                log.error(
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                    "cannot be initialized."
+                )
         elif self._agent_evp_proxy_is_available():
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
