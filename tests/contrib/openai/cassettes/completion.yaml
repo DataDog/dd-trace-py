@@ -25,16 +25,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA4SQwUrEMBiE7z5FnHOE1mXXJTcvHsSLrF60UrLJbxs3zV+bBCql4Dv4hj6JrAer
-        J08Dw8d8MBOchYLpen92sb6+er3b3I6jNZeULeUHf7+9yauVDjtI8P6FTIJCojHVhrveU3IcIGEG
-        0oksVLnZluuiKMpComNLHgra6iPSsjMUoR6n7wEonFaoQhU+3z/+BiRcsDRCFRKem37gfYQK2XuJ
-        ZxdcbOuBdOQABU+hSS1m+XtW7FoSsXOerBRpeHOhEYmFZz4Io2PWfnGU/zqO5fwkkaNuCGpCP3DX
-        pzrxgUKEOpdY3vhpy61E4qT9whXzfPIFAAD//wMAykb80HIBAAA=
+        H4sIAAAAAAAAA4TPTU7DMBQE4D2nMLNiYSQcStL6BOVnhcQKochNXhMXx8+y3SpVFImLcDlOgsqi
+        XbIdjb7RTLAtNJohuNuq9Gp8Obw+H+6H7W6s+qeFelvH9XFlYgkJ3uyoydDINOa64SE4ypY9JJpI
+        JlMLrcqlWj4U1aqSGLglBw3TmlOlZ9tQgn6f/gBoSBHJmfH65+tbPIpkbCsyi+EonAmZAySsb2mE
+        vpNw3IXImwTt985JbK23qa8jmcQeGo58l3vM8qyLG3UR1P9COk3OHxL7ZDqCnhAiDyHXmT/JJ+hC
+        4nL6nKpCInM27pIs5vnqFwAA//8DANlu5JlZAQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7e4df74c378c35-EWR
+      - 7b9ff2ef3f5443da-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -44,9 +44,12 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 19:20:10 GMT
+      - Tue, 18 Apr 2023 21:19:57 GMT
       Server:
       - cloudflare
+      Set-Cookie:
+      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       access-control-allow-origin:
@@ -58,7 +61,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '69'
+      - '170'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -76,7 +79,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 4ms
       x-request-id:
-      - 819c30369c99c9fcb3c4e0f9d25da158
+      - 20067421be7baf021bd0bace17858229
     status:
       code: 200
       message: OK

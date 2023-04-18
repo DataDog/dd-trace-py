@@ -16,6 +16,8 @@ interactions:
       - '335'
       Content-Type:
       - application/json
+      Cookie:
+      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000
       User-Agent:
       - OpenAI/v1 PythonBindings/0.27.2
       X-OpenAI-Client-User-Agent:
@@ -28,17 +30,17 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA6zOTWvCQBSF4X1/xXDXE4mxUTO7UqzQumrFFkqRSXKTjE7mhpkrWiT/vdgPu3HR
-        RbcvnMNzBFOCgqLRXLSdjSbp/TxbPTSbZTUeObud3uZtEV5m+8VqloAEyjdY8PdiUFDbWWRDDiQU
-        HjVjCWo4ng7TOI6TTEJLJVpQUHccjQZpxDufUxSP4iFI2AVdI6gjdJ7ajtdMW3QBVDqR8Ht9zteJ
-        BCbW9lyyrJdQNGQKDKBej9Bi+Pn0ZBEU6BBMYO34JCTH6E76ZYMiiZNYPJO3pXhCbzCIvQ6is/od
-        S6FZzC3lKBamQnFn0JbCOHHjrXE1k5NiiQcdBtBLqIwzoVl71IEcKAhMHUgwrsQDqLiX/+i6YLhk
-        lYIbFA21KALr0uxaQdVn+5o8alej/wt/2L/1Vx8AAAD//wMAzZBRuSYCAAA=
+        H4sIAAAAAAAAA6zOsW7CMBSF4b1PYd3ZQQlpAnjrAgtbqVqpqpCxL4lbx9eyL4IK5d0rpJYuDB26
+        /tI5+s7gLCgwvWYzRF/M2tD0mOjppW0t18cVH2PJyyXa9foAEmj3joa/FxNDQ/TIjgJIMAk1owVV
+        tfNq3tTldCFhIIseFHSRi3rSFHxIOyrKuqxAwiHrDkGdISYaIm+ZPjBkUM1Mwu/1Ndf3EphY+2tZ
+        VKME05MzmEG9nmHA/POZyCMo0Dm7zDrwRUiBMVz0mx7FtJyW4pmSt+IRk8MsjjqL6PUnWuGCeEje
+        hY4pSLHBk85Cs1h52qFYuz2KpUNvJzBK2Lvgcr9NqDMFUJCZIkhwweIJVDnKf3TdMNyy/sFVjW/j
+        3RcAAAD//wMAYmTRJv8BAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7e4e6c7fc14246-EWR
+      - 7b9ff89aaf7a4350-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -48,9 +50,12 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 19:20:30 GMT
+      - Tue, 18 Apr 2023 21:23:50 GMT
       Server:
       - cloudflare
+      Set-Cookie:
+      - _cfuvid=rivrQHfY2JgyNPaGS5BuAQSWVT_3vQbN5A2pkVcwXT0-1681853030671-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       access-control-allow-origin:
@@ -62,7 +67,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1681'
+      - '1070'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -74,7 +79,7 @@ interactions:
       x-ratelimit-reset-requests:
       - 17ms
       x-request-id:
-      - d2dadd5fea4df57b27967e4871a013b8
+      - 6eabc80b7d44ae16e36dfd9a4ce83f73
     status:
       code: 200
       message: OK

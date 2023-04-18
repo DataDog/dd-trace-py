@@ -13,6 +13,8 @@ interactions:
       - '92'
       Content-Type:
       - application/json
+      Cookie:
+      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000
       User-Agent:
       - OpenAI/v1 PythonBindings/0.26.5
       X-OpenAI-Client-User-Agent:
@@ -25,17 +27,17 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA2xPu27CMBT9F8842Lm+sZ2tSwcW1C4dqqqywiWx5CSVbRAF5d+rlBaK6HieOufE
-        /IbVrB83kWtcPSZcj6SPL/uncOwf4LDxYfW8X7vIFrOJAqtZpkPmM4gu+3HgQii2YJHSLuTE6tcT
-        2wbXtrRh9daFRAvWuEztGD0lVp9YosPOhYvYuUwXsPdjoKG5EonClncu9n+YOb7s/TDGdNOyzF0k
-        l2nwQ3vXuGyj++h88yNMl1Wf76kZ4+20qrCAUKLSIEqQEoiL6ncqFkoZpQ1CCQqMPmvX5aYQplQS
-        LKIx1sIc1jdPZAGlQmNLWQljUWtDXNi7a7KoBGgtAbRFVSkBZ9v9V1MYYZTWiObbp4hL+d93KIyV
-        ApVVykpEi8SFmaa36QsAAP//AwDmk3bZCQIAAA==
+        H4sIAAAAAAAAA2xPXU/CMBT9L32mo91t19u9gsYng74aY5px2Ra7TdtiELL/biYKEnw8nznnwNo1
+        K1k3rAM3RS/3q4ft7TJf9vuVf190dnitb+Li7vGezSYTeVayRLvEJxBcaoeeC6HYjAWKW58iK58O
+        bONdXdOalRvnI81Y5RLVQ2gpsvLAIu22zp/ExiU6gY928NRXZyKS3/DGhe4PM8XnXdsPIV60zFMT
+        yCXq276+apzXwb01bfUjjKdVny+xGsLltCKzoCHXyoDIQUogLorfqTpTCpVBDTkoQHPUzssxE5gr
+        CVZrRGthCpuLJzKDXGm0uSwEWm0MEhf26prMCgHGSABjtSqUgKPt+itmKFAZozV++xRxKf/7Dhla
+        KbSySlmptdXEBY7j8/gFAAD//wMATzzG1AkCAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7e4e06edb9c409-EWR
+      - 7b9ff2fccd56c3f0-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -43,7 +45,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 19:20:12 GMT
+      - Tue, 18 Apr 2023 21:20:00 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -53,13 +55,13 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '289'
+      - '635'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-request-id:
-      - 96185c8ccac13934f2e42a39a45f3f7a
+      - 2b9ad9c9c106f591bd0cbf3c6e83dcdf
     status:
       code: 200
       message: OK

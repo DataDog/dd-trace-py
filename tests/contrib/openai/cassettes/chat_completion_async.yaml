@@ -19,9 +19,9 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-75JGAbcy5DDIrAEv5LhJm5pI2yHWW","object":"chat.completion","created":1681500030,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
-        2020 World Series was played in Arlington, Texas at Globe Life Field."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
-        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
+      string: '{"id":"chatcmpl-76n5iUWrirIDc8ldhMryJtvsL5wef","object":"chat.completion","created":1681853030,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
+        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
+        2020 World Series was played in Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
 
         '
     headers:
@@ -30,7 +30,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b7e4e784f1f41c0-EWR
+      - 7b9ff8a2a832438d-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -40,9 +40,12 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 14 Apr 2023 19:20:31 GMT
+      - Tue, 18 Apr 2023 21:23:51 GMT
       Server:
       - cloudflare
+      Set-Cookie:
+      - _cfuvid=P_8pTyk85r7Xtj6D27yDxfaPNVoS0urVVbv01pfRgNs-1681853031895-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       alt-svc:
@@ -52,7 +55,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1086'
+      - '1008'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -64,7 +67,7 @@ interactions:
       x-ratelimit-reset-requests:
       - 17ms
       x-request-id:
-      - e4cb57f6d4050e002648b32db81774f9
+      - 53dc155a61f84eddf2a862ac7d871b52
     status:
       code: 200
       message: OK

@@ -14,20 +14,21 @@
       "component": "openai",
       "language": "python",
       "model": "text-embedding-ada-002",
+      "organization": "not-a-real-org",
       "request.input": "hello world",
       "request.model": "text-embedding-ada-002",
       "response.model": "text-embedding-ada-002",
-      "runtime-id": "ed3b868b778a4d35af35a17dd784c036"
+      "runtime-id": "1aca547854d74a1e8dabaf944c1c062a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88089,
+      "process_id": 73785,
       "response.data.embedding-length": 1536,
       "response.data.num-embeddings": 1
     },
-    "duration": 1141000,
-    "start": 1681514298885951000
+    "duration": 123602000,
+    "start": 1681852799225818000
   }]]

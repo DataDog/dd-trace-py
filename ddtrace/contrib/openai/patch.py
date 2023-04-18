@@ -216,7 +216,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
         if isinstance(prompt, list):
             for idx, p in enumerate(prompt):
                 span.set_tag_str("request.prompt.%d" % idx, _process_text(p))
-        else:
+        elif prompt:
             span.set_tag_str("request.prompt", _process_text(prompt))
 
     for kw_attr in _completion_request_attrs:

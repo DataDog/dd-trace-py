@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "openai",
-    "resource": "chat.completions/gpt-3.5-turbo",
+    "resource": "completions/ada",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -13,35 +13,34 @@
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
       "language": "python",
-      "model": "gpt-3.5-turbo",
-      "request.message.0.content": "Write a hello world program in python",
-      "request.message.0.role": "user",
-      "request.model": "gpt-3.5-turbo",
-      "response.choices.0.finish_reason": "stop",
+      "model": "ada",
+      "organization": "not-a-real-org",
+      "request.model": "ada",
+      "request.prompt": "hello world",
+      "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "None",
-      "response.choices.0.message.content": "print(\"Hello, World!\")",
-      "response.choices.0.message.role": "assistant",
-      "response.id": "chatcmpl-75Mv8whcZBA49wKqc3vbEjetdKon2",
-      "response.object": "chat.completion",
-      "runtime-id": "e3069af57dbb4dfaaac2eb5fd2f81269"
+      "response.choices.0.text": "-to-me they will happen. Both techniques were invented from experience",
+      "response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
+      "response.object": "text_completion",
+      "runtime-id": "af43cf2a9e5341ee870c686b938bf88a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88601,
+      "process_id": 73798,
       "response.choices.num": 1,
-      "response.usage.completion_tokens": 6,
-      "response.usage.prompt_tokens": 15,
-      "response.usage.total_tokens": 21
+      "response.usage.completion_tokens": 16,
+      "response.usage.prompt_tokens": 2,
+      "response.usage.total_tokens": 18
     },
-    "duration": 31877000,
-    "start": 1681514411891360000
+    "duration": 212823000,
+    "start": 1681852800902749000
   },
      {
        "name": "requests.request",
-       "service": "openai",
+       "service": "requests",
        "resource": "requests.request",
        "trace_id": 0,
        "span_id": 2,
@@ -52,13 +51,14 @@
          "component": "requests",
          "http.method": "POST",
          "http.status_code": "200",
-         "http.url": "https://api.openai.com/v1/chat/completions",
-         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
+         "http.url": "https://api.openai.com/v1/completions",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1
+         "_dd.measured": 1,
+         "_dd.top_level": 1
        },
-       "duration": 2152000,
-       "start": 1681514411919280000
+       "duration": 199881000,
+       "start": 1681852800912434000
      }]]
