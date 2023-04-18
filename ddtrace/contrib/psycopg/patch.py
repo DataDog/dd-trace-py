@@ -21,10 +21,10 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils.formats import asbool
-from ...internal.utils.wrappers import unwrap
+from ...internal.utils.wrappers import _u as _u
 from ...propagation._database_monitoring import _DBM_Propagator
 
 
@@ -93,7 +93,7 @@ def _patch(psycopg_module):
         config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
         _patch_extensions(_psycopg2_extensions)
 
-        wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
@@ -101,8 +101,12 @@ def _patch(psycopg_module):
         wrapt.wrap_function_wrapper(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         wrapt.wrap_function_wrapper(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
 
-        wrapt.wrap_function_wrapper(psycopg_module.AsyncConnection, "connect", patched_connect_async)
-        wrapt.wrap_function_wrapper(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
+        _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
+
+        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async)
+        _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
 
         config.psycopg["_patched_modules"].add(psycopg_module)
 
@@ -117,15 +121,16 @@ def _unpatch(psycopg_module):
         setattr(psycopg_module, "_datadog_patch", False)
 
         if psycopg_module.__name__ == "psycopg2":
-            unwrap(psycopg_module, "connect")
+            _u(psycopg_module, "connect")
+
             _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
             _unpatch_extensions(_psycopg2_extensions)
         else:
-            unwrap(psycopg_module, "connect")
-            unwrap(psycopg_module.Connection, "connect")
-            unwrap(psycopg_module, "Cursor")
-            unwrap(psycopg_module.AsyncConnection, "connect")
-            unwrap(psycopg_module, "AsyncCursor")
+            _u(psycopg_module, "connect")
+            _u(psycopg_module, "Cursor")
+            _u(psycopg_module, "AsyncCursor")
+            _u(psycopg_module.Connection, "connect")
+            _u(psycopg_module.AsyncConnection, "connect")
 
         pin = Pin.get_from(psycopg_module)
         if pin:

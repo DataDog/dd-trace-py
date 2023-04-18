@@ -1170,12 +1170,12 @@ venv = Venv(
             pkgs={"pytest-asyncio": latest},
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.10"),
+                    pys=select_pys(min_version="3.6", max_version="3.11"),
                     # Python 3.6 supported up to 3.1.0
                     pkgs={"psycopg": ["~=3.0.18"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
                     pkgs={"psycopg": [latest]},
                 ),
