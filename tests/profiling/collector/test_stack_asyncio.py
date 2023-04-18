@@ -2,7 +2,6 @@ import asyncio
 import collections
 import sys
 import time
-import types
 
 import pytest
 
