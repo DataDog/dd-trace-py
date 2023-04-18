@@ -47,16 +47,16 @@ def patch():
     wrap(openai, "api_requestor._make_session", patched_make_session(openai))
 
     if hasattr(openai.api_resources, "completion"):
-        wrap(openai, "api_resources.completion.Completion.create", patched_completion_create(openai))
-        wrap(openai, "api_resources.completion.Completion.acreate", patched_completion_acreate(openai))
+        wrap(openai, "api_resources.completion.Completion.create", _patched_endpoint(_completion_create)(openai))
+        wrap(openai, "api_resources.completion.Completion.acreate", _patched_endpoint_async(_completion_create)(openai))
 
     if hasattr(openai.api_resources, "chat_completion"):
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", patched_chat_completion_create(openai))
-        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", patched_chat_completion_acreate(openai))
+        wrap(openai, "api_resources.chat_completion.ChatCompletion.create", _patched_endpoint(_chat_completion_create)(openai))
+        wrap(openai, "api_resources.chat_completion.ChatCompletion.acreate", _patched_endpoint_async(_chat_completion_create)(openai))
 
     if hasattr(openai.api_resources, "embedding"):
-        wrap(openai, "api_resources.embedding.Embedding.create", patched_embedding_create(openai))
-        wrap(openai, "api_resources.embedding.Embedding.acreate", patched_embedding_acreate(openai))
+        wrap(openai, "api_resources.embedding.Embedding.create", _patched_endpoint(_embedding_create)(openai))
+        wrap(openai, "api_resources.embedding.Embedding.acreate", _patched_endpoint_async(_embedding_create)(openai))
 
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
@@ -91,122 +91,51 @@ def patched_make_session(openai, pin, func, instance, args, kwargs):
     return session
 
 
-@trace_utils.with_traced_module
-def patched_completion_create(openai, pin, func, instance, args, kwargs):
-    g = _completion_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
+def _patched_endpoint(patch_gen):
+    @trace_utils.with_traced_module
+    def patched_endpoint(openai, pin, func, instance, args, kwargs):
+        g = patch_gen(openai, pin, instance, args, kwargs)
+        g.send(None)
+        resp, resp_err = None, None
         try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
+            resp = func(*args, **kwargs)
+            return resp
+        except Exception as err:
+            resp_err = err
+            raise
+        finally:
+            try:
+                g.send((resp, resp_err))
+            except StopIteration:
+                # expected
+                pass
+    return patched_endpoint
 
 
-@trace_utils_async.with_traced_module
-async def patched_completion_acreate(openai, pin, func, instance, args, kwargs):
-    g = _completion_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = await func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
+def _patched_endpoint_async(patch_gen):
+    # Same as _patched_endpoint but async
+    @trace_utils.with_traced_module
+    async def patched_endpoint(openai, pin, func, instance, args, kwargs):
+        g = patch_gen(openai, pin, instance, args, kwargs)
+        g.send(None)
+        resp, resp_err = None, None
         try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
-
-
-@trace_utils.with_traced_module
-def patched_chat_completion_create(openai, pin, func, instance, args, kwargs):
-    g = _chat_completion_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
-        try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
-
-
-@trace_utils_async.with_traced_module
-async def patched_chat_completion_acreate(openai, pin, func, instance, args, kwargs):
-    g = _chat_completion_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = await func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
-        try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
-
-
-@trace_utils.with_traced_module
-def patched_embedding_create(openai, pin, func, instance, args, kwargs):
-    g = _embedding_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
-        try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
-
-
-@trace_utils_async.with_traced_module
-async def patched_embedding_acreate(openai, pin, func, instance, args, kwargs):
-    g = _embedding_create(openai, pin, instance, args, kwargs)
-    g.send(None)
-    resp, resp_err = None, None
-    try:
-        resp = await func(*args, **kwargs)
-        return resp
-    except Exception as err:
-        resp_err = err
-        raise
-    finally:
-        try:
-            g.send((resp, resp_err))
-        except StopIteration:
-            # expected
-            pass
+            resp = await func(*args, **kwargs)
+            return resp
+        except Exception as err:
+            resp_err = err
+            raise
+        finally:
+            try:
+                g.send((resp, resp_err))
+            except StopIteration:
+                # expected
+                pass
+    return patched_endpoint
 
 
 # set basic openai data for all openai spans
-def init_openai_span(span, openai):
+def _init_openai_span(span, openai):
     span.set_tag_str(COMPONENT, config.openai.integration_name)
     if hasattr(openai, "api_base") and openai.api_base:
         span.set_tag_str("api_base", openai.api_base)
@@ -241,7 +170,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.request", resource="completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
-    init_openai_span(span, openai)
+    _init_openai_span(span, openai)
     if model:
         span.set_tag_str("model", model)
 
@@ -337,7 +266,7 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.request", resource="chat.completions/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
-    init_openai_span(span, openai)
+    _init_openai_span(span, openai)
     if model:
         span.set_tag_str("model", model)
 
@@ -429,7 +358,7 @@ def _embedding_create(openai, pin, instance, args, kwargs):
     span = pin.tracer.trace(
         "openai.request", resource="embedding/%s" % model, service=trace_utils.ext_service(pin, config.openai)
     )
-    init_openai_span(span, openai)
+    _init_openai_span(span, openai)
     if model:
         span.set_tag_str("model", model)
 
