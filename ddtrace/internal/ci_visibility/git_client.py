@@ -12,10 +12,14 @@ from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
 from ddtrace.ext.git import git_subprocess_cmd
+from ddtrace.internal.logger import get_logger
 
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
+
+
+log = get_logger(__name__)
 
 
 class CIVisibilityGitClient(object):
@@ -69,8 +73,10 @@ class CIVisibilityGitClient(object):
             _headers.update(headers)
         try:
             conn = get_connection(url, timeout)
+            log.debug("Sending request: %s %s %s %s" % ("POST", url, payload, _headers))
             conn.request("POST", url, payload, _headers)  # type: ignore[attr-defined]
             resp = compat.get_connection_response(conn)
+            log.debug("Response status: %s" % resp.status)
             return Response.from_http_response(resp)
         finally:
             conn.close()
