@@ -34,6 +34,15 @@ thread will have a different context.
 # contexts without spans
 
 
+_WAF_ADDRESSES = "waf_addresses"
+_CALLBACKS = "callbacks"
+_TELEMETRY = "telemetry"
+_CONTEXT_CALL = "context"
+_WAF_CALL = "waf_run"
+_BLOCK_CALL = "block"
+_WAF_RESULTS = "waf_results"
+
+
 class ASM_Environment:
     """
     an object of this class contains all asm data (waf and telemetry)
@@ -83,14 +92,14 @@ class _DataHandler:
         self.active = True
         self.token = _ASM.set(env)
 
-        env.telemetry["waf_results"] = [], [], []
-        env.callbacks["context"] = []
+        env.telemetry[_WAF_RESULTS] = [], [], []
+        env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get("context")
+            callbacks = env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function()
@@ -109,7 +118,7 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 
 def set_waf_address(address, value, span):  # type: (str, Any, Any) -> None
-    set_value("waf_addresses", address, value)
+    set_value(_WAF_ADDRESSES, address, value)
     if span:
         _context.set_item(address, value, span=span)
 
@@ -126,24 +135,24 @@ def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
 
 
 def get_waf_address(address, default=None):  # type: (str, Any) -> Any
-    return get_value("waf_addresses", address, default=default)
+    return get_value(_WAF_ADDRESSES, address, default=default)
 
 
 def add_context_callback(function):  # type: (Any) -> None
-    callbacks = get_value("callbacks", "context")
+    callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
     if callbacks is not None:
         callbacks.append(function)
 
 
 def set_waf_callback(value):  # type: (Any) -> None
-    set_value("callbacks", "waf_run", value)
+    set_value(_CALLBACKS, _WAF_CALL, value)
 
 
 def call_waf_callback(custom_data=None):
     # type: (dict[str, Any] | None) -> None
     if not config._appsec_enabled:
         return
-    callback = get_value("callbacks", "waf_run")
+    callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
         return callback(custom_data)
     else:
@@ -156,7 +165,7 @@ def set_ip(ip):  # type: (Optional[str]) -> None
 
 
 def get_ip():  # type: () -> Optional[str]
-    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HTTP_IP)
+    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HTTP_IP)
 
 
 # Note: get/set headers use Any since we just carry the headers here without changing or using them
@@ -170,7 +179,7 @@ def set_headers(headers):  # type: (Any) -> None
 
 
 def get_headers():  # type: () -> Optional[Any]
-    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
+    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
@@ -178,7 +187,7 @@ def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
 
 
 def get_headers_case_sensitive():  # type: () -> bool
-    return get_value("waf_addresses", SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
+    return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
 def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
@@ -188,14 +197,14 @@ def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
     functools.partial.
     """
     if _callable:
-        set_value("callbacks", "block", _callable)
+        set_value(_CALLBACKS, _BLOCK_CALL, _callable)
 
 
 def block_request():  # type: () -> None
     """
     Calls or returns the stored block request callable, if set.
     """
-    _callable = get_value("callbacks", "block")
+    _callable = get_value(_CALLBACKS, _BLOCK_CALL)
     if _callable:
         _callable()
     else:
@@ -228,11 +237,11 @@ def set_waf_results(result_data, result_info, is_blocked):  # type: (Any, Any, b
 
 
 def get_waf_results():  # type: () -> Tuple[List[Any], List[Any], List[bool]] | None
-    return get_value("telemetry", "waf_results")
+    return get_value(_TELEMETRY, _WAF_RESULTS)
 
 
 def reset_waf_results():  # type: () -> None
-    set_value("telemetry", "waf_results", ([], [], []))
+    set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
 
 
 @contextlib.contextmanager
