@@ -72,7 +72,7 @@ def _wrap_send(func, instance, args, kwargs):
 
     cfg = config.get_from(instance)
     service = None
-    if cfg.get("split_by_domain") and hostname:
+    if cfg["split_by_domain"] and hostname:
         service = hostname
     if service is None:
         service = cfg.get("service", None)

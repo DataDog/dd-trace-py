@@ -1,5 +1,4 @@
 import os
-import random
 import sys
 
 from ddtrace import config
