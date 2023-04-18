@@ -116,6 +116,10 @@ def patched_make_session(openai, pin, func, instance, args, kwargs):
     time spent querying the OpenAI backend.
     """
     session = func()
+    cfg = config.get_from(session)
+    for k, v in cfg.items():
+        if k not in pin._config:
+            pin._config[k] = v
     pin.clone().onto(session)
     return session
 
