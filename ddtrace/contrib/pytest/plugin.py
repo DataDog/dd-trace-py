@@ -70,10 +70,11 @@ def _start_test_module_span(item):
     Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
     to find the ``pytest.Package`` ``item``.
     """
-    test_module_span = _CIVisibility._instance.tracer.trace(
+    test_module_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_module",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
+        activate=True,
     )
     test_module_span.set_tag_str(COMPONENT, "pytest")
     test_module_span.set_tag_str(SPAN_KIND, KIND)
@@ -81,7 +82,8 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag(_SESSION_ID, test_module_span.trace_id)
+    test_session_span = _extract_span(item.session)
+    test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
     test_module_span.set_tag_str(test.MODULE, item.parent.parent.name)
     test_module_span.set_tag_str(test.MODULE_PATH, item.nodeid.rpartition("/")[0])
@@ -94,8 +96,11 @@ def _start_test_suite_span(item):
     Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
     to find the ``pytest.Module`` ``item``.
     """
-    test_suite_span = _CIVisibility._instance.tracer.trace(
-        "pytest.test_suite", service=_CIVisibility._instance._service, span_type=SpanTypes.TEST
+    test_suite_span = _CIVisibility._instance.tracer._start_span(
+        "pytest.test_suite",
+        service=_CIVisibility._instance._service,
+        span_type=SpanTypes.TEST,
+        activate=True,
     )
     test_suite_span.set_tag_str(COMPONENT, "pytest")
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
@@ -103,7 +108,8 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span.set_tag(_SESSION_ID, test_suite_span.trace_id)
+    test_session_span = _extract_span(item.session)
+    test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
     if isinstance(item.parent.parent, pytest.Package):
         test_module_span = _extract_span(item.parent.parent)
@@ -146,26 +152,26 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
-        test_command_span = _CIVisibility._instance.tracer.trace(
+        test_session_span = _CIVisibility._instance.tracer.trace(
             "pytest.test_session",
             service=_CIVisibility._instance._service,
             span_type=SpanTypes.TEST,
         )
-        test_command_span.set_tag_str(COMPONENT, "pytest")
-        test_command_span.set_tag_str(SPAN_KIND, KIND)
-        test_command_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        test_command_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-        test_command_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
-        test_command_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
-        test_command_span.set_tag(_SESSION_ID, test_command_span.trace_id)
-        _store_span(session, test_command_span)
+        test_session_span.set_tag_str(COMPONENT, "pytest")
+        test_session_span.set_tag_str(SPAN_KIND, KIND)
+        test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_session_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+        test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
+        test_session_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
+        test_session_span.set_tag(_SESSION_ID, test_session_span.span_id)
+        _store_span(session, test_session_span)
 
 
 def pytest_sessionfinish(session, exitstatus):
     if _CIVisibility.enabled:
-        test_command_span = _extract_span(session)
-        if test_command_span is not None:
-            test_command_span.finish()
+        test_session_span = _extract_span(session)
+        if test_session_span is not None:
+            test_session_span.finish()
         _CIVisibility.disable()
 
 
@@ -200,11 +206,9 @@ def pytest_runtest_protocol(item, nextitem):
 
     if _extract_span(item.parent) is None:
         _start_test_suite_span(item)
-    module_span = _extract_span(item.parent)
 
-    with _CIVisibility._instance.tracer.start_span(
+    with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
-        child_of=module_span,
         service=_CIVisibility._instance._service,
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
@@ -215,7 +219,8 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
-        span.set_tag(_SESSION_ID, span.trace_id)
+        test_session_span = _extract_span(item.session)
+        span.set_tag(_SESSION_ID, test_session_span.span_id)
         test_suite_span = _extract_span(item.parent)
         span.set_tag(_SUITE_ID, test_suite_span.span_id)
 

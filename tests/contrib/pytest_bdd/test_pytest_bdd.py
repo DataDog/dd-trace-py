@@ -104,11 +104,11 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 12  # 3 scenarios + 7 steps
-        assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": -1}
-        assert json.loads(spans[7].get_tag(test.PARAMETERS)) == {"bars": 2}
-        assert json.loads(spans[9].get_tag(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(spans[11].get_tag(test.PARAMETERS)) == {"bars": "no"}
+        assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
+        assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
+        assert json.loads(spans[7].get_tag(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[9].get_tag(test.PARAMETERS)) == {"bars": "no"}
 
     def test_pytest_bdd_scenario(self):
         """Test that pytest-bdd traces scenario with all steps."""
@@ -146,15 +146,15 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 6
-        assert spans[2].get_tag("component") == "pytest"
-        assert spans[2].get_tag("test.name") == "Simple scenario"
-        assert spans[2].span_type == "test"
-        assert spans[3].resource == "I have a bar"
-        assert spans[3].name == "given"
-        assert spans[4].resource == "I eat it"
-        assert spans[4].name == "when"
-        assert spans[5].resource == "I don't have a bar"
-        assert spans[5].name == "then"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[0].get_tag("test.name") == "Simple scenario"
+        assert spans[0].span_type == "test"
+        assert spans[1].resource == "I have a bar"
+        assert spans[1].name == "given"
+        assert spans[2].resource == "I eat it"
+        assert spans[2].name == "when"
+        assert spans[3].resource == "I don't have a bar"
+        assert spans[3].name == "then"
 
     def test_pytest_bdd_scenario_with_failed_step(self):
         """Test that pytest-bdd traces scenario with a failed step."""
@@ -192,8 +192,8 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 6
-        assert spans[-1].name == "then"
-        assert spans[-1].get_tag(ERROR_MSG)
+        assert spans[3].name == "then"
+        assert spans[3].get_tag(ERROR_MSG)
 
     def test_pytest_bdd_with_missing_step_implementation(self):
         """Test that pytest-bdd captures missing steps."""
@@ -215,4 +215,4 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        assert spans[2].get_tag(ERROR_MSG)
+        assert spans[0].get_tag(ERROR_MSG)

@@ -135,8 +135,9 @@ class PytestTestCase(TracerTestCase):
 
         expected_params = [1, 2, 3, 4, [1, 2, 3]]
         assert len(spans) == 7
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for i in range(len(expected_params)):
-            assert json.loads(spans[2 + i].get_tag(test.PARAMETERS)) == {
+            assert json.loads(test_spans[i].get_tag(test.PARAMETERS)) == {
                 "arguments": {"item": str(expected_params[i])},
                 "metadata": {},
             }
@@ -193,8 +194,9 @@ class PytestTestCase(TracerTestCase):
             "{('x', 'y'): 12345}",
         ]
         assert len(spans) == 9
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for i in range(len(expected_params_contains)):
-            assert expected_params_contains[i] in spans[2 + i].get_tag(test.PARAMETERS)
+            assert expected_params_contains[i] in test_spans[i].get_tag(test.PARAMETERS)
 
     def test_parameterize_case_encoding_error(self):
         """Test parametrize case with complex objects that cannot be JSON encoded."""
@@ -219,7 +221,8 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        assert json.loads(spans[2].get_tag(test.PARAMETERS)) == {
+        test_span = spans[0]
+        assert json.loads(test_span.get_tag(test.PARAMETERS)) == {
             "arguments": {"item": "Could not encode"},
             "metadata": {},
         }
@@ -363,7 +366,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        assert spans[2].get_tag(test.STATUS) == test.Status.FAIL.value
+        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
 
     def test_xfail_runxfail_passes(self):
         """Test xfail with --runxfail flags should not crash when passing."""
@@ -382,7 +385,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        assert spans[2].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
@@ -457,10 +460,11 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        assert spans[2].get_tag("world") == "hello"
-        assert spans[2].get_tag("mark") == "dd_tags"
-        assert spans[2].get_tag(test.STATUS) == test.Status.PASS.value
-        assert spans[2].get_tag("component") == "pytest"
+        test_span = spans[0]
+        assert test_span.get_tag("world") == "hello"
+        assert test_span.get_tag("mark") == "dd_tags"
+        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_span.get_tag("component") == "pytest"
 
     def test_service_name_repository_name(self):
         """Test span's service name is set to repository name."""
@@ -600,8 +604,13 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 6
-        for span in spans[1:]:
+        non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
+        for span in non_session_spans:
             assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+        test_session_span = spans[5]
+        assert test_session_span.get_tag("test.command") == (
+            "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+        )
 
     def test_pytest_sets_sample_priority(self):
         """Test sample priority tags."""
@@ -632,7 +641,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        test_span = spans[2]
+        test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("AssertionError") is True
         assert test_span.get_tag(ERROR_MSG) == "assert 2 == 1"
@@ -656,7 +665,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        test_span = spans[2]
+        test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type") is None
         assert test_span.get_tag("component") == "pytest"
@@ -681,7 +690,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        test_span = spans[2]
+        test_span = spans[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
@@ -709,7 +718,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-        test_span = spans[2]
+        test_span = spans[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
@@ -772,7 +781,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
-        assert spans[0].get_tag("test_session_id") == str(spans[0].trace_id)
+        assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
         assert spans[0].get_tag("test.command") == "pytest --ddtrace"
 
     def test_pytest_suite(self):
@@ -787,18 +796,20 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
-        assert spans[1].get_tag("type") == "test_suite_end"
-        assert spans[1].get_tag("test_session_id") == str(spans[0].trace_id)
-        assert spans[1].get_tag("test_module_id") is None
-        assert spans[1].get_tag("test_suite_id") == str(spans[1].span_id)
-        assert spans[1].get_tag("test.bundle") == ""
-        assert spans[1].get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
-        assert spans[1].get_tag("test.suite") == str(file_name).split(".py")[0]
+        test_suite_span = spans[1]
+        test_session_span = spans[2]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
+        assert test_suite_span.get_tag("test_module_id") is None
+        assert test_suite_span.get_tag("test_suite_id") == str(test_suite_span.span_id)
+        assert test_suite_span.get_tag("test.bundle") == ""
+        assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_suite_span.get_tag("test.suite") == str(file_name).split(".py")[0]
 
     def test_pytest_suites(self):
         """
         Test that running pytest on two files with 1 test each will generate
-         1 test session span, 2 test suite spans, 2 test spans with correct parenting.
+         1 test session span, 2 test suite spans, and 2 test spans.
         """
         file_names = []
         file_a = self.testdir.makepyfile(
@@ -815,19 +826,20 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_names.append(os.path.basename(file_b.strpath))
-        self.inline_run("--ddtrace", *file_names)
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        assert spans[0].name == "pytest.test_session"
-        assert spans[1].name == "pytest.test_suite"
-        assert spans[1].parent_id == spans[0].span_id
-        assert spans[2].name == "pytest.test"
-        assert spans[2].parent_id == spans[1].span_id
-        assert spans[3].name == "pytest.test_suite"
-        assert spans[3].parent_id == spans[0].span_id
-        assert spans[4].name == "pytest.test"
-        assert spans[4].parent_id == spans[3].span_id
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        for test_span in test_spans:
+            assert test_span.name == "pytest.test"
+            assert test_span.parent_id is None
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        for test_suite_span in test_suite_spans:
+            assert test_suite_span.name == "pytest.test_suite"
+            assert test_suite_span.parent_id is None
+        assert spans[4].name == "pytest.test_session"
+        assert spans[4].parent_id is None
 
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
@@ -842,17 +854,19 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 4
-        assert spans[1].get_tag("type") == "test_module_end"
-        assert spans[1].get_tag("test_session_id") == str(spans[0].trace_id)
-        assert spans[1].get_tag("test_module_id") == str(spans[1].span_id)
-        assert spans[1].get_tag("test.command") == "pytest --ddtrace"
-        assert spans[1].get_tag("test.module") == str(package_a_dir).split("/")[-1]
-        assert spans[1].get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
+        test_module_span = spans[2]
+        test_session_span = spans[3]
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
+        assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
+        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
+        assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
+        assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
 
     def test_pytest_modules(self):
         """
         Test that running pytest on two packages with 1 test each will generate
-         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans with correct parenting.
+         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
@@ -873,25 +887,26 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        assert spans[0].name == "pytest.test_session"
-        assert spans[1].name == "pytest.test_module"
-        assert spans[1].parent_id == spans[0].span_id
-        assert spans[2].name == "pytest.test_suite"
-        assert spans[2].parent_id == spans[1].span_id
-        assert spans[3].name == "pytest.test"
-        assert spans[3].parent_id == spans[2].span_id
-        assert spans[4].name == "pytest.test_module"
-        assert spans[4].parent_id == spans[0].span_id
-        assert spans[5].name == "pytest.test_suite"
-        assert spans[5].parent_id == spans[4].span_id
-        assert spans[5].get_tag("test_module_id") == str(spans[4].span_id)
-        assert spans[6].name == "pytest.test"
-        assert spans[6].parent_id == spans[5].span_id
+        test_session_span = spans[6]
+        assert test_session_span.name == "pytest.test_session"
+        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        for span in test_module_spans:
+            assert span.name == "pytest.test_module"
+            assert span.parent_id is None
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        for span in test_suite_spans:
+            assert span.name == "pytest.test_suite"
+            assert span.parent_id is None
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        for i in range(len(test_spans)):
+            assert test_spans[i].name == "pytest.test"
+            assert test_spans[i].parent_id is None
+            assert test_spans[i].get_tag("test_module_id") == str(test_module_spans[i].span_id)
 
     def test_pytest_packages_skip_one(self):
         """
         Test that running pytest on two packages with 1 test each, but skipping one package will generate
-         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans with correct parenting.
+         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans.
         """
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
@@ -911,14 +926,19 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ignore=test_package_a", "--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 4
-        assert spans[0].name == "pytest.test_session"
-        assert spans[1].name == "pytest.test_module"
-        assert spans[1].parent_id == spans[0].span_id
-        assert spans[2].name == "pytest.test_suite"
-        assert spans[2].parent_id == spans[1].span_id
-        assert spans[2].get_tag("test_module_id") == str(spans[1].span_id)
-        assert spans[3].name == "pytest.test"
-        assert spans[3].parent_id == spans[2].span_id
+        test_session_span = spans[3]
+        assert test_session_span.name == "pytest.test_session"
+        test_module_span = spans[2]
+        assert test_module_span.name == "pytest.test_module"
+        assert test_module_span.parent_id is None
+        test_suite_span = spans[1]
+        assert test_suite_span.name == "pytest.test_suite"
+        assert test_suite_span.parent_id is None
+        assert test_suite_span.get_tag("test_module_id") == str(test_module_span.span_id)
+        test_span = spans[0]
+        assert test_span.name == "pytest.test"
+        assert test_span.parent_id is None
+        assert test_span.get_tag("test_module_id") == str(test_module_span.span_id)
 
     def test_pytest_module_path(self):
         """
@@ -947,7 +967,8 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        assert spans[1].get_tag("test.module") == "test_outer_package"
-        assert spans[1].get_tag("test.module_path") == "test_outer_package"
-        assert spans[4].get_tag("test.module") == "test_inner_package"
-        assert spans[4].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
+        assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
+        assert test_module_spans[1].get_tag("test.module") == "test_inner_package"
+        assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
