@@ -538,16 +538,14 @@ def test_civisibility_intake_with_evp_available():
             CIVisibility.disable()
 
 
-def test_civisibility_intake_with_missing_site():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+def test_civisibility_intake_with_missing_apikey():
+    with override_env(dict(DD_SITE="foobar.baz")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            t = Tracer()
-            CIVisibility.enable(tracer=t)
-            assert isinstance(CIVisibility._instance.tracer._writer, AgentWriter)
-            CIVisibility.disable()
+            with pytest.raises(ValueError):
+                CIVisibility.enable()
 
 
-def test_civisibility_intake_with_site():
+def test_civisibility_intake_with_apikey():
     with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
             t = Tracer()

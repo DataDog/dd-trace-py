@@ -64,10 +64,6 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "https://citestcycle-intake.datadoghq.com"
-        headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
-        if not headers["dd-api-key"]:
-            raise ValueError("Required environment variable DD_API_KEY not defined")
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             clients=[CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()],
