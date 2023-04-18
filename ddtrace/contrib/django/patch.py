@@ -268,6 +268,15 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
+
+            # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
+            if _is_iast_enabled() and kwargs and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
+                from ddtrace.appsec.iast._input_info import Input_info
+                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                for k, v in kwargs.items():
+                    kwargs[k] = taint_pyobject(v, Input_info(k, v, "http.request.path.parameter"))
+
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
