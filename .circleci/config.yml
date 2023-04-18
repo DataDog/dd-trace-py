@@ -545,7 +545,11 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+            if [ << pipeline.parameters.coverage >> == true ]; then
+              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+            else
+              riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} --no-cov
+            fi
       - when:
           condition:
             << pipeline.parameters.coverage >>
