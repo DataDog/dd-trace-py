@@ -27,22 +27,24 @@ class V2LogEvent(TypedDict):
 
 
 class V2LogWriter(PeriodicService):
-    """
+    """Writer to the Datadog log intake.
+
     v2/logs:
         - max payload size: 5MB
         - max single log: 1MB
         - max array size 1000
 
     refs:
-        - https://docs.datadoghq.com/api/latest/logs/#send-logs
+        - https://docs.datadoghq.com/api/v2/logs/#send-logs
     """
 
     def __init__(self, site, api_key, interval, timeout):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
         self._lock = threading.Lock()
-        # TODO: buffer limit
         self._buffer = []  # type: List[V2LogEvent]
+        # match the API limit
+        self._buffer_limit = 1000
         self._timeout = timeout  # type: float
         self._api_key = api_key  # type: str
         self._endpoint = "/api/v2/logs"  # type: str
@@ -56,6 +58,9 @@ class V2LogWriter(PeriodicService):
     def enqueue(self, log):
         # type: (V2LogEvent) -> None
         with self._lock:
+            if len(self._buffer) >= self._buffer_limit:
+                log.warning("log buffer full (limit is %d), dropping log" % self._buffer_limit)
+                return
             self._buffer.append(log)
 
     def periodic(self):
