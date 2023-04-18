@@ -1,20 +1,28 @@
+import os
+
 import bm
 import bm.utils as utils
+from opentelemetry.trace import get_tracer
+from opentelemetry.trace import set_tracer_provider
 
-from ddtrace import config
 from ddtrace import tracer
+from ddtrace.opentelemetry import TracerProvider  # Requires ``ddtrace>=1.11``
+
+
+set_tracer_provider(TracerProvider())
+os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+otel_tracer = get_tracer(__name__)
 
 
 utils.drop_traces(tracer)
 
 
-class Span(bm.Scenario):
+class OtelSpan(bm.Scenario):
     nspans = bm.var(type=int)
     ntags = bm.var(type=int)
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
     finishspan = bm.var_bool()
-    traceid128 = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
@@ -27,17 +35,16 @@ class Span(bm.Scenario):
 
         # run scenario to include finishing spans
         finishspan = self.finishspan
-        config._128_bit_trace_id_enabled = self.traceid128
 
         def _(loops):
             for _ in range(loops):
                 for i in range(self.nspans):
-                    s = tracer.start_span("test." + str(i))
+                    s = otel_tracer.start_span("test." + str(i))
                     if settags:
-                        s.set_tags(tags)
+                        s.set_attributes(tags)
                     if setmetrics:
-                        s.set_metrics(metrics)
+                        s.set_attributes(metrics)
                     if finishspan:
-                        s.finish()
+                        s.end()
 
         yield _

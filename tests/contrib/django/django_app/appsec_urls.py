@@ -2,6 +2,7 @@ import hashlib
 from typing import TYPE_CHECKING
 
 import django
+from django.db import connection
 from django.http import HttpResponse
 
 from ddtrace import tracer
@@ -67,6 +68,13 @@ def checkuser_view(request, user_id):
     return HttpResponse(status=200)
 
 
+def sqli_http_request_parameter(request):
+    with connection.cursor() as cursor:
+        cursor.execute(request.GET["q"])
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -116,6 +124,7 @@ urlpatterns = [
     handler("block/$", block_callable_view, name="block"),
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
+    handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
 ]
 
 if django.VERSION >= (2, 0, 0):
