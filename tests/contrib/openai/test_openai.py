@@ -18,10 +18,11 @@ from ddtrace.filters import TraceFilter
 # flakiness and cost.
 # To (re)-generate the cassettes: pass a real OpenAI API key with
 # OPENAI_API_KEY, delete the old cassettes and re-run the tests.
-# NOTE: be sure to check the generated cassettes so they don't contain your
+# NOTE: be sure to check that the generated cassettes don't contain your
 #       API key. Keys should be redacted by the filter_headers option below.
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
+#       between cassettes generated for requests and aiohttp.
 openai.api_key = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 openai.organization = os.getenv("OPENAI_ORGANIZATION", "<not-a-real-org>")
 openai_vcr = vcr.VCR(
@@ -172,16 +173,13 @@ def test_integration_sync():
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
     with openai_vcr.use_cassette("completion_2.yaml"):
-        openai.Completion.create(
-            model="ada",
-            prompt="hello world"
-        )
+        openai.Completion.create(model="ada", prompt="hello world")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.subprocess(ddtrace_run=True)
-# FIXME: 'aiohttp.request', 'TCPConnector.connect' on second 
+# FIXME: 'aiohttp.request', 'TCPConnector.connect' on second
 # run of the test, might do with cassettes
 def test_integration_async():
     """OpenAI uses requests for its synchronous requests.
@@ -202,10 +200,8 @@ def test_integration_async():
 
     async def task():
         with openai_vcr.use_cassette("acompletion_2.yaml"):
-            await openai.Completion.acreate(
-                model="ada",
-                prompt="hello world"
-            )
+            await openai.Completion.acreate(model="ada", prompt="hello world")
+
     asyncio.run(task())
 
 
@@ -214,9 +210,9 @@ def test_integration_async():
     parametrize={"DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE": ["0", "0.25", "0.75", "1"]},
 )
 def test_completion_sample():
-    """OpenAI uses requests for its synchronous requests.
-    """
+    """OpenAI uses requests for its synchronous requests."""
     import os
+
     import openai
 
     import ddtrace
@@ -229,10 +225,7 @@ def test_completion_sample():
 
     for _ in range(num_completions):
         with openai_vcr.use_cassette("completion_sample_rate.yaml"):
-            openai.Completion.create(
-                model="ada",
-                prompt="hello world"
-            )
+            openai.Completion.create(model="ada", prompt="hello world")
 
     pin = ddtrace.Pin.get_from(openai)
     traces = pin.tracer.pop_traces()
@@ -251,6 +244,7 @@ def test_completion_sample():
         rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
         assert (rate - 15) < sampled < (rate + 15)
 
+
 @pytest.mark.subprocess(
     ddtrace_run=True,
     parametrize={"DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE": ["0", "0.25", "0.75", "1"]},
@@ -259,9 +253,9 @@ def test_completion_sample():
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
 )
 def test_chat_completion_sample():
-    """OpenAI uses requests for its synchronous requests.
-    """
+    """OpenAI uses requests for its synchronous requests."""
     import os
+
     import openai
 
     import ddtrace
@@ -274,11 +268,11 @@ def test_chat_completion_sample():
 
     for _ in range(num_completions):
         with openai_vcr.use_cassette("chat_completion_sample_rate.yaml"):
-            openai.ChatCompletion.acreate(
+            openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "user", "content": "what is your name?"},
-                ]
+                ],
             )
 
     pin = ddtrace.Pin.get_from(openai)

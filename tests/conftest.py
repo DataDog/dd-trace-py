@@ -206,7 +206,9 @@ def run_function_from_file(item, params=None):
         {
             # Add the tests path to the Python path so tests can import helpers
             # eg. from tests.webclient import PingFilter
-            "PYTHONPATH": os.pathsep.join((os.path.dirname(os.path.dirname(ddtrace.__file__)), os.environ.get("PYTHONPATH", ""))),
+            "PYTHONPATH": os.pathsep.join(
+                (os.path.dirname(os.path.dirname(ddtrace.__file__)), os.environ.get("PYTHONPATH", ""))
+            ),
         }
     )
     env.update(marker.kwargs.get("env", {}))

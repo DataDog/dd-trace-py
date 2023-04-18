@@ -4,7 +4,7 @@ traces and logs for requests made to the OpenAI completions, chat completions
 and embeddings endpoints.
 
 The OpenAI integration integrates well with the Requests and AIOHTTP ddtrace
-integrations which show the underlying HTTP requests made to OpenAI.
+tracing integrations which generate spans for the underlying HTTP requests made to OpenAI.
 
 
 Enabling
@@ -47,7 +47,7 @@ Global Configuration
    This option can also be set with the ``DD_OPENAI_LOGS_ENABLED`` environment
    variable.
 
-   Note that DD_API_KEY must be set.
+   Note that ``DD_API_KEY`` must be set to enable logs transmission.
 
    Default: ``False``
 
@@ -79,13 +79,16 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure the OpenAI integration on an per-instance basis use the
+To configure the OpenAI integration on a per-instance basis use the
 ``Pin`` API::
 
     import openai
-    from ddtrace import Pin
+    from ddtrace import Pin, config
 
     Pin.override(openai, service="my-openai-service")
+
+    config.openai.metrics_enabled = False
+    config.openai.logs_enabled = True
 """
 from ...internal.utils.importlib import require_modules
 
