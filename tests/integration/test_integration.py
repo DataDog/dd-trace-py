@@ -541,7 +541,7 @@ def test_civisibility_intake_with_evp_available():
 def test_civisibility_intake_with_missing_apikey():
     with override_env(dict(DD_SITE="foobar.baz")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            with pytest.raises(ValueError):
+            with pytest.raises(EnvironmentError):
                 CIVisibility.enable()
 
 
