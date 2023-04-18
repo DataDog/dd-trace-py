@@ -24,7 +24,7 @@ from ddtrace.propagation._database_monitoring import default_sql_injector as _de
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils.formats import asbool
-from ...internal.utils.wrappers import _u as _u
+from ...internal.utils.wrappers import unwrap as _u
 from ...propagation._database_monitoring import _DBM_Propagator
 
 
@@ -97,10 +97,6 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
-        wrapt.wrap_function_wrapper(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        wrapt.wrap_function_wrapper(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
-        wrapt.wrap_function_wrapper(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
-
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
