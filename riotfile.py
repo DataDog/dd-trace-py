@@ -2336,6 +2336,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="dbapi_async",
+            command="pytest {cmdargs} tests/contrib/dbapi_async",
+            pys=select_pys(),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+        ),
+        Venv(
             name="dogpile_cache",
             command="pytest {cmdargs} tests/contrib/dogpile_cache",
             venvs=[
