@@ -59,7 +59,7 @@ class V2LogWriter(PeriodicService):
         # type: (V2LogEvent) -> None
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
-                logger.warning("log buffer full (limit is %d), dropping log" % self._buffer_limit)
+                logger.warning("log buffer full (limit is %d), dropping log", self._buffer_limit)
                 return
             self._buffer.append(log)
 
