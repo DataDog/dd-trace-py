@@ -2344,8 +2344,13 @@ venv = Venv(
             },
             pkgs={
                 "pytest-asyncio": latest,
-                "attrs": latest,
             },
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                ),
+                Venv(pys=["3.11"], pkgs={"attr": latest}),
+            ]
         ),
         Venv(
             name="dogpile_cache",
