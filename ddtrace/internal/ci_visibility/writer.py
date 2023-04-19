@@ -53,7 +53,10 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
     ):
         if not intake_url:
-            intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
+            if config._ci_visibility_agentless_url:
+                intake_url = config._ci_visibility_agentless_url
+            else:
+                intake_url = "https://citestcycle-intake.%s" % (os.environ.get("DD_SITE", "datadoghq.com"),)
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
