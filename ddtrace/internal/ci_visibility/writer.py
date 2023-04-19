@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 from typing import Optional
 
@@ -65,8 +66,12 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
 
-        client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
         headers = headers or dict()
+        headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
+        if not headers["dd-api-key"]:
+            raise ValueError("Required environment variable DD_API_KEY not defined")
+
+        client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
 
         super(CIVisibilityWriter, self).__init__(
