@@ -2,10 +2,10 @@
 import json
 import logging
 
-import mock
-import pytest
 from django.contrib.auth import get_user
 from django.contrib.auth.models import User
+import mock
+import pytest
 
 from ddtrace import config
 from ddtrace._monkey import patch_iast
@@ -14,7 +14,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.ext import http, user
+from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3

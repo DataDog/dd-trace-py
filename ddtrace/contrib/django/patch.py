@@ -7,15 +7,12 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 import functools
-import inspect
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
-from ddtrace.appsec.trace_utils import track_user_login_success_event, \
-    track_user_login_failure_event
 from django.contrib.auth import get_user
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
@@ -26,6 +23,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.trace_utils import track_user_login_failure_event
+from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -48,7 +47,7 @@ from ddtrace.vendor import wrapt
 from . import utils
 from .. import trace_utils
 from ...internal.utils import get_argument_value
-from ..trace_utils import _get_request_header_user_agent, set_user
+from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 
 
@@ -625,10 +624,10 @@ def traced_login(django, pin, func, instance, args, kwargs):
         return
 
     user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
-    email_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_EMAIL_FIELD", "email")
-    name_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_NAME_FIELD", "name")
-    role_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_ROLE_FIELD", "role")
-    scope_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_SCOPE_FIELD", "scope")
+    email_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_EMAIL_FIELD", "")
+    name_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_NAME_FIELD", "")
+    role_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_ROLE_FIELD", "")
+    scope_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_SCOPE_FIELD", "")
 
     user = get_user(request)
     if user:
@@ -639,8 +638,8 @@ def traced_login(django, pin, func, instance, args, kwargs):
                 track_user_login_success_event(
                     pin.tracer,
                     user_id=user_id,
+                    # FIXME: this should also use surname if it exists?
                     name=getattr(user, email_field, None),
-                    # FIXME: this should also user surname if it exists?
                     email=getattr(user, name_field, None),
                     role=getattr(user, role_field, None),
                     scope=getattr(user, scope_field, None),
@@ -664,11 +663,10 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if not asbool(os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_ENABLED", "false")):
         return result_user
 
-
     if not result_user:
         user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field], exists=False)
+            track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field])
 
     return result_user
 
@@ -692,14 +690,8 @@ def unwrap_views(func, instance, args, kwargs):
 
 
 def _patch(django):
-    log.warning("XXX inside _patch")
-    # XXX check the modules exist and import them
     Pin().onto(django)
     trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
-
-    @trace_utils.with_traced_module
-    def user_login_failed_callback(sender, pin, **kwargs):
-        log.warning("XXX user login failed, sender: %s, kwargs: %s", sender, kwargs)
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.core.handlers.base" not in sys.modules:

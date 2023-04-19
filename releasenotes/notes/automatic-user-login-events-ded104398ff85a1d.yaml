@@ -1,0 +1,18 @@
+---
+prelude: >
+  - Datadog has added support to automatically create login success or failure events when one of the 
+    configured Django authentication backend are used. This will automatically fill the following tags in these cases:
+
+      - `appsec.events.users.login.success.track`
+      - `appsec.events.users.login.failure.track`
+      - `appsec.events.users.login.failure.usr.exists`
+      - `usr.[id|name|email|session_id|role|scope]`
+
+    The behaviour can be configured using the following environment variables:
+      - `DD_AUTOMATIC_LOGIN_EVENTS_ENABLED`: to enable or disable.
+      - `DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD`: to set user object field to use as `usr.id`. By default it will be `username` for Django (TODO: update once it is defined if we use the DB id)
+      - `DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_[EMAIL|NAME|ROLE|SCOPE]_FIELD` to activate storing these fields and what 
+        user object field to use as `usr.id`. Please note that one or more of these fields could be considered private information.
+features:
+  - |
+    Add support for automatic user login events in Django.

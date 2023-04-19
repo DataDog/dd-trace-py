@@ -18,8 +18,8 @@ from typing import Union
 from typing import cast
 
 from ddtrace import Pin
-from ddtrace import config
 from ddtrace import Span
+from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import user
