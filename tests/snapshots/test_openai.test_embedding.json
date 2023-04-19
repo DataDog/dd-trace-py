@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "openai",
+    "service": "",
     "resource": "embedding/text-embedding-ada-002",
     "trace_id": 0,
     "span_id": 1,
@@ -15,21 +15,23 @@
       "endpoint": "embedding",
       "language": "python",
       "model": "text-embedding-ada-002",
-      "organization": "not-a-real-org",
+      "organization.name": "datadog-4",
+      "organization.ratelimit.requests.remaining": "2999",
       "request.input": "hello world",
       "request.model": "text-embedding-ada-002",
       "response.model": "text-embedding-ada-002",
-      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
+      "runtime-id": "102c05dd94d641c0839e3cabf5c4ae8f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 29662,
+      "process_id": 76713,
       "response.data.embedding-length": 1536,
       "response.data.num-embeddings": 1
     },
-    "duration": 2644000,
-    "start": 1681882489332591000
+    "duration": 2146000,
+    "start": 1681938794080648000
   }]]

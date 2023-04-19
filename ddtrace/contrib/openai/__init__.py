@@ -7,8 +7,14 @@ By enabling the requests (or aiohttp, if using async) integrations the traces
 from this integration will include the HTTP requests from the OpenAI library.
 
 
-Prompt and Completion Sampling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Metrics
+~~~~~~~
+
+TODO: list metrics collected, how to configure, defaults, etc
+
+
+Prompt and Completion Sampling (beta)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Prompts and completions on Completion and ChatCompletion requests are always
 sampled on span data. The length of the samples is limited by the ``truncation_threshold``
@@ -20,7 +26,6 @@ Logs are **not** emitted by default. When logs are enabled they are sampled at 1
 .. important::
 
      ``DD_API_KEY`` is required to submit logs.
-
 
 
 Enabling

@@ -3,6 +3,7 @@ import os
 import sys
 
 from ddtrace import config
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -26,7 +27,6 @@ config._add(
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
-        "_default_service": "openai",  # TODO: remove this and do DD_SERVICE-openai
     },
 )
 
@@ -37,7 +37,6 @@ class _OpenAIIntegration:
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
-        # FIXME: the dogstatsd client doesn't support multi-threaded usage
         self._statsd = get_dogstatsd_client(stats_url, namespace="openai")
         self._config = config
         self._log_writer = V2LogWriter(
@@ -50,20 +49,6 @@ class _OpenAIIntegration:
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
         self._statsd._enabled = config.metrics_enabled
         self._openai = openai
-
-    def set_openai_span_tags(self, span):
-        """Set default trace tags to apply to all OpenAI spans."""
-        span.set_tag_str(COMPONENT, self._config.integration_name)
-        # do these dynamically as openai users can set these at any point
-        # not necessarily before patch() time.
-        for attr in ("api_base", "api_version", "organization"):
-            if hasattr(self._openai, attr):
-                v = getattr(self._openai, attr)
-                if v is not None:
-                    if attr == "organization":
-                        span.set_tag_str("organization.id", v)
-                    else:
-                        span.set_tag_str(attr, v)
 
     def is_pc_sampled_span(self, span):
         if not span.sampled:
@@ -90,11 +75,22 @@ class _OpenAIIntegration:
     def trace(self, pin, endpoint, model):
         """Start an OpenAI span.
 
-        Set default attributes when possible.
+        Set default OpenAI span attributes when possible.
         """
         resource = "%s/%s" % (endpoint, model) if model else endpoint
         span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
-        self.set_openai_span_tags(span)
+        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag_str(COMPONENT, self._config.integration_name)
+        # do these dynamically as openai users can set these at any point
+        # not necessarily before patch() time.
+        for attr in ("api_base", "api_version", "organization"):
+            if hasattr(self._openai, attr):
+                v = getattr(self._openai, attr)
+                if v is not None:
+                    if attr == "organization":
+                        span.set_tag_str("organization.id", v)
+                    else:
+                        span.set_tag_str(attr, v)
         span.set_tag_str("endpoint", endpoint)
         if model:
             span.set_tag_str("model", model)
@@ -144,6 +140,8 @@ class _OpenAIIntegration:
 
     def metric(self, span, kind, name, val):
         """Set a metric using the OpenAI context from the given span."""
+        if not self._config.metrics_enabled:
+            return
         tags = self._metrics_tags(span)
         if kind == "dist":
             self._statsd.distribution(name, val, tags=tags)
@@ -210,11 +208,6 @@ def patch():
     if hasattr(openai.api_resources, "completion"):
         wrap(
             openai,
-            "api_resources.completion.Completion.create",
-            _patched_endpoint(integration, _completion_create)(openai),
-        )
-        wrap(
-            openai,
             "api_resources.completion.Completion.acreate",
             _patched_endpoint_async(integration, _completion_create)(openai),
         )
@@ -266,7 +259,7 @@ def patched_make_session(openai, pin, func, instance, args, kwargs):
     for k, v in cfg.items():
         if k not in pin._config:
             pin._config[k] = v
-    pin.clone().onto(session)
+    pin.clone(service="openai").onto(session)
     return session
 
 
@@ -503,6 +496,8 @@ def patched_convert(integration):
         for val in args:
             if isinstance(val, openai.openai_response.OpenAIResponse):
                 span = pin.tracer.current_span()
+                if not span:
+                    return func(*args, **kwargs)
                 val = val._headers
                 if val.get("openai-organization"):
                     org_name = val.get("openai-organization")

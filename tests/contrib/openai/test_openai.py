@@ -25,7 +25,8 @@ from ddtrace.filters import TraceFilter
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 #       between cassettes generated for requests and aiohttp.
 openai.api_key = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-openai.organization = os.getenv("OPENAI_ORGANIZATION", "<not-a-real-org>")
+if os.getenv("OPENAI_ORGANIZATION"):
+    openai.organization = os.getenv("OPENAI_ORGANIZATION")
 openai_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
     record_mode="once",

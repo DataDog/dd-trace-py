@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "openai",
+    "service": "",
     "resource": "completions/curie",
     "trace_id": 0,
     "span_id": 1,
@@ -15,20 +15,23 @@
       "endpoint": "completions",
       "language": "python",
       "model": "curie",
-      "organization": "not-a-real-org",
+      "organization.name": "datadog-4",
+      "organization.ratelimit.requests.remaining": "2999",
+      "organization.ratelimit.tokens.remaining": "249850",
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "None",
       "response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am not an artificial intelligence. The brain is a self-organising, self-aware, virtual reality computer \u2026 so how is it, who exactly is it, this thing that thinks, feels, loves and believes? Are we not just software running on hardware?\n\nRecently, I have come to take a more holistic view of my identity, not as a series of fleeting moments, but as a long-term, ongoing process. The key qu...",
       "response.object": "text_completion",
-      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
+      "runtime-id": "102c05dd94d641c0839e3cabf5c4ae8f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 29662,
+      "process_id": 76713,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -37,6 +40,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 2030000,
-    "start": 1681882489280998000
+    "duration": 1451000,
+    "start": 1681938794030453000
   }]]

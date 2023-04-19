@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "openai",
+    "service": "",
     "resource": "chat.completions/gpt-3.5-turbo",
     "trace_id": 0,
     "span_id": 1,
@@ -15,7 +15,8 @@
       "endpoint": "chat.completions",
       "language": "python",
       "model": "gpt-3.5-turbo",
-      "organization": "not-a-real-org",
+      "organization.name": "datadog-4",
+      "organization.ratelimit.requests.remaining": "3499",
       "request.messages.0.content": "You are a helpful assistant.",
       "request.messages.0.role": "system",
       "request.messages.1.content": "Who won the world series in 2020?",
@@ -33,14 +34,15 @@
       "response.choices.1.message.content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
       "response.choices.1.message.role": "assistant",
       "response.object": "chat.completion",
-      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
+      "runtime-id": "102c05dd94d641c0839e3cabf5c4ae8f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 29662,
+      "process_id": 76713,
       "request.n": 2,
       "request.top_p": 0.9,
       "response.choices.num": 2,
@@ -48,6 +50,6 @@
       "response.usage.prompt_tokens": 57,
       "response.usage.total_tokens": 91
     },
-    "duration": 4718000,
-    "start": 1681882489301754000
+    "duration": 2350000,
+    "start": 1681938794060615000
   }]]
