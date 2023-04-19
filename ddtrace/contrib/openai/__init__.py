@@ -66,15 +66,37 @@ Global Configuration
    Default: ``True``
 
 
-.. py:data:: ddtrace.config.openai["prompt_completion_sample_rate"]
+.. py:data:: ddtrace.config.openai["span_prompt_completion_sample_rate"]
 
-   Configure the sample rate for the collection of prompts and completions as logs.
+   Configure the sample rate for the collection of prompts and completions as span tags.
 
-   This option can also be set with the ``DD_OPENAI_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   This option can also be set with the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
    variable.
 
    Default: ``1.0``
 
+
+.. py:data:: ddtrace.config.openai["log_prompt_completion_sample_rate"]
+
+   Configure the sample rate for the collection of prompts and completions as logs.
+
+   This option can also be set with the ``DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   variable.
+
+   Default: ``0.1``
+
+
+.. py:data:: ddtrace.config.openai["truncation_threshold"]
+
+   Configure the maximum number of characters for prompts and completions within span tags.
+
+   Text exceeding the maximum number of characters will be truncated to the character limit
+   and have <TRUNC> appended to the end.
+
+   This option can also be set with the ``DD_OPENAI_TRUNCATION_THRESHOLD`` environment
+   variable.
+
+   Default: ``512``
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
