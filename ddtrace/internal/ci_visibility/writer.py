@@ -35,7 +35,7 @@ class CIVisibilityEventClient(WriterClientBase):
 
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "PUT"
+    HTTP_METHOD = "POST"
     STATSD_NAMESPACE = "civisibilitywriter"
 
     def __init__(
@@ -46,7 +46,7 @@ class CIVisibilityWriter(HTTPWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=True,  # type: bool
+        sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -58,9 +58,13 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
+
+        client = CIVisibilityEventClient()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[CIVisibilityEventClient()],
+            clients=[client],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
@@ -71,9 +75,9 @@ class CIVisibilityWriter(HTTPWriter):
             headers=headers,
         )
 
-    def stop(self):
+    def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
-            super(CIVisibilityWriter, self).stop()
+            super(CIVisibilityWriter, self).stop(timeout=timeout)
 
     def recreate(self):
         # type: () -> HTTPWriter
