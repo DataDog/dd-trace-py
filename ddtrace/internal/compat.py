@@ -103,7 +103,6 @@ try:
             or isgeneratorfunction(f)
         )
 
-
 except ImportError:
     from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
 
@@ -279,7 +278,6 @@ try:
         if sys.version_info < (3, 7):
             Pep562(module_name)
 
-
 except ImportError:
 
     def ensure_pep562(module_name):
@@ -383,10 +381,10 @@ class TemporaryDirectory(object):
     in it are removed.
     """
 
-    def __init__(self, suffix="", prefix="tmp", dir=None):
+    def __init__(self, suffix="", prefix="tmp", _dir=None):
         self._closed = False
         self.name = None  # Handle mkdtemp raising an exception
-        self.name = mkdtemp(suffix, prefix, dir)
+        self.name = mkdtemp(suffix, prefix, _dir)
 
     def __repr__(self):
         return "<{} {!r}>".format(self.__class__.__name__, self.name)
