@@ -233,7 +233,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0', DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
     def test_user_specified_service_v0(self):
         """
         When a user specifies a service for the app
@@ -250,7 +250,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v1', DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
     def test_user_specified_service_v1(self):
         """
         In v1 of the span attribute schema, when a user specifies a service for the app
@@ -267,8 +267,8 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
-    def test_unspecified_service_v0(self): 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
         """
         In v0 of the span attribute schema, when there is no specified DD_SERVICE
             The mongoengine integration should use None as the default.
@@ -282,13 +282,13 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
 
         spans = tracer.pop()
         assert len(spans) == 1
-        assert spans[0].service == 'mongodb', f"{spans[0].service} - 'mongodb'"
+        assert spans[0].service == "mongodb", f"{spans[0].service} - 'mongodb'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v1'))
-    def test_unspecified_service_v1(self): 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
         """
         In v1 of the span attribute schema, when there is no specified DD_SERVICE
-            The mongoengine integration should use 'unnamed-python-service' as the default.
+            The mongoengine integration should use DEFAULT_SPAN_SERVICE_NAME as the default.
         """
         from ddtrace import config
 
@@ -299,7 +299,10 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
 
         spans = tracer.pop()
         assert len(spans) == 1
-        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, f"{config.service} - {spans[0].service} - {DEFAULT_SPAN_SERVICE_NAME}"
+        assert (
+            spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+        ), f"{config.service} - {spans[0].service} - {DEFAULT_SPAN_SERVICE_NAME}"
+
 
 class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
     """Test suite with a global Pin for the connect function with custom service"""

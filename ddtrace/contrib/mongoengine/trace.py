@@ -11,6 +11,7 @@ from ddtrace.vendor import wrapt
 # We should also extract the "alias" attribute and set it as a meta
 _SERVICE = schematize_service_name(mongox.SERVICE)
 
+
 class WrappedConnect(wrapt.ObjectProxy):
     """WrappedConnect wraps mongoengines 'connect' function to ensure
     that all returned connections are wrapped for tracing.
