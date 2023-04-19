@@ -19,6 +19,7 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -37,7 +38,6 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
     from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
 

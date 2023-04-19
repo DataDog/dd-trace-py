@@ -7,12 +7,18 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 import functools
+import inspect
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
 import sys
 
+from django.contrib.auth.backends import ModelBackend
+
+from ddtrace.appsec.trace_utils import track_user_login_success_event, \
+    track_user_login_failure_event
+from django.contrib.auth import get_user, _get_backends
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 
@@ -44,7 +50,7 @@ from ddtrace.vendor import wrapt
 from . import utils
 from .. import trace_utils
 from ...internal.utils import get_argument_value
-from ..trace_utils import _get_request_header_user_agent
+from ..trace_utils import _get_request_header_user_agent, set_user
 from ..trace_utils import _set_url_tag
 
 
@@ -611,6 +617,66 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
 
+@trace_utils.with_traced_module
+def traced_login(django, pin, func, instance, args, kwargs):
+    request = get_argument_value(args, kwargs, 0, "request")
+    func(*args, **kwargs)
+    user = get_user(request)
+    if user:
+        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            if user and user.is_authenticated:
+                session_key = getattr(request, "session_key", None)
+                track_user_login_success_event(
+                    pin.tracer,
+                    # XXX get user_id field from env_var
+                    user_id=user.username,
+                    session_id=session_key,
+                    propagate=True
+                )
+                return
+
+            # Login failed but the user exists
+            track_user_login_failure_event(pin.tracer, user_id=user.username, exists=True)
+    else:
+        # Login failed and the user is unknown
+        username = getattr(request, "username", None)
+        if username:
+            track_user_login_failure_event(pin.tracer, user_id=username, exists=False)
+
+
+@trace_utils.with_traced_module
+def traced_authenticate(django, pin, func, instance, args, kwargs):
+    result_user = func(*args, **kwargs)
+
+    if not result_user:
+        if args:
+            request = get_argument_value(args, kwargs, 0, "request")
+        else:
+            request = None
+
+        # User auth failed, but we need to check if the user exists; iterate over the backends
+        # using the same logic as `authenticate` to find the one in use
+        for backend, backend_path in _get_backends(return_tuples=True):
+            backend_signature = inspect.signature(backend.authenticate)
+            try:
+                backend_signature.bind(request, **kwargs)
+            except TypeError:
+                # This backend doesn't accept these credentials as arguments. Try the next one.
+                continue
+
+            if isinstance(backend, ModelBackend):
+                # We support finding if the user exists if the Model auth backend is the active one
+                from django.contrib.auth.models import User
+                user_exists = User.objects.filter(username=kwargs["username"]).exists()
+            break
+        else:
+            user_exists = False
+
+        track_user_login_failure_event(pin.tracer, user_id=kwargs["username"], exists=False)
+
+
+
+
 def unwrap_views(func, instance, args, kwargs):
     """
     Django channels uses path() and re_path() to route asgi applications. This broke our initial assumption that
@@ -630,8 +696,14 @@ def unwrap_views(func, instance, args, kwargs):
 
 
 def _patch(django):
+    log.warning("XXX inside _patch")
+    # XXX check the modules exist and import them
     Pin().onto(django)
     trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
+
+    @trace_utils.with_traced_module
+    def user_login_failed_callback(sender, pin, **kwargs):
+        log.warning("XXX user login failed, sender: %s, kwargs: %s", sender, kwargs)
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.core.handlers.base" not in sys.modules:
@@ -650,6 +722,12 @@ def _patch(django):
         "http.request.QueryDict.__getitem__",
         functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
     )
+
+    if "django.contrib.auth.authenticate" not in sys.modules:
+        import django.contrib.auth
+
+        trace_utils.wrap(django, "contrib.auth.login", traced_login(django))
+        trace_utils.wrap(django, "contrib.auth.authenticate", traced_authenticate(django))
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
     if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):

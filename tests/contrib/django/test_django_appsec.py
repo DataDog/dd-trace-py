@@ -4,6 +4,8 @@ import logging
 
 import mock
 import pytest
+from django.contrib.auth import get_user
+from django.contrib.auth.models import User
 
 from ddtrace import config
 from ddtrace._monkey import patch_iast
@@ -12,7 +14,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.ext import http
+from ddtrace.ext import http, user
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
@@ -821,3 +823,38 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
+
+
+# XXX: test the env var disabled
+
+@pytest.mark.django_db
+def test_django_login_sucess(client, test_spans, tracer):
+    test_user = User.objects.create(username="fred")
+    test_user.set_password("secret")
+    test_user.save()
+    assert not get_user(client).is_authenticated
+    client.login(username="fred", password="secret")
+    assert get_user(client).is_authenticated
+    login_span = test_spans.find_span(name="django.contrib.auth.login")
+    assert login_span
+    assert login_span.get_tag(user.ID) == "fred"
+    # XXX check login sucess tags
+
+
+@pytest.mark.django_db
+def test_django_login_failure_user_exists(client, test_spans, tracer):
+    test_user = User.objects.create(username="fred")
+    test_user.set_password("secret")
+    test_user.save()
+    assert not get_user(client).is_authenticated
+    client.login(username="fred", password="secret2")
+    assert not get_user(client).is_authenticated
+    # XXX check login failure tags
+
+
+@pytest.mark.django_db
+def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
+    assert not get_user(client).is_authenticated
+    client.login(username="missing", password="secret2")
+    assert not get_user(client).is_authenticated
+    # XXX check login failure tags

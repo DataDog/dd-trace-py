@@ -22,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+# XXX tracer_or_span
 def _track_user_login_common(tracer, user_id, success, metadata=None):
     # type: (Tracer, str, bool, Optional[dict]) -> Optional[Span]
 
@@ -43,6 +44,7 @@ def _track_user_login_common(tracer, user_id, success, metadata=None):
     return None
 
 
+# XXX tracer_or_span
 def track_user_login_success_event(
     tracer,
     user_id,
@@ -75,6 +77,7 @@ def track_user_login_success_event(
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
 
 
+# XXX tracer_or_span
 def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     # type: (Tracer, str, bool, Optional[dict]) -> None
     """
@@ -94,6 +97,7 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
 
+# XXX tracer_or_span
 def track_custom_event(tracer, event_name, metadata):
     # type: (Tracer, str, dict) -> None
     """
@@ -129,6 +133,7 @@ def track_custom_event(tracer, event_name, metadata):
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
 
 
+# XXX tracer_or_span
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
     """
     Return true if the specified User ID should be blocked.
@@ -176,6 +181,7 @@ def block_request():  # type: () -> None
     _asm_request_context.block_request()
 
 
+# XXX tracer_or_span
 def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> None
     """
     Check if the specified User ID should be blocked and if positive
