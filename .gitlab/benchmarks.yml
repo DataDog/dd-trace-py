@@ -75,3 +75,8 @@ benchmark-flask-sqli:
   extends: .benchmarks
   variables:
     SCENARIO: "flask_sqli"
+
+benchmark-otel-span:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "otel_span"
