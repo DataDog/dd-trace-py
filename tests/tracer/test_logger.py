@@ -1,6 +1,7 @@
 import logging
 
 import mock
+import pytest
 
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
@@ -378,3 +379,24 @@ class DDLoggerTestCase(BaseTestCase):
         for record in (record3, record4, record5, record6):
             bucket = buckets[get_key(record)]
             self.assertEqual(bucket.skipped, 0)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "true"},
+    out=lambda _: "MyThread - ERROR - Hello from thread" in _ and "Dummy" not in _,
+)
+def test_logger_no_dummy_thread_name_after_module_cleanup():
+    import logging
+    import sys
+    from threading import Thread
+
+    logger = logging.getLogger(__name__)
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter("%(asctime)s - %(threadName)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    t = Thread(target=logger.error, args=("Hello from thread",), name="MyThread")
+    t.start()
+    t.join()
