@@ -74,7 +74,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
     assert len(marks) < 2, "Multiple snapshot marks detected"
-
     if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
