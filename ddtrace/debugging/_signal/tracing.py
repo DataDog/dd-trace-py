@@ -143,4 +143,4 @@ class SpanDecoration(Signal):
 
         self._decorate_span(self.frame.f_locals)
 
-        self.state = SignalState.DONE_AND_COMMIT
+        self.state = SignalState.DONE
