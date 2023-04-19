@@ -146,7 +146,9 @@ required_modules = ["openai"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch
-        from .patch import unpatch
+        from . import patch as _patch
+
+        patch = _patch.patch
+        unpatch = _patch.unpatch
 
         __all__ = ["patch", "unpatch"]

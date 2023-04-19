@@ -2,6 +2,7 @@ import os
 from typing import List
 from typing import Optional
 
+import mock
 import openai
 import pytest
 import vcr
@@ -12,6 +13,7 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
+from tests.utils import DummyTracer
 
 
 # VCR is used to capture and store network requests made to OpenAI.
@@ -48,40 +50,194 @@ class FilterOrg(TraceFilter):
         return trace
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="session")
+def mock_metrics():
+    patcher = mock.patch("ddtrace.contrib.openai._patch.get_dogstatsd_client")
+    DogStatsdMock = patcher.start()
+    m = mock.MagicMock()
+    DogStatsdMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_logs():
+    with mock.patch("ddtrace.contrib.openai._logging.V2LogWriter.enqueue") as mock_log:
+        yield mock_log
+
+
+@pytest.fixture
 def patch_openai():
     patch(openai=True)
-    pin = Pin.get_from(openai)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
     yield
     unpatch()
 
-    # Force a flush of the logs for the given test case
-    from ddtrace.contrib.openai.patch import _integration
 
-    _integration._log_writer.periodic()
+@pytest.fixture
+def snapshot_tracer(patch_openai):
+    pin = Pin.get_from(openai)
+    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+
+    yield
+
+    mock_logs.reset_mock()
+
+
+@pytest.fixture
+def mock_tracer(patch_openai, mock_logs):
+    pin = Pin.get_from(openai)
+    mock_tracer = DummyTracer()
+    pin.override(openai, tracer=DummyTracer())
+    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+
+    yield mock_tracer
+
+    mock_logs.reset_mock()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion():
+def test_completion(mock_metrics, mock_logs, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
         openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+
+    assert mock_metrics.mock_calls
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                2,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:ada",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                12,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:ada",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                14,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:ada",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:ada",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+        ]
+    )
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_acompletion():
+async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
     with openai_vcr.use_cassette("completion_async.yaml"):
         await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
         )
+
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                10,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:curie",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                150,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:curie",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                160,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:curie",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=[
+                    "version:None",
+                    "env:None",
+                    "service:None",
+                    "model:curie",
+                    "endpoint:completions",
+                    "organization.id:None",
+                    "organization.name:datadog-4",
+                    "error:0",
+                ],
+            ),
+        ]
+    )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.skipif(
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
 )
-def test_chat_completion():
+def test_chat_completion(snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -101,7 +257,7 @@ def test_chat_completion():
 @pytest.mark.skipif(
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
 )
-async def test_achat_completion():
+async def test_achat_completion(snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
         await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
@@ -132,14 +288,14 @@ def test_embedding():
     not hasattr(openai, "Embedding"),
     reason="embedding not supported for this version of openai",
 )
-async def test_aembedding():
+async def test_aembedding(snapshot_tracer):
     with openai_vcr.use_cassette("embedding_async.yaml"):
         await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
-def test_unsupported():
+def test_unsupported(snapshot_tracer):
     # no openai spans expected
     with openai_vcr.use_cassette("moderation.yaml"):
         openai.Moderation.create(
@@ -374,7 +530,7 @@ def test_chat_completion_truncation():
                 assert len(completion.replace("...", "")) == limit
 
 
-def test_reconfigure_patch():
+def test_reconfigure_patch(snapshot_tracer):
     """Ensure new configuration is applied when patch() is called again."""
     old_val = config.openai.span_prompt_completion_sample_rate
     assert old_val != 0.22

@@ -66,10 +66,6 @@ class _OpenAIIntegration:
     def _ust_tags(self):
         # Do this dynamically to ensure any changes to ddtrace.config.*
         # are respected here.
-
-        # TODO: should service be DD_SERVICE or DD_SERVICE-openai?
-        # DD_SERVICE-openai doesn't make much sense
-        # if we have peer span then we're ok?
         return ["%s:%s" % (k, v) for k, v in [("env", config.env), ("version", config.version)] if v]
 
     def trace(self, pin, endpoint, model):
