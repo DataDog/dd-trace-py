@@ -252,7 +252,7 @@ def asm_request_context_manager(
     """
     The ASM context manager
     """
-    if True or config._appsec_enabled:
+    if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         try:
@@ -260,4 +260,4 @@ def asm_request_context_manager(
         finally:
             resources.finalise()
     else:
-        yield
+        yield None
