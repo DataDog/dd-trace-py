@@ -3,8 +3,24 @@ The OpenAI integration instruments the OpenAI Python library to emit metrics,
 traces and logs for requests made to the OpenAI completions, chat completions
 and embeddings endpoints.
 
-The OpenAI integration integrates well with the Requests and AIOHTTP ddtrace
-tracing integrations which generate spans for the underlying HTTP requests made to OpenAI.
+By enabling the requests (or aiohttp, if using async) integrations the traces
+from this integration will include the HTTP requests from the OpenAI library.
+
+
+Prompt and Completion Sampling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prompts and completions on Completion and ChatCompletion requests are always
+sampled on span data. The length of the samples is limited by the ``truncation_threshold``
+setting.
+
+Logs are **not** emitted by default. When logs are enabled they are sampled at 10%.
+
+
+.. important::
+
+     ``DD_API_KEY`` is required to submit logs.
+
 
 
 Enabling
@@ -70,7 +86,20 @@ Global Configuration
    Default: ``True``
 
 
-.. py:data:: ddtrace.config.openai["span_prompt_completion_sample_rate"]
+.. py:data:: ddtrace.config.openai["truncation_threshold"]
+
+   Configure the maximum number of characters for prompts and completions within span tags.
+
+   Text exceeding the maximum number of characters will be truncated to the character limit
+   and have ``...`` appended to the end.
+
+   This option can also be set with the ``DD_OPENAI_TRUNCATION_THRESHOLD`` environment
+   variable.
+
+   Default: ``512``
+
+
+.. py:data:: (beta) ddtrace.config.openai["span_prompt_completion_sample_rate"]
 
    Configure the sample rate for the collection of prompts and completions as span tags.
 
@@ -80,7 +109,7 @@ Global Configuration
    Default: ``1.0``
 
 
-.. py:data:: ddtrace.config.openai["log_prompt_completion_sample_rate"]
+.. py:data:: (beta) ddtrace.config.openai["log_prompt_completion_sample_rate"]
 
    Configure the sample rate for the collection of prompts and completions as logs.
 
@@ -90,17 +119,6 @@ Global Configuration
    Default: ``0.1``
 
 
-.. py:data:: ddtrace.config.openai["truncation_threshold"]
-
-   Configure the maximum number of characters for prompts and completions within span tags.
-
-   Text exceeding the maximum number of characters will be truncated to the character limit
-   and have <TRUNC> appended to the end.
-
-   This option can also be set with the ``DD_OPENAI_TRUNCATION_THRESHOLD`` environment
-   variable.
-
-   Default: ``512``
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
