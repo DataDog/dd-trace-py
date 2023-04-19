@@ -520,7 +520,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -541,7 +541,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v1'))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -562,7 +562,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
     def test_user_specified_pymongo_service_v0(self):
 
         tracer = DummyTracer()
@@ -576,7 +578,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service == "mypymongo"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
     def test_user_specified_pymongo_service_v1(self):
 
         tracer = DummyTracer()
@@ -590,7 +594,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service == "mypymongo"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
     def test_service_precedence_v0(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
@@ -603,7 +609,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service == "mypymongo"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v1'))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
     def test_service_precedence_v1(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])

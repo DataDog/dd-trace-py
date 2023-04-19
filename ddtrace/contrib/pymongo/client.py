@@ -44,6 +44,7 @@ log = get_logger(__name__)
 
 _DEFAULT_SERVICE = schematize_service_name("pymongo")
 
+
 class TracedMongoClient(ObjectProxy):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
