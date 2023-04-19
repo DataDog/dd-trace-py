@@ -337,11 +337,11 @@ def test_encode_traces_civisibility_v0():
     for given_span, received_event in zip(all_spans, received_events):
         expected_event = {
             b"type": b"test" if given_span.span_type == "test" else b"span",
-            b"version": 1,
+            b"version": 2,
             b"content": {
-                b"trace_id": JSONEncoderV2._encode_id_to_hex(given_span._trace_id_64bits).encode("utf-8"),
-                b"span_id": JSONEncoderV2._encode_id_to_hex(given_span.span_id).encode("utf-8"),
-                b"parent_id": JSONEncoderV2._encode_id_to_hex(given_span.parent_id).encode("utf-8"),
+                b"trace_id": int(given_span._trace_id_64bits),
+                b"span_id": int(given_span.span_id),
+                b"parent_id": 1,
                 b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
                 b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
                 b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
@@ -351,6 +351,8 @@ def test_encode_traces_civisibility_v0():
                 b"meta": dict(sorted(given_span._meta.items())),
                 b"metrics": dict(sorted(given_span._metrics.items())),
                 b"error": 0,
+                b"test_session_id": 1,
+                b"test_suite_id": 1,
             },
         }
         assert expected_event == received_event

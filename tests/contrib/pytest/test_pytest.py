@@ -831,3 +831,4 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
         assert test_span.get_tag(git.BRANCH)
         assert test_span.get_tag(git.COMMIT_SHA)
+        assert test_span.get_tag(git.REPOSITORY_URL)
