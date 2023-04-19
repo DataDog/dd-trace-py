@@ -15,7 +15,11 @@ The OpenAI integration is enabled automatically when using
 
 Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
-    from ddtrace import patch
+    from ddtrace import config, patch
+
+    # Note: be sure to configure the integration before calling ``patch()``!
+    # eg. config.openai.logs_enabled = True
+
     patch(openai=True)
 
     # or if doing synchronous requests (the default)

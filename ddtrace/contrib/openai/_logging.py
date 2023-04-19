@@ -69,19 +69,23 @@ class V2LogWriter(PeriodicService):
 
     def periodic(self):
         # type: () -> None
-        if not self._buffer:
-            return
-
-        num_logs = len(self._buffer)
-        payload = json.dumps(self._buffer)
-        self._buffer = []
+        with self._lock:
+            if not self._buffer:
+                return
+            num_logs = len(self._buffer)
+            payload = json.dumps(self._buffer)
+            self._buffer = []
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = get_connection_response(conn)
             if resp.status >= 300:
-                log.error("failed to send %d logs, got response code %r, status %r", num_logs, resp.status, resp.read())
+                log.error(
+                    "failed to send %d logs, got response code %r, status %r to %r", num_logs, resp.status, resp.read()
+                )
             else:
-                log.debug("sent %d logs to '%s%s'", num_logs, self._intake, self._endpoint)
+                log.debug("sent %d logs to %r", num_logs, self._intake)
+        except Exception:
+            log.error("failed to send %d logs to %r", num_logs, self._intake, exc_info=True)
         finally:
             conn.close()

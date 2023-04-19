@@ -6,8 +6,10 @@ import openai
 import pytest
 import vcr
 
+import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
+from ddtrace import config
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
@@ -291,6 +293,7 @@ def test_chat_completion_sample():
         # this should be good enough for our purposes
         rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
         assert (rate - 15) < sampled < (rate + 15)
+<<<<<<< HEAD
 
 
 @pytest.mark.subprocess(
@@ -369,3 +372,15 @@ def test_chat_completion_truncation():
                 assert len(prompt.replace("<TRUNC>", "")) == limit
             if "<TRUNC>" in completion:
                 assert len(completion.replace("<TRUNC>", "")) == limit
+
+
+def test_reconfigure_patch():
+    """Ensure new configuration is applied when patch() is called again."""
+    old_val = config.openai.span_prompt_completion_sample_rate
+    assert old_val != 0.22
+    config.openai.span_prompt_completion_sample_rate = 0.22
+    patch(openai=True)
+    from ddtrace.contrib.openai.patch import _span_pc_sampler
+
+    assert _span_pc_sampler.sample_rate == 0.22
+    config.openai.span_prompt_completion_sample_rate = old_val

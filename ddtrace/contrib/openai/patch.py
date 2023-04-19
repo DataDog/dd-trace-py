@@ -55,6 +55,20 @@ def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
 
+    global _span_pc_sampler
+    _span_pc_sampler = RateSampler(sample_rate=config.openai.span_prompt_completion_sample_rate)
+
+    if config.openai.logs_enabled:
+        ddsite = os.getenv("DD_SITE", "datadoghq.com")
+        ddapikey = os.getenv("DD_API_KEY")
+        if not ddapikey:
+            raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
+
+        ddlogs.start(site=ddsite, api_key=ddapikey)
+
+        global _log_pc_sampler
+        _log_pc_sampler = RateSampler(sample_rate=config.openai.log_prompt_completion_sample_rate)
+
     if getattr(openai, "__datadog_patch", False):
         return
 
@@ -82,22 +96,6 @@ def patch():
 
     Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
-
-    global _span_pc_sampler
-    _span_pc_sampler = RateSampler(sample_rate=config.openai.span_prompt_completion_sample_rate)
-
-    if config.openai.logs_enabled:
-        ddsite = os.getenv("DD_SITE", "datadoghq.com")
-        ddapikey = os.getenv("DD_API_KEY")
-        if not ddapikey:
-            raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
-
-        ddlogs.start(site=ddsite, api_key=ddapikey)
-        # FIXME: these logs don't show up when DD_TRACE_DEBUG=1 set... same thing for all contribs?
-        log.debug("started log writer")
-
-        global _log_pc_sampler
-        _log_pc_sampler = RateSampler(sample_rate=config.openai.log_prompt_completion_sample_rate)
 
 
 def unpatch():
@@ -236,7 +234,7 @@ def _completion_create(openai, pin, instance, args, kwargs):
 
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+        stats_client().increment("request.error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
         _dd_log(
             span,
             "error",
@@ -266,7 +264,6 @@ def _completion_create(openai, pin, instance, args, kwargs):
         _usage_metrics(resp.get("usage"), metric_tags)
 
         if sample_pc_log:
-            # TODO: don't tag log with error, get it from status
             _dd_log(
                 span,
                 "info",
@@ -345,15 +342,6 @@ def _chat_completion_create(openai, pin, instance, args, kwargs):
     if error is not None:
         span.set_exc_info(*sys.exc_info())
         stats_client().increment("request.error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
-        _dd_log(
-            span,
-            "error",
-            "openai error",
-            tags=metric_tags,
-            attrs={
-                "messages": messages,
-            },
-        )
     if resp and not kwargs.get("stream"):
         if "choices" in resp:
             choices = resp["choices"]
@@ -419,7 +407,7 @@ def _embedding_create(openai, pin, instance, args, kwargs):
         metric_tags.append("organization:%s" % openai.organization)
     if error is not None:
         span.set_exc_info(*sys.exc_info())
-        stats_client().increment("error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
+        stats_client().increment("request.error", 1, tags=metric_tags + ["error_type:%s" % error.__class__.__name__])
     if resp:
         if "data" in resp:
             span.set_tag("response.data.num-embeddings", len(resp["data"]))
