@@ -2344,6 +2344,7 @@ venv = Venv(
             },
             pkgs={
                 "pytest-asyncio": latest,
+                "attrs": latest,
             },
         ),
         Venv(
