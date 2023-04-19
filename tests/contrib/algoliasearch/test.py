@@ -199,8 +199,8 @@ class AlgoliasearchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
     def test_user_specified_service_v1(self):
         """
-        When a service name is specified by the user
-            The algoliasearch integration shouldn't use it as the service name
+        In the v1 service name schema, services default to $DD_SERVICE,
+            so make sure that is used and not the v0 schema 'algoliasearch'
         """
         patch_all()
         Pin.override(self.index, tracer=self.tracer)
