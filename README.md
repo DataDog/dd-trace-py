@@ -85,19 +85,16 @@ execute tests within a Docker image. You can start the container with a bash she
     $ scripts/ddtest
 
 You can now run tests as you would do in your local environment. We use
-[tox][tox] as well as [riot][riot], a new tool that we developed for addressing
+[riot][riot], a new tool that we developed for addressing
 our specific needs with an ever growing matrix of tests. You can list the tests
 managed by each:
 
-    $ tox -l
     $ riot list
 
 You can run multiple tests by using regular expressions:
 
-    $ scripts/run-tox-scenario '^futures_contrib-'
     $ riot run psycopg
 
-[tox]: https://github.com/tox-dev/tox/
 [riot]: https://github.com/DataDog/riot/
 
 #### Running Tests locally
