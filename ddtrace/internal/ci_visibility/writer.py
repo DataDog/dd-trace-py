@@ -46,7 +46,7 @@ class CIVisibilityCoverageClient(WriterClientBase):
 
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "PUT"
+    HTTP_METHOD = "POST"
     STATSD_NAMESPACE = "civisibility.writer"
 
     def __init__(
@@ -57,7 +57,7 @@ class CIVisibilityWriter(HTTPWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=True,  # type: bool
+        sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
