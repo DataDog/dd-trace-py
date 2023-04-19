@@ -210,7 +210,7 @@ def test_integration_async():
     parametrize={"DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE": ["0", "0.25", "0.75", "1"]},
 )
 def test_completion_sample():
-    """OpenAI uses requests for its synchronous requests."""
+    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
     import os
 
     import openai
@@ -253,7 +253,7 @@ def test_completion_sample():
     not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
 )
 def test_chat_completion_sample():
-    """OpenAI uses requests for its synchronous requests."""
+    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
     import os
 
     import openai
@@ -291,3 +291,81 @@ def test_chat_completion_sample():
         # this should be good enough for our purposes
         rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
         assert (rate - 15) < sampled < (rate + 15)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize={"DD_OPENAI_TRUNCATION_THRESHOLD": ["0", "10", "10000"]},
+)
+def test_completion_truncation():
+    """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for completions"""
+    import openai
+
+    import ddtrace
+    from tests.contrib.openai.test_openai import openai_vcr
+    from tests.utils import DummyTracer
+
+    ddtrace.Pin().override(openai, tracer=DummyTracer())
+
+    prompt = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+
+    with openai_vcr.use_cassette("completion_truncation.yaml"):
+        openai.Completion.create(model="ada", prompt=prompt)
+
+    pin = ddtrace.Pin.get_from(openai)
+    traces = pin.tracer.pop_traces()
+    assert len(traces) == 1
+
+    for trace in traces:
+        for span in trace:
+            limit = ddtrace.config.openai["truncation_threshold"]
+            prompt = span.get_tag("request.prompt")
+            completion = span.get_tag("response.choices.0.text")
+            assert len(prompt) <= limit
+            assert len(completion) <= limit
+            if "<TRUNC>" in prompt:
+                assert len(prompt.replace("<TRUNC>", "")) == limit
+            if "<TRUNC>" in completion:
+                assert len(completion.replace("<TRUNC>", "")) == limit
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize={"DD_OPENAI_TRUNCATION_THRESHOLD": ["0", "10", "10000"]},
+)
+@pytest.mark.skipif(
+    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
+)
+def test_chat_completion_truncation():
+    """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for chat completions"""
+    import openai
+
+    import ddtrace
+    from tests.contrib.openai.test_openai import openai_vcr
+    from tests.utils import DummyTracer
+
+    ddtrace.Pin().override(openai, tracer=DummyTracer())
+
+    with openai_vcr.use_cassette("chat_completion_truncation.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Count from 1 to 100"},
+            ],
+        )
+
+    pin = ddtrace.Pin.get_from(openai)
+    traces = pin.tracer.pop_traces()
+    assert len(traces) == 1
+
+    for trace in traces:
+        for span in trace:
+            limit = ddtrace.config.openai["truncation_threshold"]
+            prompt = span.get_tag("request.message.0.content")
+            completion = span.get_tag("response.choices.0.content")
+            assert len(prompt) <= limit
+            assert len(completion) <= limit
+            if "<TRUNC>" in prompt:
+                assert len(prompt.replace("<TRUNC>", "")) == limit
+            if "<TRUNC>" in completion:
+                assert len(completion.replace("<TRUNC>", "")) == limit
