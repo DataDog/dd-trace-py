@@ -1027,13 +1027,10 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
-        ) as ctx:
-            print("ctx!!!!!!!!")
-            print(ctx)
+        ):
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = tracer
-            print("ffff!!!!!!!!")
             return wrapped(*args, **kwargs)
 
     return wrapper
