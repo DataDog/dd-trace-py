@@ -77,7 +77,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.name == "algoliasearch.search"
         assert span.span_type == "http"
         assert span.error == 0
-        assert span.service == schematize_service_name('algoliasearch')
+        assert span.service == schematize_service_name("algoliasearch")
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors
