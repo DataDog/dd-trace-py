@@ -66,7 +66,7 @@ class TracedCursor(wrapt.ObjectProxy):
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):  # noqa
+    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
