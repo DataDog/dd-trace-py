@@ -45,7 +45,7 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
         env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
-    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL")
+    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -98,24 +98,24 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
-def _1_click_activation():
+def _1_click_activation(token):
     path_1 = "datadog/2/ASM_FEATURES/blocked_users/config"
     msg_1 = {"asm": {"enabled": True}}
     client = _get_agent_client()
     client.request(
         "POST",
-        "/test/session/responses/config/path",
+        "/test/session/responses/config/path?test_session_token=%s" % (token,),
         json.dumps({"path": path_1, "msg": msg_1}),
     )
     resp = client.getresponse()
     assert resp.status == 202
 
 
-def _block_ip():
+def _block_ip(token):
     client = _get_agent_client()
     client.request(
         "POST",
-        "/test/session/responses/config/path",
+        "/test/session/responses/config/path?test_session_token=%s" % (token,),
         json.dumps(
             {
                 "path": "datadog/2/ASM_DATA/blocked_users/config",
@@ -135,7 +135,7 @@ def _block_ip():
     assert resp.status == 202
 
 
-def _block_ip_with_1_click_activation():
+def _block_ip_with_1_click_activation(token):
     expires_date = datetime.datetime.strftime(
         datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
     )
@@ -217,18 +217,18 @@ def _block_ip_with_1_click_activation():
     client = _get_agent_client()
     client.request(
         "POST",
-        "/test/session/responses/config",
+        "/test/session/responses/config?test_session_token=%s" % (token,),
         json.dumps(remote_config_payload),
     )
     resp = client.getresponse()
     assert resp.status == 202
 
 
-def _unblock_ip():
+def _unblock_ip(token):
     client = _get_agent_client()
     client.request(
         "POST",
-        "/test/session/responses/config/path",
+        "/test/session/responses/config/path?test_session_token=%s" % (token,),
         json.dumps({"path": "datadog/2/ASM_DATA/blocked_users/config", "msg": {"rules_data": []}}),
     )
     resp = client.getresponse()
@@ -278,13 +278,13 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
 
         _request_200(gunicorn_client)
 
-        _block_ip()
+        _block_ip(token)
 
         time.sleep(3)
 
         _request_200(gunicorn_client)
 
-        _unblock_ip()
+        _unblock_ip(token)
 
         time.sleep(1)
 
@@ -297,7 +297,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _request_200(gunicorn_client)
 
-        _block_ip()
+        _block_ip(token)
 
         _request_200(gunicorn_client)
 
@@ -305,7 +305,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _request_403(gunicorn_client)
 
-        _unblock_ip()
+        _unblock_ip(token)
 
         time.sleep(2)
 
@@ -320,7 +320,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         _request_200(gunicorn_client)
 
-        _block_ip()
+        _block_ip(token)
 
         _request_200(gunicorn_client)
 
@@ -332,7 +332,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         _request_403(gunicorn_client)
 
-        _unblock_ip()
+        _unblock_ip(token)
 
         time.sleep(2)
 
@@ -349,11 +349,11 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _request_200(gunicorn_client, debug_mode=False)
 
-        _1_click_activation()
+        _1_click_activation(token)
 
         time.sleep(1)
 
-        _block_ip_with_1_click_activation()
+        _block_ip_with_1_click_activation(token)
 
         _request_200(gunicorn_client, debug_mode=False)
 
@@ -365,7 +365,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _request_403(gunicorn_client, debug_mode=False)
 
-        _unblock_ip()
+        _unblock_ip(token)
 
         time.sleep(1)
 
