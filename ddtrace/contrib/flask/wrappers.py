@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import function_wrapper
 
@@ -24,6 +25,14 @@ def wrap_function(instance, func, name=None, resource=None):
             return wrapped(*args, **kwargs)
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
             span.set_tag_str(COMPONENT, config.flask.integration_name)
+
+            # If IAST is enabled, taint the Flask function kwargs (path parameters)
+            if _is_iast_enabled() and kwargs:
+                from ddtrace.appsec.iast._input_info import Input_info
+                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                for k, v in kwargs.items():
+                    kwargs[k] = taint_pyobject(v, Input_info(k, v, "http.request.path.parameter"))
 
             return wrapped(*args, **kwargs)
 
