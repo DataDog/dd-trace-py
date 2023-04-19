@@ -3,6 +3,8 @@ import json
 from multiprocessing import Process
 import os
 import random
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
 
 import tenacity
 
@@ -30,18 +32,25 @@ class CIVisibilityGitClient(object):
         api_key,
         app_key,
     ):
+        # type: (str, str) -> None
         self._serde = CIVisibilityGitClientSerDeV1(api_key, app_key)
+        self._worker = None  # type: Optional[Process]
 
     def start(self, cwd=None):
-        self._worker = Process(target=CIVisibilityGitClient._run_protocol, kwargs={"cwd": cwd, "serde": self._serde})
-        self._worker.start()
+        # type: (Optional[str]) -> None
+        if self._worker is None:
+            self._worker = Process(target=CIVisibilityGitClient._run_protocol, args=(self._serde,), kwargs={"cwd": cwd})
+            self._worker.start()
 
     def shutdown(self, timeout=None):
-        self._worker.join(timeout)
-        self._worker = None
+        # type: (Optional[float]) -> None
+        if self._worker is not None:
+            self._worker.join(timeout)
+            self._worker = None
 
     @classmethod
-    def _run_protocol(cls, cwd=None, serde=None):
+    def _run_protocol(cls, serde, cwd=None):
+        # type: (CIVisibilityGitClientSerDeV1, Optional[str]) -> None
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(repo_url, latest_commits, serde)
@@ -52,27 +61,31 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
+        # type: (Optional[str]) -> str
         return extract_remote_url(cwd=cwd)
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
+        # type: (Optional[str]) -> list[str]
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
     def _search_commits(cls, repo_url, latest_commits, serde):
+        # type: (str, list[str], CIVisibilityGitClientSerDeV1) -> list[str]
         payload = serde.search_commits_encode(repo_url, latest_commits)
-        response = cls.retry_request()(cls._do_request, "/search_commits", payload, serde=serde)
+        response = cls.retry_request()(cls._do_request, "/search_commits", payload, serde)
         result = serde.search_commits_decode(response.body)
         return result
 
     @classmethod
-    def _do_request(cls, endpoint, payload, headers=None, timeout=None, serde=None):
+    def _do_request(cls, endpoint, payload, serde, headers=None):
+        # type: (str, str, CIVisibilityGitClientSerDeV1, Optional[dict]) -> Response
         url = "https://git-api-ci-app-backend.us1.staging.dog/repository%s" % endpoint
         _headers = {"dd-api-key": serde.api_key, "dd-application-key": serde.app_key}
         if headers is not None:
             _headers.update(headers)
         try:
-            conn = get_connection(url, timeout)
+            conn = get_connection(url)
             log.debug("Sending request: %s %s %s %s", ("POST", url, payload, _headers))
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
@@ -83,6 +96,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, cwd=None):
+        # type: (list[str], Optional[str]) -> list[str]
         return get_rev_list_excluding_commits(excluded_commits, cwd=cwd)
 
     @classmethod
@@ -96,6 +110,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _upload_packfiles(cls, repo_url, packfiles_path, serde, cwd=None):
+        # type: (str, str, CIVisibilityGitClientSerDeV1, Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -106,11 +121,13 @@ class CIVisibilityGitClient(object):
             file_path = os.path.join(directory, filename)
             content_type, payload = serde.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = cls.retry_request()(cls._do_request, "/packfile", payload, headers=headers, serde=serde)
+            response = cls.retry_request()(cls._do_request, "/packfile", payload, serde, headers=headers)
             return response.status == 204
+        return False
 
     @classmethod
     def retry_request(cls):
+        # type: () -> tenacity.Retrying
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
                 multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
@@ -123,19 +140,23 @@ class CIVisibilityGitClient(object):
 
 class CIVisibilityGitClientSerDeV1(object):
     def __init__(self, api_key, app_key):
+        # type: (str, str) -> None
         self.api_key = api_key
         self.app_key = app_key
 
     def search_commits_encode(self, repo_url, latest_commits):
+        # type: (str, list[str]) -> str
         return json.dumps(
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
 
     def search_commits_decode(self, payload):
+        # type: (str) -> list[str]
         parsed = json.loads(payload)
         return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
 
     def upload_packfile_encode(self, repo_url, sha, file_path):
+        # type: (str, str, str) -> Tuple[str, bytes]
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
         body = []
@@ -163,4 +184,4 @@ class CIVisibilityGitClientSerDeV1(object):
             ]
         )
         body.extend([b"--" + BOUNDARY + b"--", b""])
-        return "multipart/form-data; boundary=%s" % BOUNDARY, CRLF.join(body)
+        return "multipart/form-data; boundary=%s" % BOUNDARY, CRLF.join(body)  # type: ignore[str-bytes-safe]
