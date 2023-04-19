@@ -12,9 +12,9 @@ It is responsible for providing the files necessary to run `ddtrace` in an
 arbitrary downstream application container. It also provides a script to copy
 the necessary files to a given directory.
 
-The `dl_megawheel.py` script provides a portable `ddtrace` package. It is
-responsible for downloading and merging the published wheels of `ddtrace` and
-its dependencies.
+The `dl_wheels.py` script provides a portable set of `ddtrace` wheels. It is
+responsible for downloading the published wheels of `ddtrace` and its
+dependencies.
 
 The Datadog Admission Controller injects the InitContainer with a new volume
 mount to the application deployment. The script to copy files out of the
