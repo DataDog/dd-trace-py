@@ -167,7 +167,7 @@ commands:
                   DD_TRACE_AGENT_URL: http://localhost:9126
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -182,7 +182,7 @@ commands:
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
                 command: |
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -541,23 +541,15 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
+            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
 
   integration_testagent:
     <<: *machine_executor
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          env: SNAPSHOT_CI=1
-          services: testagent
-      - run:
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
+      - run_test:
+          snapshot: true
+          store_coverage: false
+          pattern: 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
