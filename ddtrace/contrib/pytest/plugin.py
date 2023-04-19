@@ -83,10 +83,7 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        try:
-            _CIVisibility.enable(config=ddtrace.config.pytest)
-        except EnvironmentError:
-            log.warning("Failed to initialize ddtrace")
+        _CIVisibility.enable(config=ddtrace.config.pytest)
 
 
 def pytest_sessionfinish(session, exitstatus):
