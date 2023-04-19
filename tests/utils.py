@@ -23,7 +23,6 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
-from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
@@ -889,7 +888,7 @@ class SnapshotTest(object):
 
 
 @contextmanager
-def agent_context(token=None, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
+def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -915,7 +914,6 @@ def agent_context(token=None, ignores=None, tracer=None, async_mode=True, varian
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
             tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
-            remoteconfig_poller._client._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -935,42 +933,17 @@ def agent_context(token=None, ignores=None, tracer=None, async_mode=True, varian
                 pytest.fail(to_unicode(r.read()), pytrace=False)
 
         try:
-            yield tracer, token
+            yield SnapshotTest(
+                tracer=tracer,
+                token=token,
+            )
         finally:
             # Force a flush so all traces are submitted.
             tracer._writer.flush_queue()
             if async_mode:
                 del tracer._writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
-                del remoteconfig_poller._client._headers["X-Datadog-Test-Session-Token"]
-    except Exception as e:
-        # Even though it's unlikely any traces have been sent, make the
-        # final request to the test agent so that the test case is finished.
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        conn.getresponse()
-        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
-    finally:
-        conn.close()
 
-
-@contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
-    # Use variant that applies to update test token. One must apply. If none
-    # apply, the test should have been marked as skipped.
-    with agent_context(
-        token,
-        ignores=ignores,
-        tracer=tracer,
-        async_mode=async_mode,
-        variants=variants,
-        wait_for_num_traces=wait_for_num_traces,
-    ) as (tracer, token):
-        yield SnapshotTest(
-            tracer=tracer,
-            token=token,
-        )
-        parsed = parse.urlparse(tracer._writer.agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
         # Wait for the traces to be available
@@ -998,6 +971,15 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         r = conn.getresponse()
         if r.status != 200:
             pytest.fail(to_unicode(r.read()), pytrace=False)
+    except Exception as e:
+        # Even though it's unlikely any traces have been sent, make the
+        # final request to the test agent so that the test case is finished.
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
+        conn.getresponse()
+        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
+    finally:
+        conn.close()
 
 
 def snapshot(
@@ -1045,10 +1027,13 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
-        ):
+        ) as ctx:
+            print("ctx!!!!!!!!")
+            print(ctx)
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = tracer
+            print("ffff!!!!!!!!")
             return wrapped(*args, **kwargs)
 
     return wrapper
