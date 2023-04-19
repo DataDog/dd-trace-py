@@ -107,8 +107,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     @staticmethod
-    def _convert_span(span):
-        # type: (Span) -> Dict[str, Any]
+    def _convert_span(span, dd_origin):
+        # type: (Span, str) -> Dict[str, Any]
         return {
             "span_id": span.span_id,
             "test_session_id": "",  # TODO: populate with real IDs
