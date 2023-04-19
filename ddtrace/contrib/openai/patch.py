@@ -99,12 +99,11 @@ class _OpenAIIntegration:
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        # TODO: do we need the same metrics tags here?
-        # we have the trace correlation, are logs tags expensive?
         tags = [
             "env:%s" % config.env,
             "version:%s" % config.version,
             "endpoint:%s" % span.get_tag("endpoint"),
+            "model:%s" % span.get_tag("model"),
         ]
         # FIXME: can we do a more efficient timestamp?
         timestamp = datetime.datetime.now().isoformat()
@@ -206,6 +205,11 @@ def patch():
     wrap(openai, "util.convert_to_openai_object", patched_convert(integration)(openai))
 
     if hasattr(openai.api_resources, "completion"):
+        wrap(
+            openai,
+            "api_resources.completion.Completion.create",
+            _patched_endpoint(integration, _completion_create)(openai),
+        )
         wrap(
             openai,
             "api_resources.completion.Completion.acreate",

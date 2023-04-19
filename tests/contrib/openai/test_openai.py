@@ -232,7 +232,7 @@ def test_completion_sample():
     pin = ddtrace.Pin.get_from(openai)
     traces = pin.tracer.pop_traces()
     sampled = 0
-    assert len(traces) == num_completions
+    assert len(traces) == 100, len(traces)
     for trace in traces:
         for span in trace:
             if span.get_tag("response.choices.0.text"):
@@ -323,12 +323,13 @@ def test_completion_truncation():
             limit = ddtrace.config.openai["truncation_threshold"]
             prompt = span.get_tag("request.prompt")
             completion = span.get_tag("response.choices.0.text")
-            assert len(prompt) <= limit
-            assert len(completion) <= limit
-            if "<TRUNC>" in prompt:
-                assert len(prompt.replace("<TRUNC>", "")) == limit
-            if "<TRUNC>" in completion:
-                assert len(completion.replace("<TRUNC>", "")) == limit
+            # +3 for the ellipsis
+            assert len(prompt) <= limit + 3
+            assert len(completion) <= limit + 3
+            if "..." in prompt:
+                assert len(prompt.replace("...", "")) == limit
+            if "..." in completion:
+                assert len(completion.replace("...", "")) == limit
 
 
 @pytest.mark.subprocess(
@@ -363,14 +364,14 @@ def test_chat_completion_truncation():
     for trace in traces:
         for span in trace:
             limit = ddtrace.config.openai["truncation_threshold"]
-            prompt = span.get_tag("request.message.0.content")
-            completion = span.get_tag("response.choices.0.content")
-            assert len(prompt) <= limit
-            assert len(completion) <= limit
-            if "<TRUNC>" in prompt:
-                assert len(prompt.replace("<TRUNC>", "")) == limit
+            prompt = span.get_tag("request.messages.0.content")
+            completion = span.get_tag("response.choices.0.message.content")
+            assert len(prompt) <= limit + 3
+            assert len(completion) <= limit + 3
+            if "..." in prompt:
+                assert len(prompt.replace("...", "")) == limit
             if "<TRUNC>" in completion:
-                assert len(completion.replace("<TRUNC>", "")) == limit
+                assert len(completion.replace("...", "")) == limit
 
 
 def test_reconfigure_patch():
