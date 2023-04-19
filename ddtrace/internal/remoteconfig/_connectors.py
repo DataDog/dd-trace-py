@@ -1,7 +1,6 @@
 import abc
 from ctypes import c_char
 import json
-import multiprocessing
 from uuid import UUID
 
 import six
@@ -41,6 +40,8 @@ class ConnectorSharedMemoryJson(ConnectorBase):
     """
 
     def __init__(self):
+        import multiprocessing
+
         self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
 
     def write(self, metadata, config_raw):
@@ -61,6 +62,8 @@ class ConnectorSharedMemoryJson(ConnectorBase):
 
 class ConnectorSharedMemoryMetadataJson(ConnectorBase):
     def __init__(self):
+        import multiprocessing
+
         self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
 
     def write(self, metadata, config_raw):

@@ -152,7 +152,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # type: (...) -> None
         self.stop_subscribers()
 
-        if self.status == ServiceStatus.STOPPED:
+        if self.status == ServiceStatus.STOPPED or self._worker is None:
             return
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
