@@ -60,7 +60,10 @@ class _OpenAIIntegration:
             if hasattr(self._openai, attr):
                 v = getattr(self._openai, attr)
                 if v is not None:
-                    span.set_tag_str(attr, v)
+                    if attr == "organization":
+                        span.set_tag_str("organization.id", v)
+                    else:
+                        span.set_tag_str(attr, v)
 
     def is_pc_sampled_span(self, span):
         if not span.sampled:
@@ -130,7 +133,8 @@ class _OpenAIIntegration:
             "service:%s" % span.service,
             "model:%s" % span.get_tag("model"),
             "endpoint:%s" % span.get_tag("endpoint"),
-            "organization:%s" % span.get_tag("organization"),
+            "organization.id:%s" % span.get_tag("organization.id"),
+            "organization.name:%s" % span.get_tag("organization.name"),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
@@ -145,6 +149,8 @@ class _OpenAIIntegration:
             self._statsd.distribution(name, val, tags=tags)
         elif kind == "incr":
             self._statsd.increment(name, val, tags=tags)
+        elif kind == "gauge":
+            self._statsd.gauge(name, val, tags=tags)
 
     def usage_metrics(self, span, usage):
         if not usage:
@@ -199,6 +205,7 @@ def patch():
         return
 
     wrap(openai, "api_requestor._make_session", patched_make_session(openai))
+    wrap(openai, "util.convert_to_openai_object", patched_convert(integration)(openai))
 
     if hasattr(openai.api_resources, "completion"):
         wrap(
@@ -487,3 +494,37 @@ def _embedding_create(integration, openai, pin, instance, args, kwargs):
 
     span.finish()
     integration.metric(span, "dist", "request.duration", span.duration_ns)
+
+
+def patched_convert(integration):
+    @trace_utils.with_traced_module
+    def _patched_convert(openai, pin, func, instance, args, kwargs):
+        """Patch convert captures header information in the openai response"""
+        for val in args:
+            if isinstance(val, openai.openai_response.OpenAIResponse):
+                span = pin.tracer.current_span()
+                val = val._headers
+                if val.get("openai-organization"):
+                    org_name = val.get("openai-organization")
+                    span.set_tag("organization.name", org_name)
+
+                # Gauge total rate limit
+                if val.get("x-ratelimit-limit-requests"):
+                    v = val.get("x-ratelimit-limit-requests")
+                    integration.metric(span, "ratelimit.requests", v, "gauge")
+                if val.get("x-ratelimit-limit-tokens"):
+                    v = val.get("x-ratelimit-limit-tokens")
+                    integration.metric(span, "ratelimit.tokens", v, "gauge")
+
+                # Gauge and set span info for remaining requests and tokens
+                if val.get("x-ratelimit-remaining-requests"):
+                    v = val.get("x-ratelimit-remaining-requests")
+                    integration.metric(span, "ratelimit.remaining.requests", v, "gauge")
+                    span.set_tag("organization.ratelimit.requests.remaining", v)
+                if val.get("x-ratelimit-remaining-tokens"):
+                    v = val.get("x-ratelimit-remaining-tokens")
+                    integration.metric(span, "ratelimit.remaining.tokens", v, "gauge")
+                    span.set_tag("organization.ratelimit.tokens.remaining", v)
+        return func(*args, **kwargs)
+
+    return _patched_convert
