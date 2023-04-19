@@ -7,6 +7,7 @@ import sys
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
+from functools import partial  # noqa
 import logging  # noqa
 import os  # noqa
 from typing import Any  # noqa
@@ -17,6 +18,7 @@ from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
@@ -152,6 +154,14 @@ def cleanup_loaded_modules():
             if m == u or m.startswith(u + "."):
                 drop(m)
 
+    # Because we are not unloading it, the logging module requires a reference
+    # to the newly imported threading module to allow it to retrieve the correct
+    # thread object information, like the thread name. We register a post-import
+    # hook on the threading module to perform this update.
+    @partial(ModuleWatchdog.register_module_hook, "threading")
+    def _(threading):
+        logging.threading = threading
+
 
 try:
     from ddtrace import tracer
@@ -180,7 +190,6 @@ try:
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
             from ddtrace.appsec.iast._taint_tracking import setup
-            from ddtrace.internal.module import ModuleWatchdog
 
             setup(bytes.join, bytearray.join)
 
