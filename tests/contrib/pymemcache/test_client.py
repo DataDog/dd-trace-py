@@ -378,7 +378,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", SPAN_ATTRIBUTE_SCHEMA_VERSIONS='v0'))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v0'))
     def test_user_specified_service_v0(self):
         """
         In the v0 naming schema -
@@ -399,7 +399,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", SPAN_ATTRIBUTE_SCHEMA_VERSIONS='v1'))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA='v1'))
     def test_user_specified_service_v1(self):
         """
         In the v1 naming schema -
@@ -418,4 +418,4 @@ class PymemcacheClientConfiguration(TracerTestCase):
         tracer = pin.tracer
         spans = tracer.pop()
 
-        assert spans[0].service != "mysvc"
+        assert spans[0].service == "mysvc"
