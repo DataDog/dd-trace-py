@@ -2338,9 +2338,12 @@ venv = Venv(
         Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
-            pys=select_pys(),
+            pys=select_pys(min_version="3.5"),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+            pkgs={
+                "pytest-asyncio": latest,
             },
         ),
         Venv(
