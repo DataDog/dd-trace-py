@@ -111,7 +111,8 @@ def _appsec_rules_data(features, test_tracer):
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset)
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
-        return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
+        if ruleset:
+            return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
     return False
 
