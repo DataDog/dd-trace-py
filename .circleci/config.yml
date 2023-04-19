@@ -598,7 +598,7 @@ jobs:
     parallelism: 2
     steps:
       - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
