@@ -44,7 +44,7 @@ class CIVisibilityProxiedEventClient(CIVisibilityEventClient):
 
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "PUT"
+    HTTP_METHOD = "POST"
     STATSD_NAMESPACE = "civisibilitywriter"
 
     def __init__(
@@ -55,7 +55,7 @@ class CIVisibilityWriter(HTTPWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=True,  # type: bool
+        sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -64,9 +64,14 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
+
+        client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
+        headers = headers or dict()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()],
+            clients=[client],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
