@@ -345,9 +345,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
-)
+@pytest.mark.skipif(sys.version_info[:2] == [3, 10], reason="Run this tests in python 3.10")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
@@ -370,7 +368,6 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _request_403(gunicorn_client, debug_mode=False)
 
         os.kill(int(pid), signal.SIGTERM)
-        time.sleep(1)
 
         _request_403(gunicorn_client, debug_mode=False)
 
