@@ -270,7 +270,9 @@ def _request_403(client, debug_mode=False):
         assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
+)
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
     with gunicorn_server(remote_configuration_enabled="false", token=token) as context:
@@ -289,7 +291,9 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         time.sleep(1)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
+)
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
     with gunicorn_server(token=token) as context:
@@ -312,7 +316,9 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
         _request_200(gunicorn_client)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
+)
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
     with gunicorn_server(token=token) as context:
@@ -339,7 +345,9 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
+)
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
