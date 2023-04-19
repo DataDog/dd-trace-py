@@ -12,24 +12,23 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
+      "endpoint": "completions",
       "language": "python",
       "model": "curie",
       "organization": "not-a-real-org",
-      "request.model": "curie",
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "None",
-      "response.choices.0.text": "I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am not an artificial intelligence. The brain is a self-organising, self-aware, virtual reality computer \u2026 so how is it, who exactly is it, this thing that thinks, feels, loves and believes? Are we not just software running on hardware? Recently, I have come to take a more holistic view of my identity, not as a series of fleeting moments, but as a long-term, ongoing process. The key ques<TRUNC>",
-      "response.id": "cmpl-76n1xq0xOyZWMQ8h6FQ89lgWjPz12",
+      "response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am not an artificial intelligence. The brain is a self-organising, self-aware, virtual reality computer \u2026 so how is it, who exactly is it, this thing that thinks, feels, loves and believes? Are we not just software running on hardware?\n\nRecently, I have come to take a more holistic view of my identity, not as a series of fleeting moments, but as a long-term, ongoing process. The key qu...",
       "response.object": "text_completion",
-      "runtime-id": "1aca547854d74a1e8dabaf944c1c062a"
+      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 73785,
+      "process_id": 29662,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -38,6 +37,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 1475353000,
-    "start": 1681852797624827000
+    "duration": 2030000,
+    "start": 1681882489280998000
   }]]

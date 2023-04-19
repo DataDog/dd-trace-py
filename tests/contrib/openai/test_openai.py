@@ -6,7 +6,6 @@ import openai
 import pytest
 import vcr
 
-import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import config
@@ -57,9 +56,9 @@ def patch_openai():
     unpatch()
 
     # Force a flush of the logs for the given test case
-    from ddtrace.contrib.openai._log import _logs_writer
+    from ddtrace.contrib.openai.patch import _integration
 
-    _logs_writer.periodic()
+    _integration._log_writer.periodic()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -293,7 +292,6 @@ def test_chat_completion_sample():
         # this should be good enough for our purposes
         rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
         assert (rate - 15) < sampled < (rate + 15)
-<<<<<<< HEAD
 
 
 @pytest.mark.subprocess(
@@ -380,7 +378,7 @@ def test_reconfigure_patch():
     assert old_val != 0.22
     config.openai.span_prompt_completion_sample_rate = 0.22
     patch(openai=True)
-    from ddtrace.contrib.openai.patch import _span_pc_sampler
+    from ddtrace.contrib.openai.patch import _integration
 
-    assert _span_pc_sampler.sample_rate == 0.22
+    assert _integration._span_pc_sampler.sample_rate == 0.22
     config.openai.span_prompt_completion_sample_rate = old_val

@@ -9,7 +9,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
 
-log = get_logger(__file__)
+logger = get_logger(__file__)
 
 
 class V2LogEvent(TypedDict):
@@ -59,7 +59,7 @@ class V2LogWriter(PeriodicService):
         # type: (V2LogEvent) -> None
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
-                log.warning("log buffer full (limit is %d), dropping log" % self._buffer_limit)
+                logger.warning("log buffer full (limit is %d), dropping log" % self._buffer_limit)
                 return
             self._buffer.append(log)
 
@@ -80,12 +80,12 @@ class V2LogWriter(PeriodicService):
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = get_connection_response(conn)
             if resp.status >= 300:
-                log.error(
+                logger.error(
                     "failed to send %d logs, got response code %r, status %r to %r", num_logs, resp.status, resp.read()
                 )
             else:
-                log.debug("sent %d logs to %r", num_logs, self._intake)
+                logger.debug("sent %d logs to %r", num_logs, self._intake)
         except Exception:
-            log.error("failed to send %d logs to %r", num_logs, self._intake, exc_info=True)
+            logger.error("failed to send %d logs to %r", num_logs, self._intake, exc_info=True)
         finally:
             conn.close()

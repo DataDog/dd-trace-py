@@ -12,64 +12,28 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
+      "endpoint": "completions",
       "language": "python",
       "model": "ada",
       "organization": "not-a-real-org",
-      "request.model": "ada",
       "request.prompt": "hello world",
       "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "None",
       "response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
-      "response.id": "cmpl-76n21v67JBLBTiNAIzghImtsNjBrq",
       "response.object": "text_completion",
-      "runtime-id": "50d0ae3133344f649d14ec62b11ced52"
+      "runtime-id": "3b9634f6d38e4a299ebf23cc24b94521"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 73806,
+      "process_id": 29675,
       "response.choices.num": 1,
       "response.usage.completion_tokens": 16,
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 18
     },
-    "duration": 226962000,
-    "start": 1681852801676389000
-  },
-     {
-       "name": "aiohttp.request",
-       "service": "openai",
-       "resource": "aiohttp.request",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "http",
-       "error": 0,
-       "meta": {
-         "component": "aiohttp_client",
-         "http.method": "post",
-         "http.status_code": "200",
-         "http.status_msg": "OK",
-         "http.url": "https://api.openai.com/v1/completions",
-         "span.kind": "client"
-       },
-       "duration": 213242000,
-       "start": 1681852801683877000
-     },
-        {
-          "name": "TCPConnector.connect",
-          "service": "openai",
-          "resource": "TCPConnector.connect",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "component": "aiohttp"
-          },
-          "duration": 30705000,
-          "start": 1681852801684319000
-        }]]
+    "duration": 10633000,
+    "start": 1681882490875993000
+  }]]

@@ -12,10 +12,10 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
+      "endpoint": "completions",
       "language": "python",
       "model": "ada",
       "organization": "not-a-real-org",
-      "request.model": "ada",
       "request.prompt": "Hello world",
       "request.stop": ".",
       "response.choices.0.finish_reason": "length",
@@ -23,17 +23,16 @@
       "response.choices.0.text": ", relax!\u201d I said to my laptop",
       "response.choices.1.finish_reason": "stop",
       "response.choices.1.logprobs": "None",
-      "response.choices.1.text": "(1",
-      "response.id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
+      "response.choices.1.text": " (1",
       "response.object": "text_completion",
-      "runtime-id": "1aca547854d74a1e8dabaf944c1c062a"
+      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 73785,
+      "process_id": 29662,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
@@ -42,6 +41,6 @@
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 14
     },
-    "duration": 315931000,
-    "start": 1681852797218494000
+    "duration": 12895000,
+    "start": 1681882488971468000
   }]]

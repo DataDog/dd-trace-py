@@ -12,23 +12,24 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
+      "endpoint": "embedding",
       "language": "python",
       "model": "text-embedding-ada-002",
       "organization": "not-a-real-org",
       "request.input": "hello world",
       "request.model": "text-embedding-ada-002",
       "response.model": "text-embedding-ada-002",
-      "runtime-id": "1aca547854d74a1e8dabaf944c1c062a"
+      "runtime-id": "1d325df15c0d4b688efa30816a8477db"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 73785,
+      "process_id": 29662,
       "response.data.embedding-length": 1536,
       "response.data.num-embeddings": 1
     },
-    "duration": 123602000,
-    "start": 1681852799225818000
+    "duration": 702000,
+    "start": 1681882489344634000
   }]]
