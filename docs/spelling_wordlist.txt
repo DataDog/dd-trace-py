@@ -133,6 +133,7 @@ obfuscator
 opensearch
 opentracer
 opentracing
+ObjectProxy
 parameterized
 perf
 pid
@@ -177,6 +178,7 @@ sqlite
 stacktrace
 starlette
 stringable
+subclass
 subdomains
 submodule
 submodules
