@@ -382,3 +382,49 @@ def test_reconfigure_patch():
 
     assert _integration._span_pc_sampler.sample_rate == 0.22
     config.openai.span_prompt_completion_sample_rate = old_val
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_OPENAI_LOGS_ENABLED": ["False", "True", ""], "DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE": ["1"]},
+)
+def test_logs():
+    import mock
+
+    import ddtrace
+
+    @mock.patch("ddtrace.contrib.openai._logging.V2LogWriter.enqueue")
+    def _test_logs(mock_log):
+        import openai
+
+        from tests.contrib.openai.test_openai import openai_vcr
+
+        ddtrace.patch(openai=True)
+        logs = 0
+        total_calls = 100
+        for _ in range(total_calls):
+            with openai_vcr.use_cassette("completion.yaml"):
+                openai.Completion.create(
+                    model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+                )
+            # test enabling/disabling logs
+            if not ddtrace.config.openai["logs_enabled"]:
+                # if logging is disabled, mock log should never be called
+                mock_log.assert_not_called()
+            else:
+                # if logging is enabled, mock log may or may not be called based on sampling
+                try:
+                    mock_log.assert_called()
+                    logs += 1
+                except AssertionError:
+                    pass
+        # test sampling rate
+        if ddtrace.config.openai["logs_enabled"]:
+            if ddtrace.config.openai["log_prompt_completion_sample_rate"] == 0:
+                assert logs == 0
+            elif ddtrace.config.openai["log_prompt_completion_sample_rate"] == 1:
+                assert logs == total_calls
+            else:
+                rate = ddtrace.config.openai["log_prompt_completion_sample_rate"] * total_calls
+                assert (rate - 15) < logs < (rate + 15)
+
+    _test_logs()
