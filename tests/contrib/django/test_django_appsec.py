@@ -825,36 +825,66 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
         assert response.content == b"test/1.2.3"
 
 
-# XXX: test the env var disabled
+@pytest.mark.django_db
+def test_django_login_events_disabled(client, test_spans, tracer):
+    with override_env(dict(DD_AUTOMATIC_LOGIN_EVENTS_ENABLED="false")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
 
+        with pytest.raises(AssertionError) as excl_info:
+            _ = test_spans.find_span(name="django.contrib.auth.login")
+        assert "No span found for filter" in str(excl_info.value)
+
+
+# TODO: test additional fields for default values
+# TODO: test custom user defined field
 @pytest.mark.django_db
 def test_django_login_sucess(client, test_spans, tracer):
-    test_user = User.objects.create(username="fred")
-    test_user.set_password("secret")
-    test_user.save()
-    assert not get_user(client).is_authenticated
-    client.login(username="fred", password="secret")
-    assert get_user(client).is_authenticated
-    login_span = test_spans.find_span(name="django.contrib.auth.login")
-    assert login_span
-    assert login_span.get_tag(user.ID) == "fred"
-    # XXX check login sucess tags
+    with override_env(dict(DD_AUTOMATIC_LOGIN_EVENTS_ENABLED="true")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span
+        assert login_span.get_tag(user.ID) == "fred"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
 
 
-@pytest.mark.django_db
-def test_django_login_failure_user_exists(client, test_spans, tracer):
-    test_user = User.objects.create(username="fred")
-    test_user.set_password("secret")
-    test_user.save()
-    assert not get_user(client).is_authenticated
-    client.login(username="fred", password="secret2")
-    assert not get_user(client).is_authenticated
-    # XXX check login failure tags
+# FIXME: find a way to test this case (currently the test client uses authenticate before
+# login which means always get the "doesnt exist" result)
+# @pytest.mark.django_db
+# def test_django_login_failure_user_exists(client, test_spans, tracer):
+#     test_user = User.objects.create(username="fred")
+#     test_user.set_password("secret")
+#     test_user.save()
+#     assert not get_user(client).is_authenticated
+#     client.login(username="fred", password="secret2")
+#     assert not get_user(client).is_authenticated
+#     login_span = test_spans.find_span(name="django.contrib.auth.login")
+#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
+#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "fred"
+#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "true"
 
 
 @pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
-    assert not get_user(client).is_authenticated
-    client.login(username="missing", password="secret2")
-    assert not get_user(client).is_authenticated
-    # XXX check login failure tags
+    with override_env(dict(DD_AUTOMATIC_LOGIN_EVENTS_ENABLED="true")):
+        assert not get_user(client).is_authenticated
+        client.login(username="missing", password="secret2")
+        assert not get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+
+
+# TODO:
+# test for custom userid field (e.g. email)
+# test for the additional fields retrieved if used

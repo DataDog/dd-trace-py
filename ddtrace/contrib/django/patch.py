@@ -14,11 +14,9 @@ from inspect import isfunction
 import os
 import sys
 
-from django.contrib.auth.backends import ModelBackend
-
 from ddtrace.appsec.trace_utils import track_user_login_success_event, \
     track_user_login_failure_event
-from django.contrib.auth import get_user, _get_backends
+from django.contrib.auth import get_user
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 
@@ -621,25 +619,41 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 def traced_login(django, pin, func, instance, args, kwargs):
     request = get_argument_value(args, kwargs, 0, "request")
     func(*args, **kwargs)
+
+    # FIXME: user a constant for the env var
+    if not asbool(os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_ENABLED", "false")):
+        return
+
+    user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
+    email_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_EMAIL_FIELD", "email")
+    name_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_NAME_FIELD", "name")
+    role_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_ROLE_FIELD", "role")
+    scope_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_SCOPE_FIELD", "scope")
+
     user = get_user(request)
     if user:
+        user_id = getattr(user, user_id_field, user.username)
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             if user and user.is_authenticated:
                 session_key = getattr(request, "session_key", None)
                 track_user_login_success_event(
                     pin.tracer,
-                    # XXX get user_id field from env_var
-                    user_id=user.username,
+                    user_id=user_id,
+                    name=getattr(user, email_field, None),
+                    # FIXME: this should also user surname if it exists?
+                    email=getattr(user, name_field, None),
+                    role=getattr(user, role_field, None),
+                    scope=getattr(user, scope_field, None),
                     session_id=session_key,
-                    propagate=True
+                    propagate=True,
                 )
                 return
 
             # Login failed but the user exists
-            track_user_login_failure_event(pin.tracer, user_id=user.username, exists=True)
+            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True)
     else:
         # Login failed and the user is unknown
-        username = getattr(request, "username", None)
+        username = getattr(request, user_id_field, None)
         if username:
             track_user_login_failure_event(pin.tracer, user_id=username, exists=False)
 
@@ -647,34 +661,16 @@ def traced_login(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
+    if not asbool(os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_ENABLED", "false")):
+        return result_user
+
 
     if not result_user:
-        if args:
-            request = get_argument_value(args, kwargs, 0, "request")
-        else:
-            request = None
+        user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
+        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field], exists=False)
 
-        # User auth failed, but we need to check if the user exists; iterate over the backends
-        # using the same logic as `authenticate` to find the one in use
-        for backend, backend_path in _get_backends(return_tuples=True):
-            backend_signature = inspect.signature(backend.authenticate)
-            try:
-                backend_signature.bind(request, **kwargs)
-            except TypeError:
-                # This backend doesn't accept these credentials as arguments. Try the next one.
-                continue
-
-            if isinstance(backend, ModelBackend):
-                # We support finding if the user exists if the Model auth backend is the active one
-                from django.contrib.auth.models import User
-                user_exists = User.objects.filter(username=kwargs["username"]).exists()
-            break
-        else:
-            user_exists = False
-
-        track_user_login_failure_event(pin.tracer, user_id=kwargs["username"], exists=False)
-
-
+    return result_user
 
 
 def unwrap_views(func, instance, args, kwargs):
