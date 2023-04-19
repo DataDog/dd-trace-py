@@ -370,6 +370,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _request_403(gunicorn_client, debug_mode=False)
 
         os.kill(int(pid), signal.SIGTERM)
+        time.sleep(1)
 
         _request_403(gunicorn_client, debug_mode=False)
 
