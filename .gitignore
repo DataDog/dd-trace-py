@@ -131,3 +131,9 @@ ddtrace/_version.py
 
 # Benchmarks
 artifacts/
+
+# vendored packages
+/vendor/python
+
+# direnv
+.envrc
