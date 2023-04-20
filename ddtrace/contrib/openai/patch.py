@@ -451,7 +451,6 @@ class _ChatCompletionHook(_EndpointHook):
                 for choice in choices:
                     idx = choice["index"]
                     span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                    span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
                     if sample_pc_span and choice.get("message"):
                         span.set_tag(
                             "response.choices.%d.message.content" % idx,
