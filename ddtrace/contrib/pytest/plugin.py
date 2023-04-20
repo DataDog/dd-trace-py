@@ -129,6 +129,7 @@ def _start_test_suite_span(item):
 def _fetch_and_apply_test_skips(suite, module):
     tests_to_skip = CIVisibility.get_tests_to_skip(suite, module)
     # TODO: make pytest skip these tests
+    # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_collection_modifyitems
 
 
 def pytest_addoption(parser):
