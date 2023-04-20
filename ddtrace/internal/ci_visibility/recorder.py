@@ -108,7 +108,7 @@ class CIVisibility(Service):
 
         if info:
             endpoints = info.get("endpoints", [])
-            if endpoints and (EVP_PROXY_AGENT_BASE_PATH in endpoints or ("/" + EVP_PROXY_AGENT_BASE_PATH) in endpoints):
+            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
         return False
 
