@@ -594,8 +594,8 @@ jobs:
           pattern: 'test_logging'
 
   stdlib:
-    <<: *contrib_job_small
-    parallelism: 2
+    <<: *contrib_job
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
