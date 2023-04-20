@@ -58,9 +58,13 @@ class CIVisibilityWriter(HTTPWriter):
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:
             raise ValueError("Required environment variable DD_API_KEY not defined")
+
+        client = CIVisibilityEventClient()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[CIVisibilityEventClient()],
+            clients=[client],
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
