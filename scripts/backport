@@ -28,11 +28,8 @@ usage () {
     echo "Examples:"
     echo ""
 
-    echo "  Backport PR #3489 to branch 0.61"
-    echo "    $0 3489 0.61"
-    echo ""
-    echo "  Backport PR #4376 to branches 1.8, 1.7, and 1.5"
-    echo "    $0 4376 1.8 1.7 1.5"
+    echo "  Backport PR #4376 down to 1.5"
+    echo "    $0 4376 1.5"
 }
 
 if [ $# -lt 2 ];
@@ -45,9 +42,11 @@ then
 fi
 
 
-PR_NUMBER="${1}"
-shift 1
-TO_BRANCHES="$@"
+PR_NUMBER="${1}"; shift 1
+TO_BRANCH="${1}"
+
+VERSION_MAJOR="${TO_BRANCH%%\.*}"
+VERSION_MINOR="${TO_BRANCH#*.}"
 
 # Determine the remote to use
 # DEV: If anything here fails, then default to 'origin'
@@ -72,7 +71,7 @@ then
     exit 1
 fi
 
-if [[ -z "${TO_BRANCHES}" ]];
+if [[ -z "${TO_BRANCH}" ]];
 then
     echo "Error:"
     echo "  Must supply at least 1 branch to backport to"
@@ -106,8 +105,9 @@ current_branch="$(git rev-parse --abbrev-ref HEAD)"
 # Try to make sure we have the latest data from remote
 git fetch --all &>/dev/null || true
 
-for base_branch in "$@";
+while `git rev-parse --verify --quiet "${VERSION_MAJOR}.${VERSION_MINOR}" &>/dev/null`;
 do
+  base_branch="${VERSION_MAJOR}.${VERSION_MINOR}"
   echo "Backporting ${PR_NUMBER} (sha: ${merge_commit_sha}) to ${base_branch}"
   branch_name="backport-${PR_NUMBER}-to-${base_branch}"
   if ! git switch --detach "${REMOTE}/${base_branch}"
@@ -150,6 +150,8 @@ EOF
   echo "Switching back to ${current_branch} and deleting temporary branch ${branch_name}"
   git switch "${current_branch}"
   git branch -D "${branch_name}"
+
+  VERSION_MINOR=$((VERSION_MINOR + 1))
 done
 
 echo "✨ 🍰 ✨ All done! ✨ 🍰 ✨"
