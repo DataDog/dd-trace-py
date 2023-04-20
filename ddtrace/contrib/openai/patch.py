@@ -491,7 +491,7 @@ class _EmbeddingHook(_EndpointHook):
             if "data" in resp:
                 span.set_tag("response.data.num-embeddings", len(resp["data"]))
                 span.set_tag("response.data.embedding-length", len(resp["data"][0]["embedding"]))
-            for kw_attr in ["model", "object", "usage"]:
+            for kw_attr in ["object", "usage"]:
                 if kw_attr in kwargs:
                     span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
             integration.record_usage(span, resp.get("usage"))
