@@ -75,7 +75,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _search_commits(cls, base_url, repo_url, latest_commits, serde):
-        # type: (str, list[str], CIVisibilityGitClientSerDeV1) -> list[str]
+        # type: (str, str, list[str], CIVisibilityGitClientSerDeV1) -> list[str]
         payload = serde.search_commits_encode(repo_url, latest_commits)
         response = cls.retry_request()(cls._do_request, base_url, "/search_commits", payload, serde)
         result = serde.search_commits_decode(response.body)
@@ -114,7 +114,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serde, cwd=None):
-        # type: (str, str, CIVisibilityGitClientSerDeV1, Optional[str]) -> bool
+        # type: (str, str, str, CIVisibilityGitClientSerDeV1, Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
