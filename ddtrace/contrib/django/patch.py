@@ -77,20 +77,26 @@ config._add(
 
 
 _NotSet = object()
-psycopg_cursor_cls = Psycopg2TracedCursor = _NotSet
+psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
 def patch_conn(django, conn):
-    global psycopg_cursor_cls, Psycopg2TracedCursor
+    global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
     if psycopg_cursor_cls is _NotSet:
         try:
-            from psycopg2._psycopg import cursor as psycopg_cursor_cls
+            from psycopg.cursor import Cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+            from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
         except ImportError:
-            psycopg_cursor_cls = None
-            Psycopg2TracedCursor = None
+            Psycopg3TracedCursor = None
+            try:
+                from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+            except ImportError:
+                psycopg_cursor_cls = None
+                Psycopg2TracedCursor = None
 
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
@@ -113,9 +119,14 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
 
                 traced_cursor_cls = Psycopg2TracedCursor
+            elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
+                # Import lazily to avoid importing psycopg if not already imported.
+                from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+
+                traced_cursor_cls = Psycopg3TracedCursor
         except AttributeError:
             pass
 
