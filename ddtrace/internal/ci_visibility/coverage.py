@@ -26,18 +26,18 @@ try:
 except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
-    log.warning(
-        "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-        "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-    )
 
 
 def enabled():
-    if Coverage is None:
-        return False
-    if compat.PY2:
-        return False
     if config._ci_visibility_code_coverage_enabled:
+        if compat.PY2:
+            return False
+        if Coverage is None:
+            log.warning(
+                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
+                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+            )
+            return False
         return True
     return False
 
