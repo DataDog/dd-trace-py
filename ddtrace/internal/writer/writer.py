@@ -348,6 +348,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self.intake_url, self._timeout)
             try:
+                log.debug("Sending request: %s %s %s %s", self.HTTP_METHOD, client.ENDPOINT, data, headers)
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -355,6 +356,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     headers,
                 )
                 resp = compat.get_connection_response(self._conn)
+                log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
