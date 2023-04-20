@@ -171,7 +171,8 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -188,7 +189,8 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -384,6 +386,7 @@ jobs:
 
   tracer:
     <<: *contrib_job_large
+    parallelism: 11
     steps:
       - run_test:
           pattern: "tracer"
@@ -553,18 +556,15 @@ jobs:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
-            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - save_coverage
+            # Sort the hashes to ensure a consistent ordering/division between each node
+            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
 
   integration_testagent:
     <<: *machine_executor
     steps:
       - run_test:
           snapshot: true
+          store_coverage: false
           pattern: 'integration-snapshot'
 
   vendor:
