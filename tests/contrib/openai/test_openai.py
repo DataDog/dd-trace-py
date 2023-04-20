@@ -61,9 +61,13 @@ def mock_metrics():
 
 
 @pytest.fixture
-def mock_logs():
-    with mock.patch("ddtrace.contrib.openai._logging.V2LogWriter.enqueue") as mock_log:
-        yield mock_log
+def mock_logs(scope="session"):
+    patcher = mock.patch("ddtrace.contrib.openai._patch.V2LogWriter")
+    V2LogWriterMock = patcher.start()
+    m = mock.MagicMock()
+    V2LogWriterMock.return_value = m
+    yield m
+    patcher.stop()
 
 
 @pytest.fixture
@@ -74,17 +78,18 @@ def patch_openai():
 
 
 @pytest.fixture
-def snapshot_tracer(patch_openai):
+def snapshot_tracer(patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
     yield
 
     mock_logs.reset_mock()
+    mock_metrics.reset_mock()
 
 
 @pytest.fixture
-def mock_tracer(patch_openai, mock_logs):
+def mock_tracer(patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer()
     pin.override(openai, tracer=DummyTracer())
@@ -93,6 +98,7 @@ def mock_tracer(patch_openai, mock_logs):
     yield mock_tracer
 
     mock_logs.reset_mock()
+    mock_metrics.reset_mock()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -228,6 +234,25 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
                     "organization.name:datadog-4",
                     "error:0",
                 ],
+            ),
+        ]
+    )
+
+    mock_logs.assert_has_calls(
+        [
+            mock.call.enqueue(
+                {
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": None,
+                    "status": "info",
+                    "ddtags": "env:None,version:None,endpoint:completions,model:curie",
+                    "dd.trace_id": mock.ANY,
+                    "dd.span_id": mock.ANY,
+                    "prompt": "As Descartes said, I think, therefore",
+                    "choices": mock.ANY,
+                }
             ),
         ]
     )
