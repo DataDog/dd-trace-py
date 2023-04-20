@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
+from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.encoding import JSONEncoderV2
 
 
@@ -17,7 +20,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
-    TEST_FUNCTION_EVENT_VERSION = 2
+    TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
 
     def __init__(self, *args):
@@ -74,10 +77,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["span_id"] = int(sp.get("span_id") or "0")
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
+        version = CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION
         if span.get_tag(EVENT_TYPE) == "test":
-            version = CIVisibilityEncoderV01.TEST_FUNCTION_EVENT_VERSION
-        else:
             version = CIVisibilityEncoderV01.TEST_EVENT_VERSION
+        elif span.get_tag(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE]:
             sp["test_suite_id"] = int(sp["meta"].get("test_suite_id") or "0")
             sp["test_module_id"] = int(sp["meta"].get("test_module_id") or "0")
             sp["test_session_id"] = int(sp["meta"].get("test_session_id") or "0")

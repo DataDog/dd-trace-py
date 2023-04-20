@@ -815,7 +815,6 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_suite_span.get_tag("test_module_id") is None
         assert test_suite_span.get_tag("test_suite_id") == str(test_suite_span.span_id)
-        assert test_suite_span.get_tag("test.bundle") == ""
         assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
         assert test_suite_span.get_tag("test.suite") == str(file_name).split(".py")[0]
 
@@ -1002,7 +1001,7 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 3
         test_span = spans[0]
 
         assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"

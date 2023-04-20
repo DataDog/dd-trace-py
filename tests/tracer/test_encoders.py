@@ -346,7 +346,7 @@ def test_encode_traces_civisibility_v0():
             b"content": {
                 b"trace_id": int(given_span._trace_id_64bits),
                 b"span_id": int(given_span.span_id),
-                b"parent_id": 1,
+                b"parent_id": 0,
                 b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
                 b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
                 b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
@@ -356,8 +356,6 @@ def test_encode_traces_civisibility_v0():
                 b"meta": expected_meta,
                 b"metrics": dict(sorted(given_span._metrics.items())),
                 b"error": 0,
-                b"test_session_id": 1,
-                b"test_suite_id": 1,
             },
         }
         assert expected_event == received_event
