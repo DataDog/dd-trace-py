@@ -2,6 +2,7 @@
 import logging
 import math
 import os
+import sys
 import threading
 import typing
 
@@ -133,47 +134,38 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
-        stacks = []
-        for (stack, nframes, thread_id), size in _memalloc.heap()
-            if self.ignore_profiler or thread_id in thread_id_ignore_set:
-                continue
-            if self.use_libdatadog:
-                ddup.start_sample()
-                ddup.push_heapsize(size, 1)
-                ddup.push_threadinfo(thread_id, _threading.get_native_id(thread_id), _threading.get_thread_name(thread_id))
+        if self.use_libdatadog:
+            for (stack, nframes, thread_id), size in _memalloc.heap():
+                if self.ignore_profiler or thread_id in thread_id_ignore_set:
+                    continue
+            ddup.start_sample()
+            ddup.push_heap(size)
+            ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+            for frame in stack:
+                ddup.push_frame(frame[2], frame[0], 0, frame[1])
 
-                for frame in stack:
-                    if frame is not None:
-                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-                            if not isinstance(frame, FrameType):
-                                continue
-                        lineno = 0 if frame.f_lineno is None else frame.f_lineno
-                        code = frame.f_code
-                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-                            if not isinstance(frame, FrameType):
-                                continue
-                        ddup.push(code.co_name, code.co_filename, 0, lineno)
-
-            if self.use_pyprof:
-                event = MemoryHeapSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=_threading.get_thread_name(thread_id),
-                    thread_native_id=_threading.get_thread_native_id(thread_id),
-                    frames=stack,
-                    nframes=nframes,
-                    size=size,
-                    sample_size=self.heap_sample_size,
-                )
-                events.append(event)
-            return events
-        return (
-            tuple(
-                for (stack, nframes, thread_id), size in _memalloc.heap()
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-            ),
-        )
+        if self.use_pyprof:
+            return (
+                tuple(
+                    MemoryHeapSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=_threading.get_thread_name(thread_id),
+                        thread_native_id=_threading.get_thread_native_id(thread_id),
+                        frames=stack,
+                        nframes=nframes,
+                        size=size,
+                        sample_size=self.heap_sample_size,
+                    )
+                    for (stack, nframes, thread_id), size in _memalloc.heap()
+                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
+                ),
+            )
 
     def collect(self):
+        # type: (...) -> typing.List[MemoryAllocSampleEvent]
+        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
+        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
+        # timestamp in C and then return it via iter_events.
         try:
             events, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
@@ -183,40 +175,31 @@ class MemoryCollector(collector.PeriodicCollector):
 
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
-        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
-        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
-        # timestamp in C and then return it via iter_events.
-        stacks = []
-        for (stack, nframes, thread_id), size, domain in events:
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                continue
-            if self.use_libdatadog:
-                ddup.start_sample()
-                ddup.push_alloc(size * capture_ratio, count)
-                ddup.push_threadinfo(thread_id, _threading.get_native_id(thread_id), _threading.get_thread_name(thread_id))
+        if self.use_libdatadog:
+            for (stack, nframes, thread_id), size, domain in events:
+                if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
+                    continue
+            ddup.start_sample()
+            ddup.push_alloc(size * capture_pct, count)
+            ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
 
-                for frame in stack:
-                    if frame is not None:
-                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-                            if not isinstance(frame, FrameType):
-                                continue
-                        lineno = 0 if frame.f_lineno is None else frame.f_lineno
-                        code = frame.f_code
-                        if PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
-                            if not isinstance(frame, FrameType):
-                                continue
-                        ddup.push(code.co_name, code.co_filename, 0, lineno)
+            for frame in stack:
+                ddup.push_frame(frame[2], frame[0], 0, frame[1])
 
-            if self.use_pyprof:
-                event = MemoryAllocSampleEvent(
-                            thread_id=thread_id,
-                            thread_name=_threading.get_thread_name(thread_id),
-                            thread_native_id=_threading.get_thread_native_id(thread_id),
-                            frames=stack,
-                            nframes=nframes,
-                            size=size,
-                            capture_pct=capture_pct,
-                            nevents=alloc_count,
-                        )
-                stacks.append(event)
-            return stacks
+        if self.use_pyprof:
+            return (
+                tuple(
+                    MemoryAllocSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=_threading.get_thread_name(thread_id),
+                        thread_native_id=_threading.get_thread_native_id(thread_id),
+                        frames=stack,
+                        nframes=nframes,
+                        size=size,
+                        capture_pct=capture_pct,
+                        nevents=alloc_count,
+                    )
+                    for (stack, nframes, thread_id), size, domain in events
+                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
+                ),
+            )

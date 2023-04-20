@@ -14,6 +14,11 @@
 #include <iostream>
 #include <thread>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 using namespace Datadog;
 
 inline ddog_CharSlice to_slice(const std::string_view &str) {
@@ -25,7 +30,7 @@ DdogProfExporter::DdogProfExporter(std::string_view env,
                                    std::string_view version, 
                                    std::string_view url) {
 
-  // Setup the 
+  // Setup
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
   add_tag(tags, "language", language);
   add_tag(tags, "env", env);
@@ -41,10 +46,13 @@ DdogProfExporter::DdogProfExporter(std::string_view env,
       ddog_Endpoint_agent(to_slice(url)));
   ddog_Vec_Tag_drop(tags);
 
-  if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK)
+  if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
     ptr = new_exporter.ok;
-  else
+  } else {
+    // TODO consolidate errors
     std::cout << "ERROR INITIALIZING LIBDATADOG EXPORTER" << std::endl;
+    ddog_Error_drop(&new_exporter.err);
+  }
 }
 
 DdogProfExporter::~DdogProfExporter() {
@@ -59,21 +67,22 @@ Uploader::Uploader(std::string_view _env,
   service(_service),
   version(_version),
   url(_url) {
+    std::cout << "uploader service: " << _service << std::endl;
+    std::cout << "uploader version: " << _version << std::endl;
+    std::cout << "uploader url: " << _url << std::endl;
+    std::cout << "uploader env: " << _env << std::endl;
     ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, url);
 }
 
 void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val) {
   ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
+    // TODO consolidate errors
     std::cout << "Error pushing tag '" << key << "'->'" << val << "'" << std::endl;
     std::cout << "  err: " << ddog_Error_message(&res.err).ptr << std::endl;
+    ddog_Error_drop(&res.err);
   }
 }
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 bool Uploader::upload(const Profile *profile) {
   ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(
@@ -81,23 +90,14 @@ bool Uploader::upload(const Profile *profile) {
       nullptr,
       nullptr);
   if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
+    // TODO consolidate errors
     std::cout << "Failure serializing pprof" << std::endl;
+    std::cout << "  "  << ddog_Error_message(&result.err).ptr << std::endl;
+    ddog_Error_drop(&result.err);
     return false;
   }
 
   ddog_prof_EncodedProfile *encoded = &result.ok;
-
-  // Write to disk
-//  ddog_prof_Vec_U8 *buffer = &encoded->buffer;
-//  int fd = open("/tmp/auto.pprof", O_CREAT | O_RDWR, 0600);
-//  int n = -1;
-//  if (1 > (n=write(fd, buffer->ptr, buffer->len)))
-//    std::cout << "Could not write" << std::endl;
-//  else if(buffer->len != n)
-//    std::cout << "Wrote pprof (failed)" << std::endl;
-//  else
-//    std::cout << "Wrote pprof" << std::endl;
-//  close(fd);
 
   ddog_Timespec start = encoded->start;
   ddog_Timespec end = encoded->end;
@@ -113,69 +113,106 @@ bool Uploader::upload(const Profile *profile) {
     },
   };
 
-  ddog_prof_Exporter_Slice_File files = {.ptr = file, .len = 1};
-
+  // Build the request object
   ddog_prof_Exporter_Request_BuildResult build_res = ddog_prof_Exporter_Request_build(
       ddog_exporter->ptr,
       start,
       end,
-      files,
+      {.ptr = file, .len = 1},
       nullptr,
       nullptr,
       5000);
   if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
+    // TODO consolidate errors
     std::cout << "Could not build request" << std::endl;
     std::cout << "  " << ddog_Error_message(&build_res.err).ptr << std::endl;
     ddog_Error_drop(&build_res.err);
+    ddog_prof_EncodedProfile_drop(encoded);
     return false;
   }
-
   ddog_prof_Exporter_Request *req = build_res.ok;
 
+  // Build and check the response object
   ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter->ptr, &req, nullptr);
-
-  // Close out request
-
   if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
+    // TODO consolidate errors
     std::cout << "Failed to send result to backend" << std::endl;
     std::cout << "  url: " <<  url << std::endl;
     std::cout << "  " << ddog_Error_message(&res.err).ptr << std::endl;
-  }
+    ddog_Error_drop(&res.err);
+    ddog_prof_EncodedProfile_drop(encoded);
+    return false;
+  } else
 
-  // We're done exporting, so reset the profile
+  // Cleanup
+  // TODO which of these can be moved closer to point of allocation?
+  ddog_prof_Exporter_Request_drop(&req);
+  ddog_prof_EncodedProfile_drop(encoded);
+
+  // We're done exporting, so reset the profile.  If this is false, then the
+  // cleanup failed, but we cannot reuse the profiling object.
   if (!ddog_prof_Profile_reset(profile->ddog_profile, nullptr)) {
+    // TODO consolidate errors
     std::cout << "Unable to reset!" << std::endl;
     return false;
   }
-
-//  ddog_prof_Profile_SerializeResult_drop(result);
-//  ddog_prof_Exporter_Request_drop(req);
-//  ddog_prof_Exporter_SendResult_drop(res);
-
   return true;
 }
 
-Profile::Profile() {
+Profile::Profile(ProfileType type) : type_mask{type & ProfileType::All} {
   // Fill in the profiling bits
-  ddog_prof_ValueType samplers[] = {
-    {to_slice("cpu-time"), to_slice("nanoseconds")},
-    {to_slice("cpu-samples"), to_slice("count")},
-    {to_slice("wall-time"), to_slice("nanoseconds")},
-    {to_slice("wall-samples"), to_slice("count")},
-    {to_slice("exception-samples"), to_slice("count")},
-    {to_slice("lock-acquire"), to_slice("count")},
-    {to_slice("lock-acquire-wait"), to_slice("nanoseconds")},
-    {to_slice("lock-release"), to_slice("count")},
-    {to_slice("lock-release-hold"), to_slice("nanoseconds")},
-    {to_slice("alloc-samples"), to_slice("count")},
-    {to_slice("alloc-space"), to_slice("bytes")},
-    {to_slice("heap-space"), to_slice("bytes")},
-  };
+  std::vector<ddog_prof_ValueType> samplers;
+  if (!type) 
+    type = ProfileType::All;
+  if (type & ProfileType::CPU) {
+    val_idx.cpu_time = samplers.size();
+    val_idx.cpu_count = samplers.size() + 1;
+    samplers.push_back({to_slice("cpu-time"), to_slice("nanoseconds")});
+    samplers.push_back({to_slice("cpu-samples"), to_slice("count")});
+  }
+  if (type & ProfileType::Wall) {
+    val_idx.wall_time = samplers.size();
+    val_idx.wall_count = samplers.size() + 1;
+    samplers.push_back({to_slice("wall-time"), to_slice("nanoseconds")});
+    samplers.push_back({to_slice("wall-samples"), to_slice("count")});
+  }
+  if (type & ProfileType::Exception) {
+    val_idx.exception_count = samplers.size();
+    samplers.push_back({to_slice("exception-samples"), to_slice("count")});
+  }
+  if (type & ProfileType::LockAcquire) {
+    val_idx.lock_acquire_time = samplers.size();
+    val_idx.lock_acquire_count = samplers.size() + 1;
+    samplers.push_back({to_slice("lock-acquire-wait"), to_slice("nanoseconds")});
+    samplers.push_back({to_slice("lock-acquire"), to_slice("count")});
+  }
+  if (type & ProfileType::LockRelease) {
+    val_idx.lock_release_time = samplers.size();
+    val_idx.lock_release_count = samplers.size() + 1;
+    samplers.push_back({to_slice("lock-release-hold"), to_slice("nanoseconds")});
+    samplers.push_back({to_slice("lock-release"), to_slice("count")});
+  }
+  if (type & ProfileType::Allocation) {
+    val_idx.alloc_space = samplers.size();
+    val_idx.alloc_count = samplers.size() + 1;
+    samplers.push_back({to_slice("alloc-space"), to_slice("bytes")});
+    samplers.push_back({to_slice("alloc-samples"), to_slice("count")});
+  }
+  if (type & ProfileType::Heap) {
+    val_idx.alloc_space = samplers.size();
+    samplers.push_back({to_slice("heap-space"), to_slice("bytes")});
+  }
 
-  ddog_prof_Period cpu_period = {samplers[0], 1}; // Is this even used?
+  if (!samplers.size()) {
+    // TODO consolidate errors
+    return;
+  }
+  values.resize(samplers.size());
+
+  ddog_prof_Period default_sampler = {samplers[0], 1}; // Mandated by pprof, but probably unused
   ddog_profile = ddog_prof_Profile_new(
-      {samplers, std::size(samplers)},
-      &cpu_period,
+      {&samplers[0], samplers.size()},
+      &default_sampler,
       nullptr);
 
   // Initialize the size for buffers
@@ -247,7 +284,7 @@ void Profile::push_label(const std::string_view &key, int64_t val) {
 void Profile::clear_buffers() {
   locations.clear();
   lines.clear();
-  values = {};
+  std::fill(values.begin(), values.end(), 0);
   std::fill(std::begin(labels), std::end(labels), ddog_prof_Label{});
   cur_label = 0;
 }
@@ -255,7 +292,7 @@ void Profile::clear_buffers() {
 bool Profile::flush_sample() {
   ddog_prof_Sample sample = {
     .locations = {&locations[0], locations.size()},
-    .values = {&values[0], std::size(values)},
+    .values = {&values[0], values.size()},
     .labels = {labels, cur_label},
   };
 
@@ -325,40 +362,41 @@ bool Profile::flush_sample() {
 
 
 void Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
-  values[0] += cputime * count;
-  values[1] += count;
+  values[val_idx.cpu_time] += cputime * count;
+  values[val_idx.cpu_count] += count;
 }
 
 void Datadog::Profile::push_walltime(int64_t walltime, int64_t count) {
-  values[2] += walltime * count;
-  values[3] += count;
+  values[val_idx.wall_time] += walltime * count;
+  values[val_idx.wall_count] += count;
 }
 
 void Datadog::Profile::push_exceptioninfo(const std::string_view &exception_type, int64_t count) {
   push_label("exception type", exception_type);
-  values[4] += count;
+  values[val_idx.exception_count] += count;
 }
 
 void Datadog::Profile::push_acquire(int64_t acquire_time, int64_t count) {
-  values[5] += count;
-  values[6] += acquire_time;
+  values[val_idx.lock_acquire_time] += acquire_time;
+  values[val_idx.lock_acquire_count] += count;
 }
 
 void Datadog::Profile::push_release(int64_t release_time, int64_t count) {
-  values[7] += count;
-  values[8] += release_time;
+  values[val_idx.lock_release_time] += release_time;
+  values[val_idx.lock_release_count] += count;
 }
 
 void Datadog::Profile::push_alloc(int64_t allocsize, int64_t count) {
-  values[9] += count;
-  values[10] += allocsize; // Allocations are already aggregated?
+  values[val_idx.alloc_space] += allocsize; // Allocations are already aggregated?
+  values[val_idx.alloc_count] += count;
 }
 
 void Datadog::Profile::push_heap(int64_t heapsize) {
-  values[11] += heapsize;
+  values[val_idx.heap_space] += heapsize;
 }
 
 void Datadog::Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, const std::string_view &thread_name) {
+  // TODO ensure the thread ids do have transparently static storage
   push_label("thread id", thread_id);
   push_label("thread native id", thread_native_id);
   push_label("thread name", thread_name);
@@ -392,10 +430,13 @@ bool g_prof_flag;
 
 void ddup_uploader_init(const char *service, const char *env, const char *version) {
   if (!is_initialized) {
-    g_profile_real[0] = new Datadog::Profile();
-    g_profile_real[1] = new Datadog::Profile();
+    g_profile_real[0] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
+    g_profile_real[1] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
     g_profile = g_profile_real[0];
-    g_uploader = new Datadog::Uploader(service, env, version);
+    std::cout << "Initializing a profiler with service: " << service;
+    std::cout << "  env: " << env;
+    std::cout << "  version: " << version << std::endl;
+    g_uploader = new Datadog::Uploader(env, service, version);
     is_initialized = true;
   }
 }

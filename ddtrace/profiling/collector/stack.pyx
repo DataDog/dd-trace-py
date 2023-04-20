@@ -359,7 +359,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             ddup.push_walltime(wall_time, 1)
             ddup.push_cputime(cpu_time, 1)
             ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-            ddup.push_taskinfo(task_id, task_name)
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes, use_libdatadog, use_pyprof)
 
@@ -387,7 +386,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if use_libdatadog:
                 ddup.start_sample()
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_taskinfo(task_id, task_name)
                 ddup.push_exceptioninfo(exc_type, 1)
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes, use_libdatadog, use_pyprof)

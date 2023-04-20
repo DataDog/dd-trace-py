@@ -55,7 +55,22 @@ public:
 };
 
 class Profile {
+public:
+  enum ProfileType : unsigned int {
+    CPU         = 1<<0,
+    Wall        = 1<<1,
+    Exception   = 1<<2,
+    LockAcquire = 1<<3,
+    LockRelease = 1<<4,
+    Allocation  = 1<<5,
+    Heap        = 1<<6,
+    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap
+  };
+
+private:
   bool is_valid = false;
+
+  unsigned int type_mask;
 
   std::vector<ddog_prof_Location> locations;
   std::vector<ddog_prof_Line> lines;
@@ -65,14 +80,27 @@ class Profile {
   size_t cur_label = 0;
   
   // Storage for values
-  std::array<int64_t, 12> values = {};
+  std::vector<int64_t> values = {};
+  struct {
+    unsigned short cpu_time;
+    unsigned short cpu_count;
+    unsigned short wall_time;
+    unsigned short wall_count;
+    unsigned short exception_count;
+    unsigned short lock_acquire_time;
+    unsigned short lock_acquire_count;
+    unsigned short lock_release_time;
+    unsigned short lock_release_count;
+    unsigned short alloc_space;
+    unsigned short alloc_count;
+    unsigned short heap_space;
+  } val_idx;
 
   // Helpers
   void push_label(const std::string_view &key, const std::string_view &val);
   void push_label(const std::string_view &key, int64_t val);
 
 public:
-  // HACKY BAD STUFF
   std::vector<std::string> strings;
 
   uint64_t samples = 0;
@@ -136,7 +164,7 @@ public:
   // Zero out stats
   void zero_stats();
 
-  Profile();
+  Profile(ProfileType type);
   ~Profile();
 };
 

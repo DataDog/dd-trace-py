@@ -50,7 +50,7 @@ LIBDDWAF_VERSION = "1.8.2"
 
 LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog", "libdatadog"))
 
-LIBDATADOGPROF_VERSION = "v2.0.0"
+LIBDATADOGPROF_VERSION = "v2.1.0"
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -257,7 +257,7 @@ class LibDatadog_Download(Library_Download):
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
     expected_checksums = {
         "Linux": {
-            "x86_64" : "faca4ac2af0a9ecc150e9dbf6a21336afa43bcbb75a33765818bc3e0c0c9e00a",
+            "x86_64" : "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
         },
     }
     available_releases = {

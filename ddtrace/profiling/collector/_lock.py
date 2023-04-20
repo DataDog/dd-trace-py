@@ -66,6 +66,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
+    use_libdatadog = attr.ib(default=True)
+    use_pyprof = attr.ib(default=True)
 
     def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
         wrapt.ObjectProxy.__init__(self, wrapped)
@@ -76,8 +78,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self.use_libdatadog = attr.ib(default=True)
-        self.use_pyprof = attr.ib(default=True)
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
     def __aenter__(self):

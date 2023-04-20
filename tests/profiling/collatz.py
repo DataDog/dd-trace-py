@@ -3,9 +3,9 @@ from time import monotonic_ns
 prof = Profiler(
     env="perf",
     service="collatz_py",
-    version="1.8.3rc2",
+    version="1.12.0rc1",
     use_libdatadog=True,
-    use_pyprof=False
+    use_pyprof=True,
 )
 prof.start()
 

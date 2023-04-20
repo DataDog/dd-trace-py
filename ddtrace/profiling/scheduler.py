@@ -43,6 +43,7 @@ class Scheduler(periodic.PeriodicService):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self.use_libdatadog:
+            print("Uploading with libdatadog")
             ddup.upload()
 
         if not self.use_pyprof:
