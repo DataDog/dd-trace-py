@@ -130,7 +130,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                 value = query_args.get(query_arg)
                 if value is not None:
-                    span.set_tag_str("query.args.{}".format(tag_name), value)
+                    span.set_tag("query.args.{}".format(tag_name), value)
 
         # Result would look like this
         # {
