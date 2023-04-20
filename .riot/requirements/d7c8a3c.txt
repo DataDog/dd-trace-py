@@ -13,7 +13,6 @@ iniconfig==1.1.1
 mock==5.0.1
 msgpack==1.0.5
 opentracing==2.4.0
-packaging==21.3
 pluggy==1.0.0
 py==1.11.0
 pyparsing==3.0.9

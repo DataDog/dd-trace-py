@@ -20,7 +20,6 @@ mock==3.0.5
 more-itertools==5.0.0
 msgpack==1.0.5
 opentracing==2.4.0
-packaging==20.9
 pathlib2==2.3.7.post1
 pluggy==0.13.1
 py==1.11.0
