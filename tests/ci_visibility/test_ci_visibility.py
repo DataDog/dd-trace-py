@@ -153,7 +153,7 @@ def test_git_client_search_commits():
     latest_commits = [TEST_SHA]
     serde = CIVisibilityGitClientSerDeV1("foo", "bar")
     with mock_git_client_endpoint():
-        backend_commits = CIVisibilityGitClient._search_commits(remote_url, latest_commits, serde)
+        backend_commits = CIVisibilityGitClient._search_commits("", remote_url, latest_commits, serde)
     assert latest_commits[0] in backend_commits
 
 
@@ -190,4 +190,4 @@ def test_git_client_upload_packfiles(git_repo):
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
         with mock_git_client_endpoint():
-            CIVisibilityGitClient._upload_packfiles(remote_url, packfiles_path, serde, cwd=git_repo)
+            CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serde, cwd=git_repo)
