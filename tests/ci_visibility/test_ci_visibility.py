@@ -47,6 +47,8 @@ def test_ci_visibility_service_enable():
         assert CIVisibility.enabled
         assert ci_visibility_instance.tracer == dummy_tracer
         assert ci_visibility_instance._service == "test-service"
+        assert ci_visibility_instance._code_coverage_enabled_by_api is False
+        assert ci_visibility_instance._test_skipping_enabled_by_api is False
         assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
         CIVisibility.disable()
 

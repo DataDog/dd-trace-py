@@ -3,6 +3,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+from uuid import uuid4
 
 import ddtrace
 from ddtrace import Tracer
@@ -101,14 +102,14 @@ class CIVisibility(Service):
         _headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": app_key}
         payload = {
             "data": {
-                "id": "1234",
+                "id": str(uuid4()),
                 "type": "ci_app_test_service_libraries_settings",
                 "attributes": {
-                    "service": "dd-trace-test",
-                    "env": "testing-juan",
-                    "repository_url": "https://github.com/cgatt/dd-trace-exception-demo",
-                    "sha": "c010dad32b80a9d9590966f63f489d2f28a2e390",
-                    "branch": "main",
+                    "service": self._service,
+                    "env": ddconfig.env,
+                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
+                    "sha": self._tags.get(ci.git.COMMIT_SHA),
+                    "branch": self._tags.get(ci.git.BRANCH),
                 },
             }
         }
