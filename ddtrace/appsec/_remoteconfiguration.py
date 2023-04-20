@@ -119,42 +119,48 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
     """The main process has the responsibility to enable or disable the ASM products. The child processes don't
     care about that, the children only need to know about payload content.
     """
-    if not pubsub_instance:
-        pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+    if _appsec_rc_features_is_enabled():
+        log.debug(
+            "[%s][P: %s] Receiving ASM Remote Configuration ASM_FEATURES: %s",
+            os.getpid(),
+            os.getppid(),
+            features.get("asm", {}),
+        )
 
-    rc_appsec_enabled = None
-    if features is not None:
-        if APPSEC_ENV in os.environ:
-            rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
-        elif features is False or features == {}:
-            rc_appsec_enabled = False
-        else:
-            asm_features = features.get("asm", {})
-            if asm_features is not None:
-                rc_appsec_enabled = asm_features.get("enabled")
+        if not pubsub_instance:
+            pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
 
-        if rc_appsec_enabled is not None:
-            from ddtrace.appsec._constants import PRODUCTS
-
+        rc_appsec_enabled = None
+        if features is not None:
+            if APPSEC_ENV in os.environ:
+                rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+            elif features == {}:
+                rc_appsec_enabled = False
+            else:
+                asm_features = features.get("asm", {})
+                if asm_features is not None:
+                    rc_appsec_enabled = asm_features.get("enabled", False)
             log.debug(
-                "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
+                "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
                 os.getppid(),
                 rc_appsec_enabled,
             )
+            if rc_appsec_enabled is not None:
+                from ddtrace.appsec._constants import PRODUCTS
 
-            if rc_appsec_enabled:
-                remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
-                remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
-                remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
-            else:
-                remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-                remoteconfig_poller.unregister(PRODUCTS.ASM)
-                remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
-    if features is False:
-        features = {"asm": {"enabled": rc_appsec_enabled}}
-    else:
-        features["asm"] = {"enabled": rc_appsec_enabled}
+                if rc_appsec_enabled:
+                    remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
+                    remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
+                    remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
+                else:
+                    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+                    remoteconfig_poller.unregister(PRODUCTS.ASM)
+                    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+        if features is False:
+            features = {"asm": {"enabled": rc_appsec_enabled}}
+        else:
+            features["asm"] = {"enabled": rc_appsec_enabled}
     return features
 
 
@@ -173,39 +179,40 @@ def _appsec_1click_activation(features, test_tracer=None):
     | true              | true       | Enabled  |
     ```
     """
-    # Tracer is a parameter for testing propose
-    # Import tracer here to avoid a circular import
-    if test_tracer is None:
-        from ddtrace import tracer
-    else:
-        tracer = test_tracer
-
-    log.debug("[%s][P: %s] ASM_FEATURES: %s", os.getpid(), os.getppid(), str(features)[:100])
-    if APPSEC_ENV in os.environ:
-        # no one click activation if var env is set
-        rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
-    elif features is False:
-        rc_appsec_enabled = False
-    else:
-        rc_appsec_enabled = features.get("asm", {}).get("enabled")
-
-    log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
-    if rc_appsec_enabled is not None:
-
-        log.debug(
-            "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
-            os.getpid(),
-            os.getppid(),
-            rc_appsec_enabled,
-        )
-
-        if rc_appsec_enabled:
-            if not tracer._appsec_enabled:
-                tracer.configure(appsec_enabled=True)
-            else:
-                config._appsec_enabled = True
+    if _appsec_rc_features_is_enabled():
+        # Tracer is a parameter for testing propose
+        # Import tracer here to avoid a circular import
+        if test_tracer is None:
+            from ddtrace import tracer
         else:
-            if tracer._appsec_enabled:
-                tracer.configure(appsec_enabled=False)
+            tracer = test_tracer
+
+        log.debug("[%s][P: %s] ASM_FEATURES: %s", os.getpid(), os.getppid(), str(features)[:100])
+        if APPSEC_ENV in os.environ:
+            # no one click activation if var env is set
+            rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+        elif features is False:
+            rc_appsec_enabled = False
+        else:
+            rc_appsec_enabled = features.get("asm", {}).get("enabled", False)
+
+        log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
+        if rc_appsec_enabled is not None:
+
+            log.debug(
+                "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
+                os.getpid(),
+                os.getppid(),
+                rc_appsec_enabled,
+            )
+
+            if rc_appsec_enabled:
+                if not tracer._appsec_enabled:
+                    tracer.configure(appsec_enabled=True)
+                else:
+                    config._appsec_enabled = True
             else:
-                config._appsec_enabled = False
+                if tracer._appsec_enabled:
+                    tracer.configure(appsec_enabled=False)
+                else:
+                    config._appsec_enabled = False

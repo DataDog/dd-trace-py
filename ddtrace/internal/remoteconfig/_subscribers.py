@@ -51,8 +51,8 @@ class RemoteConfigSubscriber(SubscriberBase):
         super(RemoteConfigSubscriber, self).__init__(data_connector, callback, name)
 
     def _exec_callback(self, data, test_tracer=None):
-        log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
         if data:
+            log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
             self._callback(data, test_tracer=test_tracer)
 
     def _get_data_from_connector_and_exec(self, checksum=0, test_tracer=None):

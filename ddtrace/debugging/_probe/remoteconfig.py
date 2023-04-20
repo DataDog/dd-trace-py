@@ -294,4 +294,4 @@ class ProbeRCAdapter(PubSub):
 
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "ASM")
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "DEBUGGER")

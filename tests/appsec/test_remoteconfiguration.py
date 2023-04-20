@@ -85,9 +85,13 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=False)), override_env({APPSEC.ENV: appsec_enabled}):
+    with override_global_config(dict(_appsec_enabled=asbool(appsec_enabled))), override_env(
+        {APPSEC.ENV: appsec_enabled}
+    ):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
+        else:
+            tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
         _appsec_callback({"asm": {"enabled": rc_value}}, tracer)
         result = _set_and_get_appsec_tags(tracer)
@@ -107,10 +111,12 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
+        else:
+            tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
         rc_config = {"asm": {"enabled": True}}
         if rc_value is False:
-            rc_config = False
+            rc_config = {}
 
         _appsec_callback(rc_config, tracer)
         result = _set_and_get_appsec_tags(tracer)
@@ -172,7 +178,7 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(trac
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
 
-        _preprocess_results_appsec_1click_activation(False)
+        _preprocess_results_appsec_1click_activation({})
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
@@ -574,8 +580,8 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
         enable_appsec_rc(tracer)
-        asm_data_data1 = b'{"exclusions": [{"a":1}]}'
-        asm_data_data2 = b'{"exclusions": []}'
+        asm_data_data1 = b'{"asm":{"enabled":true}, "exclusions": [{"a":1}]}'
+        asm_data_data2 = b'{"asm":{"enabled":true}, "exclusions": []}'
         payload = AgentPayload(
             target_files=[
                 TargetFile(path="mock/ASM_DATA/1", raw=base64.b64encode(asm_data_data1)),
@@ -636,12 +642,12 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_config_worker, tracer):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
-        tracer.configure(appsec_enabled=True, api_version="v0.4")
+    with override_global_config(dict(_appsec_enabled=True)):
+        tracer.configure(appsec_enabled=True)
         applied_configs = {}
         enable_appsec_rc(tracer)
-        asm_data_data1 = b'{"exclusions": [{"a":1}]}'
-        asm_data_data2 = b'{"exclusions": []}'
+        asm_data_data1 = b'{"asm":{"enabled":true}, "exclusions": [{"a":1}]}'
+        asm_data_data2 = b'{"asm":{"enabled":true}, "exclusions": []}'
         payload = AgentPayload(
             target_files=[
                 TargetFile(path="mock/ASM_DATA/1", raw=base64.b64encode(asm_data_data1)),
