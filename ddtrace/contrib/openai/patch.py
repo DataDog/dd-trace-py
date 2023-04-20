@@ -1,6 +1,6 @@
-import datetime
 import os
 import sys
+import time
 
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -102,9 +102,9 @@ class _OpenAIIntegration:
             "model:%s" % span.get_tag("model"),
         ]
         # FIXME: can we do a more efficient timestamp?
-        timestamp = datetime.datetime.now().isoformat()
         log = {
-            "message": "%s %s" % (timestamp, msg),
+            "timestamp": time.time() * 1000,
+            "message": msg,
             "hostname": get_hostname(),
             "ddsource": "openai",
             "service": span.service,
