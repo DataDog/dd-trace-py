@@ -554,6 +554,7 @@ def test_flush_connection_timeout_connect(writer_class):
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
+        writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
         with pytest.raises(socket.timeout):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -568,6 +569,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         else:
             exc_types = (httplib.BadStatusLine,)
         with pytest.raises(exc_types):
+            writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
