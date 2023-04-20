@@ -113,9 +113,9 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.prompt",
                 2,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:ada",
                     "endpoint:completions",
                     "organization.id:None",
@@ -127,9 +127,9 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.completion",
                 12,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:ada",
                     "endpoint:completions",
                     "organization.id:None",
@@ -141,9 +141,9 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.total",
                 14,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:ada",
                     "endpoint:completions",
                     "organization.id:None",
@@ -155,9 +155,9 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
                 "request.duration",
                 mock.ANY,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:ada",
                     "endpoint:completions",
                     "organization.id:None",
@@ -183,9 +183,9 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.prompt",
                 10,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:curie",
                     "endpoint:completions",
                     "organization.id:None",
@@ -197,9 +197,9 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.completion",
                 150,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:curie",
                     "endpoint:completions",
                     "organization.id:None",
@@ -211,9 +211,9 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
                 "tokens.total",
                 160,
                 tags=[
-                    "version:None",
-                    "env:None",
-                    "service:None",
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:curie",
                     "endpoint:completions",
                     "organization.id:None",
@@ -225,9 +225,9 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
                 "request.duration",
                 mock.ANY,
                 tags=[
-                    "version:None",  # TODO: should be ""?
-                    "env:None",  # TODO: should be ""?
-                    "service:None",  # TODO: should be ""?
+                    "version:",
+                    "env:",
+                    "service:",
                     "model:curie",
                     "endpoint:completions",
                     "organization.id:None",  # TODO: should be ""?
@@ -415,8 +415,6 @@ def test_integration_async():
 )
 def test_completion_sample():
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
-    import os
-
     import openai
 
     import ddtrace

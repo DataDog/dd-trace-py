@@ -107,7 +107,7 @@ class _OpenAIIntegration:
             "message": msg,
             "hostname": get_hostname(),
             "ddsource": "openai",
-            "service": span.service,
+            "service": span.service or "",
             "status": level,
             "ddtags": ",".join(t for t in tags),
         }
@@ -119,9 +119,9 @@ class _OpenAIIntegration:
 
     def _metrics_tags(self, span):
         tags = [
-            "version:%s" % config.version,
-            "env:%s" % config.env,
-            "service:%s" % span.service,
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
             "model:%s" % span.get_tag("model"),
             "endpoint:%s" % span.get_tag("endpoint"),
             "organization.id:%s" % span.get_tag("organization.id"),
@@ -514,19 +514,19 @@ def _patched_convert(integration):
                 # Gauge total rate limit
                 if val.get("x-ratelimit-limit-requests"):
                     v = val.get("x-ratelimit-limit-requests")
-                    integration.metric(span, "ratelimit.requests", v, "gauge")
+                    integration.metric(span, "gauge", "ratelimit.requests", v)
                 if val.get("x-ratelimit-limit-tokens"):
                     v = val.get("x-ratelimit-limit-tokens")
-                    integration.metric(span, "ratelimit.tokens", v, "gauge")
+                    integration.metric(span, "gauge", "ratelimit.tokens", v)
 
                 # Gauge and set span info for remaining requests and tokens
                 if val.get("x-ratelimit-remaining-requests"):
                     v = val.get("x-ratelimit-remaining-requests")
-                    integration.metric(span, "ratelimit.remaining.requests", v, "gauge")
+                    integration.metric(span, "gauge", "ratelimit.remaining.requests", v)
                     span.set_tag("organization.ratelimit.requests.remaining", v)
                 if val.get("x-ratelimit-remaining-tokens"):
                     v = val.get("x-ratelimit-remaining-tokens")
-                    integration.metric(span, "ratelimit.remaining.tokens", v, "gauge")
+                    integration.metric(span, "gauge", "ratelimit.remaining.tokens", v)
                     span.set_tag("organization.ratelimit.tokens.remaining", v)
         return func(*args, **kwargs)
 
