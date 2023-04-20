@@ -70,13 +70,5 @@ assert conn
     env = os.environ.copy()
     env["DD_PSYCOPG_TRACE_CONNECT"] = "true"
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    print(err)
     assert status == 0, err
-    print(status)
-    print(out)
-    # assert (
-    #     out
-    #     == b"user=postgres dbname=postgres host=127.0.0.1\n{'user': \
-    #     'postgres', 'dbname': 'postgres', 'host': '127.0.0.1'}\n"
-    # ), err
     assert out == b"", err

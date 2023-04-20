@@ -260,7 +260,7 @@ class PsycopgCore(TracerTestCase):
                 dict(name="postgres.query", resource=query.as_string(db)),
             )
 
-    @snapshot(async_mode=True)
+    @snapshot()
     def test_composed_query_encoding(self):
         """Checks whether execution of composed SQL string is traced"""
         import logging
@@ -374,7 +374,7 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
-    @snapshot(wait_for_num_traces=6, async_mode=True)
+    @snapshot()
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_postgres_dbm_propagation_tag(self):
         """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
