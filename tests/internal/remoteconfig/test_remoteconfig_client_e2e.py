@@ -101,6 +101,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
         rc_client.register_product("ASM_FEATURES", asm_callback)
 
+    del os.environ["DD_REMOTE_CONFIGURATION_ENABLED"]
+
+    assert len(rc_client._products) == 1
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     # 0.
