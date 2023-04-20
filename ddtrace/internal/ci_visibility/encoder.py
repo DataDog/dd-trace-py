@@ -96,7 +96,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def _build_payload(self, traces):
         normalized_covs = [
-            CIVisibilityCoverageEncoderV02._convert_span(span)
+            CIVisibilityCoverageEncoderV02._convert_span(span, "")
             for trace in traces
             for span in trace
             if COVERAGE_TAG_NAME in span.get_tags()
