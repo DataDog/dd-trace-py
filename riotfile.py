@@ -263,6 +263,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
+            command="pytest {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "attrs": ["==20.1.0", latest],
@@ -270,23 +271,28 @@ venv = Venv(
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
             },
-            # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
-            # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
-            # See linked riot issue: https://github.com/DataDog/riot/issues/192
-            command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
             venvs=[
                 Venv(pys=select_pys()),
                 # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
                 Venv(
+                    name="tracer-128-bit-traceid-enabled",
                     pys=MAX_PYTHON_VERSION,
                     env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["false", "true"],
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
                     },
                 ),
                 Venv(
+                    name="tracer-128-bit-traceid-disabled",
+                    pys=MAX_PYTHON_VERSION,
+                    env={
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
+                    },
+                ),
+                Venv(
+                    name="tracer-python-optimize",
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
-                    pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
+                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -301,6 +307,7 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            # Enabling coverage for integration tests breaks certain tests in CI
             command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
