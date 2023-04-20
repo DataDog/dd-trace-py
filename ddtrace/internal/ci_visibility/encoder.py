@@ -16,7 +16,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
-    TEST_EVENT_VERSION = 1
+    TEST_EVENT_VERSION = 2
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -61,11 +61,17 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     @staticmethod
     def _convert_span(span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
-        sp = JSONEncoderV2._convert_span(span)
+        sp = JSONEncoderV2._span_to_dict(span)
+        sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.span_type
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
+        sp["trace_id"] = int(sp.get("trace_id") or "1")
+        sp["parent_id"] = int(sp.get("parent_id") or "1")
+        sp["span_id"] = int(sp.get("span_id") or "1")
+        sp["test_suite_id"] = 1  # TODO: populate with real ID
+        sp["test_session_id"] = 1  # TODO: populate with real ID
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         if span.span_type == "test":
