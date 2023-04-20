@@ -3,6 +3,7 @@ import json
 from multiprocessing import Process
 import os
 import random
+from typing import Callable  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
@@ -24,6 +25,8 @@ from .constants import DEFAULT_SITE
 
 log = get_logger(__name__)
 
+RESPONSE = None
+
 
 class CIVisibilityGitClient(object):
     RETRY_ATTEMPTS = 5
@@ -32,17 +35,21 @@ class CIVisibilityGitClient(object):
         self,
         api_key,
         app_key,
+        base_url="",
     ):
-        # type: (str, str) -> None
+        # type: (str, str, str) -> None
         self._serde = CIVisibilityGitClientSerDeV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
         self._base_url = "https://api.{}".format(os.getenv("DD_SITE", DEFAULT_SITE))
+        self._response = RESPONSE
 
     def start(self, cwd=None):
         # type: (Optional[str]) -> None
         if self._worker is None:
             self._worker = Process(
-                target=CIVisibilityGitClient._run_protocol, args=(self._serde, self._base_url), kwargs={"cwd": cwd}
+                target=CIVisibilityGitClient._run_protocol,
+                args=(self._serde, self._base_url, self._response),
+                kwargs={"cwd": cwd},
             )
             self._worker.start()
 
@@ -53,15 +60,15 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serde, base_url, cwd=None):
-        # type: (CIVisibilityGitClientSerDeV1, str, Optional[str]) -> None
+    def _run_protocol(cls, serde, base_url, _response, cwd=None):
+        # type: (CIVisibilityGitClientSerDeV1, str, Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serde)
+        backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serde, _response)
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_path:
-                cls._upload_packfiles(base_url, repo_url, packfiles_path, serde, cwd=cwd)
+                cls._upload_packfiles(base_url, repo_url, packfiles_path, serde, _response, cwd=cwd)
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
@@ -74,10 +81,10 @@ class CIVisibilityGitClient(object):
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
-    def _search_commits(cls, base_url, repo_url, latest_commits, serde):
-        # type: (str, str, list[str], CIVisibilityGitClientSerDeV1) -> list[str]
+    def _search_commits(cls, base_url, repo_url, latest_commits, serde, _response):
+        # type: (str, str, list[str], CIVisibilityGitClientSerDeV1, Optional[Response]) -> list[str]
         payload = serde.search_commits_encode(repo_url, latest_commits)
-        response = cls.retry_request()(cls._do_request, base_url, "/search_commits", payload, serde)
+        response = _response or cls.retry_request()(base_url, "/search_commits", payload, serde)
         result = serde.search_commits_decode(response.body)
         return result
 
@@ -113,8 +120,8 @@ class CIVisibilityGitClient(object):
             yield path
 
     @classmethod
-    def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serde, cwd=None):
-        # type: (str, str, str, CIVisibilityGitClientSerDeV1, Optional[str]) -> bool
+    def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serde, _response, cwd=None):
+        # type: (str, str, str, CIVisibilityGitClientSerDeV1, Optional[Response], Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -125,7 +132,7 @@ class CIVisibilityGitClient(object):
             file_path = os.path.join(directory, filename)
             content_type, payload = serde.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = cls.retry_request()(cls._do_request, base_url, "/packfile", payload, serde, headers=headers)
+            response = _response or cls.retry_request()(base_url, "/packfile", payload, serde, headers=headers)
             return response.status == 204
         return False
 
