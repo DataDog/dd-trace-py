@@ -666,7 +666,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if not result_user:
         user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field])
+            track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field], exists=False)
 
     return result_user
 
