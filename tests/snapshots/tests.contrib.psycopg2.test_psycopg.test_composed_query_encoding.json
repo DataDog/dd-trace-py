@@ -1,8 +1,8 @@
 [[
   {
-    "name": "psycopg.connection.connect",
+    "name": "postgres.query",
     "service": "postgres",
-    "resource": "psycopg.connection.connect",
+    "resource": "select 'one' as x union all select 'two' as x",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,9 +11,13 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
       "db.system": "postgresql",
+      "db.user": "postgres",
       "language": "python",
-      "runtime-id": "1b018a1ff6344b3a95773b9b631c4ada",
+      "out.host": "127.0.0.1",
+      "runtime-id": "5113f19f40fc4d19bb09913e11d5f1bf",
       "span.kind": "client"
     },
     "metrics": {
@@ -22,8 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 98154
+      "db.row_count": 2,
+      "network.destination.port": 5432,
+      "process_id": 78166
     },
-    "duration": 5834000,
-    "start": 1667243098505239000
+    "duration": 3560000,
+    "start": 1632160756723404000
   }]]
