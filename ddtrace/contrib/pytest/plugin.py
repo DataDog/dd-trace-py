@@ -123,6 +123,12 @@ def _start_test_suite_span(item):
         test_suite_span.set_tag_str(test.MODULE, item.parent.parent.name)
     test_suite_span.set_tag_str(test.SUITE, item.parent.module.__name__)
     _store_span(item.parent, test_suite_span)
+    return test_suite_span
+
+
+def _fetch_and_apply_test_skips(suite, module):
+    tests_to_skip = CIVisibility.get_tests_to_skip(suite, module)
+    # TODO: make pytest skip these tests
 
 
 def pytest_addoption(parser):
@@ -210,7 +216,9 @@ def pytest_runtest_protocol(item, nextitem):
             _start_test_module_span(item)
 
     if _extract_span(item.parent) is None:
-        _start_test_suite_span(item)
+        test_suite_span = _start_test_suite_span(item)
+        if _CIVisibility.test_skipping_enabled:
+            _fetch_and_apply_test_skips(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
