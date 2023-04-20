@@ -105,7 +105,14 @@ class MemoryCollector(collector.PeriodicCollector):
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
-        _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
+        try:
+            _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
+        except RuntimeError:
+            # This happens on fork because we don't call the shutdown hook since
+            # the thread responsible for doing so is not running in the child
+            # process. Therefore we stop and restart the collector instead.
+            _memalloc.stop()
+            _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
 
         super(MemoryCollector, self)._start_service()
 
