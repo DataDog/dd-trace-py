@@ -859,7 +859,7 @@ def test_django_login_sucess(client, test_spans, tracer):
 
 
 # FIXME: find a way to test this case (currently the test client uses authenticate before
-# login which means always get the "doesnt exist" result)
+# login which means always get the "does not exist" result)
 # @pytest.mark.django_db
 # def test_django_login_failure_user_exists(client, test_spans, tracer):
 #     test_user = User.objects.create(username="fred")
