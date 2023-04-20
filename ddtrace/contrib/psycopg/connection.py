@@ -27,6 +27,7 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
 
     def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
+
         def patched_execute(*args, **kwargs):
             try:
                 cur = self.cursor()
