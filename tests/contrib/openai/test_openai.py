@@ -338,6 +338,27 @@ def test_misuse():
         pass
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+def test_completion_stream():
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        openai.Completion.create(model="ada", prompt="Hello world", stream=True)
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+@pytest.mark.skipif(
+    not hasattr(openai, "ChatCompletion"), reason="Chat completion not supported for this version of openai"
+)
+def test_chat_completion_stream():
+    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+        )
+
+
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_integration_sync():
@@ -568,7 +589,10 @@ def test_reconfigure_patch(snapshot_tracer):
 
 
 @pytest.mark.subprocess(
-    parametrize={"DD_OPENAI_LOGS_ENABLED": ["False", "True", ""], "DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE": ["1"]},
+    parametrize={
+        "DD_OPENAI_LOGS_ENABLED": ["False", "True", ""],
+        "DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE": ["0", "0.25", "0.75", "1"],
+    },
 )
 def test_logs():
     import mock
@@ -582,26 +606,17 @@ def test_logs():
         from tests.contrib.openai.test_openai import openai_vcr
 
         ddtrace.patch(openai=True)
-        logs = 0
         total_calls = 100
         for _ in range(total_calls):
             with openai_vcr.use_cassette("completion.yaml"):
                 openai.Completion.create(
                     model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
                 )
-            # test enabling/disabling logs
-            if not ddtrace.config.openai["logs_enabled"]:
-                # if logging is disabled, mock log should never be called
-                mock_log.assert_not_called()
-            else:
-                # if logging is enabled, mock log may or may not be called based on sampling
-                try:
-                    mock_log.assert_called()
-                    logs += 1
-                except AssertionError:
-                    pass
-        # test sampling rate
-        if ddtrace.config.openai["logs_enabled"]:
+        if not ddtrace.config.openai["logs_enabled"]:
+            # if logging is disabled, mock log should never be called
+            mock_log.assert_not_called()
+        else:
+            logs = mock_log.call_count
             if ddtrace.config.openai["log_prompt_completion_sample_rate"] == 0:
                 assert logs == 0
             elif ddtrace.config.openai["log_prompt_completion_sample_rate"] == 1:
