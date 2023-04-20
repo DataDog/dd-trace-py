@@ -40,7 +40,7 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url=None,  # type: Optional[str]
+        intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
