@@ -310,17 +310,23 @@ class PsycopgCore(TracerTestCase):
         """Checks whether connection execute shortcute method works as normal"""
 
         query = SQL("""select 'one' as x""")
-        cur = psycopg.connect(**POSTGRES_CONFIG).execute(query)
+        cur = self._get_conn().execute(query)
 
         rows = cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
 
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+
+        query_span = spans[0]
+        assert query_span.name == "postgres.query"
+
     def test_cursor_from_connection_shortcut(self):
         """Checks whether connection execute shortcute method works as normal"""
 
         query = SQL("""select 'one' as x""")
-        conn = psycopg.connect(**POSTGRES_CONFIG)
+        conn = self._get_conn()
 
         cur = psycopg.Cursor(connection=conn)
         cur.execute(query)
@@ -328,6 +334,12 @@ class PsycopgCore(TracerTestCase):
         rows = cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+
+        query_span = spans[0]
+        assert query_span.name == "postgres.query"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_app_service(self):

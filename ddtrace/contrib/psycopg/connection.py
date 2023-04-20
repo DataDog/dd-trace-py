@@ -27,8 +27,6 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
 
     def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
-        span_name = "{}.{}".format(self._self_datadog_name, "execute")
-
         def patched_execute(*args, **kwargs):
             try:
                 cur = self.cursor()
@@ -38,7 +36,7 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
             except Exception as ex:
                 raise ex.with_traceback(None)
 
-        return self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
+        return patched_execute(*args, **kwargs)
 
 
 class Psycopg2TracedConnection(dbapi.TracedConnection):
