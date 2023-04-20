@@ -44,7 +44,7 @@ def _get_git_repo():
 
 
 def _do_request(method, url, payload, headers):
-    # type: (str, str, str, Dict)
+    # type: (str, str, str, Dict) -> Response
     try:
         conn = get_connection(url)
         log.debug("Sending request: %s %s %s %s", (method, url, payload, headers))
