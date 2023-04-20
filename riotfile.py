@@ -276,15 +276,24 @@ venv = Venv(
                 Venv(pys=select_pys()),
                 # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
                 Venv(
+                    name="tracer-128-bit-traceid-enabled",
                     pys=MAX_PYTHON_VERSION,
                     env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["false", "true"],
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
                     },
                 ),
                 Venv(
+                    name="tracer-128-bit-traceid-disabled",
+                    pys=MAX_PYTHON_VERSION,
+                    env={
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
+                    },
+                ),
+                Venv(
+                    name="tracer-python-optimize",
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
-                    pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
+                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
