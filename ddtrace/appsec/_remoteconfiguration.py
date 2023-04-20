@@ -41,8 +41,8 @@ class AppSecRC(PubSubMergeFirst):
         self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "ASM")
 
 
-def enable_appsec_rc(test_tracer=None, start_subscribers=True):
-    # type: (Optional[Tracer], Any) -> None
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
     """Remote config will be used by ASM libraries to receive four different updates from the backend.
     Each update has it’s own product:
     - ASM_FEATURES product - To allow users enable or disable ASM remotely
@@ -71,9 +71,6 @@ def enable_appsec_rc(test_tracer=None, start_subscribers=True):
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
-
-    if start_subscribers:
-        asm_callback.start_subscriber()
 
 
 def _add_rules_to_list(features, feature, message, ruleset):

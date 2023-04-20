@@ -165,8 +165,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
             enabled = True
             if not skip_enabled:
                 enabled = self.enable()
+
             if enabled:
                 self._client.register_product(product, pubsub_instance)
+                if not self._client.is_subscriber_running(pubsub_instance):
+                    pubsub_instance.start_subscriber()
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 

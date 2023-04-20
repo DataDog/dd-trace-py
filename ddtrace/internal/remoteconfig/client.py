@@ -164,6 +164,7 @@ class RemoteConfigClient(object):
         self.id = str(uuid.uuid4())
         self.agent_url = agent_url = agent.get_trace_url()
         self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
+
         self._headers = {"content-type": "application/json"}
         additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
@@ -229,6 +230,13 @@ class RemoteConfigClient(object):
     def get_pubsubs(self):
         for pubsub in set(self._products.values()):
             yield pubsub
+
+    def is_subscriber_running(self, pubsub_to_check):
+        # type: (PubSubBase) -> bool
+        for pubsub in self.get_pubsubs():
+            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
+                return True
+        return False
 
     def reset_products(self):
         self._products = dict()

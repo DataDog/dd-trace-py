@@ -166,7 +166,7 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(tracer, remote_config_worker):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
 
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
@@ -186,7 +186,7 @@ def test_load_new_configurations_dispatch_applied_configs(
 ):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": [{"test": "data"}]}'
         payload = AgentPayload(
@@ -225,7 +225,7 @@ def test_load_new_configurations_empty_config(
 ):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": []}'
         payload = AgentPayload(
@@ -359,7 +359,7 @@ def test_load_multiple_targets_file_same_product(
 ):
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'
@@ -409,7 +409,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data": [{"b":2}]}'
@@ -491,7 +491,7 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"exclusions": [{"a":1}]}'
         asm_data_data2 = b'{"exclusions": [{"b":2}]}'
@@ -573,7 +573,7 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_data_data1 = b'{"exclusions": [{"a":1}]}'
         asm_data_data2 = b'{"exclusions": []}'
         payload = AgentPayload(
@@ -639,7 +639,7 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_data_data1 = b'{"exclusions": [{"a":1}]}'
         asm_data_data2 = b'{"exclusions": []}'
         payload = AgentPayload(
@@ -705,7 +705,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
     with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
-        enable_appsec_rc(tracer, start_subscribers=False)
+        enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data1 = b'{"data": [{"a":1}]}'
         asm_data_data2 = b'{"data2": [{"b":2}]}'

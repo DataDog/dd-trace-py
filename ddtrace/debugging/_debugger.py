@@ -258,7 +258,6 @@ class Debugger(Service):
 
         # Register the debugger with the RCM client.
         di_callback = self.__rc_adapter__("", self._on_configuration)
-        di_callback.start_subscriber()
         remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
