@@ -439,13 +439,13 @@ def test_completion_sample():
         for span in trace:
             if span.get_tag("response.choices.0.text"):
                 sampled += 1
-    if os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE") == "0":
+    if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
         assert sampled == 0
-    elif os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE") == "1":
+    elif ddtrace.config.openai["span_prompt_completion_sample_rate"] == 1:
         assert sampled == num_completions
     else:
         # this should be good enough for our purposes
-        rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
+        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
         assert (rate - 15) < sampled < (rate + 15)
 
 
@@ -487,13 +487,13 @@ def test_chat_completion_sample():
         for span in trace:
             if span.get_tag("response.choices.0.message.role"):
                 sampled += 1
-    if os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE") == "0":
+    if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
         assert sampled == 0
-    elif os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE") == "1":
+    elif ddtrace.config.openai["span_prompt_completion_sample_rate"] == 1:
         assert sampled == num_completions
     else:
         # this should be good enough for our purposes
-        rate = float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")) * num_completions
+        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
         assert (rate - 15) < sampled < (rate + 15)
 
 
