@@ -23,9 +23,6 @@ MODULE = "test.module"
 # Test Module Path
 MODULE_PATH = "test.module_path"
 
-# Test Bundle (Legacy equivalent to test.module)
-BUNDLE = "test.bundle"
-
 # Test Suite
 SUITE = TEST_SUITE = "test.suite"
 
