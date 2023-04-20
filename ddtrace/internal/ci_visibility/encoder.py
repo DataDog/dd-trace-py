@@ -69,17 +69,18 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
-        sp["trace_id"] = int(sp.get("trace_id") or "1")
-        sp["parent_id"] = int(sp.get("parent_id") or "1")
-        sp["span_id"] = int(sp.get("span_id") or "1")
-        sp["test_suite_id"] = 1  # TODO: populate with real ID
-        sp["test_session_id"] = 1  # TODO: populate with real ID
+        sp["trace_id"] = int(sp.get("trace_id") or "0")
+        sp["parent_id"] = int(sp.get("parent_id") or "0")
+        sp["span_id"] = int(sp.get("span_id") or "0")
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         if span.get_tag(EVENT_TYPE) == "test":
             version = CIVisibilityEncoderV01.TEST_FUNCTION_EVENT_VERSION
         else:
             version = CIVisibilityEncoderV01.TEST_EVENT_VERSION
+            sp["test_suite_id"] = int(sp["meta"].get("test_suite_id") or "0")
+            sp["test_module_id"] = int(sp["meta"].get("test_module_id") or "0")
+            sp["test_session_id"] = int(sp["meta"].get("test_session_id") or "0")
         if span.span_type == "test":
             event_type = span.get_tag(EVENT_TYPE)
         else:
