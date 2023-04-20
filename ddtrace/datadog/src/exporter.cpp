@@ -32,11 +32,11 @@ DdogProfExporter::DdogProfExporter(std::string_view env,
 
   // Setup
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-  add_tag(tags, "language", language);
-  add_tag(tags, "env", env);
-  add_tag(tags, "service", service);
-  add_tag(tags, "version", version);
-  add_tag(tags, "profiler_version", profiler_version);
+  add_tag(tags, ExportTagKey::language, language);
+  add_tag(tags, ExportTagKey::env, env);
+  add_tag(tags, ExportTagKey::service, service);
+  add_tag(tags, ExportTagKey::version, version);
+  add_tag(tags, ExportTagKey::profiler_version, profiler_version);
 
   ddog_prof_Exporter_NewResult new_exporter = ddog_prof_Exporter_new(
       to_slice("dd-trace-py"),
@@ -67,18 +67,19 @@ Uploader::Uploader(std::string_view _env,
   service(_service),
   version(_version),
   url(_url) {
-    std::cout << "uploader service: " << _service << std::endl;
-    std::cout << "uploader version: " << _version << std::endl;
-    std::cout << "uploader url: " << _url << std::endl;
-    std::cout << "uploader env: " << _env << std::endl;
     ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, url);
 }
 
-void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val) {
-  ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
+#define X_STR(a) #a,
+void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val) {
+  constexpr std::array<std::string_view, static_cast<size_t>(ExportTagKey::_Length)> keys = {
+    EXPORTER_TAGS(X_STR)
+  };
+  std::string_view key_sv = keys[static_cast<size_t>(key)];
+  ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
     // TODO consolidate errors
-    std::cout << "Error pushing tag '" << key << "'->'" << val << "'" << std::endl;
+    std::cout << "Error pushing tag '" << key_sv << "'->'" << val << "'" << std::endl;
     std::cout << "  err: " << ddog_Error_message(&res.err).ptr << std::endl;
     ddog_Error_drop(&res.err);
   }
@@ -433,9 +434,6 @@ void ddup_uploader_init(const char *service, const char *env, const char *versio
     g_profile_real[0] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
     g_profile_real[1] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
     g_profile = g_profile_real[0];
-    std::cout << "Initializing a profiler with service: " << service;
-    std::cout << "  env: " << env;
-    std::cout << "  version: " << version << std::endl;
     g_uploader = new Datadog::Uploader(env, service, version);
     is_initialized = true;
   }

@@ -20,8 +20,25 @@ namespace Datadog {
 // Forward
 class Profile;
 
+// There's currently no need to offer custom tags, so there's no interface for
+// it.  Instead, tags are keyed and populated based on this table, then
+// referenced in `add_tag()`.
+#define EXPORTER_TAGS(X) \
+  X(language) \
+  X(env) \
+  X(service) \
+  X(version) \
+  X(profiler_version)
+
+#define X_ENUM(a) a,
+enum class ExportTagKey {
+  EXPORTER_TAGS(X_ENUM)
+  _Length
+};
+#undef X_ENUM
+
 class DdogProfExporter {
-  void add_tag(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
+  void add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
 
 public:
   static constexpr std::string_view language = "python";

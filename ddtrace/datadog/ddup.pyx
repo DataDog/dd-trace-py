@@ -66,7 +66,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         thread_native_id = 0
 
       if thread_name is None:
-        ddup_push_threadinfo(thread_id, thread_native_id, thread_name)
+        ddup_push_threadinfo(thread_id, thread_native_id, str.encode(""))
       else:
         ddup_push_threadinfo(thread_id, thread_native_id, str.encode(thread_name))
 
