@@ -15,6 +15,7 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
@@ -979,12 +980,13 @@ def test_civisibility_event_endpoints():
                 span.finish()
                 conn = t._writer._conn
                 t.shutdown()
-            assert conn.request.call_count == 2
+            assert conn.request.call_count == (2 if compat.PY3 else 1)
             assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
             assert (
                 b"svc-no-cov" in conn.request.call_args_list[0].args[2]
             ), "requests to the cycle endpoint should include non-coverage spans"
-            assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-            assert (
-                b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
-            ), "requests to the coverage endpoint should not include non-coverage spans"
+            if compat.PY3:
+                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
+                assert (
+                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+                ), "requests to the coverage endpoint should not include non-coverage spans"
