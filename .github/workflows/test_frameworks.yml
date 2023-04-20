@@ -56,23 +56,27 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        expl_profiler: [0, 1]
-        expl_coverage: [0 ,1]
-        exclude:
-          - expl_profiler: 1
-            expl_coverage: 1
-          - expl_profiler: 0
+        include:
+          - suffix: "profiler"
+            profiler: 1
+            expl_profiler: 0
             expl_coverage: 0
-          # Temporarily disabling line coverage to investigate cause of hangs
-          - expl_profiler: 0
+          - suffix: "DI profiling"
+            profiler: 0
+            expl_profiler: 1
+            expl_coverage: 0
+          - suffix: "DI coverage"
+            profiler: 0
+            expl_profiler: 0
             expl_coverage: 1
     runs-on: ubuntu-20.04
+    name: Django 3.1 (with ${{ matrix.suffix }})
     env:
-      DD_PROFILING_ENABLED: true
-      DD_TESTING_RAISE: true
-      DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_PROFILING_ENABLED: ${{ matrix.profiler }}
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
+      DD_TESTING_RAISE: true
+      DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
