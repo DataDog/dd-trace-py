@@ -72,9 +72,7 @@ class CIVisibility(Service):
         self._service = service
         self._codeowners = None
         self._app_key = os.getenv("DD_APP_KEY")
-        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features(
-            self._app_key
-        )
+        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
         if self.config is not None:
@@ -94,12 +92,12 @@ class CIVisibility(Service):
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
 
-    def _check_enabled_features(self, app_key):
-        # type: (str) -> Tuple[bool, bool]
-        if not app_key:
+    def _check_enabled_features(self):
+        # type: () -> Tuple[bool, bool]
+        if not self._app_key:
             return False, False
         url = "https://api.datadoghq.com/api/v2/libraries/tests/services/setting"
-        _headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": app_key}
+        _headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": self._app_key}
         payload = {
             "data": {
                 "id": str(uuid4()),
