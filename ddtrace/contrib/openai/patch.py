@@ -15,6 +15,7 @@ from ddtrace.sampler import RateSampler
 from .. import trace_utils
 from .. import trace_utils_async
 from ...pin import Pin
+from ..trace_utils import set_flattened_tags
 from ..trace_utils import wrap
 from ._logging import V2LogWriter
 
@@ -162,6 +163,9 @@ class _OpenAIIntegration:
         """
         if not text:
             return text
+        text = text.replace("\n", "\\n")
+        text = text.replace("\t", "\\t")
+        text = " ".join(text.split())
         if len(text) > self._config.truncation_threshold:
             text = text[: self._config.truncation_threshold] + "..."
         return text
@@ -360,7 +364,12 @@ class _CompletionHook(_EndpointHook):
 
         for kw_attr in self._request_tag_attrs:
             if kw_attr in kwargs:
-                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+                if isinstance(kwargs[kw_attr], dict):
+                    set_flattened_tags(
+                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
+                    )
+                else:
+                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield
 
@@ -373,7 +382,7 @@ class _CompletionHook(_EndpointHook):
                     if "finish_reason" in choice:
                         span.set_tag_str("response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
                     if "logprobs" in choice:
-                        span.set_tag("response.choices.%d.logprobs" % idx, choice["logprobs"])
+                        span.set_tag_str("response.choices.%d.logprobs" % idx, "returned")
                     if sample_pc_span:
                         span.set_tag_str("response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
             span.set_tag("response.object", resp["object"])
@@ -382,7 +391,7 @@ class _CompletionHook(_EndpointHook):
                 prompt = kwargs.get("prompt", "")
                 integration.log(
                     span,
-                    "info",
+                    "info" if error is None else "error",
                     "sampled completion",
                     attrs={
                         "prompt": prompt,
@@ -424,7 +433,12 @@ class _ChatCompletionHook(_EndpointHook):
 
         for kw_attr in self._request_tag_attrs:
             if kw_attr in kwargs:
-                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+                if isinstance(kwargs[kw_attr], dict):
+                    set_flattened_tags(
+                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
+                    )
+                else:
+                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield
 
