@@ -101,7 +101,6 @@ class _OpenAIIntegration:
             "endpoint:%s" % span.get_tag("endpoint"),
             "model:%s" % span.get_tag("model"),
         ]
-        # FIXME: can we do a more efficient timestamp?
         log = {
             "timestamp": time.time() * 1000,
             "message": msg,
@@ -145,7 +144,7 @@ class _OpenAIIntegration:
         elif kind == "gauge":
             self._statsd.gauge(name, val, tags=tags)
 
-    def usage_metrics(self, span, usage):
+    def record_usage(self, span, usage):
         if not usage:
             return
         tags = self._metrics_tags(span)
@@ -153,6 +152,7 @@ class _OpenAIIntegration:
             num_tokens = usage.get(token_type + "_tokens")
             if not num_tokens:
                 continue
+            span.set_tag("response.usage.%s_tokens" % token_type, num_tokens)
             self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
 
     def trunc(self, text):
@@ -166,8 +166,6 @@ class _OpenAIIntegration:
             text = text[: self._config.truncation_threshold] + "..."
         return text
 
-
-_integration = None
 
 log = get_logger(__file__)
 
@@ -186,8 +184,6 @@ def patch():
         site=ddsite,
         api_key=ddapikey,
     )
-    global _integration
-    _integration = integration
 
     if config.openai.logs_enabled:
         if not ddapikey:
@@ -197,43 +193,43 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    wrap(openai, "api_requestor._make_session", patched_make_session(openai))
-    wrap(openai, "util.convert_to_openai_object", patched_convert(integration)(openai))
+    wrap(openai, "api_requestor._make_session", _patched_make_session(openai))
+    wrap(openai, "util.convert_to_openai_object", _patched_convert(integration)(openai))
 
     if hasattr(openai.api_resources, "completion"):
         wrap(
             openai,
             "api_resources.completion.Completion.create",
-            _patched_endpoint(integration, _completion_create)(openai),
+            _patched_endpoint(integration, _CompletionHook)(openai),
         )
         wrap(
             openai,
             "api_resources.completion.Completion.acreate",
-            _patched_endpoint_async(integration, _completion_create)(openai),
+            _patched_endpoint_async(integration, _CompletionHook)(openai),
         )
 
     if hasattr(openai.api_resources, "chat_completion"):
         wrap(
             openai,
             "api_resources.chat_completion.ChatCompletion.create",
-            _patched_endpoint(integration, _chat_completion_create)(openai),
+            _patched_endpoint(integration, _ChatCompletionHook)(openai),
         )
         wrap(
             openai,
             "api_resources.chat_completion.ChatCompletion.acreate",
-            _patched_endpoint_async(integration, _chat_completion_create)(openai),
+            _patched_endpoint_async(integration, _ChatCompletionHook)(openai),
         )
 
     if hasattr(openai.api_resources, "embedding"):
         wrap(
             openai,
             "api_resources.embedding.Embedding.create",
-            _patched_endpoint(integration, _embedding_create)(openai),
+            _patched_endpoint(integration, _EmbeddingHook)(openai),
         )
         wrap(
             openai,
             "api_resources.embedding.Embedding.acreate",
-            _patched_endpoint_async(integration, _embedding_create)(openai),
+            _patched_endpoint_async(integration, _EmbeddingHook)(openai),
         )
 
     Pin().onto(openai)
@@ -248,7 +244,7 @@ def unpatch():
 
 
 @trace_utils.with_traced_module
-def patched_make_session(openai, pin, func, instance, args, kwargs):
+def _patched_make_session(openai, pin, func, instance, args, kwargs):
     """Patch for `openai.api_requestor._make_session` which sets the service name on the
     requests session so that spans from the requests integration will use the same service
     as this integration. This is done so that the service break down will include the actual
@@ -263,235 +259,234 @@ def patched_make_session(openai, pin, func, instance, args, kwargs):
     return session
 
 
-def _patched_endpoint(integration, patch_gen):
+def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kwargs):
+    span = integration.trace(pin, instance.OBJECT_NAME, kwargs.get("model"))
+    try:
+        # Start the hook
+        hook = endpoint_hook().handle_request(integration, span, args, kwargs)
+        hook.send(None)
+
+        resp, error = yield
+        if error is not None:
+            span.set_exc_info(*sys.exc_info())
+            integration.metric(span, "incr", "request.error", 1)
+
+        # Pass the response and the error to the hook
+        try:
+            hook.send((resp, error))
+        except StopIteration:
+            pass
+    finally:
+        span.finish()
+        integration.metric(span, "dist", "request.duration", span.duration_ns)
+
+
+def _patched_endpoint(integration, patch_hook):
     @trace_utils.with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = patch_gen(integration, openai, pin, instance, args, kwargs)
+        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
         g.send(None)
-        resp, resp_err = None, None
+        resp, err = None, None
         try:
             resp = func(*args, **kwargs)
             return resp
-        except Exception as err:
-            resp_err = err
+        except Exception as e:
+            err = e
             raise
         finally:
             try:
-                g.send((resp, resp_err))
+                g.send((resp, err))
             except StopIteration:
-                # expected
                 pass
 
     return patched_endpoint
 
 
-def _patched_endpoint_async(integration, patch_gen):
+def _patched_endpoint_async(integration, patch_hook):
     # Same as _patched_endpoint but async
     @trace_utils_async.with_traced_module
     async def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = patch_gen(integration, openai, pin, instance, args, kwargs)
+        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
         g.send(None)
-        resp, resp_err = None, None
+        resp, err = None, None
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as err:
-            resp_err = err
+        except Exception as e:
+            err = e
             raise
         finally:
             try:
-                g.send((resp, resp_err))
+                g.send((resp, err))
             except StopIteration:
-                # expected
                 pass
 
     return patched_endpoint
 
 
-_completion_request_tag_attrs = [
-    "suffix",
-    "max_tokens",
-    "temperature",
-    "top_p",
-    "n",
-    "stream",
-    "logprobs",
-    "echo",
-    "stop",
-    "presence_penalty",
-    "frequency_penalty",
-    "best_of",
-    "logit_bias",
-    "user",
-]
+class _EndpointHook:
+    def handle_request(self, integration, span, args, kwargs):
+        raise NotImplementedError
 
 
-def _completion_create(integration, openai, pin, instance, args, kwargs):
-    span = integration.trace(pin, "completions", kwargs.get("model"))
-    sample_pc_span = integration.is_pc_sampled_span(span)
-    sample_pc_log = integration.is_pc_sampled_log(span)
+class _CompletionHook(_EndpointHook):
+    _request_tag_attrs = [
+        "suffix",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "n",
+        "stream",
+        "logprobs",
+        "echo",
+        "stop",
+        "presence_penalty",
+        "frequency_penalty",
+        "best_of",
+        "logit_bias",
+        "user",
+    ]
 
-    prompt = kwargs.get("prompt")
-    if sample_pc_span:
-        if isinstance(prompt, list):
-            for idx, p in enumerate(prompt):
-                span.set_tag_str("request.prompt.%d" % idx, integration.trunc(p))
-        elif prompt:
-            span.set_tag_str("request.prompt", integration.trunc(prompt))
+    def handle_request(self, integration, span, args, kwargs):
+        sample_pc_span = integration.is_pc_sampled_span(span)
 
-    for kw_attr in _completion_request_tag_attrs:
-        if kw_attr in kwargs:
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+        if sample_pc_span:
+            prompt = kwargs.get("prompt", "")
+            if isinstance(prompt, list):
+                for idx, p in enumerate(prompt):
+                    span.set_tag_str("request.prompt.%d" % idx, integration.trunc(p))
+            elif prompt:
+                span.set_tag_str("request.prompt", integration.trunc(prompt))
 
-    resp, error = yield span
-
-    if error is not None:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-    if resp and not kwargs.get("stream"):
-        if "choices" in resp:
-            choices = resp["choices"]
-            span.set_tag("response.choices.num", len(choices))
-            for choice in choices:
-                idx = choice["index"]
-                if "finish_reason" in choice:
-                    span.set_tag_str("response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
-                if "logprobs" in choice:
-                    span.set_tag("response.choices.%d.logprobs" % idx, choice["logprobs"])
-                if sample_pc_span:
-                    span.set_tag_str("response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
-        span.set_tag("response.object", resp["object"])
-        for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
-            if token_type in resp["usage"]:
-                span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
-        integration.usage_metrics(span, resp.get("usage"))
-        if sample_pc_log:
-            integration.log(
-                span,
-                "info",
-                "sampled completion",
-                attrs={
-                    "prompt": prompt,
-                    "choices": resp["choices"] if resp and "choices" in resp else [],
-                },
-            )
-    span.finish()  # TODO: try..finally to prevent memory leaks
-    integration.metric(span, "dist", "request.duration", span.duration_ns)
-
-
-_chat_completion_request_tag_attrs = [
-    "temperature",
-    "top_p",
-    "n",
-    "stream",
-    "stop",
-    "max_tokens",
-    "presence_penalty",
-    "frequency_penalty",
-    "logit_bias",
-    "user",
-]
-
-
-def _chat_completion_create(integration, openai, pin, instance, args, kwargs):
-    span = integration.trace(pin, "chat.completions", kwargs.get("model"))
-    sample_pc_span = integration.is_pc_sampled_span(span)
-    sample_pc_log = integration.is_pc_sampled_log(span)
-
-    messages = kwargs.get("messages")
-    if sample_pc_span:
-
-        def set_message_tag(message):
-            content = integration.trunc(message.get("content", ""))
-            role = integration.trunc(message.get("role", ""))
-            span.set_tag_str("request.messages.%d.content" % idx, content)
-            span.set_tag_str("request.messages.%d.role" % idx, role)
-
-        if isinstance(messages, list):
-            for idx, message in enumerate(messages):
-                set_message_tag(message)
-        else:
-            set_message_tag(messages)
-
-    for kw_attr in _chat_completion_request_tag_attrs:
-        if kw_attr in kwargs:
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
-
-    resp, error = yield span
-
-    completions = ""
-
-    if error is not None:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-    if resp and not kwargs.get("stream"):
-        if "choices" in resp:
-            choices = resp["choices"]
-            completions = choices
-            span.set_tag("response.choices.num", len(choices))
-            for choice in choices:
-                idx = choice["index"]
-                span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
-                if sample_pc_span and choice.get("message"):
-                    span.set_tag(
-                        "response.choices.%d.message.content" % idx,
-                        integration.trunc(choice.get("message").get("content")),
-                    )
-                    span.set_tag(
-                        "response.choices.%d.message.role" % idx, integration.trunc(choice.get("message").get("role"))
-                    )
-        span.set_tag("response.object", resp["object"])
-        for token_type in ["completion_tokens", "prompt_tokens", "total_tokens"]:
-            if token_type in resp["usage"]:
-                span.set_tag("response.usage.%s" % token_type, resp["usage"][token_type])
-
-        integration.usage_metrics(span, resp.get("usage"))
-        if sample_pc_log:
-            integration.log(
-                span,
-                "info" if error is None else "error",
-                "sampled chat completion",
-                attrs={
-                    "messages": messages,
-                    "completion": completions,
-                },
-            )
-    span.finish()
-    integration.metric(span, "dist", "request.duration", span.duration_ns)
-
-
-def _embedding_create(integration, openai, pin, instance, args, kwargs):
-    span = integration.trace(pin, "embedding", kwargs.get("model"))
-
-    for kw_attr in ["model", "input", "user"]:
-        if kw_attr in kwargs:
-            if kw_attr == "input" and isinstance(kwargs["input"], list):
-                for idx, inp in enumerate(kwargs["input"]):
-                    span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
-            span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
-
-    resp, error = yield span
-
-    if error is not None:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-    if resp:
-        if "data" in resp:
-            span.set_tag("response.data.num-embeddings", len(resp["data"]))
-            span.set_tag("response.data.embedding-length", len(resp["data"][0]["embedding"]))
-        for kw_attr in ["model", "object", "usage"]:
+        for kw_attr in self._request_tag_attrs:
             if kw_attr in kwargs:
-                span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
-        integration.usage_metrics(span, resp.get("usage"))
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
-    span.finish()
-    integration.metric(span, "dist", "request.duration", span.duration_ns)
+        resp, error = yield
+
+        if resp and not kwargs.get("stream"):
+            if "choices" in resp:
+                choices = resp["choices"]
+                span.set_tag("response.choices.num", len(choices))
+                for choice in choices:
+                    idx = choice["index"]
+                    if "finish_reason" in choice:
+                        span.set_tag_str("response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
+                    if "logprobs" in choice:
+                        span.set_tag("response.choices.%d.logprobs" % idx, choice["logprobs"])
+                    if sample_pc_span:
+                        span.set_tag_str("response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
+            span.set_tag("response.object", resp["object"])
+            integration.record_usage(span, resp.get("usage"))
+            if integration.is_pc_sampled_log(span):
+                prompt = kwargs.get("prompt", "")
+                integration.log(
+                    span,
+                    "info",
+                    "sampled completion",
+                    attrs={
+                        "prompt": prompt,
+                        "choices": resp["choices"] if resp and "choices" in resp else [],
+                    },
+                )
 
 
-def patched_convert(integration):
+class _ChatCompletionHook(_EndpointHook):
+    _request_tag_attrs = [
+        "temperature",
+        "top_p",
+        "n",
+        "stream",
+        "stop",
+        "max_tokens",
+        "presence_penalty",
+        "frequency_penalty",
+        "logit_bias",
+        "user",
+    ]
+
+    def handle_request(self, integration, span, args, kwargs):
+        sample_pc_span = integration.is_pc_sampled_span(span)
+        messages = kwargs.get("messages")
+        if sample_pc_span and messages:
+
+            def set_message_tag(m):
+                content = integration.trunc(m.get("content", ""))
+                role = integration.trunc(m.get("role", ""))
+                span.set_tag_str("request.messages.%d.content" % idx, content)
+                span.set_tag_str("request.messages.%d.role" % idx, role)
+
+            if isinstance(messages, list):
+                for idx, message in enumerate(messages):
+                    set_message_tag(message)
+            else:
+                set_message_tag(messages)
+
+        for kw_attr in self._request_tag_attrs:
+            if kw_attr in kwargs:
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+        resp, error = yield
+
+        completions = ""
+        if resp and not kwargs.get("stream"):
+            if "choices" in resp:
+                choices = resp["choices"]
+                completions = choices
+                span.set_tag("response.choices.num", len(choices))
+                for choice in choices:
+                    idx = choice["index"]
+                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
+                    span.set_tag("response.choices.%d.logprobs" % idx, choice.get("logprobs"))
+                    if sample_pc_span and choice.get("message"):
+                        span.set_tag(
+                            "response.choices.%d.message.content" % idx,
+                            integration.trunc(choice.get("message").get("content")),
+                        )
+                        span.set_tag(
+                            "response.choices.%d.message.role" % idx,
+                            integration.trunc(choice.get("message").get("role")),
+                        )
+            span.set_tag("response.object", resp["object"])
+            integration.record_usage(span, resp.get("usage"))
+
+            if integration.is_pc_sampled_log(span):
+                messages = kwargs.get("messages")
+                integration.log(
+                    span,
+                    "info" if error is None else "error",
+                    "sampled chat completion",
+                    attrs={
+                        "messages": messages,
+                        "completion": completions,
+                    },
+                )
+
+
+class _EmbeddingHook(_EndpointHook):
+    def handle_request(self, integration, span, args, kwargs):
+        for kw_attr in ["model", "input", "user"]:
+            if kw_attr in kwargs:
+                if kw_attr == "input" and isinstance(kwargs["input"], list):
+                    for idx, inp in enumerate(kwargs["input"]):
+                        span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
+                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+        resp, error = yield
+
+        if resp:
+            if "data" in resp:
+                span.set_tag("response.data.num-embeddings", len(resp["data"]))
+                span.set_tag("response.data.embedding-length", len(resp["data"][0]["embedding"]))
+            for kw_attr in ["model", "object", "usage"]:
+                if kw_attr in kwargs:
+                    span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
+            integration.record_usage(span, resp.get("usage"))
+
+
+def _patched_convert(integration):
     @trace_utils.with_traced_module
-    def _patched_convert(openai, pin, func, instance, args, kwargs):
+    def patched_convert(openai, pin, func, instance, args, kwargs):
         """Patch convert captures header information in the openai response"""
         for val in args:
             if isinstance(val, openai.openai_response.OpenAIResponse):
@@ -522,4 +517,4 @@ def patched_convert(integration):
                     span.set_tag("organization.ratelimit.tokens.remaining", v)
         return func(*args, **kwargs)
 
-    return _patched_convert
+    return patched_convert

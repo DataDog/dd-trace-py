@@ -1,23 +1,29 @@
 [[
   {
-    "name": "requests.request",
-    "service": "openai",
-    "resource": "requests.request",
+    "name": "openai.request",
+    "service": "",
+    "resource": "completions/ada",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "http",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "component": "requests",
-      "http.method": "POST",
-      "http.status_code": "200",
-      "http.url": "https://api.openai.com/v1/completions",
-      "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "endpoint": "completions",
       "language": "python",
-      "runtime-id": "98631dcb451746ae90fa3554ba9addf2",
-      "span.kind": "client"
+      "model": "ada",
+      "organization.name": "datadog-4",
+      "organization.ratelimit.requests.remaining": "2999",
+      "organization.ratelimit.tokens.remaining": "249983",
+      "request.prompt": "hello world",
+      "response.choices.0.finish_reason": "length",
+      "response.choices.0.logprobs": "None",
+      "response.choices.0.text": "-to-me they will happen.\n\nBoth techniques were invented from experience",
+      "response.object": "text_completion",
+      "runtime-id": "1f111dc194814d4c9b86a116fd1ecf96"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +31,36 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 76720
+      "process_id": 40805,
+      "response.choices.num": 1,
+      "response.usage.completion_tokens": 16,
+      "response.usage.prompt_tokens": 2,
+      "response.usage.total_tokens": 18
     },
-    "duration": 2580000,
-    "start": 1681938794824833000
-  }]]
+    "duration": 15813000,
+    "start": 1681970508116344000
+  },
+     {
+       "name": "requests.request",
+       "service": "openai",
+       "resource": "requests.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "component": "requests",
+         "http.method": "POST",
+         "http.status_code": "200",
+         "http.url": "https://api.openai.com/v1/completions",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1
+       },
+       "duration": 2473000,
+       "start": 1681970508127055000
+     }]]

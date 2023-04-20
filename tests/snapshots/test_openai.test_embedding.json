@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "",
-    "resource": "embedding/text-embedding-ada-002",
+    "resource": "embeddings/text-embedding-ada-002",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
-      "endpoint": "embedding",
+      "endpoint": "embeddings",
       "language": "python",
       "model": "text-embedding-ada-002",
       "organization.name": "datadog-4",
@@ -20,7 +20,7 @@
       "request.input": "hello world",
       "request.model": "text-embedding-ada-002",
       "response.model": "text-embedding-ada-002",
-      "runtime-id": "102c05dd94d641c0839e3cabf5c4ae8f"
+      "runtime-id": "7b93aaf3b01240fa80d91d50cc616adb"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,10 +28,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 76713,
+      "process_id": 39570,
       "response.data.embedding-length": 1536,
-      "response.data.num-embeddings": 1
+      "response.data.num-embeddings": 1,
+      "response.usage.prompt_tokens": 2,
+      "response.usage.total_tokens": 2
     },
-    "duration": 2146000,
-    "start": 1681938794080648000
+    "duration": 2428000,
+    "start": 1681970252537365000
   }]]
