@@ -14,6 +14,7 @@ from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
+from .constants import DEFAULT_SITE
 from .encoder import CIVisibilityEncoderV01
 
 
@@ -56,7 +57,7 @@ class CIVisibilityWriter(HTTPWriter):
             if config._ci_visibility_agentless_url:
                 intake_url = config._ci_visibility_agentless_url
             else:
-                intake_url = "https://citestcycle-intake.%s" % (os.environ.get("DD_SITE", "datadoghq.com"),)
+                intake_url = "https://citestcycle-intake.%s" % (os.environ.get("DD_SITE", DEFAULT_SITE),)
         headers = headers or dict()
         headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
         if not headers["dd-api-key"]:

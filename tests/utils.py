@@ -109,6 +109,7 @@ def override_global_config(values):
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_url",
     ]
 
     # Grab the current values of all keys
