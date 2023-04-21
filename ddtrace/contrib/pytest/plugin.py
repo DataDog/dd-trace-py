@@ -126,12 +126,6 @@ def _start_test_suite_span(item):
     return test_suite_span
 
 
-def _fetch_and_apply_test_skips(suite, module):
-    tests_to_skip = CIVisibility.get_tests_to_skip(suite, module)
-    # TODO: make pytest skip these tests
-    # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_collection_modifyitems
-
-
 def pytest_addoption(parser):
     """Add ddtrace options."""
     group = parser.getgroup("ddtrace")
@@ -219,7 +213,13 @@ def pytest_runtest_protocol(item, nextitem):
     if _extract_span(item.parent) is None:
         test_suite_span = _start_test_suite_span(item)
         if _CIVisibility.test_skipping_enabled:
-            _fetch_and_apply_test_skips(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
+
+            if _CIVisibility.should_skip(
+                item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+            ):
+                pytest.skip("Skipped by Datadog Intelligent Test Runner")
+                yield
+                return
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,

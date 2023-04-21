@@ -70,6 +70,7 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+        self._tests_to_skip = {}
 
         int_service = None
         if self.config is not None:
@@ -102,7 +103,14 @@ class CIVisibility(Service):
         return getattr(cls._instance, "_test_skipping_enabled_by_api", False)
 
     @classmethod
-    def get_tests_to_skip(cls, suite, module):
+    def should_skip(cls, test, suite, module):
+        if not cls.enabled:
+            return False
+        return test in cls._instance._get_tests_to_skip(suite, module)
+
+    def _get_tests_to_skip(self, suite, module):
+        if (suite, module) in self._tests_to_skip:
+            return self._tests_to_skip[(suite, module)]
         payload = {
             "data": {
                 "type": "test_params",
@@ -133,12 +141,14 @@ class CIVisibility(Service):
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return []
-        tests_to_skip = []
+        self._tests_to_skip[(suite, module)].setdefault([])
         for item in parsed["data"]:
             attributes = item["attributes"]
             if item["type"] == "test":
-                tests_to_skip.append((attributes["suite"], attributes["name"], attributes["parameters"]))
-        return tests_to_skip
+                self._tests_to_skip[(suite, module)].append(
+                    (attributes["suite"], attributes["name"], attributes["parameters"])
+                )
+        return self._tests_to_skip[(suite, module)]
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
