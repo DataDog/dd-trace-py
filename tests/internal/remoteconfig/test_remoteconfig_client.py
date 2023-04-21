@@ -7,7 +7,8 @@ from mock.mock import MagicMock
 import pytest
 
 from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryJson
-from ddtrace.internal.remoteconfig._pubsub import PubSubMergeFirst
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
+from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -16,8 +17,9 @@ from ddtrace.internal.remoteconfig.client import TargetFile
 from tests.internal.remoteconfig.test_remoteconfig import RCMockPubSub
 
 
-class RCMockPubSub2(PubSubMergeFirst):
+class RCMockPubSub2(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
+    __publisher_class__ = RemoteConfigPublisherMergeFirst
     __shared_data = ConnectorSharedMemoryJson()
 
     def __init__(self, _preprocess_results, callback):
@@ -42,7 +44,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.publish.assert_called_once_with(mock_config, mock_config_content)
+    mock_callback.publish.assert_called_once_with(mock_config_content, mock_config)
     assert applied_configs == client_configs
 
 
