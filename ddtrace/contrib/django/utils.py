@@ -5,8 +5,6 @@ from typing import List
 from typing import Text
 from typing import Union
 
-from django.http import RawPostDataException
-from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
 import six
 import xmltodict
@@ -279,17 +277,8 @@ def _extract_body(request):
                 req_body = dict(request.POST)
             else:  # text/plain, others: don't use them
                 req_body = None
-        except (
-            AttributeError,
-            RawPostDataException,
-            UnreadablePostError,
-            OSError,
-            ValueError,
-            JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
-        ):
-            log.warning("Failed to parse request body")
+        except BaseException:
+            log.debug("Failed to parse request body", exc_info=True)
             # req_body is None
 
         return req_body
