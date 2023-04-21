@@ -514,4 +514,4 @@ The following environment variables for the tracer are supported:
 Dynamic Instrumentation
 -----------------------
 
-.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
