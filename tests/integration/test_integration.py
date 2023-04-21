@@ -130,7 +130,7 @@ def test_single_trace_uds(encoding, monkeypatch):
     sockdir = "/tmp/ddagent/trace.sock"
     t.configure(uds_path=sockdir)
 
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
         log.warning.assert_not_called()
@@ -143,7 +143,7 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
 
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/nosockethere")
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
     calls = [
@@ -171,7 +171,7 @@ def test_payload_too_large(encoding, monkeypatch):
     assert t._writer._buffer_size == SIZE
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
                 s.set_tag(str(i), "b" * 190)
@@ -217,7 +217,7 @@ def test_large_payload(encoding, monkeypatch):
     t = Tracer()
     # Traces are approx. 275 bytes.
     # 10,000*275 ~ 3MB
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(10000):
             with t.trace("operation"):
                 pass
@@ -232,7 +232,7 @@ def test_child_spans(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         spans = []
         for i in range(10000):
             spans.append(t.trace("op"))
@@ -253,7 +253,7 @@ def test_metrics(encoding, monkeypatch):
         assert t._partial_flush_min_spans == 500
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        with mock.patch("ddtrace.internal.writer.log") as log:
+        with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(5):
                 spans = []
                 for i in range(3000):
@@ -292,7 +292,7 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
         )
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        with mock.patch("ddtrace.internal.writer.log") as log:
+        with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(5):
                 spans = []
                 for i in range(3000):
@@ -323,7 +323,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
 
     t = Tracer()
     assert t._partial_flush_enabled is True
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         key = "a" * 250
         with t.trace("huge"):
             for i in range(200000):
@@ -350,7 +350,7 @@ def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
     t.configure(
         partial_flush_enabled=False,
     )
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("huge"):
             for i in range(200000):
                 with t.trace("operation") as s:
@@ -369,7 +369,7 @@ def test_trace_bad_url(encoding, monkeypatch):
     t = Tracer()
     t.configure(hostname="bad", port=1111)
 
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("op"):
             pass
         t.shutdown()
@@ -396,7 +396,7 @@ def test_writer_headers(encoding, monkeypatch):
         pass
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("Datadog-Meta-Tracer-Version") == ddtrace.__version__
     assert headers.get("Datadog-Meta-Lang") == "python"
     assert headers.get("Content-Type") == "application/msgpack"
@@ -411,7 +411,7 @@ def test_writer_headers(encoding, monkeypatch):
             pass
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
     t = Tracer()
@@ -422,7 +422,7 @@ def test_writer_headers(encoding, monkeypatch):
                 t.trace("child").finish()
     t.shutdown()
     assert t._writer._put.call_count == 1
-    _, headers = t._writer._put.call_args[0]
+    _, headers, _ = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
@@ -520,8 +520,9 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
 
 def test_bad_endpoint():
     t = Tracer()
-    t._writer._endpoint = "/bad"
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    for client in t._writer._clients:
+        client.ENDPOINT = "/bad"
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
         s.finish()
@@ -554,8 +555,9 @@ def test_bad_payload():
         def encode_traces(self, traces):
             return ""
 
-    t._writer._encoder = BadEncoder()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
     calls = [
@@ -587,8 +589,9 @@ def test_bad_payload_log_payload(monkeypatch):
         def encode_traces(self, traces):
             return b"bad_payload"
 
-    t._writer._encoder = BadEncoder()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
     calls = [
@@ -631,8 +634,9 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
         def encode_traces(self, traces):
             return u"bad_payload"
 
-    t._writer._encoder = BadEncoder()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
     calls = [
@@ -663,8 +667,9 @@ def test_bad_encoder():
         def encode_traces(self, traces):
             raise Exception()
 
-    t._writer._encoder = BadEncoder()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    for client in t._writer._clients:
+        client.encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
     calls = [mock.call("failed to encode trace with encoder %r", t._writer._encoder, exc_info=True)]
@@ -677,9 +682,9 @@ def test_downgrade(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    t._writer._downgrade(None, None)
+    t._writer._downgrade(None, None, t._writer._clients[0])
     assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
         t.shutdown()
@@ -692,7 +697,7 @@ def test_span_tags(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
         s.set_metric("number", 123)
@@ -720,7 +725,7 @@ def test_flush_log(caplog, encoding, monkeypatch):
 
     writer = AgentWriter(agent.get_trace_url())
 
-    with mock.patch("ddtrace.internal.writer.log") as log:
+    with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
         # for latest agent, default to v0.3 since no priority sampler is set

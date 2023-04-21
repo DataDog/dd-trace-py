@@ -1,7 +1,6 @@
 """
 Generic dbapi tracing code.
 """
-
 import six
 
 from ddtrace import config
@@ -46,9 +45,9 @@ class TracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
-            cfg._dbapi_span_name_prefix
+            cfg["_dbapi_span_name_prefix"]
             if cfg and "_dbapi_span_name_prefix" in cfg
-            else config.dbapi2._dbapi_span_name_prefix
+            else config.dbapi2["_dbapi_span_name_prefix"]
         )
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
@@ -309,7 +308,7 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, self._self_config)
+        return self._self_cursor_cls(cursor=cursor, pin=pin, cfg=self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
