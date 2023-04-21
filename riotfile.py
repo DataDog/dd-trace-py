@@ -900,6 +900,8 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "elasticsearch": ["~=1.6.0"],
+                        "elasticsearch2": [latest],
+                        "elasticsearch5": [latest],
                         "elasticsearch6": [latest],
                         "elasticsearch7": ["<7.14.0"],
                     },
