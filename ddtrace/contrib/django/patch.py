@@ -728,7 +728,7 @@ def _patch(django):
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     if _is_iast_enabled():
-        if not len(args):
+        if not args:
             return wrapped(*args, **kwargs)
 
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
