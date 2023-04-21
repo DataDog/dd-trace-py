@@ -602,11 +602,11 @@ jobs:
           pattern: 'test_logging'
 
   stdlib:
-    <<: *contrib_job_small
-    parallelism: 2
+    <<: *contrib_job
+    parallelism: 4
     steps:
       - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
@@ -977,9 +977,19 @@ jobs:
 
   psycopg:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg"
+          pattern: "psycopg$"
+          snapshot: true
+          docker_services: "postgres"
+
+  psycopg2:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "psycopg2"
           snapshot: true
           docker_services: "postgres"
 
@@ -1209,6 +1219,7 @@ requires_tests: &requires_tests
     - opentracer
     - opentelemetry
     - psycopg
+    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1315,6 +1326,7 @@ workflows:
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
+      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs
