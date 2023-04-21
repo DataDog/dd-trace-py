@@ -126,6 +126,7 @@ class ddwaf_object(ctypes.Structure):
         def truncate_string(string):
             if len(string) > max_string_length - 1:
                 observator[0] |= _TRUNC_STRING_LENGHT
+                # difference of 1 to take null char at the end on the C side into account
                 return string[: max_string_length - 1]
             return string
 
