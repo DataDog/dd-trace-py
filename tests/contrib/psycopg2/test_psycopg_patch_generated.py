@@ -15,7 +15,7 @@ from tests.contrib.patch import PatchTestCase
 
 class TestPsycopgPatch(PatchTestCase.Base):
     __integration_name__ = "psycopg"
-    __module_name__ = "psycopg"
+    __module_name__ = "psycopg2"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
 
