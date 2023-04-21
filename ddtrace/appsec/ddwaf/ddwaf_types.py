@@ -102,6 +102,11 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # obj_struct = DDWafRulesType
 
 
+class _observator:
+    def __init__(self):
+        self.truncation = 0
+
+
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
     # "type" define how to read the "value" union field
@@ -116,16 +121,16 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct=None,
-        observator=[0],
+        observator=_observator(),
         max_objects=DDWAF_MAX_CONTAINER_SIZE,
         max_depth=DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length=DDWAF_MAX_STRING_LENGTH,
     ):
-        # type: (DDWafRulesType, list[int], int, int, int) -> None
+        # type: (DDWafRulesType, _observator, int, int, int) -> None
 
         def truncate_string(string):
             if len(string) > max_string_length - 1:
-                observator[0] |= _TRUNC_STRING_LENGHT
+                observator.truncation |= _TRUNC_STRING_LENGHT
                 # difference of 1 to take null char at the end on the C side into account
                 return string[: max_string_length - 1]
             return string
@@ -142,12 +147,12 @@ class ddwaf_object(ctypes.Structure):
             ddwaf_object_string(self, truncate_string(unicode(struct).encode("UTF-8", errors="ignore")))
         elif isinstance(struct, list):
             if max_depth <= 0:
-                observator[0] |= _TRUNC_CONTAINER_DEPTH
+                observator.truncation |= _TRUNC_CONTAINER_DEPTH
                 max_objects = 0
             array = ddwaf_object_array(self)
             for counter_object, elt in enumerate(struct):
                 if counter_object >= max_objects:
-                    observator[0] |= _TRUNC_CONTAINER_SIZE
+                    observator.truncation |= _TRUNC_CONTAINER_SIZE
                     break
                 obj = ddwaf_object(
                     elt,
@@ -160,7 +165,7 @@ class ddwaf_object(ctypes.Structure):
                     ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
             if max_depth <= 0:
-                observator[0] |= _TRUNC_CONTAINER_DEPTH
+                observator.truncation |= _TRUNC_CONTAINER_DEPTH
                 max_objects = 0
             map_o = ddwaf_object_map(self)
             # order is unspecified and could lead to problems if max_objects is reached
@@ -168,7 +173,7 @@ class ddwaf_object(ctypes.Structure):
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
                 if counter_object >= max_objects:
-                    observator[0] |= _TRUNC_CONTAINER_SIZE
+                    observator.truncation |= _TRUNC_CONTAINER_SIZE
                     break
                 res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)
                 obj = ddwaf_object(

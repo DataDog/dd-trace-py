@@ -4,6 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
+from ddtrace.appsec.ddwaf.ddwaf_types import _observator
 from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_object
 
 
@@ -69,10 +70,10 @@ def test_small_objects(obj, res):
 )
 def test_limits(obj, res, trunc):
     # truncation of max_string_length takes the last C null byte into account
-    obs = [0]
+    obs = _observator()
     dd_obj = ddwaf_object(obj, observator=obs, max_objects=1, max_depth=1, max_string_length=3)
     assert dd_obj.struct == res
-    assert obs[0] == trunc
+    assert obs.truncation == trunc
 
 
 if __name__ == "__main__":

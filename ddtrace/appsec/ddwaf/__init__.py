@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 LOGGER = get_logger(__name__)
 
 try:
+    from .ddwaf_types import _observator
     from .ddwaf_types import ddwaf_config
     from .ddwaf_types import ddwaf_context_capsule
     from .ddwaf_types import ddwaf_get_version
@@ -148,7 +149,7 @@ if _DDWAF_LOADED:
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0)
 
             result = ddwaf_result()
-            observator = [0]
+            observator = _observator()
             wrapper = ddwaf_object(data, observator=observator)
             error = ddwaf_run(ctx.ctx, wrapper, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
@@ -159,7 +160,7 @@ if _DDWAF_LOADED:
                 result.total_runtime / 1e3,
                 (time.time() - start) * 1e6,
                 result.timeout,
-                observator[0],
+                observator.truncation,
             )
 
     def version():
