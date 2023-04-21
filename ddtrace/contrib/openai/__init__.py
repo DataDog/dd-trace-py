@@ -20,7 +20,8 @@ Prompts and completions on Completion and ChatCompletion requests are always
 sampled on span data. The length of the samples is limited by the ``truncation_threshold``
 setting.
 
-Logs are **not** emitted by default. When logs are enabled they are sampled at 10%.
+Logs are **not** emitted by default. When logs are enabled they are sampled at 10%. Logs 
+are NOT truncated via the ``truncation_threshold``.
 
 
 .. important::

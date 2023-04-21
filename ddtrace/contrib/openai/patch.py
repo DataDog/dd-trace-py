@@ -27,7 +27,7 @@ config._add(
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
-        "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
+        "_span_text_limit": 10,
     },
 )
 
@@ -156,19 +156,18 @@ class _OpenAIIntegration:
             span.set_tag("response.usage.%s_tokens" % token_type, num_tokens)
             self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def trunc(self, text):
+    def trunc(self, text, capacity):
         """Truncate the given text.
 
         Use to avoid attaching too much data to spans.
         """
         if not text:
-            return text
-        text = text.replace("\n", "\\n")
-        text = text.replace("\t", "\\t")
+            return text, capacity
+        text = text.replace("\n", "\\n").replace("\t", "\\t")
         text = " ".join(text.split())
-        if len(text) > self._config.truncation_threshold:
-            text = text[: self._config.truncation_threshold] + "..."
-        return text
+        if len(text) > capacity:
+            text = text[:capacity] + "..."
+        return text, max(capacity - len(text), 0)
 
 
 log = get_logger(__file__)
@@ -354,13 +353,27 @@ class _CompletionHook(_EndpointHook):
     def handle_request(self, integration, span, args, kwargs):
         sample_pc_span = integration.is_pc_sampled_span(span)
 
+        trunc = integration._config._span_text_limit
+
+        def set_text_tag(key, text):
+            nonlocal trunc
+            text, trunc = integration.trunc(text, trunc)
+            if text:
+                span.set_tag_str(key, text)
+            return False if trunc <= 0 else True
+
         if sample_pc_span:
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, list):
+                span.set_tag("num-inputs", len(prompt))
                 for idx, p in enumerate(prompt):
-                    span.set_tag_str("request.prompt.%d" % idx, integration.trunc(p))
+                    if not set_text_tag("request.prompt.%d" % idx, p):
+                        span.set_tag("truncation.request", True)
+                        break
             elif prompt:
-                span.set_tag_str("request.prompt", integration.trunc(prompt))
+                span.set_tag("num-inputs", 1)
+                if not set_text_tag("request.prompt", prompt):
+                    span.set_tag("truncation.request", True)
 
         for kw_attr in self._request_tag_attrs:
             if kw_attr in kwargs:
@@ -373,6 +386,8 @@ class _CompletionHook(_EndpointHook):
 
         resp, error = yield
 
+        trunc = integration._config._span_text_limit
+        has_capacity = True
         if resp and not kwargs.get("stream"):
             if "choices" in resp:
                 choices = resp["choices"]
@@ -383,8 +398,10 @@ class _CompletionHook(_EndpointHook):
                         span.set_tag_str("response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
                     if "logprobs" in choice:
                         span.set_tag_str("response.choices.%d.logprobs" % idx, "returned")
-                    if sample_pc_span:
-                        span.set_tag_str("response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
+                    if sample_pc_span and has_capacity:
+                        has_capacity = set_text_tag("response.choices.%d.text" % idx, choice.get("text", ""))
+                        if not has_capacity:
+                            span.set_tag("truncation.response", True)
             span.set_tag("response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
             if integration.is_pc_sampled_log(span):
@@ -417,19 +434,32 @@ class _ChatCompletionHook(_EndpointHook):
     def handle_request(self, integration, span, args, kwargs):
         sample_pc_span = integration.is_pc_sampled_span(span)
         messages = kwargs.get("messages")
+
+        trunc = integration._config._span_text_limit
+
+        def set_message_tag(r_key, c_key, m):
+            nonlocal trunc
+            # role is one of ['system','assistant', 'user']
+            # so no need to truncate.
+            span.set_tag_str(r_key, m.get("role", ""))
+            content, trunc = integration.trunc(m.get("content", ""), trunc)
+            if content:
+                span.set_tag_str(c_key, content)
+            return False if trunc <= 0 else True
+
         if sample_pc_span and messages:
-
-            def set_message_tag(m):
-                content = integration.trunc(m.get("content", ""))
-                role = integration.trunc(m.get("role", ""))
-                span.set_tag_str("request.messages.%d.content" % idx, content)
-                span.set_tag_str("request.messages.%d.role" % idx, role)
-
             if isinstance(messages, list):
+                span.set_tag("num-inputs", len(messages))
                 for idx, message in enumerate(messages):
-                    set_message_tag(message)
+                    if not set_message_tag(
+                        "request.messages.%d.role" % idx, "request.messages.%d.content" % idx, message
+                    ):
+                        span.set_tag("truncation.request", True)
+                        break
             else:
-                set_message_tag(messages)
+                span.set_tag("num-inputs", 1)
+                if not set_message_tag(messages):
+                    span.set_tag("trunctation.request", True)
 
         for kw_attr in self._request_tag_attrs:
             if kw_attr in kwargs:
@@ -443,23 +473,25 @@ class _ChatCompletionHook(_EndpointHook):
         resp, error = yield
 
         completions = ""
+        trunc = integration._config._span_text_limit
         if resp and not kwargs.get("stream"):
             if "choices" in resp:
                 choices = resp["choices"]
                 completions = choices
                 span.set_tag("response.choices.num", len(choices))
+                has_capacity = True
                 for choice in choices:
                     idx = choice["index"]
                     span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                    if sample_pc_span and choice.get("message"):
-                        span.set_tag(
-                            "response.choices.%d.message.content" % idx,
-                            integration.trunc(choice.get("message").get("content")),
-                        )
-                        span.set_tag(
+                    if sample_pc_span and choice.get("message") and has_capacity:
+                        has_capacity = set_message_tag(
                             "response.choices.%d.message.role" % idx,
-                            integration.trunc(choice.get("message").get("role")),
+                            "response.choices.%d.message.content" % idx,
+                            choice.get("message"),
                         )
+                        if not has_capacity:
+                            span.set_tag("truncation.response", True)
+
             span.set_tag("response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
 
@@ -478,11 +510,27 @@ class _ChatCompletionHook(_EndpointHook):
 
 class _EmbeddingHook(_EndpointHook):
     def handle_request(self, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "user"]:
+        trunc = integration._config._span_text_limit
+
+        def set_text_tag(key, text):
+            nonlocal trunc
+            text, trunc = integration.trunc(text, trunc)
+            if text:
+                span.set_tag_str(key, text)
+            return False if trunc <= 0 else True
+
+        if isinstance(kwargs["input"], list):
+            span.set_tag("num-inputs", len(kwargs["input"]))
+            for idx, inp in enumerate(kwargs["input"]):
+                if not set_text_tag("request.input.%d" % idx, inp):
+                    span.set_tag("truncation.request", True)
+        else:
+            span.set_tag("num-inputs", 1)
+            if not set_text_tag("request.input", kwargs["input"]):
+                span.set_tag("truncation.request", True)
+
+        for kw_attr in ["model", "user"]:
             if kw_attr in kwargs:
-                if kw_attr == "input" and isinstance(kwargs["input"], list):
-                    for idx, inp in enumerate(kwargs["input"]):
-                        span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
                 span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield

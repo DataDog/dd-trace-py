@@ -7,6 +7,7 @@ import openai
 import pytest
 import vcr
 
+import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import config
@@ -92,7 +93,7 @@ def snapshot_tracer(patch_openai, mock_logs, mock_metrics):
 def mock_tracer(patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer()
-    pin.override(openai, tracer=DummyTracer())
+    pin.override(openai, tracer=mock_tracer)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
     yield mock_tracer
@@ -501,7 +502,7 @@ def test_chat_completion_sample():
     ddtrace_run=True,
     parametrize={"DD_OPENAI_TRUNCATION_THRESHOLD": ["0", "10", "10000"]},
 )
-def test_completion_truncation():
+def test_completion_truncation(mock_metrics, mock_logs, snapshot_tracer):
     """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for completions"""
     import openai
 
@@ -534,46 +535,64 @@ def test_completion_truncation():
                 assert len(completion.replace("...", "")) == limit
 
 
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    parametrize={"DD_OPENAI_TRUNCATION_THRESHOLD": ["0", "10", "10000"]},
-)
-@pytest.mark.skipif(
-    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
-)
-def test_chat_completion_truncation():
+def test_chat_completion_truncation(mock_metrics, mock_logs, mock_tracer):
     """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for chat completions"""
-    import openai
 
-    import ddtrace
-    from tests.contrib.openai.test_openai import openai_vcr
-    from tests.utils import DummyTracer
+    chat_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Count from 1 to 10?"},
+        {"role": "assistant", "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"},
+        {"role": "user", "content": "Count from 1 to 100"},
+    ]
+    chat_messages_len = len("".join(message["content"] for message in chat_messages))
+    embedding_input = "hello world"
+    completion_prompt = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "
 
-    ddtrace.Pin().override(openai, tracer=DummyTracer())
+    for trunc in [0, 10, 10000]:
+        ddtrace.config.openai["_span_text_limit"] = trunc
+        expected_traces = 0
+        if hasattr(openai, "ChatCompletion"):
+            with openai_vcr.use_cassette("chat_completion_trunc.yaml"):
+                openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=chat_messages,
+                )
+            expected_traces += 1
+        if hasattr(openai, "Embedding"):
+            with openai_vcr.use_cassette("embedding_truncation.yaml"):
+                openai.Embedding.create(input=embedding_input, model="text-embedding-ada-002")
+            expected_traces += 1
+        with openai_vcr.use_cassette("completion_trunc.yaml"):
+            openai.Completion.create(model="ada", prompt=completion_prompt)
+            expected_traces += 1
 
-    with openai_vcr.use_cassette("chat_completion_truncation.yaml"):
-        openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": "Count from 1 to 100"},
-            ],
-        )
-
-    pin = ddtrace.Pin.get_from(openai)
-    traces = pin.tracer.pop_traces()
-    assert len(traces) == 1
-
-    for trace in traces:
-        for span in trace:
-            limit = ddtrace.config.openai["truncation_threshold"]
-            prompt = span.get_tag("request.messages.0.content")
-            completion = span.get_tag("response.choices.0.message.content")
-            assert len(prompt) <= limit + 3
-            assert len(completion) <= limit + 3
-            if "..." in prompt:
-                assert len(prompt.replace("...", "")) == limit
-            if "..." in completion:
-                assert len(completion.replace("...", "")) == limit
+        pin = ddtrace.Pin.get_from(openai)
+        traces = pin.tracer.pop_traces()
+        assert len(traces) == expected_traces
+        for trace in traces:
+            for span in trace:
+                if span.get_tag("endpoint") == "completions":
+                    pass
+                elif span.get_tag("endpoint") == "chat.completions":
+                    contents = []
+                    for i in range(len(chat_messages)):
+                        content = span.get_tag("request.messages.{}.content".format(i))
+                        if content:
+                            contents.append(content)
+                    if chat_messages_len > trunc:
+                        assert "..." in contents[-1]
+                        span.get_tag("truncation.request")
+                        assert len("".join(contents).replace("...", "")) == trunc
+                    else:
+                        assert "..." not in "".join(contents)
+                    completion = span.get_tag("response.choices.0.message.content")
+                    if len(completion) > trunc:
+                        assert len(completion.replace("...", "")) == trunc
+                        assert span.get_tag("truncation.response")
+                    else:
+                        assert "..." not in completion
+                elif span.get_tag("endpoint") == "embeddings":
+                    pass
 
 
 @pytest.mark.subprocess(

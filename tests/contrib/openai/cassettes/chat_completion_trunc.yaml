@@ -1,0 +1,83 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "system", "content": "You
+      are a helpful assistant."}, {"role": "user", "content": "Count from 1 to 10?"},
+      {"role": "assistant", "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"}, {"role":
+      "user", "content": "Count from 1 to 100"}]}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '274'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.2
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
+        "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
+        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0SQTWvcQBBE/0rR51oz3z3SbSGHHAwmgeSSQ5C1k/U6kkZI41yW/PcgSJxrQb96
+        1Xe5XaSX8WVo47xOJ9Xp84/uy5Y+rOev5+26fHp9PJd60V/Lxyeh1OfXMra/Fw9jndeptFtdhDJu
+        ZWjlIr1N2ZkcjbeUuV7KJL1c13byD/HU3rbnejLeWKG87cO1SH+Xdavz2r63+rMsu/TqKP/R77Hr
+        MqXVNkzvkVfzmzK+1NtYdum/3WUu+z/qVqcivQz7ftvbsLTDsS6tLIe/JRzhiUBEIhFKZKIjrCGs
+        JawjrCdsIGwkbCKsEjYTtiOcIdzBcYTzhAuEi4RLhFPCZcJ1hDeEt4Q/Cj3hA+Ej4RPhlfCZ8B0R
+        DBEsERwRDrNAhEiERAQlQiZCR0RDREtER0RPxGNCJGIiohIxE7EjkiGSJZIjkidSINKxNRFJiZSJ
+        1BFqCLWEOkI9oYHQSOjxFCU0E9oR2RDZEtkR2RP5Dwf0bgMhDAQBNKeK0cYTmP8OvSB00nE6JwZh
+        AhL3juCV8DrCe8IHwp89J1yEAqGaUEOoJdQR6gkNhEZCT/P7HKzQfjHF/F+O9ZO3ZJPlc9uNFtN3
+        vWwKZS7VDQAA//8DAFVjv+umAgAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7bb618b5bed2c43b-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 21 Apr 2023 13:50:51 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '19831'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-request-id:
+      - 1a95f2ffece23277817cd97086b23e97
+    status:
+      code: 200
+      message: OK
+version: 1
