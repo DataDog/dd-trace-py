@@ -68,6 +68,7 @@ def _set_waf_request_metrics():
             is_blocked = any(list_is_blocked)
             is_triggered = any((result.data for result in list_results))
             is_timeout = any((result.timeout for result in list_results))
+            is_truncation = any((result.truncation for result in list_results))
             has_info = any(list_result_info)
 
             common_tags = {
@@ -75,6 +76,7 @@ def _set_waf_request_metrics():
                 "rule_triggered": is_triggered,
                 "request_blocked": is_blocked,
                 "waf_timeout": is_timeout,
+                "request_truncated": is_truncation,
             }
 
             if has_info and list_result_info[0].version:
