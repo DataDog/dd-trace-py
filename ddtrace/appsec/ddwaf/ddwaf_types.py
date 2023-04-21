@@ -57,7 +57,7 @@ DDWAF_MAX_CONTAINER_DEPTH = 20
 DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
 DDWAF_DEPTH_NO_LIMIT = 1000
-_TRUNC_STRING_LENGHT = 1
+_TRUNC_STRING_LENGTH = 1
 _TRUNC_CONTAINER_DEPTH = 4
 _TRUNC_CONTAINER_SIZE = 2
 
@@ -130,7 +130,7 @@ class ddwaf_object(ctypes.Structure):
 
         def truncate_string(string):
             if len(string) > max_string_length - 1:
-                observator.truncation |= _TRUNC_STRING_LENGHT
+                observator.truncation |= _TRUNC_STRING_LENGTH
                 # difference of 1 to take null char at the end on the C side into account
                 return string[: max_string_length - 1]
             return string
