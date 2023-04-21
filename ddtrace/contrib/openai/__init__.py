@@ -9,6 +9,26 @@ Metrics
 
 TODO: list metrics collected, how to configure, defaults, etc
 
+The following metrics are by default collected by the OpenAI integration.
+Disable metrics through the ``DD_OPENAI_METRICS_ENABLED`` environment variable.
+
+.. request.error
+
+.. request.duration
+
+.. ratelimit.requests
+
+.. ratelimit.tokens
+
+.. ratelimit.remaining.requests
+
+.. ratelimit.remaining.tokens
+
+.. tokens.prompt
+
+.. tokens.completion
+
+.. tokens.total
 
 Prompt and Completion Sampling (beta)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
