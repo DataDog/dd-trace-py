@@ -3,32 +3,46 @@ The OpenAI integration instruments the OpenAI Python library to emit metrics,
 traces and logs for requests made to the OpenAI completions, chat completions
 and embeddings endpoints.
 
+All data submitted from the OpenAI integration is tagged with
+
+- ``service`` / ``env`` / ``version``: See https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+- ``endpoint``: The OpenAI API endpoint used in the request.
+- ``model``: The OpenAI model used in the request.
+- ``organization.name``: The OpenAI organization used in the request.
+- ``organization.id``: The OpenAI organization used in the request (when available).
+
 
 Metrics
 ~~~~~~~
 
-TODO: list metrics collected, how to configure, defaults, etc
-
 The following metrics are by default collected by the OpenAI integration.
-Disable metrics through the ``DD_OPENAI_METRICS_ENABLED`` environment variable.
+Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment variable (see below for more information).
 
-.. request.error
+.. important::
 
-.. request.duration
+     DogStatsd has to be enabled in the agent (https://docs.datadoghq.com/developers/dogstatsd/?tab=hostagent).
+     Use ``DD_DOGSTATSD_URL`` to specify the agent hostname and port.
 
-.. ratelimit.requests
 
-.. ratelimit.tokens
+..py:data:: request.error (count)
 
-.. ratelimit.remaining.requests
+..py:data:: request.duration (distribution)
 
-.. ratelimit.remaining.tokens
+..py:data:: ratelimit.requests (gauge)
 
-.. tokens.prompt
+..py:data:: ratelimit.tokens (gauge)
 
-.. tokens.completion
+..py:data:: ratelimit.remaining.requests (gauge)
 
-.. tokens.total
+..py:data:: ratelimit.remaining.tokens (gauge)
+
+..py:data:: tokens.prompt (distribution)
+
+..py:data:: tokens.completion (distribution)
+
+..py:data:: tokens.total (distribution)
+
+
 
 Prompt and Completion Sampling (beta)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -37,8 +51,7 @@ Prompts and completions on Completion and ChatCompletion requests are always
 sampled on span data. The length of the samples is limited by the ``truncation_threshold``
 setting.
 
-Logs are **not** emitted by default. When logs are enabled they are sampled at 10%.
-
+Logs are **not** emitted by default, see below for instructions to enable logs. When logs are enabled they are sampled at 10%.
 
 .. important::
 
@@ -74,7 +87,6 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration
     # patch(openai=True, aiohttp=False)
 
 
-
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -85,7 +97,7 @@ Global Configuration
    This option can also be set with the ``DD_OPENAI_SERVICE`` environment
    variable.
 
-   Default: ``"openai"``
+   Default: ``DD_SERVICE``
 
 
 .. py:data:: ddtrace.config.openai["logs_enabled"]

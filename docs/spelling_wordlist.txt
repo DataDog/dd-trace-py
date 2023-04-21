@@ -75,6 +75,7 @@ dogstatsd
 elasticsearch
 elasticsearch1
 elasticsearch7
+embeddings
 enqueue
 entrypoint
 entrypoints
@@ -181,6 +182,7 @@ sqlalchemy
 sqlite
 stacktrace
 starlette
+statsd
 stringable
 subdomains
 submodule
