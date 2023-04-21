@@ -160,6 +160,7 @@ pyston
 pytest
 pytest-bdd
 quickstart
+ratelimit
 redis
 rediscluster
 renderers
