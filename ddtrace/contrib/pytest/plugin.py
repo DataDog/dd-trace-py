@@ -64,6 +64,21 @@ def _get_pytest_command(config):
     return command
 
 
+def _get_module_path(item):
+    """Extract module path from a `pytest.Item` instance."""
+    if not isinstance(item.parent.parent, pytest.Package):
+        return None
+    return item.parent.parent.nodeid.rpartition("/")[0]
+
+
+def _get_module_name(item):
+    """Extract module name from a `pytest.Item` instance."""
+    module_path = _get_module_path(item)
+    if module_path is None:
+        return None
+    return module_path.rpartition("/")[-1]
+
+
 def _start_test_module_span(item):
     """
     Starts a test module span at the start of a new pytest test package.
@@ -86,8 +101,8 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
     test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
-    test_module_span.set_tag_str(test.MODULE, item.parent.parent.name)
-    test_module_span.set_tag_str(test.MODULE_PATH, item.nodeid.rpartition("/")[0])
+    test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
+    test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
     _store_span(item.parent.parent, test_module_span)
 
 
@@ -120,7 +135,8 @@ def _start_test_suite_span(item):
     if isinstance(item.parent.parent, pytest.Package):
         test_module_span = _extract_span(item.parent.parent)
         test_suite_span.set_tag(_MODULE_ID, test_module_span.span_id)
-        test_suite_span.set_tag_str(test.MODULE, item.parent.parent.name)
+        test_suite_span.set_tag_str(test.MODULE, _get_module_name(item))
+        test_suite_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
     test_suite_span.set_tag_str(test.SUITE, item.parent.module.__name__)
     _store_span(item.parent, test_suite_span)
 
@@ -232,6 +248,8 @@ def pytest_runtest_protocol(item, nextitem):
         if isinstance(item.parent.parent, pytest.Package):
             test_module_span = _extract_span(item.parent.parent)
             span.set_tag(_MODULE_ID, test_module_span.span_id)
+            span.set_tag_str(test.MODULE, _get_module_name(item))
+            span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
 
         if hasattr(item, "module"):
             span.set_tag_str(test.SUITE, item.module.__name__)

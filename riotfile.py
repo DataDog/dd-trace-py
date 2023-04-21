@@ -2653,6 +2653,9 @@ venv = Venv(
             name="ci_visibility",
             command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
+            pkgs={
+                "msgpack": latest,
+            },
         ),
     ],
 )

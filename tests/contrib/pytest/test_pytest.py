@@ -15,6 +15,7 @@ from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from ddtrace.internal.compat import PY2
 from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
@@ -584,10 +585,10 @@ class PytestTestCase(TracerTestCase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        trace = ci_agentless_encoder.encode()
-        decoded_trace = self.tracer.encoder._decode(trace)
-        assert len(decoded_trace[b"events"]) == 6
-        for event in decoded_trace[b"events"]:
+        event_payload = ci_agentless_encoder.encode()
+        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        assert len(decoded_event_payload[b"events"]) == 6
+        for event in decoded_event_payload[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
         pass
 
@@ -622,9 +623,12 @@ class PytestTestCase(TracerTestCase):
         for span in non_session_spans:
             assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
         test_session_span = spans[5]
-        assert test_session_span.get_tag("test.command") == (
-            "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
-        )
+        if PY2:
+            assert test_session_span.get_tag("test.command") == "pytest"
+        else:
+            assert test_session_span.get_tag("test.command") == (
+                "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+            )
 
     def test_pytest_sets_sample_priority(self):
         """Test sample priority tags."""
@@ -795,9 +799,12 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
         assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
-        assert spans[0].get_tag("test.command") == "pytest --ddtrace"
+        if PY2:
+            assert spans[0].get_tag("test.command") == "pytest"
+        else:
+            assert spans[0].get_tag("test.command") == "pytest --ddtrace"
 
-    def test_pytest_suite(self):
+    def test_pytest_suite_py3(self):
         """Test that running pytest on a test file will generate a test suite span."""
         py_file = self.testdir.makepyfile(
             """
@@ -815,7 +822,10 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_suite_span.get_tag("test_module_id") is None
         assert test_suite_span.get_tag("test_suite_id") == str(test_suite_span.span_id)
-        assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        if PY2:
+            assert test_suite_span.get_tag("test.command") == "pytest"
+        else:
+            assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
         assert test_suite_span.get_tag("test.suite") == str(file_name).split(".py")[0]
 
     def test_pytest_suites(self):
@@ -872,7 +882,10 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
+        if PY2:
+            assert test_module_span.get_tag("test.command") == "pytest"
+        else:
+            assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
         assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
         assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
 
