@@ -58,6 +58,7 @@ contextvar
 contextvars
 coroutine
 coroutines
+Cython
 datadog
 datadoghq
 datastore
