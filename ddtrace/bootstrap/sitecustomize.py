@@ -276,10 +276,17 @@ try:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
-        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
+
+    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
+        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+    )
+
+    if should_start_appsec_remoteconfig:
+        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+
         enable_appsec_rc()
 
     # Loading status used in tests to detect if the `sitecustomize` has been

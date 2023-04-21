@@ -62,22 +62,16 @@ remoteconfig_poller.register("DI_1_PRODUCT", di_callback)
 remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 """
-import abc
-
-import six
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import ConnectorBase
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 log = get_logger(__name__)
 
 
-class PubSubBase(six.with_metaclass(abc.ABCMeta)):
+class PubSub(object):
     __publisher_class__ = RemoteConfigPublisherBase
     __subscriber_class__ = RemoteConfigSubscriber
     __shared_data = None  # type: ConnectorBase
@@ -96,19 +90,8 @@ class PubSubBase(six.with_metaclass(abc.ABCMeta)):
     def stop(self):
         self._subscriber.stop()
 
+    def publish(self, config_content=None, config_metadata=None):
+        self._publisher.dispatch(config_content, config_metadata, self)
 
-class PubSub(PubSubBase):
-    __publisher_class__ = RemoteConfigPublisher
-
-    def publish(self, metadata, config):
-        self._publisher(self, metadata, config)
-
-
-class PubSubMergeFirst(PubSubBase):
-    __publisher_class__ = RemoteConfigPublisherMergeFirst
-
-    def publish(self):
-        self._publisher.dispatch(self)
-
-    def append(self, target, config_content):
+    def append(self, config_content, target):
         self._publisher.append(target, config_content)

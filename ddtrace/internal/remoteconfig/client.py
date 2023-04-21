@@ -30,8 +30,8 @@ from ddtrace.internal.utils.time import parse_isoformat
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 from ..utils.formats import parse_tags_str
-from ._pubsub import PubSubBase
-from ._pubsub import PubSubMergeFirst
+from ._publishers import RemoteConfigPublisherMergeFirst
+from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -210,14 +210,14 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, PubSubBase]
+        self._products = dict()  # type: MutableMapping[str, PubSub]
         self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, pubsub_instance=None):
-        # type: (str, Optional[PubSubBase]) -> None
+        # type: (str, Optional[PubSub]) -> None
         if pubsub_instance is not None:
             self._products[product_name] = pubsub_instance
         else:
@@ -232,7 +232,7 @@ class RemoteConfigClient(object):
             yield pubsub
 
     def is_subscriber_running(self, pubsub_to_check):
-        # type: (PubSubBase) -> bool
+        # type: (PubSub) -> bool
         for pubsub in self.get_pubsubs():
             if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
                 return True
@@ -370,18 +370,18 @@ class RemoteConfigClient(object):
         return signed.version, backend_state, targets
 
     @staticmethod
-    def _apply_callback(list_callbacks, callback, config_content, target, config):
-        # type: (List[PubSubMergeFirst], Any, Any, str, ConfigMetadata) -> None
-        if isinstance(callback, PubSubMergeFirst):
-            callback.append(target, config_content)
+    def _apply_callback(list_callbacks, callback, config_content, target, config_metadata):
+        # type: (List[PubSub], Any, Any, str, ConfigMetadata) -> None
+        if isinstance(callback._publisher, RemoteConfigPublisherMergeFirst):
+            callback.append(config_content, target)
             if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
                 list_callbacks.append(callback)
         else:
-            callback.publish(config, config_content)
+            callback.publish(config_content, config_metadata)
 
     def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
         # type: (AppliedConfigType, TargetsType, TargetsType) -> None
-        list_callbacks = []  # type: List[PubSubMergeFirst]
+        list_callbacks = []  # type: List[PubSub]
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
@@ -406,7 +406,7 @@ class RemoteConfigClient(object):
 
     def _load_new_configurations(self, applied_configs, client_configs, payload):
         # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []  # type: List[PubSubMergeFirst]
+        list_callbacks = []  # type: List[PubSub]
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:

@@ -8,8 +8,8 @@ from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryJson
-from ddtrace.internal.remoteconfig._pubsub import PubSubBase
-from ddtrace.internal.remoteconfig._pubsub import PubSubMergeFirst
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
+from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
@@ -32,8 +32,9 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-class AppSecRC(PubSubMergeFirst):
+class AppSecRC(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
+    __publisher_class__ = RemoteConfigPublisherMergeFirst
     __shared_data = ConnectorSharedMemoryJson()
 
     def __init__(self, _preprocess_results, callback):
@@ -115,7 +116,7 @@ def _appsec_rules_data(features, test_tracer):
 
 
 def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None):
-    # type: (Any, Optional[PubSubBase]) -> Mapping[str, Any]
+    # type: (Any, Optional[PubSub]) -> Mapping[str, Any]
     """The main process has the responsibility to enable or disable the ASM products. The child processes don't
     care about that, the children only need to know about payload content.
     """

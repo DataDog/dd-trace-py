@@ -11,21 +11,23 @@ from ddtrace.internal.logger import get_logger
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import Dict
     from typing import Optional
 
-    from ddtrace.internal.remoteconfig._pubsub import PubSubBase
+    from ddtrace.internal.remoteconfig._pubsub import PubSub
 
 log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
-    _preprocess_results_func = None  # type: Optional[Callable[[Any, Optional[PubSubBase]], Any]]
+    _preprocess_results_func = None  # type: Optional[Callable[[Any, Optional[PubSub]], Any]]
 
     def __init__(self, data_connector, preprocess_results):
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_results
 
-    def dispatch(self, pubsub_instance):
+    def dispatch(self, config, metadata=None, pubsub_instance=None):
+        # type: (Any, Optional[Any], Optional[Any]) -> None
         raise NotImplementedError
 
     def append(self, target, config_content):
@@ -43,8 +45,8 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_results):
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_results)
 
-    def __call__(self, pubsub_instance, metadata, config):
-        # type: (Any, Optional[Any], Any) -> None
+    def dispatch(self, config, metadata=None, pubsub_instance=None):
+        # type: (Any, Optional[Any], Optional[Any]) -> None
         from attr import asdict
 
         if self._preprocess_results_func:
@@ -83,8 +85,9 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
             else:
                 raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
 
-    def dispatch(self, pubsub_instance):
-        config_result = {}
+    def dispatch(self, config=None, metadata=None, pubsub_instance=None):
+        # type: (Any, Optional[Any], Optional[Any]) -> None
+        config_result = {}  # type: Dict[str, Any]
         try:
             for target, config in self._configs.items():
                 for key, value in config.items():

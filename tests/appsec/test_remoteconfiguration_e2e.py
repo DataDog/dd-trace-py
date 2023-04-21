@@ -328,7 +328,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         # _request_200(gunicorn_client)
 
-        time.sleep(3)
+        time.sleep(4)
 
         _request_403(gunicorn_client)
 
