@@ -642,8 +642,9 @@ def test_probe_status_logging(monkeypatch):
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
+        import uuid
         for cb in self.get_pubsubs():
-            cb.publish(None, None)
+            cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
     RemoteConfigClient.request = request
@@ -692,8 +693,9 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
+        import uuid
         for cb in self.get_pubsubs():
-            cb.publish(None, None)
+            cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
     RemoteConfigClient.request = request

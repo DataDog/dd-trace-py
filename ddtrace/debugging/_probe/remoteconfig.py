@@ -232,29 +232,23 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         self._configs = {}  # type: Dict[str, Dict[str, Probe]]
         self._next_status_update_timestamp()
 
-    def _get_data_from_connector_and_exec(self, checksum=0, test_tracer=None):
-        super(DebuggerRemoteConfigSubscriber, self)._get_data_from_connector_and_exec(
-            checksum=checksum, test_tracer=test_tracer
-        )
-
     def _exec_callback(self, data, test_tracer=None):
         log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
         if data:
             metadata = data["metadata"]
-            config = data["config"]
             rc_config = data["config"]
             # DEV: We emit a status update event here to avoid having to spawn a
             # separate thread for this.
+            log.debug("Dynamic Instrumentation Updated")
             if time.time() > self._status_timestamp:
-                log.debug("Emitting probe status log messages")
-                probes = [probe for rc_config in self._configs.values() for probe in rc_config.values()]
+                log.debug("Dynamic Instrumentation,Emitting probe status log messages")
+                probes = [probe for config in self._configs.values() for probe in config.values()]
                 self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
                 self._next_status_update_timestamp()
             if metadata is None:
-                log.debug("no RCM metadata")
+                log.debug("Dynamic Instrumentation, no RCM metadata")
                 return
 
-            self._update_probes_for_config(metadata["id"], config)
             self._update_probes_for_config(metadata["id"], rc_config)
 
     def _next_status_update_timestamp(self):
@@ -280,7 +274,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         next_probes = (
             {probe.probe_id: probe for probe in get_probes(config_id, config)} if config not in (None, False) else {}
         )  # type: Dict[str, Probe]
-
+        log.debug("Dynamic Instrumentation, dispatch probe events")
         self._dispatch_probe_events(prev_probes, next_probes)
 
         if next_probes:
