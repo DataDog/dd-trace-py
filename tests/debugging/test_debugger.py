@@ -643,6 +643,7 @@ def test_probe_status_logging(monkeypatch):
 
     def request(self, *args, **kwargs):
         import uuid
+
         for cb in self.get_pubsubs():
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
@@ -694,6 +695,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
 
     def request(self, *args, **kwargs):
         import uuid
+
         for cb in self.get_pubsubs():
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
