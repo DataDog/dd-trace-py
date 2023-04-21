@@ -144,24 +144,24 @@ def test_remote_config_enable_validate_rc_disabled():
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
-# @pytest.mark.subprocess
-# def test_remote_config_forksafe():
-#     import os
-#
-#     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-#     from ddtrace.internal.service import ServiceStatus
-#     from tests.utils import override_env
-#
-#     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
-#         remoteconfig_poller.enable()
-#
-#         parent_worker = remoteconfig_poller
-#         assert parent_worker.status == ServiceStatus.RUNNING
-#
-#         if os.fork() == 0:
-#             assert remoteconfig_poller.status == ServiceStatus.RUNNING
-#             assert remoteconfig_poller._worker is not parent_worker
-#             exit(0)
+@pytest.mark.subprocess
+def test_remote_config_forksafe():
+    import os
+
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.service import ServiceStatus
+    from tests.utils import override_env
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        remoteconfig_poller.enable()
+
+        parent_worker = remoteconfig_poller
+        assert parent_worker.status == ServiceStatus.RUNNING
+
+        if os.fork() == 0:
+            assert remoteconfig_poller.status == ServiceStatus.RUNNING
+            assert remoteconfig_poller._worker is not parent_worker
+            exit(0)
 
 
 def test_remote_configuration_check_deprecated_var():

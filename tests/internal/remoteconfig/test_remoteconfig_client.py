@@ -288,11 +288,12 @@ def test_apply_default_callback():
     class CallbackClass:
         config = None
         result = None
+        _publisher = None
 
         @classmethod
         def publish(cls, *args, **kwargs):
-            cls.config = dict(args[0])
-            cls.result = dict(args[1])
+            cls.config = dict(args[1])
+            cls.result = dict(args[0])
 
     callback_content = {"a": 1}
     target = "1/ASM/2"
