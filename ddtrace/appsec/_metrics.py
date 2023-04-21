@@ -67,13 +67,14 @@ def _set_waf_request_metrics():
         if any((list_results, list_result_info, list_is_blocked)):
             is_blocked = any(list_is_blocked)
             is_triggered = any((result.data for result in list_results))
+            is_timeout = any((result.timeout for result in list_results))
             has_info = any(list_result_info)
 
             common_tags = {
                 "waf_version": version(),
-                "lib_language": "python",
                 "rule_triggered": is_triggered,
                 "request_blocked": is_blocked,
+                "waf_timeout": is_timeout,
             }
 
             if has_info and list_result_info[0].version:

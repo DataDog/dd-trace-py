@@ -69,6 +69,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
             assert metric._tags["request_blocked"] is is_blocked_request
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
+            assert len(metric._tags["waf_timeout"]) > 0
         else:
             pytest.fail("Unexpected distributions_metrics {}".format(metric.name))
 
