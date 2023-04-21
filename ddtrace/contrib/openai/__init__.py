@@ -3,9 +3,6 @@ The OpenAI integration instruments the OpenAI Python library to emit metrics,
 traces and logs for requests made to the OpenAI completions, chat completions
 and embeddings endpoints.
 
-By enabling the requests (or aiohttp, if using async) integrations the traces
-from this integration will include the HTTP requests from the OpenAI library.
-
 
 Metrics
 ~~~~~~~
@@ -25,7 +22,7 @@ Logs are **not** emitted by default. When logs are enabled they are sampled at 1
 
 .. important::
 
-     ``DD_API_KEY`` is required to submit logs.
+     ``DD_API_KEY`` environment variable is required to submit logs.
 
 
 Enabling
@@ -34,20 +31,27 @@ Enabling
 The OpenAI integration is enabled automatically when using
 :ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
 
-Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
+Note that these commands will also enable the ``requests`` and ``aiohttp``
+integrations which will trace HTTP requests from the OpenAI library.
+
+Or use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration::
 
     from ddtrace import config, patch
 
     # Note: be sure to configure the integration before calling ``patch()``!
-    # eg. config.openai.logs_enabled = True
+    # eg. config.openai["logs_enabled"] = True
 
     patch(openai=True)
 
-    # or if doing synchronous requests (the default)
-    patch(openai=True, requests=True)
+    # if doing synchronous requests (the default)
+    # patch(openai=True, requests=True)
 
     # or if doing asynchronous requests
     # patch(openai=True, aiohttp=True)
+
+    # to disable requests or aiohttp integrations
+    # patch(openai=True, requests=False)
+    # patch(openai=True, aiohttp=False)
 
 
 
@@ -72,7 +76,7 @@ Global Configuration
    This option can also be set with the ``DD_OPENAI_LOGS_ENABLED`` environment
    variable.
 
-   Note that ``DD_API_KEY`` must be set to enable logs transmission.
+   Note that the ``DD_API_KEY`` environment variable must be set to enable logs transmission.
 
    Default: ``False``
 
@@ -91,7 +95,7 @@ Global Configuration
    Default: ``True``
 
 
-.. py:data:: ddtrace.config.openai["truncation_threshold"]
+.. py:data:: (beta) ddtrace.config.openai["truncation_threshold"]
 
    Configure the maximum number of characters for prompts and completions within span tags.
 
@@ -136,8 +140,8 @@ To configure the OpenAI integration on a per-instance basis use the
 
     Pin.override(openai, service="my-openai-service")
 
-    config.openai.metrics_enabled = False
-    config.openai.logs_enabled = True
+    config.openai["metrics_enabled"] = False
+    config.openai["logs_enabled"] = True
 """
 from ...internal.utils.importlib import require_modules
 
