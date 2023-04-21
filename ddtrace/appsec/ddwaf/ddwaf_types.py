@@ -57,6 +57,9 @@ DDWAF_MAX_CONTAINER_DEPTH = 20
 DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
 DDWAF_DEPTH_NO_LIMIT = 1000
+_TRUNC_STRING_LENGHT = 1
+_TRUNC_CONTAINER_DEPTH = 2
+_TRUNC_CONTAINER_SIZE = 4
 
 
 class DDWAF_OBJ_TYPE(IntEnum):
@@ -113,36 +116,50 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct=None,
+        observator=[0],
         max_objects=DDWAF_MAX_CONTAINER_SIZE,
         max_depth=DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length=DDWAF_MAX_STRING_LENGTH,
     ):
-        # type: (DDWafRulesType, int, int, int) -> None
+        # type: (DDWafRulesType, list[int], int, int, int) -> None
+
+        def truncate_string(string):
+            if len(string) > max_string_length - 1:
+                observator[0] |= _TRUNC_STRING_LENGHT
+                return string[: max_string_length - 1]
+            return string
+
         if isinstance(struct, bool):
             ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
+            ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct[: max_string_length - 1])
+            ddwaf_object_string(self, truncate_string(struct))
         elif isinstance(struct, float):
-            res = unicode(struct).encode("UTF-8", errors="ignore")[: max_string_length - 1]
-            ddwaf_object_string(self, res)
+            ddwaf_object_string(self, truncate_string(unicode(struct).encode("UTF-8", errors="ignore")))
         elif isinstance(struct, list):
             if max_depth <= 0:
+                observator[0] |= _TRUNC_CONTAINER_DEPTH
                 max_objects = 0
             array = ddwaf_object_array(self)
             for counter_object, elt in enumerate(struct):
                 if counter_object >= max_objects:
+                    observator[0] |= _TRUNC_CONTAINER_SIZE
                     break
                 obj = ddwaf_object(
-                    elt, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
+                    elt,
+                    observator=observator,
+                    max_objects=max_objects,
+                    max_depth=max_depth - 1,
+                    max_string_length=max_string_length,
                 )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
             if max_depth <= 0:
+                observator[0] |= _TRUNC_CONTAINER_DEPTH
                 max_objects = 0
             map_o = ddwaf_object_map(self)
             # order is unspecified and could lead to problems if max_objects is reached
@@ -150,21 +167,24 @@ class ddwaf_object(ctypes.Structure):
                 if not isinstance(key, (bytes, unicode)):  # discards non string keys
                     continue
                 if counter_object >= max_objects:
+                    observator[0] |= _TRUNC_CONTAINER_SIZE
                     break
-                res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
-                    : max_string_length - 1
-                ]
+                res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)
                 obj = ddwaf_object(
-                    val, max_objects=max_objects, max_depth=max_depth - 1, max_string_length=max_string_length
+                    val,
+                    observator=observator,
+                    max_objects=max_objects,
+                    max_depth=max_depth - 1,
+                    max_string_length=max_string_length,
                 )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_map_add(map_o, res_key, obj)
         elif struct is not None:
             struct = str(struct)
             if isinstance(struct, bytes):  # Python 2
-                ddwaf_object_string(self, struct[: max_string_length - 1])
+                ddwaf_object_string(self, truncate_string(struct))
             else:  # Python 3
-                ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: max_string_length - 1])
+                ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         else:
             ddwaf_object_invalid(self)
 
