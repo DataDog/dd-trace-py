@@ -26,15 +26,13 @@
       "request.messages.3.content": "Where was it played?",
       "request.messages.3.role": "user",
       "response.choices.0.finish_reason": "stop",
-      "response.choices.0.logprobs": "None",
       "response.choices.0.message.content": "The 2020 World Series was played in Arlington, Texas at Globe Life Field.",
       "response.choices.0.message.role": "assistant",
       "response.choices.1.finish_reason": "stop",
-      "response.choices.1.logprobs": "None",
       "response.choices.1.message.content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
       "response.choices.1.message.role": "assistant",
       "response.object": "chat.completion",
-      "runtime-id": "102c05dd94d641c0839e3cabf5c4ae8f"
+      "runtime-id": "681d0e2f01f2498294714548950a8039"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -42,7 +40,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 76713,
+      "process_id": 99065,
       "request.n": 2,
       "request.top_p": 0.9,
       "response.choices.num": 2,
@@ -50,6 +48,6 @@
       "response.usage.prompt_tokens": 57,
       "response.usage.total_tokens": 91
     },
-    "duration": 2350000,
-    "start": 1681938794060615000
+    "duration": 2606000,
+    "start": 1682094993403273000
   }]]

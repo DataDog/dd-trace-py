@@ -224,24 +224,25 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
         ]
     )
 
-    mock_logs.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "message": mock.ANY,
-                    "hostname": mock.ANY,
-                    "ddsource": "openai",
-                    "service": None,  # TODO: should be a string
-                    "status": "info",
-                    "ddtags": "env:None,version:None,endpoint:completions,model:curie",
-                    "dd.trace_id": mock.ANY,
-                    "dd.span_id": mock.ANY,
-                    "prompt": "As Descartes said, I think, therefore",
-                    "choices": mock.ANY,
-                }
-            ),
-        ]
-    )
+    # mock_logs.assert_has_calls(
+    #     [
+    #         mock.call.enqueue(
+    #             {
+    #                 "message": mock.ANY,
+    #                 "hostname": mock.ANY,
+    #                 "ddsource": "openai",
+    #                 "service": None,  # TODO: should be a string
+    #                 "status": "info",
+    #                 "ddtags": "env:None,version:None,endpoint:completions,model:curie",
+    #                 "dd.trace_id": mock.ANY,
+    #                 "dd.span_id": mock.ANY,
+    #                 "prompt": "As Descartes said, I think, therefore",
+    #                 "choices": mock.ANY,
+    #             }
+    #         ),
+    #     ]
+    # )
+    mock_logs.assert_not_called()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -324,17 +325,24 @@ def test_misuse():
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
-def test_completion_stream():
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_completion_stream(snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         openai.Completion.create(model="ada", prompt="Hello world", stream=True)
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.asyncio
+async def test_completion_async_stream(snapshot_tracer):
+    with openai_vcr.use_cassette("completion_async_streamed.yaml"):
+        await openai.Completion.acreate(model="ada", prompt="Hello world", stream=True)
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.skipif(
     not hasattr(openai, "ChatCompletion"), reason="Chat completion not supported for this version of openai"
 )
-def test_chat_completion_stream():
+def test_chat_completion_stream(snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",

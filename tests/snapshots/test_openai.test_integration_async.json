@@ -20,10 +20,10 @@
       "organization.ratelimit.tokens.remaining": "249983",
       "request.prompt": "hello world",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.logprobs": "None",
+      "response.choices.0.logprobs": "returned",
       "response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
       "response.object": "text_completion",
-      "runtime-id": "d982f11cdd704360a56dd2a903cd9f20"
+      "runtime-id": "e11dd6804df04094acc65cab94ac83bf"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,12 +31,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 76726,
+      "process_id": 243,
       "response.choices.num": 1,
       "response.usage.completion_tokens": 16,
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 18
     },
-    "duration": 10999000,
-    "start": 1681938795636081000
+    "duration": 10878000,
+    "start": 1682095143415452000
   }]]

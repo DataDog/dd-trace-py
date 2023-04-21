@@ -78,13 +78,14 @@ class _OpenAIIntegration:
         span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(COMPONENT, self._config.integration_name)
-        # do these dynamically as openai users can set these at any point
+        # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
-        for attr in ("api_base", "api_version", "organization"):
+        # organization_id is only returned by a few endpoints, grab it when we can.
+        for attr in ("api_base", "api_version", "organization_id"):
             if hasattr(self._openai, attr):
                 v = getattr(self._openai, attr)
                 if v is not None:
-                    if attr == "organization":
+                    if attr == "organization_id":
                         span.set_tag_str("organization.id", v)
                     else:
                         span.set_tag_str(attr, v)
@@ -101,6 +102,7 @@ class _OpenAIIntegration:
             "version:%s" % config.version,
             "endpoint:%s" % span.get_tag("endpoint"),
             "model:%s" % span.get_tag("model"),
+            "organization.name:%s" % span.get_tag("organization.name"),
         ]
         log = {
             "timestamp": time.time() * 1000,
@@ -178,6 +180,9 @@ def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
 
+    if getattr(openai, "__datadog_patch", False):
+        return
+
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
     ddapikey = os.getenv("DD_API_KEY", "")
 
@@ -193,9 +198,6 @@ def patch():
         if not ddapikey:
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
         integration.start_log_writer()
-
-    if getattr(openai, "__datadog_patch", False):
-        return
 
     wrap(openai, "api_requestor._make_session", _patched_make_session(openai))
     wrap(openai, "util.convert_to_openai_object", _patched_convert(integration)(openai))
@@ -250,9 +252,10 @@ def unpatch():
 @trace_utils.with_traced_module
 def _patched_make_session(openai, pin, func, instance, args, kwargs):
     """Patch for `openai.api_requestor._make_session` which sets the service name on the
-    requests session so that spans from the requests integration will use the same service
-    as this integration. This is done so that the service break down will include the actual
-    time spent querying the OpenAI backend.
+    requests session so that spans from the requests integration will use the service name openai.
+    This is done so that the service break down will include OpenAI time spent querying the OpenAI backend.
+
+    This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func()
     cfg = config.get_from(session)
@@ -271,6 +274,8 @@ def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kw
         hook.send(None)
 
         resp, error = yield
+
+        # Record any error information
         if error is not None:
             span.set_exc_info(*sys.exc_info())
             integration.metric(span, "incr", "request.error", 1)
@@ -333,7 +338,23 @@ class _EndpointHook:
         raise NotImplementedError
 
 
-class _CompletionHook(_EndpointHook):
+class _BaseCompletionHook(_EndpointHook):
+    """Completion and ChatCompletion share a lot of logic, capture that here."""
+
+    _request_tag_attrs = []
+
+    def _record_request(self, span, kwargs):
+        for kw_attr in self._request_tag_attrs:
+            if kw_attr in kwargs:
+                if isinstance(kwargs[kw_attr], dict):
+                    set_flattened_tags(
+                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
+                    )
+                else:
+                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+
+
+class _CompletionHook(_BaseCompletionHook):
     _request_tag_attrs = [
         "suffix",
         "max_tokens",
@@ -362,14 +383,7 @@ class _CompletionHook(_EndpointHook):
             elif prompt:
                 span.set_tag_str("request.prompt", integration.trunc(prompt))
 
-        for kw_attr in self._request_tag_attrs:
-            if kw_attr in kwargs:
-                if isinstance(kwargs[kw_attr], dict):
-                    set_flattened_tags(
-                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
-                    )
-                else:
-                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+        self._record_request(span, kwargs)
 
         resp, error = yield
 
@@ -400,7 +414,7 @@ class _CompletionHook(_EndpointHook):
                 )
 
 
-class _ChatCompletionHook(_EndpointHook):
+class _ChatCompletionHook(_BaseCompletionHook):
     _request_tag_attrs = [
         "temperature",
         "top_p",
@@ -431,14 +445,7 @@ class _ChatCompletionHook(_EndpointHook):
             else:
                 set_message_tag(messages)
 
-        for kw_attr in self._request_tag_attrs:
-            if kw_attr in kwargs:
-                if isinstance(kwargs[kw_attr], dict):
-                    set_flattened_tags(
-                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
-                    )
-                else:
-                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+        self._record_request(span, kwargs)
 
         resp, error = yield
 

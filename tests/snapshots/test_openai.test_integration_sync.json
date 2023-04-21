@@ -20,10 +20,10 @@
       "organization.ratelimit.tokens.remaining": "249983",
       "request.prompt": "hello world",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.logprobs": "None",
-      "response.choices.0.text": "-to-me they will happen.\n\nBoth techniques were invented from experience",
+      "response.choices.0.logprobs": "returned",
+      "response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
       "response.object": "text_completion",
-      "runtime-id": "1f111dc194814d4c9b86a116fd1ecf96"
+      "runtime-id": "e5b32b2ff341444d9b8dbcb62c9a41db"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,14 +31,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40805,
+      "process_id": 1016,
       "response.choices.num": 1,
       "response.usage.completion_tokens": 16,
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 18
     },
-    "duration": 15813000,
-    "start": 1681970508116344000
+    "duration": 468678000,
+    "start": 1682095207401441000
   },
      {
        "name": "requests.request",
@@ -61,6 +61,6 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 2473000,
-       "start": 1681970508127055000
+       "duration": 5951000,
+       "start": 1682095207852645000
      }]]

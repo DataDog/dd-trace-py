@@ -21,13 +21,13 @@
       "request.prompt": "Hello world",
       "request.stop": ".",
       "response.choices.0.finish_reason": "length",
-      "response.choices.0.logprobs": "None",
+      "response.choices.0.logprobs": "returned",
       "response.choices.0.text": ", relax!\u201d I said to my laptop",
       "response.choices.1.finish_reason": "stop",
-      "response.choices.1.logprobs": "None",
-      "response.choices.1.text": " (1",
+      "response.choices.1.logprobs": "returned",
+      "response.choices.1.text": "(1",
       "response.object": "text_completion",
-      "runtime-id": "1fae4cabe462479c9c9c620fd340698d"
+      "runtime-id": "681d0e2f01f2498294714548950a8039"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -35,7 +35,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 35355,
+      "process_id": 99065,
       "request.max_tokens": 10,
       "request.n": 2,
       "request.temperature": 0.8,
@@ -44,6 +44,6 @@
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 14
     },
-    "duration": 12969000,
-    "start": 1681947938555701000
+    "duration": 19941000,
+    "start": 1682094993327865000
   }]]
