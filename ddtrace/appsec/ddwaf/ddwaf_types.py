@@ -191,7 +191,7 @@ class ddwaf_object(ctypes.Structure):
     @classmethod
     def create_without_limits(cls, struct):
         # type: (type, DDWafRulesType) -> ddwaf_object
-        return cls(struct, DDWAF_NO_LIMIT, DDWAF_DEPTH_NO_LIMIT, DDWAF_NO_LIMIT)
+        return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
 
     @property
     def struct(self):
