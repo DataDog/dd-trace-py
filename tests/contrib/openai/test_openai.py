@@ -9,7 +9,6 @@ import vcr
 
 from ddtrace import Pin
 from ddtrace import Span
-from ddtrace import config
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
@@ -107,63 +106,57 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
         openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
 
     assert mock_metrics.mock_calls
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "model:ada",
+        "endpoint:completions",
+        "organization.id:None",
+        "organization.name:datadog-4",
+        "error:0",
+    ]
     mock_metrics.assert_has_calls(
         [
             mock.call.distribution(
                 "tokens.prompt",
                 2,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:ada",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "tokens.completion",
                 12,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:ada",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "tokens.total",
                 14,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:ada",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "request.duration",
                 mock.ANY,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:ada",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
             ),
         ]
     )
@@ -176,86 +169,79 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
         await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
         )
-
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "model:curie",
+        "endpoint:completions",
+        "organization.id:None",
+        "organization.name:datadog-4",
+        "error:0",
+    ]
     mock_metrics.assert_has_calls(
         [
             mock.call.distribution(
                 "tokens.prompt",
                 10,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:curie",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "tokens.completion",
                 150,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:curie",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "tokens.total",
                 160,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:curie",
-                    "endpoint:completions",
-                    "organization.id:None",
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
             ),
             mock.call.distribution(
                 "request.duration",
                 mock.ANY,
-                tags=[
-                    "version:",
-                    "env:",
-                    "service:",
-                    "model:curie",
-                    "endpoint:completions",
-                    "organization.id:None",  # TODO: should be ""?
-                    "organization.name:datadog-4",
-                    "error:0",
-                ],
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
             ),
         ]
     )
 
-    # mock_logs.assert_has_calls(
-    #     [
-    #         mock.call.enqueue(
-    #             {
-    #                 "message": mock.ANY,
-    #                 "hostname": mock.ANY,
-    #                 "ddsource": "openai",
-    #                 "service": None,  # TODO: should be a string
-    #                 "status": "info",
-    #                 "ddtags": "env:None,version:None,endpoint:completions,model:curie",
-    #                 "dd.trace_id": mock.ANY,
-    #                 "dd.span_id": mock.ANY,
-    #                 "prompt": "As Descartes said, I think, therefore",
-    #                 "choices": mock.ANY,
-    #             }
-    #         ),
-    #     ]
-    # )
+    mock_logs.assert_has_calls(
+        [
+            mock.call.enqueue(
+                {
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": None,  # TODO: should be a string
+                    "status": "info",
+                    "ddtags": "env:None,version:None,endpoint:completions,model:curie",
+                    "dd.trace_id": mock.ANY,
+                    "dd.span_id": mock.ANY,
+                    "prompt": "As Descartes said, I think, therefore",
+                    "choices": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -456,8 +442,6 @@ def test_completion_sample():
 )
 def test_chat_completion_sample():
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
-    import os
-
     import openai
 
     import ddtrace
