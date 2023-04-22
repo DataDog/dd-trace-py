@@ -6,7 +6,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.pin import Pin
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
-from ddtrace.internal.schema import schematize_service_name
 
 from .client import WrappedClient
 
