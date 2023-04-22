@@ -12,6 +12,7 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
@@ -34,7 +35,7 @@ DBMS_NAME = "postgresql"
 config._add(
     "asyncpg",
     dict(
-        _default_service="postgres",
+        _default_service=schematize_service_name("postgres"),
     ),
 )
 
