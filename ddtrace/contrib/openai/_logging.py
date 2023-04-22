@@ -1,4 +1,7 @@
 import json
+
+# logger = get_logger(__name__)
+import logging
 import threading
 from typing import List
 from typing import TypedDict
@@ -7,9 +10,10 @@ from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.service import ServiceStatus
 
 
-logger = get_logger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class V2LogEvent(TypedDict):
@@ -54,10 +58,15 @@ class V2LogWriter(PeriodicService):
             "DD-API-KEY": self._api_key,
             "Content-Type": "application/json",
         }
+        logger.debug("starting log writer to %s/%s", self._site, self._endpoint)
 
     def enqueue(self, log):
         # type: (V2LogEvent) -> None
         with self._lock:
+            if self.status == ServiceStatus.RUNNING:
+                return
+            self.start()
+
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning("log buffer full (limit is %d), dropping log", self._buffer_limit)
                 return

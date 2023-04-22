@@ -1,4 +1,6 @@
 import os
+from typing import AsyncGenerator
+from typing import Generator
 from typing import List
 from typing import Optional
 
@@ -10,14 +12,17 @@ import vcr
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
+from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
+from tests.utils import override_config
 
 
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
+
 # To (re)-generate the cassettes: pass a real OpenAI API key with
 # OPENAI_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
@@ -28,6 +33,7 @@ from tests.utils import DummyTracer
 openai.api_key = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 if os.getenv("OPENAI_ORGANIZATION"):
     openai.organization = os.getenv("OPENAI_ORGANIZATION")
+
 openai_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
     record_mode="once",
@@ -91,7 +97,7 @@ def snapshot_tracer(patch_openai, mock_logs, mock_metrics):
 def mock_tracer(patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer()
-    pin.override(openai, tracer=DummyTracer())
+    pin.override(openai, tracer=mock_tracer)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
     yield mock_tracer
@@ -101,18 +107,17 @@ def mock_tracer(patch_openai, mock_logs, mock_metrics):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion(mock_metrics, mock_logs, snapshot_tracer):
+def test_completion(mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
         openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
 
-    assert mock_metrics.mock_calls
     expected_tags = [
         "version:",
         "env:",
         "service:",
         "model:ada",
         "endpoint:completions",
-        "organization.id:None",
+        "organization.id:",
         "organization.name:datadog-4",
         "error:0",
     ]
@@ -164,7 +169,7 @@ def test_completion(mock_metrics, mock_logs, snapshot_tracer):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
+async def test_acompletion(mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_async.yaml"):
         await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
@@ -223,6 +228,7 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
             ),
         ]
     )
+    mock_logs.assert_not_called()
 
     # mock_logs.assert_has_calls(
     #     [
@@ -242,7 +248,6 @@ async def test_acompletion(mock_metrics, mock_logs, snapshot_tracer):
     #         ),
     #     ]
     # )
-    mock_logs.assert_not_called()
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -262,6 +267,19 @@ def test_chat_completion(snapshot_tracer):
             top_p=0.9,
             n=2,
         )
+    mock_logs.assert_not_called()
+
+
+@pytest.mark.parametrize("metrics_enabled", [True, False])
+def test_enable_metrics(metrics_enabled, mock_metrics):
+    """Ensure the metrics_enabled configuration works."""
+    with override_config("openai", dict(metrics_enabled=metrics_enabled)):
+        with openai_vcr.use_cassette("completion.yaml"):
+            openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+    if metrics_enabled:
+        assert mock_metrics.mock_calls
+    else:
+        assert not mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -325,17 +343,99 @@ def test_misuse():
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion_stream(snapshot_tracer):
+def test_completion_stream(mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        openai.Completion.create(model="ada", prompt="Hello world", stream=True)
+        resp = openai.Completion.create(model="ada", prompt="Hello world", stream=True)
+        assert isinstance(resp, Generator)
+        chunks = [c for c in resp]
+
+    completion = "".join([c["choices"][0]["text"] for c in chunks])
+    assert completion == '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+
+    traces = mock_tracer.pop_traces()
+    assert len(traces) == 2
+    t1, t2 = traces
+    assert len(t1) == len(t2) == 1
+    assert t2[0].parent_id == t1[0].span_id
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "model:ada",
+        "endpoint:completions",
+        "organization.id:",
+        "organization.name:",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                2,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                len(chunks),
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                len(chunks) + 2,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.asyncio
-async def test_completion_async_stream(snapshot_tracer):
+async def test_completion_async_stream(mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_async_streamed.yaml"):
-        await openai.Completion.acreate(model="ada", prompt="Hello world", stream=True)
+        resp = await openai.Completion.acreate(model="ada", prompt="Hello world", stream=True)
+        assert isinstance(resp, AsyncGenerator)
+        chunks = [c async for c in resp]
+
+    completion = "".join([c["choices"][0]["text"] for c in chunks])
+    assert completion == "\" and just start creating stuff. Don't expect it to draw like this."
+
+    traces = mock_tracer.pop_traces()
+    assert len(traces) == 2
+    t1, t2 = traces
+    assert len(t1) == len(t2) == 1
+    assert t2[0].parent_id == t1[0].span_id
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "model:ada",
+        "endpoint:completions",
+        "organization.id:",
+        "organization.name:",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                2,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                len(chunks),
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                len(chunks) + 2,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -604,3 +704,23 @@ def test_logs():
                 assert (rate - 15) < logs < (rate + 15)
 
     _test_logs()
+
+
+def test_est_tokens():
+    """
+    Oracle numbers come from https://platform.openai.com/tokenizer
+    """
+    est = _patch._est_tokens
+    assert est("hello world") == 2
+    assert est("Hello world, how are you?") == 7 - 2
+    assert est("hello") == 1
+    assert est("") == 0
+    assert (
+        est(
+            """
+    A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words).
+
+If you need a programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, the gpt-3-encoder package for node.js works for most GPT-3 models."""
+        )
+        == 75
+    )
