@@ -804,9 +804,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "django": ["~=4.2", latest],
+                        "psycopg": latest,
+                        "channels": latest,
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
                         "django": [latest],
+                        "psycopg": latest,
                         "channels": latest,
                     },
                 ),
@@ -1143,8 +1153,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="psycopg",
-            command="pytest {cmdargs} tests/contrib/psycopg",
+            name="psycopg2",
+            command="pytest {cmdargs} tests/contrib/psycopg2",
             venvs=[
                 Venv(
                     # psycopg2-binary dropped support for Python 2.7 in 2.9
@@ -1161,6 +1171,23 @@ venv = Venv(
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.11"),
+                    # Python 3.6 supported up to 3.1.0
+                    pkgs={"psycopg": ["~=3.0.18"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
+                    pkgs={"psycopg": [latest]},
                 ),
             ],
         ),
@@ -2317,6 +2344,23 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+        ),
+        Venv(
+            name="dbapi_async",
+            command="pytest {cmdargs} tests/contrib/dbapi_async",
+            pys=select_pys(min_version="3.5"),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                ),
+                Venv(pys=["3.11"], pkgs={"attrs": latest}),
+            ],
         ),
         Venv(
             name="dogpile_cache",
