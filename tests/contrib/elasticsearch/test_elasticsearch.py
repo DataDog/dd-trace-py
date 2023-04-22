@@ -269,19 +269,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == "custom-elasticsearch"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
-    def test_service_mapping_config(self):
-        """
-        When a user specifies a service mapping it should override the default
-        """
-        assert config.elasticsearch.service != "custom-elasticsearch"
-
-        self.es.indices.create(index=self.ES_INDEX, ignore=400)
-        spans = self.get_spans()
-        self.reset()
-        assert len(spans) == 1
-        assert spans[0].service == "custom-elasticsearch"
-
     def test_service_name_config_override(self):
         """
         When a user specifies a service mapping it should override the default

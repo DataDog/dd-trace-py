@@ -425,7 +425,7 @@ class PsycopgCore(TracerTestCase):
         assert spans[0].service == "postgres"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v0(self):
+    def test_unspecified_service_v1(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
 

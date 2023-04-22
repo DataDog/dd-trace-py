@@ -7,7 +7,6 @@ from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import MYSQL_CONFIG
 
 
@@ -171,7 +170,7 @@ asyncio.run(test())""",
 async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
     """
     v1: When a user specifies nothing for a service,
-        it should default to DEFAULT_SPAN_SERVICE_NAME
+        it should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"

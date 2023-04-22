@@ -213,7 +213,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].service != "mysvc"
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v0(self):
+    def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The aiopg integration should use it.
@@ -252,7 +252,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service == DEFAULT_SERVICE_NAME
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

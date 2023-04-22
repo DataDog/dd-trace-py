@@ -306,17 +306,3 @@ def test_patch_unpatch_asyncpg():
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute)
     assert not iswrapped(asyncpg.protocol.Protocol.query)
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
-
-
-def test_patch_unpatch_asyncpg():
-    assert iswrapped(asyncpg.connect)
-    assert iswrapped(asyncpg.protocol.Protocol.execute)
-    assert iswrapped(asyncpg.protocol.Protocol.bind_execute)
-    assert iswrapped(asyncpg.protocol.Protocol.query)
-    assert iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
-    unpatch()
-    assert not iswrapped(asyncpg.connect)
-    assert not iswrapped(asyncpg.protocol.Protocol.execute)
-    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute)
-    assert not iswrapped(asyncpg.protocol.Protocol.query)
-    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
