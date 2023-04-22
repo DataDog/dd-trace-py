@@ -20,4 +20,4 @@ pytest-cov==4.0.0
 pytest-django==3.10.0
 pytest-mock==3.10.0
 sortedcontainers==2.4.0
-sqlparse==0.4.3
+sqlparse==0.4.4

@@ -21,5 +21,5 @@ pytest-django==3.10.0
 pytest-mock==3.10.0
 pytz==2022.7.1
 sortedcontainers==2.4.0
-sqlparse==0.4.3
+sqlparse==0.4.4
 tomli==2.0.1

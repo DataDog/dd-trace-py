@@ -48,7 +48,7 @@ requests==2.27.1
 service-identity==21.1.0
 six==1.16.0
 sortedcontainers==2.4.0
-sqlparse==0.4.3
+sqlparse==0.4.4
 tomli==1.2.3
 twisted[tls]==22.4.0
 txaio==22.2.1

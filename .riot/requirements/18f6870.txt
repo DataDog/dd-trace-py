@@ -25,6 +25,6 @@ pytest==6.1.2
 pytz==2022.7.1
 six==1.16.0
 sortedcontainers==2.4.0
-sqlparse==0.4.3
+sqlparse==0.4.4
 toml==0.10.2
 zipp==1.2.0
