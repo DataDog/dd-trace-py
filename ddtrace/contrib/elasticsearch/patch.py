@@ -14,6 +14,7 @@ from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...internal.compat import urlencode
+from ...internal.schema import schematize_service_name
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
@@ -22,7 +23,7 @@ from .quantize import quantize
 config._add(
     "elasticsearch",
     {
-        "_default_service": "elasticsearch",
+        "_default_service": schematize_service_name("elasticsearch"),
     },
 )
 

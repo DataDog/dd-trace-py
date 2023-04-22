@@ -2,8 +2,8 @@ from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
