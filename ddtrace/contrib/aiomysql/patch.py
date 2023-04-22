@@ -15,11 +15,12 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 
 
 config._add(
     "aiomysql",
-    dict(_default_service="mysql"),
+    dict(_default_service=schematize_service_name("mysql")),
 )
 
 CONN_ATTR_BY_TAG = {
