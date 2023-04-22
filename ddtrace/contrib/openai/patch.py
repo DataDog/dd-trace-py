@@ -27,7 +27,7 @@ config._add(
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
-        "truncation_threshold": int(os.getenv("DD_OPENAI_TRUNCATION_THRESHOLD", 512)),
+        "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
 
@@ -168,8 +168,8 @@ class _OpenAIIntegration:
         text = text.replace("\n", "\\n")
         text = text.replace("\t", "\\t")
         text = " ".join(text.split())
-        if len(text) > self._config.truncation_threshold:
-            text = text[: self._config.truncation_threshold] + "..."
+        if len(text) > self._config.span_char_limit:
+            text = text[: self._config.span_char_limit] + "..."
         return text
 
 

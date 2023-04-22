@@ -512,7 +512,7 @@ def test_completion_truncation():
 
     for trace in traces:
         for span in trace:
-            limit = ddtrace.config.openai["truncation_threshold"]
+            limit = ddtrace.config.openai["span_char_limit"]
             prompt = span.get_tag("request.prompt")
             completion = span.get_tag("response.choices.0.text")
             # +3 for the ellipsis
@@ -555,7 +555,7 @@ def test_chat_completion_truncation():
 
     for trace in traces:
         for span in trace:
-            limit = ddtrace.config.openai["truncation_threshold"]
+            limit = ddtrace.config.openai["span_char_limit"]
             prompt = span.get_tag("request.messages.0.content")
             completion = span.get_tag("response.choices.0.message.content")
             assert len(prompt) <= limit + 3

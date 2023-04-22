@@ -48,8 +48,8 @@ Prompt and Completion Sampling (beta)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Prompts and completions on Completion and ChatCompletion requests are always
-sampled on span data. The length of the samples is limited by the ``truncation_threshold``
-setting.
+sampled on span data. The length of the samples in span tags is limited 
+by the ``span_char_limit`` setting.
 
 Logs are **not** emitted by default, see below for instructions to enable logs.
 When logs are enabled they are sampled at 10%.
@@ -128,7 +128,7 @@ Global Configuration
    Default: ``True``
 
 
-.. py:data:: (beta) ddtrace.config.openai["truncation_threshold"]
+.. py:data:: (beta) ddtrace.config.openai["span_char_limit"]
 
    Configure the maximum number of characters for prompts and completions within span tags.
 
