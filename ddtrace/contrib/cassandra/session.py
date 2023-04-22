@@ -25,6 +25,7 @@ from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
@@ -34,7 +35,7 @@ from ...vendor import wrapt
 log = get_logger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
-SERVICE = "cassandra"
+SERVICE = schematize_service_name("cassandra")
 CURRENT_SPAN = "_ddtrace_current_span"
 PAGE_NUMBER = "_ddtrace_page_number"
 
