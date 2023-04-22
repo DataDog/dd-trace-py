@@ -6,6 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysqldb.patch import patch
 from ddtrace.contrib.mysqldb.patch import unpatch
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -703,7 +704,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert len(rows) == 1
         spans = tracer.pop()
 
-        assert spans[0].service == "unnamed-python-service"
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
