@@ -5,8 +5,8 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysqldb.patch import patch
 from ddtrace.contrib.mysqldb.patch import unpatch
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema import schematize_service_name
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset

@@ -6,6 +6,7 @@ from ddtrace.contrib.pymysql.patch import patch
 from ddtrace.contrib.pymysql.patch import unpatch
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import stringify
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.schema import schematize_service_name
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -511,4 +512,4 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "unnamed-python-service"
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
