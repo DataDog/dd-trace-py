@@ -70,7 +70,9 @@ class _OpenAIIntegration:
 
         Set default OpenAI span attributes when possible.
         """
-        resource = "%s/%s" % (endpoint, model) if model else endpoint
+        resource = endpoint
+        if model:
+            resource += "/%s" % model
         span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -78,13 +80,12 @@ class _OpenAIIntegration:
         # not necessarily before patch() time.
         # organization_id is only returned by a few endpoints, grab it when we can.
         for attr in ("api_base", "api_version", "organization_id"):
-            if hasattr(self._openai, attr):
-                v = getattr(self._openai, attr)
-                if v is not None:
-                    if attr == "organization_id":
-                        span.set_tag_str("organization.id", v or "")
-                    else:
-                        span.set_tag_str(attr, v)
+            v = getattr(self._openai, attr, None)
+            if v is not None:
+                if attr == "organization_id":
+                    span.set_tag_str("organization.id", v or "")
+                else:
+                    span.set_tag_str(attr, v)
         span.set_tag_str("endpoint", endpoint)
         if model:
             span.set_tag_str("model", model)
@@ -93,13 +94,14 @@ class _OpenAIIntegration:
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        tags = [
-            "env:%s" % (config.env or ""),
-            "version:%s" % (config.version or ""),
-            "endpoint:%s" % (span.get_tag("endpoint") or ""),
-            "model:%s" % (span.get_tag("model") or ""),
-            "organization.name:%s" % (span.get_tag("organization.name") or ""),
-        ]
+        tags = "env:%s,version:%s,endpoint:%s,model:%s,organization.name:%s" % (
+            (config.env or ""),
+            (config.version or ""),
+            (span.get_tag("endpoint") or ""),
+            (span.get_tag("model") or ""),
+            (span.get_tag("organization.name") or ""),
+        )
+
         log = {
             "timestamp": time.time() * 1000,
             "message": msg,
@@ -107,7 +109,7 @@ class _OpenAIIntegration:
             "ddsource": "openai",
             "service": span.service or "",
             "status": level,
-            "ddtags": ",".join(t for t in tags),
+            "ddtags": tags,
         }
         if span is not None:
             log["dd.trace_id"] = str(span.trace_id)
@@ -613,36 +615,44 @@ def _patched_convert(openai, integration):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
+        span = pin.tracer.current_span()
+        if not span:
+            return func(*args, **kwargs)
+
         for val in args:
+            if not isinstance(val, openai.openai_response.OpenAIResponse):
+                continue
+
             # FIXME these are reported for each chunk
             # this is a signal to avoid repeating these calls for each
-            # TODO: need a better signal
-            span = pin.tracer.current_span()
-            if not span:
-                return func(*args, **kwargs)
+            # TODO: need a better hook
             if span.get_tag("organization.name") is not None:
                 continue
-            if isinstance(val, openai.openai_response.OpenAIResponse):
-                val = val._headers
-                if val.get("openai-organization"):
-                    org_name = val.get("openai-organization")
-                    span.set_tag("organization.name", org_name)
 
-                # Gauge total rate limit
-                if val.get("x-ratelimit-limit-requests"):
-                    v = val.get("x-ratelimit-limit-requests")
+            val = val._headers
+            if val.get("openai-organization"):
+                org_name = val.get("openai-organization")
+                span.set_tag("organization.name", org_name)
+
+            # Gauge total rate limit
+            if val.get("x-ratelimit-limit-requests"):
+                v = val.get("x-ratelimit-limit-requests")
+                if v is not None:
                     integration.metric(span, "gauge", "ratelimit.requests", v)
-                if val.get("x-ratelimit-limit-tokens"):
-                    v = val.get("x-ratelimit-limit-tokens")
+            if val.get("x-ratelimit-limit-tokens"):
+                v = val.get("x-ratelimit-limit-tokens")
+                if v is not None:
                     integration.metric(span, "gauge", "ratelimit.tokens", v)
 
-                # Gauge and set span info for remaining requests and tokens
-                if val.get("x-ratelimit-remaining-requests"):
-                    v = val.get("x-ratelimit-remaining-requests")
+            # Gauge and set span info for remaining requests and tokens
+            if val.get("x-ratelimit-remaining-requests"):
+                v = val.get("x-ratelimit-remaining-requests")
+                if v is not None:
                     integration.metric(span, "gauge", "ratelimit.remaining.requests", v)
                     span.set_tag("organization.ratelimit.requests.remaining", v)
-                if val.get("x-ratelimit-remaining-tokens"):
-                    v = val.get("x-ratelimit-remaining-tokens")
+            if val.get("x-ratelimit-remaining-tokens"):
+                v = val.get("x-ratelimit-remaining-tokens")
+                if v is not None:
                     integration.metric(span, "gauge", "ratelimit.remaining.tokens", v)
                     span.set_tag("organization.ratelimit.tokens.remaining", v)
         return func(*args, **kwargs)
