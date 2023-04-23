@@ -99,11 +99,14 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             if _is_iast_enabled():
-                from ddtrace.appsec.iast._taint_utils import check_tainted_args
-                from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+                try:
+                    from ddtrace.appsec.iast._taint_utils import check_tainted_args
+                    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
-                if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
-                    SqlInjection.report(evidence_value=args[0])
+                    if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
+                        SqlInjection.report(evidence_value=args[0])
+                except Exception:
+                    log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
