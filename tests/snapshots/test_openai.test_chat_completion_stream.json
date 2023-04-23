@@ -18,7 +18,7 @@
       "request.messages.0.content": "Who won the world series in 2020?",
       "request.messages.0.role": "user",
       "request.stream": "True",
-      "runtime-id": "58bcd6c2f4294a6f88d987dbabe8e532"
+      "runtime-id": "0fc948693e5f4240b6a76443f8ff9c1a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,8 +26,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40486
+      "process_id": 93590,
+      "response.usage.prompt_tokens": 7
     },
-    "duration": 2016000,
-    "start": 1681970464541317000
+    "duration": 88468000,
+    "start": 1682223609435937000
   }]]

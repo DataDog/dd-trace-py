@@ -23,7 +23,7 @@
       "response.choices.0.logprobs": "returned",
       "response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
       "response.object": "text_completion",
-      "runtime-id": "a36afdacb4f9419689f33543d7d42610"
+      "runtime-id": "2d62e640ab574b7db8897b46341fa14a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,12 +31,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 89345,
+      "process_id": 93838,
       "response.choices.num": 1,
       "response.usage.completion_tokens": 16,
       "response.usage.prompt_tokens": 2,
       "response.usage.total_tokens": 18
     },
-    "duration": 10208000,
-    "start": 1682221939060006000
+    "duration": 9866000,
+    "start": 1682223730131840000
   }]]

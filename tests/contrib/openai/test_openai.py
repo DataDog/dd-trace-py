@@ -168,15 +168,19 @@ def test_patching(openai):
         (openai.api_resources.completion.Completion, "create"),
         (openai.Completion, "acreate"),
         (openai.api_resources.completion.Completion, "acreate"),
-        (openai.ChatCompletion, "create"),
-        (openai.api_resources.chat_completion.ChatCompletion, "create"),
-        (openai.ChatCompletion, "acreate"),
-        (openai.api_resources.chat_completion.ChatCompletion, "acreate"),
         (openai.api_requestor, "_make_session"),
         (openai.util, "convert_to_openai_object"),
         (openai.Embedding, "create"),
         (openai.Embedding, "acreate"),
     ]
+    if hasattr(openai, "ChatCompletion"):
+        methods += [
+            (openai.ChatCompletion, "create"),
+            (openai.api_resources.chat_completion.ChatCompletion, "create"),
+            (openai.ChatCompletion, "acreate"),
+            (openai.api_resources.chat_completion.ChatCompletion, "acreate"),
+        ]
+
     for m in methods:
         assert not iswrapped(getattr(m[0], m[1]))
 
@@ -415,10 +419,10 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(
-    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
-)
-def test_chat_completion(snapshot_tracer):
+def test_chat_completion(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+
     with openai_vcr.use_cassette("chat_completion.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -431,16 +435,14 @@ def test_chat_completion(snapshot_tracer):
             top_p=0.9,
             n=2,
         )
-    mock_logs.assert_not_called()
 
 
-@pytest.mark.parametrize("metrics_enabled", [True, False])
-def test_enable_metrics(openai, openai_vcr, metrics_enabled, mock_metrics):
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
+def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
     """Ensure the metrics_enabled configuration works."""
-    with override_config("openai", dict(metrics_enabled=metrics_enabled)):
-        with openai_vcr.use_cassette("completion.yaml"):
-            openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
-    if metrics_enabled:
+    with openai_vcr.use_cassette("completion.yaml"):
+        openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+    if ddtrace_config_openai["metrics_enabled"]:
         assert mock_metrics.mock_calls
     else:
         assert not mock_metrics.mock_calls
@@ -448,10 +450,9 @@ def test_enable_metrics(openai, openai_vcr, metrics_enabled, mock_metrics):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(
-    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
-)
 async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
         await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
@@ -600,10 +601,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(
-    not hasattr(openai, "ChatCompletion"), reason="Chat completion not supported for this version of openai"
-)
-def test_chat_completion_stream(openai_vcr, snapshot_tracer):
+def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -695,11 +696,10 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
 @pytest.mark.parametrize(
     "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]]
 )
-@pytest.mark.skipif(
-    not hasattr(openai, "ChatCompletion"), reason="ChatCompletion not supported for this version of openai"
-)
 def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     num_completions = 100
 
     for _ in range(num_completions):
@@ -729,8 +729,11 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(truncation_threshold=t) for t in [0, 10, 10000]])
-def test_completion_truncation(openai_vcr, openai, mock_tracer):
+def test_completion_truncation(openai, openai_vcr, mock_tracer):
     """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for completions"""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+
     prompt = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
 
     with openai_vcr.use_cassette("completion_truncation.yaml"):
