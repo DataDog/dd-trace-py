@@ -4,7 +4,6 @@ import sys
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
-
 def test_wrap_unwrap():
     channel = []
 
@@ -31,6 +30,30 @@ def test_wrap_unwrap():
 
     assert f(1, 2, 3) == (1, 2, 3)
     assert not channel
+
+
+def test_wrap_class_method():
+    channel = []
+
+    def wrapper(f, args, kwargs):
+        channel.append((args, kwargs))
+        r = f(*args, **kwargs)
+        channel.append(r)
+        return r
+
+    class A(object):
+        @classmethod
+        def method(cls, a, b=1):
+            return a + b
+
+    wrap(A.method, wrapper)
+
+    a = A()
+
+    assert a.method(1, 2) == 3
+    assert channel == [(A, (1, 2), {}), 3]
+
+
 
 
 def test_mutiple_wrap():

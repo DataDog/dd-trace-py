@@ -10,6 +10,7 @@ from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.wrapping import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.sampler import RateSampler
@@ -18,7 +19,6 @@ from .. import trace_utils
 from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import set_flattened_tags
-from ..trace_utils import wrap
 from ._logging import V2LogWriter
 
 
@@ -172,7 +172,8 @@ class _OpenAIIntegration:
         return text
 
 
-log = get_logger(__file__)
+log = get_logger(__name__)
+
 
 
 def patch():
@@ -198,21 +199,22 @@ def patch():
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
         integration.start_log_writer()
 
-    wrap(openai, "api_requestor._make_session", _patched_make_session(openai))
-    wrap(openai, "util.convert_to_openai_object", _patched_convert(integration)(openai))
+    Pin().onto(openai)
+    # wrap(openai.api_resources._make_session, _patched_make_session(openai))
+    # wrap(openai, "util.convert_to_openai_object", _patched_convert(integration)(openai))
 
     if hasattr(openai.api_resources, "completion"):
         wrap(
-            openai,
-            "api_resources.completion.Completion.create",
-            _patched_endpoint(integration, _CompletionHook)(openai),
+            openai.api_resources.completion.Completion.create,
+            _patched_endpoint(openai, integration, _CompletionHook)
         )
-        wrap(
-            openai,
-            "api_resources.completion.Completion.acreate",
-            _patched_endpoint_async(integration, _CompletionHook)(openai),
-        )
+        # wrap(
+        #     openai,
+        #     "api_resources.completion.Completion.acreate",
+        #     _patched_endpoint_async(integration, _CompletionHook)(openai),
+        # )
 
+    return
     if hasattr(openai.api_resources, "chat_completion"):
         wrap(
             openai,
@@ -237,7 +239,6 @@ def patch():
             _patched_endpoint_async(integration, _EmbeddingHook)(openai),
         )
 
-    Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
 
 
@@ -265,8 +266,8 @@ def _patched_make_session(openai, pin, func, instance, args, kwargs):
     return session
 
 
-def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kwargs):
-    span = integration.trace(pin, instance.OBJECT_NAME, kwargs.get("model"))
+def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
+    span = integration.trace(pin, args[0].OBJECT_NAME, kwargs.get("model"))
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
@@ -297,10 +298,16 @@ def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kw
         #         span.set_metric("response.usage.total_tokens", prompt_tokens + completion_tokens)
 
 
-def _patched_endpoint(integration, patch_hook):
-    @trace_utils.with_traced_module
-    def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
+def _patched_endpoint(openai, integration, patch_hook):
+
+    def traced_endpoint(func, args, kwargs):
+        pin = Pin._find(args[0], openai)
+        if pin and not pin.enabled():
+            return func(*args, **kwargs)
+        elif not pin:
+            return func(*args, **kwargs)
+
+        g = _traced_endpoint(patch_hook, integration, openai, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -316,15 +323,19 @@ def _patched_endpoint(integration, patch_hook):
                 if err is None:
                     # This return takes priority over `return resp`
                     return e.value
+    return traced_endpoint
 
-    return patched_endpoint
 
-
-def _patched_endpoint_async(integration, patch_hook):
+def _patched_endpoint_async(openai, integration, patch_hook):
     # Same as _patched_endpoint but async
-    @trace_utils_async.with_traced_module
-    async def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
+    async def traced_endpoint(func, args, kwargs):
+        pin = Pin._find(args[0], openai)
+        if pin and not pin.enabled():
+            return await func(*args, **kwargs)
+        elif not pin:
+            return await func(*args, **kwargs)
+
+        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -340,8 +351,7 @@ def _patched_endpoint_async(integration, patch_hook):
                 if err is None:
                     # This return takes priority over `return resp`
                     return e.value
-
-    return patched_endpoint
+    return traced_endpoint
 
 
 def _est_tokens(s):
