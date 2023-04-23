@@ -468,28 +468,23 @@ async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(
-    not hasattr(openai, "Embedding"),
-    reason="embedding not supported for this version of openai",
-)
-def test_embedding(openai, openai_vcr):
+def test_embedding(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding.yaml"):
         openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(
-    not hasattr(openai, "Embedding"),
-    reason="embedding not supported for this version of openai",
-)
-async def test_aembedding(openai_vcr, snapshot_tracer):
+async def test_aembedding(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_async.yaml"):
         await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.skipif(not hasattr(openai, "Moderation"), reason="moderation not supported for this version of openai")
 def test_unsupported(openai, openai_vcr, snapshot_tracer):
     # no openai spans expected
     with openai_vcr.use_cassette("moderation.yaml"):
@@ -499,8 +494,7 @@ def test_unsupported(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
-@pytest.mark.skipif(not hasattr(openai, "Completion"), reason="completion not supported for this version of openai")
-def test_misuse(openai):
+def test_misuse(openai, snapshot_tracer):
     with pytest.raises(openai.error.InvalidRequestError):
         openai.Completion.create(input="wrong arg")
 
@@ -629,6 +623,7 @@ def test_integration_sync():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
+    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -655,6 +650,7 @@ def test_integration_async():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
+    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 

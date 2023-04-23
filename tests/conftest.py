@@ -86,7 +86,7 @@ def snapshot(request):
         snapshot = mgr.__enter__()
         yield snapshot
         # Skip doing any checks if the test was skipped
-        if not request.node.rep_call.skipped:
+        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
             mgr.__exit__(None, None, None)
     else:
         yield
