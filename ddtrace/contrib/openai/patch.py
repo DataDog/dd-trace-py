@@ -30,6 +30,7 @@ config._add(
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
+        "_api_key": os.getenv("DD_API_KEY"),
     },
 )
 
@@ -94,11 +95,11 @@ class _OpenAIIntegration:
         if not self._config.logs_enabled:
             return
         tags = [
-            "env:%s" % config.env,
-            "version:%s" % config.version,
-            "endpoint:%s" % span.get_tag("endpoint"),
-            "model:%s" % span.get_tag("model"),
-            "organization.name:%s" % span.get_tag("organization.name"),
+            "env:%s" % (config.env or ""),
+            "version:%s" % (config.version or ""),
+            "endpoint:%s" % (span.get_tag("endpoint") or ""),
+            "model:%s" % (span.get_tag("model") or ""),
+            "organization.name:%s" % (span.get_tag("organization.name") or ""),
         ]
         log = {
             "timestamp": time.time() * 1000,
@@ -133,7 +134,6 @@ class _OpenAIIntegration:
 
     def metric(self, span, kind, name, val):
         """Set a metric using the OpenAI context from the given span."""
-        print(self._config.metrics_enabled)
         if not self._config.metrics_enabled:
             return
         tags = self._metrics_tags(span)
@@ -183,7 +183,7 @@ def patch():
         return
 
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", "")
+    ddapikey = os.getenv("DD_API_KEY", config.openai._api_key)
 
     integration = _OpenAIIntegration(
         config=config.openai,
