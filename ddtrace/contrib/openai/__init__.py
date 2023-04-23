@@ -1,7 +1,7 @@
 """
 The OpenAI integration instruments the OpenAI Python library to emit metrics,
-traces and logs for requests made to the OpenAI completions, chat completions
-and embeddings endpoints.
+traces and logs (not enabled by default) for requests made to the OpenAI
+completions, chat completions and embeddings endpoints.
 
 All data submitted from the OpenAI integration is tagged with
 
@@ -24,23 +24,23 @@ Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment va
      Use ``DD_DOGSTATSD_URL`` to specify the agent hostname and port.
 
 
-..py:data:: request.error (count)
+.. py:data:: openai.request.error (count)
 
-..py:data:: request.duration (distribution)
+.. py:data:: openai.request.duration (distribution)
 
-..py:data:: ratelimit.requests (gauge)
+.. py:data:: openai.ratelimit.requests (gauge)
 
-..py:data:: ratelimit.tokens (gauge)
+.. py:data:: openai.ratelimit.tokens (gauge)
 
-..py:data:: ratelimit.remaining.requests (gauge)
+.. py:data:: openai.ratelimit.remaining.requests (gauge)
 
-..py:data:: ratelimit.remaining.tokens (gauge)
+.. py:data:: openai.ratelimit.remaining.tokens (gauge)
 
-..py:data:: tokens.prompt (distribution)
+.. py:data:: openai.tokens.prompt (distribution)
 
-..py:data:: tokens.completion (distribution)
+.. py:data:: openai.tokens.completion (distribution)
 
-..py:data:: tokens.total (distribution)
+.. py:data:: openai.tokens.total (distribution)
 
 
 

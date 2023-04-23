@@ -1,19 +1,16 @@
+import atexit
 import json
-
-# logger = get_logger(__name__)
-import logging
-import threading
 from typing import List
 from typing import TypedDict
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.service import ServiceStatus
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class V2LogEvent(TypedDict):
@@ -21,11 +18,13 @@ class V2LogEvent(TypedDict):
     Note: these attribute names match the corresponding entry in the JSON payload.
     """
 
+    timestamp: int
     message: str
     ddtags: str
     service: str
     hostname: str
     ddsource: str
+    status: str
     # Additional attributes can be specified on the event
     # including dd.trace_id and dd.span_id to correlate a trace
 
@@ -45,7 +44,7 @@ class V2LogWriter(PeriodicService):
     def __init__(self, site, api_key, interval, timeout):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
-        self._lock = threading.RLock()
+        self._lock = forksafe.RLock()
         self._buffer = []  # type: List[V2LogEvent]
         # match the API limit
         self._buffer_limit = 1000
@@ -58,15 +57,15 @@ class V2LogWriter(PeriodicService):
             "DD-API-KEY": self._api_key,
             "Content-Type": "application/json",
         }
-        logger.debug("starting log writer to %s/%s", self._site, self._endpoint)
+        logger.debug("started log writer to %r", self._url)
+
+    def start(self, *args, **kwargs):
+        super(V2LogWriter, self).start()
+        atexit.register(self.on_shutdown)
 
     def enqueue(self, log):
         # type: (V2LogEvent) -> None
         with self._lock:
-            if self.status == ServiceStatus.RUNNING:
-                return
-            self.start()
-
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning("log buffer full (limit is %d), dropping log", self._buffer_limit)
                 return
@@ -76,24 +75,40 @@ class V2LogWriter(PeriodicService):
         # type: (...) -> None
         self.periodic()
 
+    @property
+    def _url(self):
+        # type: () -> str
+        return "https://%s%s" % (self._intake, self._endpoint)
+
     def periodic(self):
         # type: () -> None
         with self._lock:
             if not self._buffer:
                 return
-            num_logs = len(self._buffer)
-            payload = json.dumps(self._buffer)
+            logs = self._buffer
             self._buffer = []
+
+        num_logs = len(logs)
+        try:
+            enc_logs = json.dumps(logs)
+        except TypeError:
+            logger.error("failed to encode %d logs", num_logs, exc_info=True)
+            return
+
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
-            conn.request("POST", self._endpoint, payload, self._headers)
+            conn.request("POST", self._endpoint, enc_logs, self._headers)
             resp = get_connection_response(conn)
             if resp.status >= 300:
                 logger.error(
-                    "failed to send %d logs, got response code %r, status %r to %r", num_logs, resp.status, resp.read()
+                    "failed to send %d logs to %r, got response code %r, status: %r",
+                    num_logs,
+                    self._url,
+                    resp.status,
+                    resp.read(),
                 )
             else:
-                logger.debug("sent %d logs to %r", num_logs, self._intake)
+                logger.debug("sent %d logs to %r", num_logs, self._url)
         except Exception:
             logger.error("failed to send %d logs to %r", num_logs, self._intake, exc_info=True)
         finally:
