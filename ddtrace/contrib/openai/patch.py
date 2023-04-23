@@ -12,13 +12,12 @@ from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.wrapping import wrap
 from ddtrace.sampler import RateSampler
 
 from .. import trace_utils
-from .. import trace_utils_async
 from ...pin import Pin
 from ..trace_utils import set_flattened_tags
-from ..trace_utils import wrap
 from ._logging import V2LogWriter
 
 
@@ -175,6 +174,10 @@ class _OpenAIIntegration:
 log = get_logger(__file__)
 
 
+def _wrap_classmethod(obj, wrapper):
+    wrap(obj.__func__, wrapper)
+
+
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai
@@ -185,6 +188,7 @@ def patch():
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
     ddapikey = os.getenv("DD_API_KEY", config.openai._api_key)
 
+    Pin().onto(openai)
     integration = _OpenAIIntegration(
         config=config.openai,
         openai=openai,
@@ -198,75 +202,64 @@ def patch():
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
         integration.start_log_writer()
 
-    wrap(openai, "api_requestor._make_session", _patched_make_session(openai))
-    wrap(openai, "util.convert_to_openai_object", _patched_convert(integration)(openai))
+    import openai.api_requestor
+
+    wrap(openai.api_requestor._make_session, _patched_make_session)
+    wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
 
     if hasattr(openai.api_resources, "completion"):
-        wrap(
-            openai,
-            "api_resources.completion.Completion.create",
-            _patched_endpoint(integration, _CompletionHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.completion.Completion.create,
+            _patched_endpoint(openai, integration, _CompletionHook),
         )
-        wrap(
-            openai,
-            "api_resources.completion.Completion.acreate",
-            _patched_endpoint_async(integration, _CompletionHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.completion.Completion.acreate,
+            _patched_endpoint_async(openai, integration, _CompletionHook),
         )
 
     if hasattr(openai.api_resources, "chat_completion"):
-        wrap(
-            openai,
-            "api_resources.chat_completion.ChatCompletion.create",
-            _patched_endpoint(integration, _ChatCompletionHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.chat_completion.ChatCompletion.create,
+            _patched_endpoint(openai, integration, _ChatCompletionHook),
         )
-        wrap(
-            openai,
-            "api_resources.chat_completion.ChatCompletion.acreate",
-            _patched_endpoint_async(integration, _ChatCompletionHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.chat_completion.ChatCompletion.acreate,
+            _patched_endpoint_async(openai, integration, _ChatCompletionHook),
         )
 
     if hasattr(openai.api_resources, "embedding"):
-        wrap(
-            openai,
-            "api_resources.embedding.Embedding.create",
-            _patched_endpoint(integration, _EmbeddingHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.embedding.Embedding.create,
+            _patched_endpoint(openai, integration, _EmbeddingHook),
         )
-        wrap(
-            openai,
-            "api_resources.embedding.Embedding.acreate",
-            _patched_endpoint_async(integration, _EmbeddingHook)(openai),
+        _wrap_classmethod(
+            openai.api_resources.embedding.Embedding.acreate,
+            _patched_endpoint_async(openai, integration, _EmbeddingHook),
         )
 
-    Pin().onto(openai)
     setattr(openai, "__datadog_patch", True)
 
 
 def unpatch():
-    # FIXME: add unpatching. unwrapping the create methods results in a
-    # >               return super().create(*args, **kwargs)
-    # E               AttributeError: 'method' object has no attribute '__get__'
+    # FIXME: add unpatching. The current wrapping.unwrap method requires
+    #        the wrapper function to be provided which we don't keep a reference to.
     pass
 
 
-@trace_utils.with_traced_module
-def _patched_make_session(openai, pin, func, instance, args, kwargs):
+def _patched_make_session(func, args, kwargs):
     """Patch for `openai.api_requestor._make_session` which sets the service name on the
     requests session so that spans from the requests integration will use the service name openai.
     This is done so that the service break down will include OpenAI time spent querying the OpenAI backend.
 
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
-    session = func()
-    cfg = config.get_from(session)
-    for k, v in cfg.items():
-        if k not in pin._config:
-            pin._config[k] = v
-    pin.clone(service="openai").onto(session)
+    session = func(*args, **kwargs)
+    Pin.override(session, service="openai")
     return session
 
 
-def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kwargs):
-    span = integration.trace(pin, instance.OBJECT_NAME, kwargs.get("model"))
+def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
+    span = integration.trace(pin, args[0].OBJECT_NAME, kwargs.get("model"))
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
@@ -297,10 +290,13 @@ def _traced_endpoint(endpoint_hook, integration, openai, pin, instance, args, kw
         #         span.set_metric("response.usage.total_tokens", prompt_tokens + completion_tokens)
 
 
-def _patched_endpoint(integration, patch_hook):
-    @trace_utils.with_traced_module
-    def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
+def _patched_endpoint(openai, integration, patch_hook):
+    def patched_endpoint(func, args, kwargs):
+        pin = Pin._find(openai, args[0])
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
+
+        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -320,11 +316,13 @@ def _patched_endpoint(integration, patch_hook):
     return patched_endpoint
 
 
-def _patched_endpoint_async(integration, patch_hook):
+def _patched_endpoint_async(openai, integration, patch_hook):
     # Same as _patched_endpoint but async
-    @trace_utils_async.with_traced_module
-    async def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        g = _traced_endpoint(patch_hook, integration, openai, pin, instance, args, kwargs)
+    async def patched_endpoint(func, args, kwargs):
+        pin = Pin._find(openai, args[0])
+        if not pin or not pin.enabled():
+            return await func(*args, **kwargs)
+        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -607,10 +605,13 @@ class _EmbeddingHook(_EndpointHook):
             integration.record_usage(span, resp.get("usage"))
 
 
-def _patched_convert(integration):
-    @trace_utils.with_traced_module
-    def patched_convert(openai, pin, func, instance, args, kwargs):
+def _patched_convert(openai, integration):
+    def patched_convert(func, args, kwargs):
         """Patch convert captures header information in the openai response"""
+        pin = Pin._find(openai, args[0])
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
+
         for val in args:
             # FIXME these are reported for each chunk
             # this is a signal to avoid repeating these calls for each

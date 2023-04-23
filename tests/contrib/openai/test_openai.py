@@ -15,7 +15,6 @@ from ddtrace import Span
 from ddtrace import patch
 from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
-from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import override_config
@@ -66,10 +65,8 @@ def openai(openai_api_key, openai_organization):
     openai.api_key = openai_api_key
     openai.organization = openai_organization
     yield openai
-    # Bad hack:
-    #   Since unpatching doesn't work (there's a bug with unwrapping the class methods
-    #   see the OpenAI unpatch() method for the error), wipe out all the OpenAI modules
-    #   so that state is reset for each test case.
+    # Since unpatching doesn't work (see the unpatch() function),
+    # wipe out all the OpenAI modules so that state is reset for each test case.
     mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
     for m in mods:
         del sys.modules[m]
@@ -158,6 +155,10 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
 
 
+def iswrapped(obj):
+    return hasattr(obj, "__dd_wrapped__")
+
+
 def test_patching(openai):
     """Ensure that the correct objects are patched and not double patched."""
 
@@ -191,7 +192,7 @@ def test_patching(openai):
     # Ensure double patching does not occur
     patch(openai=True)
     for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]).__wrapped__)
+        assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
