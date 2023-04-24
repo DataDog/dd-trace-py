@@ -114,8 +114,10 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai):
+def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization):
     with override_config("openai", ddtrace_config_openai):
+        openai.api_key = openai_api_key
+        openai.organization = openai_organization
         patch(openai=True)
         yield
         unpatch()
@@ -663,7 +665,7 @@ def test_integration_async():
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]]
+    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]]
 )
 def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
@@ -691,7 +693,7 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]]
+    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]]
 )
 def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
@@ -816,5 +818,5 @@ def test_est_tokens():
     programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript,
     the gpt-3-encoder package for node.js works for most GPT-3 models."""
         )
-        == 75
+        == 80
     )

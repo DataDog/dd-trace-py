@@ -19,33 +19,21 @@ interactions:
         "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
-      traceparent:
-      - 00-00000000000000000791d15fd8835af9-edbf036cb2d6a8c1-01
-      tracestate:
-      - dd=s:1;t.dm:-0
-      x-datadog-parent-id:
-      - '17131415272932419777'
-      x-datadog-sampling-priority:
-      - '1'
-      x-datadog-tags:
-      - _dd.p.dm=-0
-      x-datadog-trace-id:
-      - '545447239473126137'
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0SOTU+EMBRF9/6Mu7VGIAqkexez0Y2JGmtIhz6gTL+kbxIM4b+bceFszz25ORus
-        gUTvk7tr6lBVbbE2aT7VDx+H5fnte23efZx//AEC8ThTz5BgWrnro0+O2MYAgX4hzWQgy7ot28eq
-        LSoBHw05SGijL8oUbU8Z8nP7O4DEvVL5VikVVCgMDa/66OhleAps2VK+rBCwwdAKWQi4OKYlHjNk
-        ODsnMNhg89QtpHMMkHAURp6wfwmcsx4JckNaok/ccTxRyJCVwLX7n5a1AEfW7krafb/5BQAA//8D
-        AKvoj04cAQAA
+        H4sIAAAAAAAAA0SPMU/DMBQGd36F9c1uRVooqbdOHZDogJgQihz7xXXr+AXbgVRV/juCga6n00l3
+        hbdQMP0QFk91+o77/fPOVVX8itvtJRlKJ3tI49sECW5PZAoUCk2lMdwPgYrnCAmTSBeyUNWmXq0f
+        6vXjWqJnSwEK2upf5cjeUIZ6v/4FoCD6MXsjOBudRKLeT+IzCcOWRHsRQbcUxHK5FIeu88brIF59
+        dD468ULmHLShBSR8tDRB3UsEdkPiNkPFMQSJzkefj00inTlCIVB05Yj5Q2LM2hHUFUPifihN4TPF
+        DLWSuH3902ojUbjocCP1PN/9AAAA//8DAJqFuhw8AQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b9ff31008470cb2-EWR
+      - 7bcf357ae8860f3e-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -55,12 +43,9 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 18 Apr 2023 21:20:02 GMT
+      - Mon, 24 Apr 2023 14:59:13 GMT
       Server:
       - cloudflare
-      Set-Cookie:
-      - _cfuvid=ydEleRrV7AZ_HrpPjTBaX.pcBbkHqJwAmoR8HHQnS1c-1681852802732-0-604800000;
-        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       access-control-allow-origin:
@@ -72,7 +57,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '104'
+      - '112'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -90,7 +75,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 3ms
       x-request-id:
-      - 87c5afd0549935bc6a2cd146c7fffff7
+      - 7fe9234d4f9e911154bc0fbb3700bf34
     status:
       code: 200
       message: OK

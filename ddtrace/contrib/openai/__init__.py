@@ -81,12 +81,12 @@ The following data is collected in span tags with a default sampling rate of 100
 Prompt/message inputs and completions can also be emitted as log data.
 Logs are **not** emitted by default. When logs are enabled they are sampled at 10%.
 
+See details in the **Global Configuration** section on how to enable logs and configure sampling
+rates.
+
 .. important::
 
      ``DD_API_KEY`` environment variable is required to submit logs.
-
-See details in the **Global Configuration** section on how to enable logs and configure sampling
-rates.
 
 
 Enabling
@@ -160,15 +160,19 @@ Global Configuration
 
 .. py:data:: (beta) ddtrace.config.openai["span_char_limit"]
 
-   Configure the maximum number of characters for prompts and completions within span tags.
+   Configure the maximum number of characters for the following data within span tags.:
+
+   - Prompt inputs and completions
+   - Message inputs and completions
+   - Embedding inputs
 
    Text exceeding the maximum number of characters will be truncated to the character limit
    and have ``...`` appended to the end.
 
-   This option can also be set with the ``DD_OPENAI_TRUNCATION_THRESHOLD`` environment
+   This option can also be set with the ``DD_OPENAI_SPAN_CHAR_LIMIT`` environment
    variable.
 
-   Default: ``512``
+   Default: ``128``
 
 
 .. py:data:: (beta) ddtrace.config.openai["span_prompt_completion_sample_rate"]

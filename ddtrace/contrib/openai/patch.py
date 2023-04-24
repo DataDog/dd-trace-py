@@ -163,9 +163,7 @@ class _OpenAIIntegration:
         """
         if not text:
             return text
-        text = text.replace("\n", "\\n")
-        text = text.replace("\t", "\\t")
-        text = " ".join(text.split())
+        text = text.replace("\n", "\\n").replace("\t", "\\t")
         if len(text) > self._config.span_char_limit:
             text = text[: self._config.span_char_limit] + "..."
         return text

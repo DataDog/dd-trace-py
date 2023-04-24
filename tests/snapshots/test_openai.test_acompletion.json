@@ -21,9 +21,9 @@
       "request.prompt": "As Descartes said, I think, therefore",
       "response.choices.0.finish_reason": "length",
       "response.choices.0.logprobs": "returned",
-      "response.choices.0.text": "I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am no...",
+      "response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am n...",
       "response.object": "text_completion",
-      "runtime-id": "166501fb00444ebb880dffbfa25a01f1"
+      "runtime-id": "5ad38d14053346c9b4b8fad7c4016635"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,7 +31,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 82094,
+      "process_id": 80631,
       "request.max_tokens": 150,
       "request.n": 1,
       "request.temperature": 0.8,
@@ -40,6 +40,6 @@
       "response.usage.prompt_tokens": 10,
       "response.usage.total_tokens": 160
     },
-    "duration": 1593000,
-    "start": 1682219191337145000
+    "duration": 2194000,
+    "start": 1682345005558698000
   }]]
