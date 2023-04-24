@@ -68,36 +68,11 @@ commands:
       - store_artifacts:
           path: coverage
 
-  setup_tox:
-    description: "Install tox"
-    steps:
-      - run: pip install -U "tox<4"
-
   setup_riot:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.2
-
-  restore_tox_cache:
-    description: "Restore .tox directory from previous runs for faster installs"
-    steps:
-      - restore_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-
-  save_tox_cache:
-    description: "Save .tox directory into cache for faster installs next time"
-    steps:
-      - save_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-          paths:
-            - ".tox"
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -191,27 +166,6 @@ commands:
               - << parameters.store_coverage >>
           steps:
             - save_coverage
-      - store_test_results:
-          path: test-results
-      - store_artifacts:
-          path: test-results
-
-  run_tox_scenario:
-    description: "Run scripts/run-tox-scenario with setup, caching and persistence"
-    parameters:
-      pattern:
-        type: string
-      store_coverage:
-        type: boolean
-        default: true
-    steps:
-      - checkout
-      - setup_tox
-      - restore_tox_cache
-      - run:
-          name: "Run scripts/run-tox-scenario"
-          command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_tox_cache
       - store_test_results:
           path: test-results
       - store_artifacts:
@@ -423,114 +377,16 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  # Building gevent (for which we never want wheels because they crash)
-  # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
-  # which is not installed.
-  # profile-windows-27:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 4
-  #   steps:
-  #     - run: choco install python2
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py27-profile'
-
-  profile-windows-35:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 4
-    steps:
-      - run: choco install -y python --version=3.5.4 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py35-profile'
-
-  profile-windows-36:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 4
-    steps:
-      - run: choco install -y python --version=3.6.8 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py36-profile'
-
-  # For whatever reason, choco does not install Python 3.7 correctly on Windows
-  # profile-windows-37:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install python --version=3.7.9
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py37-profile'
-
-  # This requires the machine to reboot :(
-  # profile-windows-38:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.8.10 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py38-profile'
-
-  # This requires the machine to reboot :(
-  # profile-windows-39:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.9.12 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py39-profile'
-
-  profile-windows-310:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 5
-    steps:
-      # circleci/windows@5.0 orb includes python 3.10.6
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py310-profile'
-
-  profile-windows-311:
-    executor:
-      name: win/default
-      shell: bash.exe
-    steps:
-      - run: choco install -y python --version=3.11.0 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py311-profile'
-
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 15
+    # There are 32 jobs, so 2 per-node
+    parallelism: 16
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py.\+-profile'
+          # We don't want to run the profile-diff venvs
+          pattern: 'profile$'
 
   integration_agent:
     <<: *machine_executor
@@ -1231,14 +1087,6 @@ requires_tests: &requires_tests
     - urllib3
     - vertica
     - wsgi
-    # - profile-windows-27
-    # - profile-windows-35
-    # - profile-windows-36
-    # - profile-windows-37
-    # - profile-windows-38
-    # - profile-windows-39
-    # - profile-windows-310
-    # - profile-windows-311
 
 workflows:
   version: 2
@@ -1337,13 +1185,5 @@ workflows:
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
-      # - profile-windows-27: *requires_pre_check
-      # - profile-windows-35: *requires_pre_check
-      # - profile-windows-36: *requires_pre_check
-      # - profile-windows-37: *requires_pre_check
-      # - profile-windows-38: *requires_pre_check
-      # - profile-windows-39: *requires_pre_check
-      # - profile-windows-310: *requires_pre_check
-      # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
