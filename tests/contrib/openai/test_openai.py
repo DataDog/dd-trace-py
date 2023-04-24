@@ -665,7 +665,8 @@ def test_integration_async():
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]]
+    "ddtrace_config_openai",
+    [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]],
 )
 def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
@@ -693,7 +694,8 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]]
+    "ddtrace_config_openai",
+    [dict(span_prompt_completion_sample_rate=r, logs_enabled=False) for r in [0, 0.25, 0.75, 1]],
 )
 def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
