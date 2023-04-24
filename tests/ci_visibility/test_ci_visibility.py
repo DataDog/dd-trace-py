@@ -1,3 +1,4 @@
+import contextlib
 import os
 import time
 
@@ -56,29 +57,37 @@ def test_filters_non_test_spans():
     assert trace_filter.process_trace(trace) is None
 
 
+@contextlib.contextmanager
+def _patch_dummy_writer():
+    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
+    yield
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
+
+
 def test_ci_visibility_service_enable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        dummy_tracer = DummyTracer()
-        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
-        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-        ci_visibility_instance = CIVisibility._instance
-        assert ci_visibility_instance is not None
-        assert CIVisibility.enabled
-        assert ci_visibility_instance.tracer == dummy_tracer
-        assert ci_visibility_instance._service == "test-service"
-        assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
-        CIVisibility.disable()
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            ci_visibility_instance = CIVisibility._instance
+            assert ci_visibility_instance is not None
+            assert CIVisibility.enabled
+            assert ci_visibility_instance.tracer == dummy_tracer
+            assert ci_visibility_instance._service == "test-service"
+            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            CIVisibility.disable()
 
 
 def test_ci_visibility_service_disable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        dummy_tracer = DummyTracer()
-        dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
-        CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-        CIVisibility.disable()
-        ci_visibility_instance = CIVisibility._instance
-        assert ci_visibility_instance is None
-        assert not CIVisibility.enabled
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.disable()
+            ci_visibility_instance = CIVisibility._instance
+            assert ci_visibility_instance is None
+            assert not CIVisibility.enabled
 
 
 @pytest.mark.parametrize(
@@ -115,16 +124,17 @@ DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "
 
 def test_git_client_worker(git_repo):
     with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana")):
-        dummy_tracer = DummyTracer()
-        start_time = time.time()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
-            original = ddtrace.internal.ci_visibility.git_client.RESPONSE
-            ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
-            ggr.return_value = git_repo
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-            assert CIVisibility._instance._git_client is not None
-            assert CIVisibility._instance._git_client._worker is not None
-            CIVisibility.disable()
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            start_time = time.time()
+            with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+                original = ddtrace.internal.ci_visibility.git_client.RESPONSE
+                ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
+                ggr.return_value = git_repo
+                CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+                assert CIVisibility._instance._git_client is not None
+                assert CIVisibility._instance._git_client._worker is not None
+                CIVisibility.disable()
     shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
     assert (
         time.time() - start_time <= shutdown_timeout + 0.1
