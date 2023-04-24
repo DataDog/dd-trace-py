@@ -135,12 +135,15 @@ def patch_builtins(klass, attr, value):
 
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
+    value = wrapped(*args, **kwargs)
+
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        try:
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-        value = wrapped(*args, **kwargs)
+            name = str(args[0]) if len(args) else "http.request.body"
+            return taint_pyobject(value, Input_info(name, value, origin))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
-        name = str(args[0]) if len(args) else "http.request.body"
-        return taint_pyobject(value, Input_info(name, value, origin))
-
-    return wrapped(*args, **kwargs)
+    return value
