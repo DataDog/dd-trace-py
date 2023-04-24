@@ -173,7 +173,6 @@ class _DDWSGIMiddlewareBase(object):
                 # [Suspicious Request Blocking on request]
                 def blocked_view():
                     ctype, content = self._make_block_content(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", ctype)])
                     return content, 403, [("content-type", ctype)]
 
                 _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", blocked_view)
