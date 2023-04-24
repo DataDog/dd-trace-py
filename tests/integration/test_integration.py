@@ -15,17 +15,14 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
-<<<<<<< HEAD
 from ddtrace.internal import compat
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-=======
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
->>>>>>> 1.x
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
