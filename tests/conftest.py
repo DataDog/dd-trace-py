@@ -319,7 +319,7 @@ def create_package(directory, pyproject, setup):
         _run("git config --local user.name user")
         _run("git config --local user.email user@company.com")
         _run("git add .")
-        _run("git commit -m init")
+        _run("git commit --no-gpg-sign -m init")
         _run("git remote add origin https://github.com/companydotcom/repo.git")
 
         yield package_dir
