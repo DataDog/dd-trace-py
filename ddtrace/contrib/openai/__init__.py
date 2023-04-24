@@ -1,11 +1,11 @@
 """
 The OpenAI integration instruments the OpenAI Python library to emit metrics,
-traces and logs (disabled by default) for requests made to the
-completions, chat completions and embeddings endpoints.
+traces, and logs (logs are disabled by default) for requests made to the
+completions, chat completions, and embeddings endpoints.
 
-All metrics, logs and traces submitted from the OpenAI integration are tagged with
+All metrics, logs, and traces submitted from the OpenAI integration are tagged with:
 
-- ``service`` / ``env`` / ``version``: see the `UST docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
+- ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
 - ``endpoint``: OpenAI API endpoint used in the request.
 - ``model``: OpenAI model used in the request.
 - ``organization.name``: OpenAI organization name used in the request.
@@ -15,11 +15,11 @@ All metrics, logs and traces submitted from the OpenAI integration are tagged wi
 Metrics
 ~~~~~~~
 
-The following metrics are by default collected by the OpenAI integration.
+The following metrics are collected by default by the OpenAI integration.
 Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment variable (see below for more information).
 
 .. important::
-    If the Agent is configured to use a different Statsd hostname/port, use ``DD_DOGSTATSD_URL`` to configure
+    If the Agent is configured to use a non-default Statsd hostname or port, use ``DD_DOGSTATSD_URL`` to configure
     ``ddtrace`` to use it.
 
 
@@ -77,29 +77,29 @@ The following data is collected in span tags with a default sampling rate of ``1
 - Message inputs and completions for the ``chat.completions`` endpoint
 - Embedding inputs for the ``embeddings`` endpoint
 
-Prompt/message inputs and completions can also be emitted as log data.
+Prompt and message inputs and completions can also be emitted as log data.
 Logs are **not** emitted by default. When logs are enabled they are sampled at ``0.1``.
 
-See details in the **Global Configuration** section on how to enable logs and configure sampling
+Read the **Global Configuration** section for information about enabling logs and configuring sampling
 rates.
 
 .. important::
 
-    ``DD_API_KEY`` environment variable is required to submit logs.
+    To submit logs, you must set the ``DD_API_KEY`` environment variable.
 
-    Use ``DD_SITE`` to send logs to a different Datadog site (``datadoghq.eu``).
+    Set ``DD_SITE`` to send logs to a Datadog site such as ``datadoghq.eu``. The default is ``datadoghq.com``.
 
 
 Enabling
 ~~~~~~~~
 
-The OpenAI integration is enabled automatically when using
+The OpenAI integration is enabled automatically when you use
 :ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
 
-Note that these commands will also enable the ``requests`` and ``aiohttp``
-integrations which will trace HTTP requests from the OpenAI library.
+Note that these commands also enable the ``requests`` and ``aiohttp``
+integrations which trace HTTP requests from the OpenAI library.
 
-Or use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration::
+Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration::
 
     from ddtrace import config, patch
 
@@ -126,7 +126,7 @@ Global Configuration
 
    The service name reported by default for OpenAI requests.
 
-   This option can also be set with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
+   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
    variables.
 
    Default: ``DD_SERVICE``
@@ -134,13 +134,13 @@ Global Configuration
 
 .. py:data:: ddtrace.config.openai["logs_enabled"]
 
-   Enable collection of prompts and completions as logs. The number of prompt/completions collected
-   can be adjusted using the sampling option below.
+   Enable collection of prompts and completions as logs. You can adjust the rate of prompts and completions collected
+   using the sample rate configuration described below.
 
-   This option can also be set with the ``DD_OPENAI_LOGS_ENABLED`` environment
+   Alternatively, you can set this option with the ``DD_OPENAI_LOGS_ENABLED`` environment
    variable.
 
-   Note that the ``DD_API_KEY`` environment variable must be set to enable logs transmission.
+   Note that you must set the ``DD_API_KEY`` environment variable to enable sending logs.
 
    Default: ``False``
 
@@ -149,11 +149,11 @@ Global Configuration
 
    Enable collection of OpenAI metrics.
 
-   Note that the statsd port of the Datadog Agent must be enabled. See
+   Note that you must enable the Statsd port of the Datadog Agent. See
    https://docs.datadoghq.com/developers/dogstatsd/?tab=hostagent#agent for
    instructions.
 
-   This option can also be set with the ``DD_OPENAI_METRICS_ENABLED`` environment
+   Alternatively, you can set this option with the ``DD_OPENAI_METRICS_ENABLED`` environment
    variable.
 
    Default: ``True``
@@ -161,16 +161,16 @@ Global Configuration
 
 .. py:data:: (beta) ddtrace.config.openai["span_char_limit"]
 
-   Configure the maximum number of characters for the following data within span tags.:
+   Configure the maximum number of characters for the following data within span tags:
 
    - Prompt inputs and completions
    - Message inputs and completions
    - Embedding inputs
 
-   Text exceeding the maximum number of characters will be truncated to the character limit
-   and have ``...`` appended to the end.
+   Text exceeding the maximum number of characters is truncated to the character limit
+   and has ``...`` appended to the end.
 
-   This option can also be set with the ``DD_OPENAI_SPAN_CHAR_LIMIT`` environment
+   Alternatively, you can set this option with the ``DD_OPENAI_SPAN_CHAR_LIMIT`` environment
    variable.
 
    Default: ``128``
@@ -180,7 +180,7 @@ Global Configuration
 
    Configure the sample rate for the collection of prompts and completions as span tags.
 
-   This option can also be set with the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   Alternatively, you can set this option with the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
    variable.
 
    Default: ``1.0``
@@ -190,7 +190,7 @@ Global Configuration
 
    Configure the sample rate for the collection of prompts and completions as logs.
 
-   This option can also be set with the ``DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   Alternatively, you can set this option with the ``DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment
    variable.
 
    Default: ``0.1``
