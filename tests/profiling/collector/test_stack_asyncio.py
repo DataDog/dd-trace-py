@@ -1,7 +1,7 @@
 import asyncio
 import collections
 import sys
-import types
+import time
 
 import pytest
 
@@ -25,16 +25,18 @@ def patch_stack_collector(stack_collector):
     stack_collector.run_count = 0
     orig = stack_collector.collect
     stack_collector._orig_collect = orig
-    stack_collector.collect = types.MethodType(_collect, stack_collector)
+    stack_collector.collect = _collect.__get__(stack_collector)
 
 
 @pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
 def test_asyncio(tmp_path, monkeypatch) -> None:
     sleep_time = 0.2
+    max_wait_for_collector_seconds = 60  # 1 minute timeout
 
     async def stuff(collector) -> None:
         count = collector.run_count
-        while collector.run_count == count:
+        start_time = time.time()
+        while collector.run_count == count and (time.time() < start_time + max_wait_for_collector_seconds):
             await asyncio.sleep(sleep_time)
 
     async def hello(collector) -> None:
@@ -61,7 +63,8 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     # Wait for the collector to run at least once on this thread, while it is doing something
     # 2.5+ seconds at times
     count = stack_collector.run_count
-    while count == stack_collector.run_count:
+    start_time = time.time()
+    while count == stack_collector.run_count and (time.time() < start_time + max_wait_for_collector_seconds):
         pass
 
     t1, t2 = loop.run_until_complete(maintask)
@@ -88,21 +91,14 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
                 assert event.thread_name == "MainThread"
                 assert len(event.frames) == 1
                 assert co_filename == __file__
-                assert first_line_this_test_class + 9 <= lineno <= first_line_this_test_class + 13
+                assert first_line_this_test_class + 9 <= lineno <= first_line_this_test_class + 15
                 assert co_name == "hello"
                 assert class_name == ""
                 assert event.nframes == 1
-            elif event.task_name == t1_name:
+            elif event.task_name in (t1_name, t2_name):
                 assert event.thread_name == "MainThread"
                 assert co_filename == __file__
-                assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 7
-                assert co_name == "stuff"
-                assert class_name == ""
-                assert event.nframes == 1
-            elif event.task_name == t2_name:
-                assert event.thread_name == "MainThread"
-                assert co_filename == __file__
-                assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 7
+                assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 9
                 assert co_name == "stuff"
                 assert class_name == ""
                 assert event.nframes == 1

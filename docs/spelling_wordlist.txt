@@ -137,6 +137,7 @@ opensearch
 opentracer
 opentracing
 otel
+ObjectProxy
 parameterized
 perf
 pid
@@ -147,6 +148,7 @@ pre
 prepended
 profiler
 protobuf
+proxying
 psycopg
 py
 PyFrameObject
@@ -185,6 +187,7 @@ stacktrace
 starlette
 statsd
 stringable
+subclass
 subdomains
 submodule
 submodules

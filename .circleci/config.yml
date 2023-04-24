@@ -20,6 +20,9 @@ parameters:
   coverage:
     type: boolean
     default: false
+  riot_run_latest:
+    type: boolean
+    default: false
 
 orbs:
   win: circleci/windows@5.0
@@ -77,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.1
+      - run: pip3 install riot==0.17.2
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -165,9 +168,11 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -181,8 +186,11 @@ commands:
                       name: "Waiting for << parameters.wait >>"
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -378,6 +386,7 @@ jobs:
 
   tracer:
     <<: *contrib_job_large
+    parallelism: 11
     steps:
       - run_test:
           pattern: "tracer"
@@ -550,20 +559,19 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
-            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - save_coverage
+            # Sort the hashes to ensure a consistent ordering/division between each node
+            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
 
   integration_testagent:
     <<: *machine_executor
     steps:
       - run_test:
           snapshot: true
+          store_coverage: false
           pattern: 'integration-snapshot'
 
   vendor:
@@ -601,11 +609,11 @@ jobs:
           pattern: 'test_logging'
 
   stdlib:
-    <<: *contrib_job_small
-    parallelism: 2
+    <<: *contrib_job
+    parallelism: 4
     steps:
       - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
@@ -790,6 +798,8 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
@@ -974,9 +984,19 @@ jobs:
 
   psycopg:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg"
+          pattern: "psycopg$"
+          snapshot: true
+          docker_services: "postgres"
+
+  psycopg2:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "psycopg2"
           snapshot: true
           docker_services: "postgres"
 
@@ -1207,6 +1227,7 @@ requires_tests: &requires_tests
     - opentracer
     - opentelemetry
     - psycopg
+    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1314,6 +1335,7 @@ workflows:
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
+      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs
