@@ -625,3 +625,27 @@ def test_trace_tag_processor_adds_chunk_root_tags():
     # test that parent span gets required chunk root span tags and child does not get language tag
     assert parent.get_tag("language") == "python"
     assert child.get_tag("language") is None
+
+
+def test_register_unregister_span_processor():
+    class TestProcessor(SpanProcessor):
+        def on_span_start(self, span):
+            span.set_tag("on_start", "ok")
+
+        def on_span_finish(self, span):
+            span.set_tag("on_finish", "ok")
+
+    tp = TestProcessor()
+    tp.register()
+
+    tracer = Tracer()
+
+    with tracer.trace("test") as span:
+        assert span.get_tag("on_start") == "ok"
+    assert span.get_tag("on_finish") == "ok"
+
+    tp.unregister()
+
+    with tracer.trace("test") as span:
+        assert span.get_tag("on_start") is None
+    assert span.get_tag("on_finish") is None
