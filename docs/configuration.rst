@@ -504,7 +504,11 @@ The following environment variables for the tracer are supported:
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False
-     description: Configures the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``.
+     description: |
+        Configures the ``CIVisibility`` service to use a test-reporting ``CIVisibilityWriter``.
+        This writer sends payloads for traces on which it's used to the intake endpoint for
+        Datadog CI Visibility. If there is a reachable Datadog agent that supports proxying
+        these requests, the writer will send its payloads to that agent instead.
      version_added:
         v1.12.0:
 
