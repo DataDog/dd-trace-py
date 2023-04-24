@@ -51,6 +51,46 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
+def _mark_failed(item):
+    """Store test failed status at `pytest.Item` instance."""
+    setattr(item, "_failed", True)
+
+
+def _check_failed(item):
+    """Extract test failed status from `pytest.Item` instance."""
+    return getattr(item, "_failed", False)
+
+
+def _mark_not_skipped(item):
+    """Mark test suite/module/session `pytest.Item` as not skipped."""
+    setattr(item, "_fully_skipped", False)
+
+
+def _check_fully_skipped(item):
+    """Check if test suite/module/session `pytest.Item` has `_fully_skipped` marker."""
+    return getattr(item, "_fully_skipped", True)
+
+
+def _mark_test_status(item, span):
+    """
+    Given a `pytest.Item`, determine and set the test status of the corresponding span.
+    """
+    # If any child has failed, mark span as failed.
+    if _check_failed(item):
+        status = test.Status.FAIL.value
+        if item.parent:
+            _mark_failed(item.parent)
+            _mark_not_skipped(item.parent)
+    # If all children have been skipped, mark span as skipped.
+    elif _check_fully_skipped(item):
+        status = test.Status.SKIP.value
+    else:
+        status = test.Status.PASS.value
+        if item.parent:
+            _mark_not_skipped(item.parent)
+    span.set_tag_str(test.STATUS, status)
+
+
 def _extract_reason(call):
     if call.excinfo is not None:
         return call.excinfo.value
@@ -192,6 +232,7 @@ def pytest_sessionfinish(session, exitstatus):
     if _CIVisibility.enabled:
         test_session_span = _extract_span(session)
         if test_session_span is not None:
+            _mark_test_status(session, test_session_span)
             test_session_span.finish()
         _CIVisibility.disable()
 
@@ -287,12 +328,14 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(item.parent)
     if test_suite_span is not None:
         if nextitem is None or nextitem.parent != item.parent and not test_suite_span.finished:
+            _mark_test_status(item.parent, test_suite_span)
             test_suite_span.finish()
 
     if isinstance(item.parent.parent, pytest.Package):
         test_module_span = _extract_span(item.parent.parent)
         if test_module_span is not None:
             if nextitem is None or nextitem.parent.parent != item.parent.parent and not test_module_span.finished:
+                _mark_test_status(item.parent.parent, test_module_span)
                 test_module_span.finish()
 
 
@@ -324,6 +367,7 @@ def pytest_runtest_makereport(item, call):
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
+            _mark_not_skipped(item.parent)
             if not item.config.option.runxfail:
                 span.set_tag_str(test.RESULT, test.Status.XFAIL.value)
                 span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
@@ -333,12 +377,16 @@ def pytest_runtest_makereport(item, call):
         if reason is not None:
             span.set_tag(test.SKIP_REASON, reason)
     elif result.passed:
+        _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
             span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
     else:
+        # Store failure in test suite `pytest.Item` to propagate to test suite spans
+        _mark_failed(item.parent)
+        _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
