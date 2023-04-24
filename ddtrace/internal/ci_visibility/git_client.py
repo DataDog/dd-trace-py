@@ -179,7 +179,7 @@ class CIVisibilityGitClientSerializerV1(object):
         body.extend(
             [
                 b"--" + BOUNDARY,
-                b'Content-Disposition: form-data; name="file"; filename="%s"' % file_name.encode("utf-8"),
+                b'Content-Disposition: form-data; name="packfile"; filename="%s"' % file_name.encode("utf-8"),
                 b"Content-Type: application/octet-stream",
                 b"",
                 file_content,
