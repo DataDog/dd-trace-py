@@ -311,19 +311,20 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
 
 def verify_url(url):
     # type: (str) -> parse.ParseResult
-    """Verify that a URL can be used to communicate with the Datadog Agent.
+    """Validates that the given URL can be used as an intake
     Returns a parse.ParseResult.
-    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    Raises a ``ValueError`` if the URL cannot be used as an intake
     """
     parsed = parse.urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
         raise ValueError(
-            "Unsupported protocol '%s' in Agent URL '%s'. Must be one of: %s" % (parsed.scheme, url, ", ".join(schemes))
+            "Unsupported protocol '%s' in intake URL '%s'. Must be one of: %s"
+            % (parsed.scheme, url, ", ".join(schemes))
         )
     elif parsed.scheme in ["http", "https"] and not parsed.hostname:
-        raise ValueError("Invalid hostname in Agent URL '%s'" % url)
+        raise ValueError("Invalid hostname in intake URL '%s'" % url)
     elif parsed.scheme == "unix" and not parsed.path:
-        raise ValueError("Invalid file path in Agent URL '%s'" % url)
+        raise ValueError("Invalid file path in intake URL '%s'" % url)
 
     return parsed
