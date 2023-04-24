@@ -591,7 +591,8 @@ class _EmbeddingHook(_EndpointHook):
                             span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
                     else:
                         span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
-                span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
+                else:
+                    span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield
 
