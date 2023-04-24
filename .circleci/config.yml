@@ -20,6 +20,9 @@ parameters:
   coverage:
     type: boolean
     default: false
+  riot_run_latest:
+    type: boolean
+    default: false
 
 orbs:
   win: circleci/windows@5.0
@@ -140,6 +143,7 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   mv .riot .ddriot
                   # Sort the hashes to ensure a consistent ordering/division between each node
@@ -157,6 +161,8 @@ commands:
                       name: "Waiting for << parameters.wait >>"
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -402,6 +408,8 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
             # Sort the hashes to ensure a consistent ordering/division between each node
@@ -639,6 +647,8 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
