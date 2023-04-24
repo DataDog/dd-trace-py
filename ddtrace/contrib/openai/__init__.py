@@ -16,7 +16,6 @@ Metrics
 ~~~~~~~
 
 The following metrics are collected by default by the OpenAI integration.
-Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment variable (see below for more information).
 
 .. important::
     If the Agent is configured to use a non-default Statsd hostname or port, use ``DD_DOGSTATSD_URL`` to configure
@@ -73,9 +72,9 @@ Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment va
 
 The following data is collected in span tags with a default sampling rate of ``1.0``:
 
-- Prompt inputs and completions for the ``completions`` endpoint
-- Message inputs and completions for the ``chat.completions`` endpoint
-- Embedding inputs for the ``embeddings`` endpoint
+- Prompt inputs and completions for the ``completions`` endpoint.
+- Message inputs and completions for the ``chat.completions`` endpoint.
+- Embedding inputs for the ``embeddings`` endpoint.
 
 Prompt and message inputs and completions can also be emitted as log data.
 Logs are **not** emitted by default. When logs are enabled they are sampled at ``0.1``.
@@ -160,9 +159,8 @@ Global Configuration
 
    Enable collection of OpenAI metrics.
 
-   Note that you must enable the Statsd port of the Datadog Agent. See
-   https://docs.datadoghq.com/developers/dogstatsd/?tab=hostagent#agent for
-   instructions.
+   If the Datadog Agent is configured to use a non-default Statsd hostname
+   or port, use ``DD_DOGSTATSD_URL`` to configure ``ddtrace`` to use it.
 
    Alternatively, you can set this option with the ``DD_OPENAI_METRICS_ENABLED`` environment
    variable.

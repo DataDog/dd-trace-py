@@ -613,7 +613,12 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.subprocess(ddtrace_run=True)
+# Expect an error because the test agent doesn't support metrics
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
+    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+)
 def test_integration_sync():
     """OpenAI uses requests for its synchronous requests.
 
@@ -626,7 +631,6 @@ def test_integration_sync():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
-    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -636,14 +640,20 @@ def test_integration_sync():
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.subprocess(ddtrace_run=True)
-# FIXME: 'aiohttp.request', 'TCPConnector.connect' on second
-# run of the test, might do with cassettes
+# Expect an error because the test agent doesn't support metrics
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
+    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+)
 def test_integration_async():
     """OpenAI uses requests for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
     with both OpenAI and requests spans.
+
+    FIXME: there _should_ be aiohttp spans generated for this test case. There aren't
+           because the patching VCR does into aiohttp interferes with the tracing patching.
     """
     import asyncio
 
@@ -653,7 +663,6 @@ def test_integration_async():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
-    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
