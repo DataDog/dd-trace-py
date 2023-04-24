@@ -75,6 +75,24 @@ def sqli_http_request_parameter(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def sqli_http_request_header_name(request):
+    key = [x for x in request.META.keys() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM sqlite_" + key)
+
+    return HttpResponse(request.META["master"], status=200)
+
+
+def sqli_http_request_header_value(request):
+    value = [x for x in request.META.values() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM sqlite_" + value)
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -125,6 +143,8 @@ urlpatterns = [
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
+    handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
+    handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
 ]
 
 if django.VERSION >= (2, 0, 0):
