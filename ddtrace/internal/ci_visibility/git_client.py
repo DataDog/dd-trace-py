@@ -84,7 +84,7 @@ class CIVisibilityGitClient(object):
     def _search_commits(cls, base_url, repo_url, latest_commits, serde, _response):
         # type: (str, str, list[str], CIVisibilityGitClientSerDeV1, Optional[Response]) -> list[str]
         payload = serde.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls.retry_request()(base_url, "/search_commits", payload, serde)
+        response = _response or cls.retry_request(base_url, "/search_commits", payload, serde)
         result = serde.search_commits_decode(response.body)
         return result
 
@@ -132,13 +132,12 @@ class CIVisibilityGitClient(object):
             file_path = os.path.join(directory, filename)
             content_type, payload = serde.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = _response or cls.retry_request()(base_url, "/packfile", payload, serde, headers=headers)
+            response = _response or cls.retry_request(base_url, "/packfile", payload, serde, headers=headers)
             return response.status == 204
         return False
 
     @classmethod
-    def retry_request(cls):
-        # type: () -> tenacity.Retrying
+    def retry_request(cls, *args, **kwargs):
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
                 multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
@@ -146,7 +145,7 @@ class CIVisibilityGitClient(object):
             ),
             stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
-        )
+        )(cls._do_request, *args, **kwargs)
 
 
 class CIVisibilityGitClientSerDeV1(object):

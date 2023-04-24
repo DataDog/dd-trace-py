@@ -67,7 +67,7 @@ class CIVisibility(Service):
                 "Environment variable DD_APPLICATION_KEY not set, which is required for CI Visibility reporting"
             )
         else:
-            self._git_client = CIVisibilityGitClient(api_key=os.environ.get("DD_API_KEY"), app_key=app_key)
+            self._git_client = CIVisibilityGitClient(api_key=os.environ.get("DD_API_KEY") or "", app_key=app_key)
 
         int_service = None
         if self.config is not None:
