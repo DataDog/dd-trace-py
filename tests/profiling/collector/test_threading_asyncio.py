@@ -8,7 +8,8 @@ from . import _asyncio_compat
     env=dict(
         DD_PROFILING_CAPTURE_PCT="100",
         PYTHONPATH=".",
-    )
+    ),
+    err=None,
 )
 def test_lock_acquire_events():
     import threading
