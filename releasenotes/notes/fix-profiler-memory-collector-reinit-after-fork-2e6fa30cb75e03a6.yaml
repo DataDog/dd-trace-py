@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixed a regression in the memory collector that caused it to fail
+    to cleanly re-initialize after a fork, causing error messages to be logged.
