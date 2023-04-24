@@ -67,6 +67,21 @@ def free_context_available():  # type: () -> bool
     return env.active and env.span is None
 
 
+def in_context():  # type: () -> bool
+    env = _ASM.get()
+    return env.active
+
+
+def is_blocked():  # type: () -> bool
+    try:
+        env = _ASM.get()
+        if not env.active or env.span is None:
+            return False
+        return _context.get_item("http.request.blocked", span=env.span)
+    except BaseException:
+        return False
+
+
 def register(span):
     env = _ASM.get()
     if not env.active:
@@ -117,8 +132,10 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
         asm_context_attr[address] = value
 
 
-def set_waf_address(address, value, span):  # type: (str, Any, Any) -> None
+def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
     set_value(_WAF_ADDRESSES, address, value)
+    if span is None:
+        span = _ASM.get().span
     if span:
         _context.set_item(address, value, span=span)
 
