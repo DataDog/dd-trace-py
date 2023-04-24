@@ -9,6 +9,7 @@ from werkzeug.exceptions import abort
 import xmltodict
 
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -258,6 +259,11 @@ def patch():
     Pin().onto(flask.Flask)
 
     # IAST
+    _w(
+        "werkzeug.datastructures",
+        "Headers.items",
+        functools.partial(if_iast_taint_yield_tuple_for, ("http.request.header.name", "http.request.header")),
+    )
     _w(
         "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
