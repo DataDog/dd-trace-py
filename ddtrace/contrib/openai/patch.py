@@ -587,9 +587,12 @@ class _EmbeddingHook(_EndpointHook):
     def handle_request(self, pin, integration, span, args, kwargs):
         for kw_attr in ["model", "input", "user"]:
             if kw_attr in kwargs:
-                if kw_attr == "input" and isinstance(kwargs["input"], list):
-                    for idx, inp in enumerate(kwargs["input"]):
-                        span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
+                if kw_attr == "input" and integration.is_pc_sampled_span(span):
+                    if isinstance(kwargs["input"], list):
+                        for idx, inp in enumerate(kwargs["input"]):
+                            span.set_tag_str("request.input.%d" % idx, integration.trunc(inp))
+                    else:
+                        span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
                 span.set_tag("request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield

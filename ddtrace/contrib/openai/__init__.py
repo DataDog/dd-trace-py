@@ -72,18 +72,21 @@ Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment va
 Prompt and Completion Sampling (beta)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Prompts and their completions are collected in span data with a default sampling rate
-of 100%.
+The following data is collected in span tags with a default sampling rate of 100%:
 
-Prompts and their completions can also be emitted as log data. Logs are **not** emitted 
-by default. When logs are enabled they are sampled at 10%.
+- Prompt inputs and completions for the ``completions`` endpoint
+- Message inputs and completions for the ``chat.completions`` endpoint
+- Embedding inputs for the ``embeddings`` endpoint
+
+Prompt/message inputs and completions can also be emitted as log data.
+Logs are **not** emitted by default. When logs are enabled they are sampled at 10%.
 
 .. important::
 
      ``DD_API_KEY`` environment variable is required to submit logs.
 
 See details in the **Global Configuration** section on how to enable logs and configure sampling
-rates for prompt and completion sampling.
+rates.
 
 
 Enabling
