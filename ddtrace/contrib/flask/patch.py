@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
@@ -115,9 +116,9 @@ def taint_request_init(wrapped, instance, args, kwargs):
 
             taint_pyobject(
                 instance.query_string,
-                Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
             )
-            taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -265,29 +266,29 @@ def patch():
     _w(
         "werkzeug.datastructures",
         "Headers.items",
-        functools.partial(if_iast_taint_yield_tuple_for, ("http.request.header.name", "http.request.header")),
+        functools.partial(if_iast_taint_yield_tuple_for, (IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),
     )
     _w(
         "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.header"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_HEADER),
     )
     _w(
         "werkzeug.datastructures",
         "ImmutableMultiDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
     )
     _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
     _w(
         "werkzeug.wrappers.request",
         "Request.get_data",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.body"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_BODY),
     )
     if flask_version < (2, 0, 0):
         _w(
             "werkzeug._internal",
             "_DictAccessorProperty.__get__",
-            functools.partial(if_iast_taint_returned_object_for, "http.request.querystring"),
+            functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_QUERYSTRING),
         )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
