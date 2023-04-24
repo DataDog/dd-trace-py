@@ -32,6 +32,14 @@ class TestRedisClusterPatch(TracerTestCase):
         unpatch()
         super(TestRedisClusterPatch, self).tearDown()
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_service_name_v1(self):
+        us = self.r.get("cheese")
+        assert us is None
+        spans = self.get_spans()
+        span = spans[0]
+        assert span.service == "unnamed-python-service"
+
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
@@ -121,8 +129,8 @@ class TestRedisClusterPatch(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
         When a user specifies a service for the app
             The rediscluster integration should not use it.
@@ -141,14 +149,56 @@ class TestRedisClusterPatch(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myrediscluster"))
-    def test_env_user_specified_rediscluster_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        When a user specifies a service for the app
+            The rediscluster integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        r = self._get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_env_user_specified_rediscluster_service_v0(self):
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster"))
-    def test_service_precedence(self):
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_env_user_specified_rediscluster_service_v1(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster", span.service
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_service_precedence_v0(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster"
+
+        self.reset()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_service_precedence_v1(self):
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "myrediscluster"

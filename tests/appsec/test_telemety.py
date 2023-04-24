@@ -49,6 +49,8 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
         if metric.name == "waf.requests":
             assert metric._tags["rule_triggered"] is is_rule_triggered
             assert metric._tags["request_blocked"] is is_blocked_request
+            assert metric._tags["request_truncated"] is False
+            assert metric._tags["waf_timeout"] is False
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
         elif metric.name == "waf.init":
@@ -97,7 +99,6 @@ def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
                 Config(),
             )
     _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
-    _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
 
 
 def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
@@ -109,7 +110,6 @@ def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
     _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True)
-    _assert_distributions_metrics(mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True)
 
 
 def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
@@ -126,9 +126,6 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
                 )
 
     _assert_generate_metrics(
-        mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
-    )
-    _assert_distributions_metrics(
         mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
     )
 

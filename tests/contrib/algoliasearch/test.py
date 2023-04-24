@@ -100,6 +100,19 @@ class AlgoliasearchTest(TracerTestCase):
         spans = self.get_spans()
         span = spans[0]
         assert span.get_tag("query.text") == "test search"
+        assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
+        assert span.get_tag("query.args.unsupportedTotallyNewArgument") is None
+
+    def test_algoliasearch_with_query_args_nontext(self):
+        self.patch_algoliasearch()
+        config.algoliasearch.collect_query_text = True
+
+        self.perform_search("test search", {"hitsPerPage": 1, "page": 3})
+        spans = self.get_spans()
+        span = spans[0]
+        assert span.get_tag("query.text") == "test search"
+        assert span.get_metric("query.args.page") == 3
+        assert span.get_metric("query.args.hits_per_page") == 1
 
     def test_patch_unpatch(self):
         self.patch_algoliasearch()

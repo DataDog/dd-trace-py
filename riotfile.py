@@ -226,6 +226,9 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
             },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
         ),
         Venv(
             pys=select_pys(),
@@ -260,6 +263,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
+            command="pytest {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "attrs": ["==20.1.0", latest],
@@ -267,23 +271,28 @@ venv = Venv(
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
             },
-            # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
-            # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
-            # See linked riot issue: https://github.com/DataDog/riot/issues/192
-            command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
             venvs=[
                 Venv(pys=select_pys()),
                 # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
                 Venv(
+                    name="tracer-128-bit-traceid-enabled",
                     pys=MAX_PYTHON_VERSION,
                     env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["false", "true"],
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
                     },
                 ),
                 Venv(
+                    name="tracer-128-bit-traceid-disabled",
+                    pys=MAX_PYTHON_VERSION,
+                    env={
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
+                    },
+                ),
+                Venv(
+                    name="tracer-python-optimize",
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
-                    pys=".".join((str(_) for _ in SUPPORTED_PYTHON_VERSIONS[-1])),
+                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -298,6 +307,7 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            # Enabling coverage for integration tests breaks certain tests in CI
             command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
@@ -763,6 +773,9 @@ venv = Venv(
                 "pylibmc": latest,
                 "python-memcached": latest,
             },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
             venvs=[
                 Venv(
                     # django dropped support for Python 2.7 in 2.0
@@ -791,9 +804,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "django": ["~=4.2", latest],
+                        "psycopg": latest,
+                        "channels": latest,
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
                         "django": [latest],
+                        "psycopg": latest,
                         "channels": latest,
                     },
                 ),
@@ -1130,8 +1153,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="psycopg",
-            command="pytest {cmdargs} tests/contrib/psycopg",
+            name="psycopg2",
+            command="pytest {cmdargs} tests/contrib/psycopg2",
             venvs=[
                 Venv(
                     # psycopg2-binary dropped support for Python 2.7 in 2.9
@@ -1148,6 +1171,23 @@ venv = Venv(
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.11"),
+                    # Python 3.6 supported up to 3.1.0
+                    pkgs={"psycopg": ["~=3.0.18"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    # psycopg3>=3.1.0 supports Python 3.7 -> 3.11
+                    pkgs={"psycopg": [latest]},
                 ),
             ],
         ),
@@ -2301,6 +2341,26 @@ venv = Venv(
             name="dbapi",
             command="pytest {cmdargs} tests/contrib/dbapi",
             pys=select_pys(),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+        ),
+        Venv(
+            name="dbapi_async",
+            command="pytest {cmdargs} tests/contrib/dbapi_async",
+            pys=select_pys(min_version="3.5"),
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                ),
+                Venv(pys=["3.11"], pkgs={"attrs": latest}),
+            ],
         ),
         Venv(
             name="dogpile_cache",
