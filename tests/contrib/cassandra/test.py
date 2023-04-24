@@ -492,7 +492,7 @@ class TestCassandraConfig(TracerTestCase):
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
-            The cassandra integration should not use it.
+            The cassandra integration should use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -509,8 +509,8 @@ class TestCassandraConfig(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         """
-        v1: When a user specifies a service for the app
-            The cassandra integration should not use it.
+        v1: When a user does not specify a service for the app
+            dd-trace-py should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
         """
         # Ensure that the service name was configured
         from ddtrace import config

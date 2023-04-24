@@ -245,7 +245,7 @@ class ElasticsearchPatchTest(TracerTestCase):
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
-            The elasticsearch integration should not use it.
+            The elasticsearch integration should use it.
         """
         assert config.service == "mysvc"
 

@@ -219,7 +219,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
-        When a user specifies a service for the app
+        : When a user specifies a service for the app
             The mongoengine integration should not use it.
         """
         from ddtrace import config
@@ -236,7 +236,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
     def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The mongoengine integration should not use it.
         """
         from ddtrace import config

@@ -379,7 +379,7 @@ class PsycopgCore(TracerTestCase):
     def test_user_specified_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
-            The psycopg2 integration should not use it.
+            The psycopg2 integration should use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
