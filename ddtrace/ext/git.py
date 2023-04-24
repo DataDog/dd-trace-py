@@ -11,6 +11,7 @@ from typing import Dict
 from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import six
 
@@ -74,11 +75,13 @@ def is_ref_a_tag(ref):
     return "tags/" in ref if ref else False
 
 
-def _git_subprocess_cmd(git_cmd, cwd=None, std_in=None):
-    # type: (str, Optional[str], Optional[bytes]) -> str
+def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
+    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    if isinstance(git_cmd, six.string_types):
-        git_cmd = git_cmd.split(" ")
+    if isinstance(cmd, six.string_types):
+        git_cmd = cmd.split(" ")
+    else:
+        git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
     process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
     stdout, stderr = process.communicate(input=std_in)
@@ -99,6 +102,12 @@ def extract_user_info(cwd=None):
     }
 
 
+def extract_git_version(cwd=None):
+    output = _git_subprocess_cmd("--version")
+    version_info = tuple([int(part) for part in output.split()[-1].split(".")])
+    return version_info
+
+
 def extract_remote_url(cwd=None):
     remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
     return remote_url
@@ -110,7 +119,11 @@ def extract_latest_commits(cwd=None):
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
-    command = ["rev-list", "--objects", "--no-object-names", "--filter=blob:none", '--since="1 month ago"', "HEAD"]
+    command = ["rev-list", "--objects", "--filter=blob:none"]
+    if extract_git_version(cwd=cwd) >= (2, 23, 0):
+        command.append('--since="1 month ago"')
+        command.append("--no-object-names")
+    command.append("HEAD")
     exclusions = ["^%s" % sha for sha in commit_shas]
     command.extend(exclusions)
     commits = _git_subprocess_cmd(command, cwd=cwd)
