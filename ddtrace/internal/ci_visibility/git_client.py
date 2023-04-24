@@ -20,7 +20,7 @@ from ddtrace.internal.logger import get_logger
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
-from .constants import DEFAULT_SITE
+from .constants import AGENTLESS_DEFAULT_SITE
 
 
 log = get_logger(__name__)
@@ -40,7 +40,7 @@ class CIVisibilityGitClient(object):
         # type: (str, str, str) -> None
         self._serde = CIVisibilityGitClientSerDeV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
-        self._base_url = "https://api.{}".format(os.getenv("DD_SITE", DEFAULT_SITE))
+        self._base_url = "https://api.{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
         self._response = RESPONSE
 
     def start(self, cwd=None):
