@@ -62,10 +62,12 @@ class CIVisibility(Service):
 
         self._git_client = None
         app_key = os.environ.get("DD_APPLICATION_KEY")
-        if app_key is None:
-            log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
-        else:
-            self._git_client = CIVisibilityGitClient(api_key=os.environ.get("DD_API_KEY") or "", app_key=app_key)
+
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            if app_key is None:
+                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            else:
+                self._git_client = CIVisibilityGitClient(api_key=os.environ.get("DD_API_KEY") or "", app_key=app_key)
 
         int_service = None
         if self.config is not None:
