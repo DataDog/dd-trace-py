@@ -24,39 +24,71 @@ Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment va
      Use ``DD_DOGSTATSD_URL`` to specify the agent hostname and port.
 
 
-.. py:data:: openai.request.error (count)
+.. py:data:: openai.request.error
 
-.. py:data:: openai.request.duration (distribution)
+   Type: ``count``
 
-.. py:data:: openai.ratelimit.requests (gauge)
 
-.. py:data:: openai.ratelimit.tokens (gauge)
+.. py:data:: openai.request.duration
 
-.. py:data:: openai.ratelimit.remaining.requests (gauge)
+   Type: ``distribution``
 
-.. py:data:: openai.ratelimit.remaining.tokens (gauge)
 
-.. py:data:: openai.tokens.prompt (distribution)
+.. py:data:: openai.ratelimit.requests
 
-.. py:data:: openai.tokens.completion (distribution)
+   Type: ``gauge``
 
-.. py:data:: openai.tokens.total (distribution)
 
+.. py:data:: openai.ratelimit.tokens
+
+   Type: ``gauge``
+
+
+.. py:data:: openai.ratelimit.remaining.requests
+
+   Type: ``gauge``
+
+
+.. py:data:: openai.ratelimit.remaining.tokens
+
+   Type: ``gauge``
+
+
+.. py:data:: openai.tokens.prompt
+
+   Type: ``distribution``
+
+
+.. py:data:: openai.tokens.completion
+
+   Type: ``distribution``
+
+
+.. py:data:: openai.tokens.total
+
+   Type: ``distribution``
 
 
 Prompt and Completion Sampling (beta)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Prompts and completions on Completion and ChatCompletion requests are always
-sampled on span data. The length of the samples in span tags is limited 
-by the ``span_char_limit`` setting.
+Prompts and their completions are collected in span data with a default sampling rate
+of 100%.
 
-Logs are **not** emitted by default, see below for instructions to enable logs.
-When logs are enabled they are sampled at 10%.
+See details below on the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment variable 
+to configure the prompt/completion sampling rate in span data.
+
+Prompts and their completions can also be emitted as log data. Logs are **not** emitted by default. 
+See details below on the ``DD_OPENAI_LOGS_ENABLED`` environment variable below to enable logs.
 
 .. important::
 
      ``DD_API_KEY`` environment variable is required to submit logs.
+
+When logs are enabled they are sampled at 10%.
+
+See details below on the ``DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment variable to
+configure the log sampling rate.
 
 
 Enabling
@@ -77,10 +109,10 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration
 
     patch(openai=True)
 
-    # if doing synchronous requests (the default)
+    # to trace synchronous HTTP requests from the OpenAI library
     # patch(openai=True, requests=True)
 
-    # or if doing asynchronous requests
+    # to trace asynchronous HTTP requests from the OpenAI library
     # patch(openai=True, aiohttp=True)
 
     # to disable requests or aiohttp integrations

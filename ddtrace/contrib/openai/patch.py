@@ -387,7 +387,6 @@ class _BaseCompletionHook(_EndpointHook):
         """
 
         def shared_gen():
-            """ """
             stream_span = pin.tracer.start_span("openai.stream", child_of=span, activate=True)
             num_prompt_tokens = span.get_metric("response.usage.prompt_tokens") or 0
 
