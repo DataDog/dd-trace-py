@@ -87,7 +87,7 @@ rates.
 
     ``DD_API_KEY`` environment variable is required to submit logs.
 
-    Use ``DD_SITE`` to send logs to a different Datadog site (eg. datadoghq.eu).
+    Use ``DD_SITE`` to send logs to a different Datadog site (``datadoghq.eu``).
 
 
 Enabling

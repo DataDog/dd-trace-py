@@ -50,7 +50,7 @@ def openai_vcr():
 
 @pytest.fixture
 def openai_api_key():
-    return "<not-a-real-key>"
+    return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
 @pytest.fixture
@@ -798,7 +798,6 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
     elif ddtrace.config.openai["log_prompt_completion_sample_rate"] == 1:
         assert logs == total_calls
     else:
-        print(logs)
         rate = ddtrace.config.openai["log_prompt_completion_sample_rate"] * total_calls
         assert (rate - 15) < logs < (rate + 15)
 
