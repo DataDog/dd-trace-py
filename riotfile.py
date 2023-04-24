@@ -298,6 +298,7 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            # Enabling coverage for integration tests breaks certain tests in CI
             command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
@@ -1576,9 +1577,9 @@ venv = Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
                     pkgs={
-                        "pytest": ">=4.0,<4.6",
+                        "pytest": ">=4.0,<=4.6",
                         "msgpack": latest,
-                        "pytest-cov": "==2.5.0",
+                        "pytest-cov": "==2.12.1",
                     },
                 ),
                 Venv(
