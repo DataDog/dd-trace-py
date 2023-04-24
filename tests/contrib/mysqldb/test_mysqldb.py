@@ -504,7 +504,7 @@ class MySQLCore(object):
         assert len(rows) == 1
         spans = tracer.pop()
 
-        assert spans[0].service == "mysvc", f"{spans[0].service} - mysvc"
+        assert spans[0].service == "mysvc"
 
     @pytest.mark.skipif((1, 4) < MySQLdb.version_info < (2, 0), reason="context manager interface not supported")
     def test_contextmanager_connection(self):
@@ -692,7 +692,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert len(rows) == 1
         spans = tracer.pop()
 
-        assert spans[0].service == "mysvc", f"{spans[0].service} - mysvc"
+        assert spans[0].service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):

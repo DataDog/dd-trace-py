@@ -282,7 +282,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
 
         spans = tracer.pop()
         assert len(spans) == 1
-        assert spans[0].service == "mongodb", f"{spans[0].service} - 'mongodb'"
+        assert spans[0].service == "mongodb"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
@@ -299,9 +299,7 @@ class TestMongoEnginePatchConnectDefaultOnly(TestMongoEnginePatchConnectDefault)
 
         spans = tracer.pop()
         assert len(spans) == 1
-        assert (
-            spans[0].service == DEFAULT_SPAN_SERVICE_NAME
-        ), f"{config.service} - {spans[0].service} - {DEFAULT_SPAN_SERVICE_NAME}"
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
 
 class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
