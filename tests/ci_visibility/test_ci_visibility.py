@@ -96,3 +96,10 @@ def test_civisibilitywriter_agentless_url():
         with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
             dummy_writer = DummyCIVisibilityWriter()
             assert dummy_writer.intake_url == "https://foo.bar"
+
+
+def test_civisibilitywriter_agentless_url_envvar():
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar")):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        dummy_writer = DummyCIVisibilityWriter()
+        assert dummy_writer.intake_url == "https://foo.bar"
