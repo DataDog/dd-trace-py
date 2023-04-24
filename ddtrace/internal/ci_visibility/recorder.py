@@ -71,14 +71,14 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
+        self._app_key = os.getenv("DD_APP_KEY")
+        self._api_key = os.getenv("DD_API_KEY")
+        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
-        self._app_key = os.getenv("DD_APP_KEY")
-        self._api_key = os.getenv("DD_API_KEY")
-        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
