@@ -1,15 +1,15 @@
 """
 The OpenAI integration instruments the OpenAI Python library to emit metrics,
-traces and logs (disabled by default) for requests made to the OpenAI
+traces and logs (disabled by default) for requests made to the
 completions, chat completions and embeddings endpoints.
 
-All data submitted from the OpenAI integration is tagged with
+All metrics, logs and traces submitted from the OpenAI integration are tagged with
 
-- ``service`` / ``env`` / ``version``: See the `UST docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/>`.
-- ``endpoint``: The OpenAI API endpoint used in the request.
-- ``model``: The OpenAI model used in the request.
-- ``organization.name``: The OpenAI organization used in the request.
-- ``organization.id``: The OpenAI organization used in the request (when available).
+- ``service`` / ``env`` / ``version``: see the `UST docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
+- ``endpoint``: OpenAI API endpoint used in the request.
+- ``model``: OpenAI model used in the request.
+- ``organization.name``: OpenAI organization name used in the request.
+- ``organization.id``: OpenAI organization ID used in the request (when available).
 
 
 Metrics
@@ -85,7 +85,9 @@ rates.
 
 .. important::
 
-     ``DD_API_KEY`` environment variable is required to submit logs.
+    ``DD_API_KEY`` environment variable is required to submit logs.
+
+    Use ``DD_SITE`` to send logs to a different Datadog site (eg. datadoghq.eu).
 
 
 Enabling
