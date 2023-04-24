@@ -82,8 +82,12 @@ def snapshot(request):
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
-            yield snapshot
+        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+        snapshot = mgr.__enter__()
+        yield snapshot
+        # Skip doing any checks if the test was skipped
+        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
+            mgr.__exit__(None, None, None)
     else:
         yield
 
