@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -15,14 +14,16 @@ from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import AGENTLESS_ENDPOINT
+from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .coverage import enabled as coverage_enabled
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
 
 class CIVisibilityEventClient(WriterClientBase):
-    ENDPOINT = "api/v2/citestcycle"
-
     def __init__(self):
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
@@ -44,6 +45,14 @@ class CIVisibilityCoverageClient(WriterClientBase):
         super(CIVisibilityCoverageClient, self).__init__(encoder)
 
 
+class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
+    ENDPOINT = AGENTLESS_ENDPOINT
+
+
+class CIVisibilityProxiedEventClient(CIVisibilityEventClient):
+    ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
+
+
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "POST"
@@ -62,16 +71,17 @@ class CIVisibilityWriter(HTTPWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        use_evp=False,  # type: bool
     ):
         if not intake_url:
-            intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
-        headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
-        if not headers["dd-api-key"]:
-            raise ValueError("Required environment variable DD_API_KEY not defined")
-        clients = [CIVisibilityEventClient()]  # type: List[WriterClientBase]
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
+
+        clients = (
+            [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
+        )  # type: List[WriterClientBase]
         if coverage_enabled():
             clients.append(CIVisibilityCoverageClient())
+
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,

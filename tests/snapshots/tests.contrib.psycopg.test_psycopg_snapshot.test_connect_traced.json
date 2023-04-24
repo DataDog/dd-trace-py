@@ -1,8 +1,8 @@
 [[
   {
-    "name": "psycopg2.connect",
+    "name": "psycopg.connection.connect",
     "service": "postgres",
-    "resource": "psycopg2.connect",
+    "resource": "psycopg.connection.connect",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
