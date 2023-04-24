@@ -12,7 +12,7 @@ from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.debugging._probe.remoteconfig import probe_factory
+from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
@@ -286,7 +286,7 @@ def test_multiple_configs():
 
 
 def test_log_probe_attributes_parsing():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -316,7 +316,7 @@ def test_log_probe_attributes_parsing():
 
 
 def test_parse_log_probe_with_rate():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -333,7 +333,7 @@ def test_parse_log_probe_with_rate():
 
 
 def test_parse_log_probe_default_rates():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -348,7 +348,7 @@ def test_parse_log_probe_default_rates():
 
     assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
 
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,

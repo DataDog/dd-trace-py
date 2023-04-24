@@ -108,14 +108,17 @@ flask_version = parse_version(flask_version_str)
 def taint_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        try:
+            from ddtrace.appsec.iast._input_info import Input_info
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-        taint_pyobject(
-            instance.query_string,
-            Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
-        )
-        taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+            taint_pyobject(
+                instance.query_string,
+                Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+            )
+            taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
