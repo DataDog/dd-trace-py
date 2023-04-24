@@ -166,7 +166,7 @@ class CIVisibility(Service):
         if self._git_client is not None:
             self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:
-            self.tracer.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+            self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
 
