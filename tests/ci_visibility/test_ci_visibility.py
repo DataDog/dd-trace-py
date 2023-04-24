@@ -123,7 +123,8 @@ DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "
 
 
 def test_git_client_worker(git_repo):
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             start_time = time.time()
