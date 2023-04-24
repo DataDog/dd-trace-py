@@ -156,6 +156,7 @@ class CIVisibility(Service):
             self.tracer.configure(writer=writer)
 
     def _agent_evp_proxy_is_available(self):
+        # type: () -> bool
         try:
             info = agent.info()
         except Exception:
@@ -165,6 +166,7 @@ class CIVisibility(Service):
             endpoints = info.get("endpoints", [])
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
+        return False
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
