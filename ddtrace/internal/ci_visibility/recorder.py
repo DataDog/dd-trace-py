@@ -77,6 +77,8 @@ class CIVisibility(Service):
         self._service = service
         self._codeowners = None
         self._app_key = os.getenv("DD_APP_KEY")
+        self._api_key = os.getenv("DD_API_KEY")
+        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
@@ -101,8 +103,8 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
             return False, False
-        url = "https://api.datadoghq.com/api/v2/libraries/tests/services/setting"
-        _headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": self._app_key}
+        url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
+        _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -122,6 +124,9 @@ class CIVisibility(Service):
         except json.JSONDecodeError:
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
+            log.warning(
+                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
+            )
             return False, False
 
         attributes = parsed["data"]["attributes"]
@@ -130,10 +135,10 @@ class CIVisibility(Service):
     def _configure_writer(self):
         writer = None
         if ddconfig._ci_visibility_agentless_enabled:
-            headers = {"dd-api-key": os.environ.get("DD_API_KEY")}
+            headers = {"dd-api-key": self._api_key}
             if headers["dd-api-key"]:
                 writer = CIVisibilityWriter(
-                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, os.environ.get("DD_SITE", AGENTLESS_DEFAULT_SITE)),
+                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, self._dd_site),
                     headers=headers,
                 )
             else:
