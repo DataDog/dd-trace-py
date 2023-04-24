@@ -9,6 +9,7 @@ import time
 from typing import List
 
 import attr
+import pkg_resources
 import pytest
 
 import ddtrace
@@ -109,6 +110,7 @@ def override_global_config(values):
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_enabled",
     ]
 
     # Grab the current values of all keys
@@ -1075,6 +1077,14 @@ def request_token(request):
     token += ".%s" % request.cls.__name__ if request.cls else ""
     token += ".%s" % request.node.name
     return token
+
+
+def package_installed(package_name):
+    try:
+        pkg_resources.get_distribution(package_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
 
 
 def git_repo_empty(tmpdir):
