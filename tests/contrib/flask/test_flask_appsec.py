@@ -664,7 +664,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert get_response_body(resp) == "Ok: ytrace"
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Ok: xtrace"
@@ -696,7 +696,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 404
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/.git")
             assert resp.status_code == 200
             assert get_response_body(resp) == "git file"
@@ -734,7 +734,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 with override_global_config(dict(_appsec_enabled=appsec)), override_env(
                     dict(DD_APPSEC_RULES=RULES_SRB)
                 ):
-                    self._aux_appsec_prepare_tracer()
+                    self._aux_appsec_prepare_tracer(appsec_enabled=appsec)
                     resp = self.client.post(
                         "/index.html?args=test",
                         data=payload,
@@ -773,7 +773,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
             assert resp.status_code == 200
@@ -803,7 +803,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=False)), override_env(
             dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
         ):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/do_not_exist.php")
             assert resp.status_code == 404
@@ -830,7 +830,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
         # GET must pass if appsec disabled
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/")
             assert resp.status_code == 200
@@ -860,7 +860,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=False)), override_env(
             dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
         ):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
             resp = self.client.get("/")
             assert resp.status_code == 200
@@ -889,7 +889,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert get_response_body(resp) == "Anything"
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/params/AiKfOeRcvG45")
             assert resp.status_code == 200
             assert get_response_body(resp) == "AiKfOeRcvG45"
@@ -911,7 +911,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/response-header/")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Foo bar baz"
