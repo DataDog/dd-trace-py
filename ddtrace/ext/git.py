@@ -74,10 +74,11 @@ def is_ref_a_tag(ref):
     return "tags/" in ref if ref else False
 
 
-def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
+def _git_subprocess_cmd(git_cmd, cwd=None, std_in=None):
     # type: (str, Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    git_cmd = cmd.split(" ")
+    if isinstance(git_cmd, six.string_types):
+        git_cmd = git_cmd.split(" ")
     git_cmd.insert(0, "git")
     process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
     stdout, stderr = process.communicate(input=std_in)
@@ -104,13 +105,15 @@ def extract_remote_url(cwd=None):
 
 
 def extract_latest_commits(cwd=None):
-    latest_commits = _git_subprocess_cmd("log --format=%H -n 1000", cwd=cwd)
+    latest_commits = _git_subprocess_cmd(["log", "--format=%H", "-n", "1000" '--since="1 month ago"'], cwd=cwd)
     return latest_commits.split("\n") if latest_commits else []
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
-    exclusions = " ".join(["^%s" % sha for sha in commit_shas])
-    commits = _git_subprocess_cmd("rev-list --objects --filter=blob:none HEAD %s" % exclusions, cwd=cwd)
+    command = ["rev-list", "--objects", "--no-object-names", "--filter=blob:none", '--since="1 month ago"', "HEAD"]
+    exclusions = ["^%s" % sha for sha in commit_shas]
+    command.extend(exclusions)
+    commits = _git_subprocess_cmd(command, cwd=cwd)
     return commits
 
 
