@@ -1,11 +1,11 @@
 """
 The OpenAI integration instruments the OpenAI Python library to emit metrics,
-traces and logs (not enabled by default) for requests made to the OpenAI
+traces and logs (disabled by default) for requests made to the OpenAI
 completions, chat completions and embeddings endpoints.
 
 All data submitted from the OpenAI integration is tagged with
 
-- ``service`` / ``env`` / ``version``: See https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+- ``service`` / ``env`` / ``version``: See the `UST docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/>`.
 - ``endpoint``: The OpenAI API endpoint used in the request.
 - ``model``: The OpenAI model used in the request.
 - ``organization.name``: The OpenAI organization used in the request.
@@ -19,19 +19,18 @@ The following metrics are by default collected by the OpenAI integration.
 Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment variable (see below for more information).
 
 .. important::
-
-     DogStatsd has to be enabled in the agent (https://docs.datadoghq.com/developers/dogstatsd/?tab=hostagent).
-     Use ``DD_DOGSTATSD_URL`` to specify the agent hostname and port.
-
-
-.. py:data:: openai.request.error
-
-   Type: ``count``
+    If the Agent is configured to use a different Statsd hostname/port, use ``DD_DOGSTATSD_URL`` to configure
+    ``ddtrace`` to use it.
 
 
 .. py:data:: openai.request.duration
 
    Type: ``distribution``
+
+
+.. py:data:: openai.request.error
+
+   Type: ``count``
 
 
 .. py:data:: openai.ratelimit.requests
@@ -69,7 +68,7 @@ Metrics can be disabled through the ``DD_OPENAI_METRICS_ENABLED`` environment va
    Type: ``distribution``
 
 
-Prompt and Completion Sampling (beta)
+(beta) Prompt and Completion Sampling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following data is collected in span tags with a default sampling rate of ``1.0``:
@@ -125,8 +124,8 @@ Global Configuration
 
    The service name reported by default for OpenAI requests.
 
-   This option can also be set with the ``DD_OPENAI_SERVICE`` environment
-   variable.
+   This option can also be set with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
+   variables.
 
    Default: ``DD_SERVICE``
 
@@ -195,7 +194,6 @@ Global Configuration
    Default: ``0.1``
 
 
-
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -206,9 +204,6 @@ To configure the OpenAI integration on a per-instance basis use the
     from ddtrace import Pin, config
 
     Pin.override(openai, service="my-openai-service")
-
-    config.openai["metrics_enabled"] = False
-    config.openai["logs_enabled"] = True
 """
 from ...internal.utils.importlib import require_modules
 
