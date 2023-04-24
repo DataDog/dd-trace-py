@@ -22,6 +22,12 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
+from .. import agent
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_PROXY_AGENT_BASE_PATH
+from .constants import EVP_SUBDOMAIN_HEADER_NAME
+from .constants import EVP_SUBDOMAIN_HEADER_VALUE
 from .writer import CIVisibilityWriter
 
 
@@ -65,9 +71,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
-            writer = CIVisibilityWriter()
-            self.tracer.configure(writer=writer)
+        self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
@@ -122,6 +126,40 @@ class CIVisibility(Service):
 
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
+
+    def _configure_writer(self):
+        writer = None
+        if ddconfig._ci_visibility_agentless_enabled:
+            headers = {"dd-api-key": os.environ.get("DD_API_KEY")}
+            if headers["dd-api-key"]:
+                writer = CIVisibilityWriter(
+                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, os.environ.get("DD_SITE", AGENTLESS_DEFAULT_SITE)),
+                    headers=headers,
+                )
+            else:
+                raise EnvironmentError(
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                    "cannot be initialized."
+                )
+        elif self._agent_evp_proxy_is_available():
+            writer = CIVisibilityWriter(
+                intake_url=agent.get_trace_url(),
+                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+                use_evp=True,
+            )
+        if writer is not None:
+            self.tracer.configure(writer=writer)
+
+    def _agent_evp_proxy_is_available(self):
+        try:
+            info = agent.info()
+        except Exception:
+            info = None
+
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
+                return True
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

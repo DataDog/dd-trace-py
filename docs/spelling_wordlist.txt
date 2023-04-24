@@ -147,6 +147,7 @@ pre
 prepended
 profiler
 protobuf
+proxying
 psycopg
 py
 PyFrameObject
