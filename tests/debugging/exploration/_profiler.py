@@ -1,5 +1,6 @@
 import typing as t
 
+from _config import config as expl_config
 from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
@@ -28,6 +29,7 @@ class FunctionCollector(ModuleCollector):
                     module=module.__name__,
                     func_qname=fname.replace(module.__name__, "").lstrip("."),
                     rate=float("inf"),
+                    limits=expl_config.limits,
                 )
             )
 
