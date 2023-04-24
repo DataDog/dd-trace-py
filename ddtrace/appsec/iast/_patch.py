@@ -159,4 +159,5 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
             yield new_key, new_value
 
     else:
-        yield from wrapped(*args, **kwargs)
+        for key, value in wrapped(*args, **kwargs):
+            yield key, value
