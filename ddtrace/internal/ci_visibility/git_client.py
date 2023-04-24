@@ -1,20 +1,17 @@
-import contextlib
 import json
 from multiprocessing import Process
 import os
-import random
 from typing import Callable  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
 import tenacity
 
+from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
-from ddtrace.ext.git import git_subprocess_cmd
-from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
 from .. import compat
@@ -38,7 +35,7 @@ class CIVisibilityGitClient(object):
         base_url="",
     ):
         # type: (str, str, str) -> None
-        self._serde = CIVisibilityGitClientSerDeV1(api_key, app_key)
+        self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
         self._base_url = "https://api.{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
         self._response = RESPONSE
@@ -48,7 +45,7 @@ class CIVisibilityGitClient(object):
         if self._worker is None:
             self._worker = Process(
                 target=CIVisibilityGitClient._run_protocol,
-                args=(self._serde, self._base_url, self._response),
+                args=(self._serializer, self._base_url, self._response),
                 kwargs={"cwd": cwd},
             )
             self._worker.start()
@@ -60,15 +57,15 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serde, base_url, _response, cwd=None):
-        # type: (CIVisibilityGitClientSerDeV1, str, Optional[Response], Optional[str]) -> None
+    def _run_protocol(cls, serializer, base_url, _response, cwd=None):
+        # type: (CIVisibilityGitClientSerializerV1, str, Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serde, _response)
+        backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serializer, _response)
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_path:
-                cls._upload_packfiles(base_url, repo_url, packfiles_path, serde, _response, cwd=cwd)
+                cls._upload_packfiles(base_url, repo_url, packfiles_path, serializer, _response, cwd=cwd)
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
@@ -81,18 +78,18 @@ class CIVisibilityGitClient(object):
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
-    def _search_commits(cls, base_url, repo_url, latest_commits, serde, _response):
-        # type: (str, str, list[str], CIVisibilityGitClientSerDeV1, Optional[Response]) -> list[str]
-        payload = serde.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls.retry_request(base_url, "/search_commits", payload, serde)
-        result = serde.search_commits_decode(response.body)
+    def _search_commits(cls, base_url, repo_url, latest_commits, serializer, _response):
+        # type: (str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
+        payload = serializer.search_commits_encode(repo_url, latest_commits)
+        response = _response or cls.retry_request(base_url, "/search_commits", payload, serializer)
+        result = serializer.search_commits_decode(response.body)
         return result
 
     @classmethod
-    def _do_request(cls, base_url, endpoint, payload, serde, headers=None):
-        # type: (str, str, str, CIVisibilityGitClientSerDeV1, Optional[dict]) -> Response
+    def _do_request(cls, base_url, endpoint, payload, serializer, headers=None):
+        # type: (str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
-        _headers = {"dd-api-key": serde.api_key, "dd-application-key": serde.app_key}
+        _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
         if headers is not None:
             _headers.update(headers)
         try:
@@ -111,17 +108,12 @@ class CIVisibilityGitClient(object):
         return get_rev_list_excluding_commits(excluded_commits, cwd=cwd)
 
     @classmethod
-    @contextlib.contextmanager
     def _build_packfiles(cls, revisions, cwd=None):
-        basename = str(random.randint(1, 1000000))
-        with TemporaryDirectory() as tempdir:
-            path = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
-            git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % path, cwd=cwd, std_in=revisions)
-            yield path
+        return build_git_packfiles(revisions, cwd=cwd)
 
     @classmethod
-    def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serde, _response, cwd=None):
-        # type: (str, str, str, CIVisibilityGitClientSerDeV1, Optional[Response], Optional[str]) -> bool
+    def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serializer, _response, cwd=None):
+        # type: (str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -130,9 +122,9 @@ class CIVisibilityGitClient(object):
             if not filename.startswith(rand):
                 continue
             file_path = os.path.join(directory, filename)
-            content_type, payload = serde.upload_packfile_encode(repo_url, sha, file_path)
+            content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = _response or cls.retry_request(base_url, "/packfile", payload, serde, headers=headers)
+            response = _response or cls.retry_request(base_url, "/packfile", payload, serializer, headers=headers)
             return response.status == 204
         return False
 
@@ -148,7 +140,7 @@ class CIVisibilityGitClient(object):
         )(cls._do_request, *args, **kwargs)
 
 
-class CIVisibilityGitClientSerDeV1(object):
+class CIVisibilityGitClientSerializerV1(object):
     def __init__(self, api_key, app_key):
         # type: (str, str) -> None
         self.api_key = api_key
