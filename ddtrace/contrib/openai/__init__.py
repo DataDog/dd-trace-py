@@ -75,20 +75,15 @@ Prompt and Completion Sampling (beta)
 Prompts and their completions are collected in span data with a default sampling rate
 of 100%.
 
-See details below on the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment variable 
-to configure the prompt/completion sampling rate in span data.
-
-Prompts and their completions can also be emitted as log data. Logs are **not** emitted by default. 
-See details below on the ``DD_OPENAI_LOGS_ENABLED`` environment variable below to enable logs.
+Prompts and their completions can also be emitted as log data. Logs are **not** emitted 
+by default. When logs are enabled they are sampled at 10%.
 
 .. important::
 
      ``DD_API_KEY`` environment variable is required to submit logs.
 
-When logs are enabled they are sampled at 10%.
-
-See details below on the ``DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment variable to
-configure the log sampling rate.
+See details in the **Global Configuration** section on how to enable logs and configure sampling
+rates for prompt and completion sampling.
 
 
 Enabling
