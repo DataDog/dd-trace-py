@@ -23,7 +23,7 @@ class Span(bm.Scenario):
         setmetrics = len(metrics) > 0
 
         # run scenario to include finishing spans
-        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator is recreated
+        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
         config._128_bit_trace_id_enabled = self.traceid128

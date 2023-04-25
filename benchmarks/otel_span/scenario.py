@@ -31,10 +31,10 @@ class OtelSpan(bm.Scenario):
         setmetrics = len(metrics) > 0
 
         # run scenario to include finishing spans
-        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator is recreated
+        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
-        # Recreate span processors and ensure no traces are sent by the agent writer
+        # Recreate span processors and configure global tracer to avoid sending traces to the agent
         utils.drop_traces(tracer)
 
         def _(loops):
