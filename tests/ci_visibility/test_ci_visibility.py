@@ -129,7 +129,15 @@ def test_civisibilitywriter_agentless_url():
 
 
 def test_civisibilitywriter_agentless_url_envvar():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar")):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        dummy_writer = DummyCIVisibilityWriter()
-        assert dummy_writer.intake_url == "https://foo.bar"
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+        assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
+        CIVisibility.disable()
