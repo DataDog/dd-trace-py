@@ -20,6 +20,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
@@ -288,7 +289,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
                     for k, v in kwargs.items():
-                        kwargs[k] = taint_pyobject(v, Input_info(k, v, "http.request.path.parameter"))
+                        kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
                 except Exception:
                     log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 
@@ -672,7 +673,7 @@ def _patch(django):
     trace_utils.wrap(
         django,
         "http.request.QueryDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
     )
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
