@@ -873,13 +873,13 @@ def test_est_tokens():
     assert est("    hello    ") == 3  # oracle: 8
     assert (
         est(
-            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."
+            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."  # noqa E501
         )
         == 54
     )  # oracle: 44
     assert (
         est(
-            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."
+            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."  # noqa: E501
         )
         == 33
     )  # oracle: 33
@@ -909,7 +909,7 @@ def test_est_tokens():
 
     assert (
         est(
-            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"
+            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"  # noqa: E501
         )
         == 97
     )  # oracle: 92
