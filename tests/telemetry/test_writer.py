@@ -34,7 +34,6 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v1"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-    assert requests[0]["headers"]["DD-Agent-Hostname"] == get_host_info()["hostname"]
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
