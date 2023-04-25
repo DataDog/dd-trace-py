@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import sys
@@ -34,6 +35,14 @@ def git_repo(git_repo_empty):
     yield utils.git_repo(git_repo_empty)
 
 
+@contextlib.contextmanager
+def _patch_dummy_writer():
+    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
+    yield
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
+
+
 class PytestTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
@@ -48,9 +57,10 @@ class PytestTestCase(TracerTestCase):
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    assert CIVisibility.enabled
-                    CIVisibility.disable()
-                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                    with _patch_dummy_writer():
+                        assert CIVisibility.enabled
+                        CIVisibility.disable()
+                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
             self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
@@ -800,10 +810,11 @@ class PytestTestCase(TracerTestCase):
 
         assert COVERAGE_TAG_NAME in spans[0].get_tags()
         tag_data = json.loads(spans[0].get_tag(COVERAGE_TAG_NAME))
-        assert tag_data["files"][0]["filename"] == "test_cov.py"
-        assert tag_data["files"][1]["filename"] == "test_module.py"
-        assert tag_data["files"][0]["segments"][0] == [5, 0, 5, 0, -1]
-        assert tag_data["files"][1]["segments"][0] == [2, 0, 2, 0, -1]
+        files = sorted(tag_data["files"], key=lambda x: x["filename"])
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
