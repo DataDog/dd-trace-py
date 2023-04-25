@@ -800,9 +800,10 @@ class PytestTestCase(TracerTestCase):
 
         assert COVERAGE_TAG_NAME in spans[0].get_tags()
         tag_data = json.loads(spans[0].get_tag(COVERAGE_TAG_NAME))
-        filenames = [data["filename"] for data in tag_data["files"]]
-        assert "test_cov.py" in filenames
-        assert "test_module.py" in filenames
+        assert tag_data["files"][0]["filename"] == "test_cov.py"
+        assert tag_data["files"][1]["filename"] == "test_module.py"
+        assert tag_data["files"][0]["segments"][0] == [5, 0, 5, 0, -1]
+        assert tag_data["files"][1]["segments"][0] == [2, 0, 2, 0, -1]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(

@@ -1,10 +1,9 @@
 import contextlib
-from itertools import count
-from itertools import groupby
 import json
 import os
 from typing import Iterable
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 from ddtrace import config
@@ -53,10 +52,11 @@ def cover(span, root=None, **kwargs):
     coverage_kwargs.update(kwargs)
     cov = Coverage(**coverage_kwargs)
     cov.start()
-    cov.switch_context(str(span.trace_id))
+    test_id = str(span.trace_id)
+    cov.switch_context(test_id)
     yield cov
     cov.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=str(span.trace_id), root=root))
+    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
 
 
 def segments(lines):
@@ -68,12 +68,7 @@ def segments(lines):
         sequence = list(it)  # type: List[int]
         return (sequence[0], 0, sequence[-1], 0, -1)
 
-    def grouper(n, c=count()):
-        # type: (int, count[int]) -> int
-        return n - next(c)
-
-    executed = sorted(lines)
-    return [as_segments(g) for _, g in groupby(executed, grouper)]
+    return [as_segments(sorted(lines))]
 
 
 def _lines(coverage, context):
@@ -96,12 +91,15 @@ def build_payload(coverage, test_id=None, root=None):
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
-    {
-        "filename": <String>,
-        "segments": [
-            [Int, Int, Int, Int, Int],  # noqa
-        ]
-    }
+    "files": [
+        {
+            "filename": <String>,
+            "segments": [
+                [Int, Int, Int, Int, Int],  # noqa
+            ]
+        },
+        ...
+    ]
 
     For each segment of code for which there is coverage, there are always five integer values:
         The first number indicates the start line of the code block (index starting in 1)
@@ -112,7 +110,11 @@ def build_payload(coverage, test_id=None, root=None):
         The fifth number indicates the number of executions of the block
             If the number is >0 then it indicates the number of executions
             If the number is -1 then it indicates that the number of executions are unknown
+
+    :param test_id: a unique identifier for the current test run
+    :param root: the directory relative to which paths to covered files should be resolved
     """
+    # type: (Coverage, Optional[str], Optional[str]) -> str
     return json.dumps(
         {
             "files": [
