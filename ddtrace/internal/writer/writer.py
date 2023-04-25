@@ -44,12 +44,6 @@ from .writer_client import WRITER_CLIENTS
 from .writer_client import WriterClientBase
 
 
-should_start_remoteconfig = config._appsec_enabled or asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
-
-if should_start_remoteconfig:
-    from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-
-
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
