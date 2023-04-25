@@ -138,7 +138,6 @@ class CIVisibility(Service):
             headers = {"dd-api-key": self._api_key}
             if headers["dd-api-key"]:
                 writer = CIVisibilityWriter(
-                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, self._dd_site),
                     headers=headers,
                 )
             else:
