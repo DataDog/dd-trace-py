@@ -205,15 +205,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
-    env.update(
-        {
-            # Add the tests path to the Python path so tests can import helpers
-            # eg. from tests.webclient import PingFilter
-            "PYTHONPATH": os.pathsep.join(
-                (os.path.dirname(os.path.dirname(ddtrace.__file__)), os.environ.get("PYTHONPATH", ""))
-            ),
-        }
-    )
+    pythonpath = os.getenv("PYTHONPATH", None)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
         env.update(params)
