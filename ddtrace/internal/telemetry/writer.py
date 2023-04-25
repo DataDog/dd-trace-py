@@ -96,9 +96,6 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
-        headers["DD-Agent-Hostname"] = request["host"]["hostname"]
-        if config.env:
-            headers["DD-Agent-Env"] = config.env
         return headers
 
 
