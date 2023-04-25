@@ -149,7 +149,7 @@ def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True), dict(metrics_enabled=False)])
 def test_config(ddtrace_config_openai, mock_tracer, openai):
-    # Ensure that the state is refreshed on each test run
+    # Ensure that the module state is reloaded for each test run
     assert not hasattr(openai, "_test")
     openai._test = 1
 
@@ -200,7 +200,16 @@ def test_patching(openai):
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
-        openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+        resp = openai.Completion.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+        )
+
+    assert resp["object"] == "text_completion"
+    assert resp["model"] == "ada"
+    assert resp["choices"] == [
+        {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
+        {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
+    ]
 
     expected_tags = [
         "version:",
@@ -263,9 +272,28 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
     with openai_vcr.use_cassette("completion_async.yaml"):
-        await openai.Completion.acreate(
+        resp = await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
         )
+    assert resp["object"] == "text_completion"
+    assert resp["choices"] == [
+        {
+            "finish_reason": "length",
+            "index": 0,
+            "logprobs": None,
+            "text": " I am; and I am in a sense a non-human entity woven together from "
+            "memories, desires and emotions. But, who is to say that I am not an "
+            "artificial intelligence. The brain is a self-organising, "
+            "self-aware, virtual reality computer … so how is it, who exactly is "
+            "it, this thing that thinks, feels, loves and believes? Are we not "
+            "just software running on hardware?\n"
+            "\n"
+            "Recently, I have come to take a more holistic view of my identity, "
+            "not as a series of fleeting moments, but as a long-term, ongoing "
+            "process. The key question for me is not that of ‘who am I?’ but "
+            "rather, ‘how am I?’ – a question",
+        }
+    ]
     expected_tags = [
         "version:",
         "env:",
@@ -603,17 +631,26 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        openai.ChatCompletion.create(
+        resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Who won the world series in 2020?"},
             ],
             stream=True,
         )
+        chunks = [c for c in resp]
+        assert len(chunks) == 15
+        completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
+        assert completion == "The Los Angeles Dodgers won the World Series in 2020."
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.subprocess(ddtrace_run=True)
+# Expect an error because the test agent doesn't support metrics
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
+    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+)
 def test_integration_sync():
     """OpenAI uses requests for its synchronous requests.
 
@@ -626,7 +663,6 @@ def test_integration_sync():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
-    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -636,14 +672,20 @@ def test_integration_sync():
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-@pytest.mark.subprocess(ddtrace_run=True)
-# FIXME: 'aiohttp.request', 'TCPConnector.connect' on second
-# run of the test, might do with cassettes
+# Expect an error because the test agent doesn't support metrics
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
+    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+)
 def test_integration_async():
     """OpenAI uses requests for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
     with both OpenAI and requests spans.
+
+    FIXME: there _should_ be aiohttp spans generated for this test case. There aren't
+           because the patching VCR does into aiohttp interferes with the tracing patching.
     """
     import asyncio
 
@@ -653,7 +695,6 @@ def test_integration_async():
     from tests.contrib.openai.test_openai import FilterOrg
     from tests.contrib.openai.test_openai import get_openai_vcr
 
-    openai.api_key = "<not-real>"
     pin = ddtrace.Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -741,12 +782,31 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
         openai.Completion.create(model="ada", prompt=prompt)
 
     with openai_vcr.use_cassette("chat_completion_truncation.yaml"):
-        openai.ChatCompletion.create(
+        resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
+        assert resp["choices"] == [
+            {
+                "finish_reason": "stop",
+                "index": 0,
+                "message": {
+                    "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, "
+                    "16, 17, 18, 19, 20,\n"
+                    "21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, "
+                    "34, 35, 36, 37, 38, 39, 40,\n"
+                    "41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, "
+                    "54, 55, 56, 57, 58, 59, 60,\n"
+                    "61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, "
+                    "74, 75, 76, 77, 78, 79, 80,\n"
+                    "81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, "
+                    "94, 95, 96, 97, 98, 99, 100.",
+                    "role": "assistant",
+                },
+            }
+        ]
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2
@@ -803,21 +863,53 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
 
 
 def test_est_tokens():
-    """
-    Oracle numbers come from https://platform.openai.com/tokenizer
-    """
+    """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
     est = _patch._est_tokens
-    assert est("hello world") == 2
-    assert est("Hello world, how are you?") == 7 - 2
-    assert est("hello") == 1
-    assert est("") == 0
+    assert est("") == 0  # oracle: 1
+    assert est("hello") == 1  # oracle: 1
+    assert est("hello, world") == 3  # oracle: 3
+    assert est("hello world") == 2  # oracle: 2
+    assert est("Hello world, how are you?") == 6  # oracle: 7
+    assert est("    hello    ") == 3  # oracle: 8
     assert (
         est(
-            """
-    A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common
-    English text.This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a
-    programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript,
-    the gpt-3-encoder package for node.js works for most GPT-3 models."""
+            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."
         )
-        == 80
-    )
+        == 54
+    )  # oracle: 44
+    assert (
+        est(
+            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."
+        )
+        == 33
+    )  # oracle: 33
+    assert (
+        est(
+            "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
+            "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
+            "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
+            "the gpt-3-encoder package for node.js works for most GPT-3 models."
+        )
+        == 83
+    )  # oracle: 87
+
+    # Expected to be a disparity since our assumption is based on english words
+    assert (
+        est(
+            """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
+ maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
+ vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
+ Nullam ultricies dolor sit amet nisl molestie, a porta metus suscipit. Vivamus eget luctus mauris. Proin commodo
+ elementum ex a pretium. Nam vitae ipsum sed dolor congue fermentum. Sed quis bibendum sapien, dictum venenatis urna.
+ Morbi molestie lacinia iaculis. Proin lorem mauris, interdum eget lectus a, auctor volutpat nisl. Suspendisse ac
+ tincidunt sapien. Cras congue ipsum sit amet congue ullamcorper. Proin hendrerit at erat vulputate consequat."""
+        )
+        == 175
+    )  # oracle 281
+
+    assert (
+        est(
+            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"
+        )
+        == 97
+    )  # oracle: 92

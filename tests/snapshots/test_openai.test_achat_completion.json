@@ -43,7 +43,6 @@
       "process_id": 99065,
       "request.n": 2,
       "request.top_p": 0.9,
-      "response.choices.num": 2,
       "response.usage.completion_tokens": 34,
       "response.usage.prompt_tokens": 57,
       "response.usage.total_tokens": 91
