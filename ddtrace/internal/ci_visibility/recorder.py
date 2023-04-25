@@ -23,7 +23,6 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
 from .. import agent
-from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
