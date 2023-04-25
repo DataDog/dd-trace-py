@@ -18,7 +18,7 @@
       "request.messages.0.content": "Who won the world series in 2020?",
       "request.messages.0.role": "user",
       "request.stream": "True",
-      "runtime-id": "0fc948693e5f4240b6a76443f8ff9c1a"
+      "runtime-id": "fa1ec83f0afa4c5a88048f3c1f664b21"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,9 +26,33 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 93590,
+      "process_id": 22070,
       "response.usage.prompt_tokens": 7
     },
-    "duration": 88468000,
-    "start": 1682223609435937000
-  }]]
+    "duration": 14573000,
+    "start": 1682410111145105000
+  },
+     {
+       "name": "openai.stream",
+       "service": "",
+       "resource": "openai.stream",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "language": "python",
+         "organization.name": "user-f23xvdxbrssd56y1ghcjdcue",
+         "organization.ratelimit.requests.remaining": "2"
+       },
+       "metrics": {
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "response.usage.completion_tokens": 15,
+         "response.usage.total_tokens": 22
+       },
+       "duration": 2577000,
+       "start": 1682410111184269000
+     }]]

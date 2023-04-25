@@ -149,7 +149,7 @@ def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True), dict(metrics_enabled=False)])
 def test_config(ddtrace_config_openai, mock_tracer, openai):
-    # Ensure that the state is refreshed on each test run
+    # Ensure that the module state is reloaded for each test run
     assert not hasattr(openai, "_test")
     openai._test = 1
 
@@ -200,7 +200,16 @@ def test_patching(openai):
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
-        openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+        resp = openai.Completion.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+        )
+
+    assert resp["object"] == "text_completion"
+    assert resp["model"] == "ada"
+    assert resp["choices"] == [
+        {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
+        {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
+    ]
 
     expected_tags = [
         "version:",
@@ -263,9 +272,28 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
     with openai_vcr.use_cassette("completion_async.yaml"):
-        await openai.Completion.acreate(
+        resp = await openai.Completion.acreate(
             model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
         )
+    assert resp["object"] == "text_completion"
+    assert resp["choices"] == [
+        {
+            "finish_reason": "length",
+            "index": 0,
+            "logprobs": None,
+            "text": " I am; and I am in a sense a non-human entity woven together from "
+            "memories, desires and emotions. But, who is to say that I am not an "
+            "artificial intelligence. The brain is a self-organising, "
+            "self-aware, virtual reality computer … so how is it, who exactly is "
+            "it, this thing that thinks, feels, loves and believes? Are we not "
+            "just software running on hardware?\n"
+            "\n"
+            "Recently, I have come to take a more holistic view of my identity, "
+            "not as a series of fleeting moments, but as a long-term, ongoing "
+            "process. The key question for me is not that of ‘who am I?’ but "
+            "rather, ‘how am I?’ – a question",
+        }
+    ]
     expected_tags = [
         "version:",
         "env:",
@@ -603,13 +631,17 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        openai.ChatCompletion.create(
+        resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Who won the world series in 2020?"},
             ],
             stream=True,
         )
+        chunks = [c for c in resp]
+        assert len(chunks) == 15
+        completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
+        assert completion == "The Los Angeles Dodgers won the World Series in 2020."
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -750,12 +782,13 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
         openai.Completion.create(model="ada", prompt=prompt)
 
     with openai_vcr.use_cassette("chat_completion_truncation.yaml"):
-        openai.ChatCompletion.create(
+        resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
+        assert resp["messages"] == []
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2

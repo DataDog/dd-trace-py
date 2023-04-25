@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from typing import AsyncGenerator
+from typing import Generator
 
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -19,6 +20,9 @@ from .. import trace_utils
 from ...pin import Pin
 from ..trace_utils import set_flattened_tags
 from ._logging import V2LogWriter
+
+
+log = get_logger(__name__)
 
 
 config._add(
@@ -171,9 +175,6 @@ class _OpenAIIntegration:
         return text
 
 
-log = get_logger(__file__)
-
-
 def _wrap_classmethod(obj, wrapper):
     wrap(obj.__func__, wrapper)
 
@@ -281,13 +282,6 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     finally:
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
-        # total_tokens = span.get_tag("response.usage.total_tokens")
-        # # TODO: shouldn't be here for stream
-        # if total_tokens is None:
-        #     prompt_tokens = span.get_tag("response.usage.prompt_tokens")
-        #     completion_tokens = span.get_tag("response.usage.completion_tokens")
-        #     if prompt_tokens is not None and completion_tokens is not None:
-        #         span.set_metric("response.usage.total_tokens", prompt_tokens + completion_tokens)
 
 
 def _patched_endpoint(openai, integration, patch_hook):
@@ -422,7 +416,9 @@ class _BaseCompletionHook(_EndpointHook):
                     except StopIteration:
                         pass
 
-        else:
+            return traced_streamed_response()
+
+        elif isinstance(resp, Generator):
 
             def traced_streamed_response():
                 g = shared_gen()
@@ -438,7 +434,9 @@ class _BaseCompletionHook(_EndpointHook):
                     except StopIteration:
                         pass
 
-        return traced_streamed_response()
+            return traced_streamed_response()
+
+        return resp
 
 
 class _CompletionHook(_BaseCompletionHook):
@@ -621,9 +619,8 @@ def _patched_convert(openai, integration):
             if not isinstance(val, openai.openai_response.OpenAIResponse):
                 continue
 
-            # FIXME these are reported for each chunk
-            # this is a signal to avoid repeating these calls for each
-            # TODO: need a better hook
+            # This function is called for each chunk in the stream.
+            # To prevent needlessly setting the same tags for each chunk, short-circuit here.
             if span.get_tag("organization.name") is not None:
                 continue
 
