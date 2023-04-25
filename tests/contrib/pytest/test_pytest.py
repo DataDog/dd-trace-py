@@ -5,32 +5,53 @@ import sys
 import mock
 import pytest
 
-from ddtrace import Pin
+import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.plugin import _extract_repository_name
+from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
+from ddtrace.ext import git
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from tests import utils
+from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
-class TestPytest(TracerTestCase):
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
+
+
+class PytestTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch):
+    def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
+        self.git_repo = git_repo
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
 
-        class PinTracer:
+        class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
-                if Pin.get_from(config) is not None:
-                    Pin.override(config, tracer=self.tracer)
+                if is_enabled(config):
+                    assert CIVisibility.enabled
+                    CIVisibility.disable()
+                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[PinTracer()])
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
@@ -531,18 +552,16 @@ class TestPytest(TracerTestCase):
             import ddtrace
             from ddtrace import Pin
 
-            def test_service(ddspan, pytestconfig):
-                tracer = Pin.get_from(pytestconfig).tracer
-                with tracer.trace("SPAN2") as span2:
-                    with tracer.trace("SPAN3") as span3:
-                        with tracer.trace("SPAN4") as span4:
+            def test_service(ddtracer):
+                with ddtracer.trace("SPAN2") as span2:
+                    with ddtracer.trace("SPAN3") as span3:
+                        with ddtracer.trace("SPAN4") as span4:
                             assert True
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
-
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
@@ -552,6 +571,15 @@ class TestPytest(TracerTestCase):
         assert len(decoded_trace) == 4
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+
+        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
+        ci_agentless_encoder.put(spans)
+        trace = ci_agentless_encoder.encode()
+        decoded_trace = self.tracer.encoder._decode(trace)
+        assert len(decoded_trace[b"events"]) == 4
+        for event in decoded_trace[b"events"]:
+            assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
+        pass
 
     def test_pytest_doctest_module(self):
         """Test that pytest with doctest works as expected."""
@@ -745,31 +773,31 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
+    def test_pytest_will_report_git_metadata(self):
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
 
-@pytest.mark.parametrize(
-    "repository_url,repository_name",
-    [
-        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
-        ("dd-trace-py", "dd-trace-py"),
-        ("git@hostname.com:org/repo-name.git", "repo-name"),
-        ("git@hostname.com:org/repo-name", "repo-name"),
-        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
-        ("git+git://github.com/org/repo-name.git", "repo-name"),
-        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
-        ("git+https://github.com/org/repo-name.git", "repo-name"),
-    ],
-)
-def test_repository_name_extracted(repository_url, repository_name):
-    assert _extract_repository_name(repository_url) == repository_name
+        def test_will_work():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            ggr.return_value = self.git_repo
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
 
+        assert len(spans) == 1
+        test_span = spans[0]
 
-def test_repository_name_not_extracted_warning():
-    """If provided an invalid repository url, should raise warning and return original repository url"""
-    repository_url = "https://github.com:organ[ization/repository-name"
-    with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
-        extracted_repository_name = _extract_repository_name(repository_url)
-        assert extracted_repository_name == repository_url
-    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
+        assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE) == "2021-01-19T09:24:53-0400"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME) == "John Doe"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL) == "john@doe.com"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
+        assert test_span.get_tag(git.BRANCH)
+        assert test_span.get_tag(git.COMMIT_SHA)
+        assert test_span.get_tag(git.REPOSITORY_URL)

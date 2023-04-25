@@ -135,15 +135,19 @@ obfuscator
 opensearch
 opentracer
 opentracing
+otel
+ObjectProxy
 parameterized
 perf
 pid
 plugin
 posix
 postgres
+pre
 prepended
 profiler
 protobuf
+proxying
 psycopg
 py
 PyFrameObject
@@ -180,6 +184,7 @@ sqlite
 stacktrace
 starlette
 stringable
+subclass
 subdomains
 submodule
 submodules

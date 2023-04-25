@@ -5,6 +5,9 @@ on:
     branches:
       - '[0-9].[0-9]*'
       - '[0-9].x'
+      # special branches used to test this workflow
+      # before merging/releasing
+      - build_deploy*
   pull_request:
     paths:
       - "setup.py"
@@ -112,7 +115,7 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.12.1
+        uses: pypa/cibuildwheel@v2.12.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -214,10 +217,9 @@ jobs:
 
   build-and-publish-init-image:
     needs: [upload_pypi]
-    steps:
-      - uses: ./.github/workflows/lib-inject-publish.yml
-        with:
-          ddtrace-version: ${{ github.ref_name }}
-          image-tag: ${{ github.ref_name }}
-        secrets:
-          token: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/lib-inject-publish.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: ${{ github.ref_name }}
+      image-tag: ${{ github.ref_name }}

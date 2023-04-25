@@ -74,7 +74,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
     assert len(marks) < 2, "Multiple snapshot marks detected"
-    if marks:
+    if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
         if token:
@@ -82,8 +82,12 @@ def snapshot(request):
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
-            yield snapshot
+        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+        snapshot = mgr.__enter__()
+        yield snapshot
+        # Skip doing any checks if the test was skipped
+        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
+            mgr.__exit__(None, None, None)
     else:
         yield
 
@@ -201,6 +205,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
+    pythonpath = os.getenv("PYTHONPATH", None)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
         env.update(params)
