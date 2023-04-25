@@ -252,7 +252,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
-        if self._enabled:
+        if self.enable():
             data = {
                 "message": message,
                 "level": level,
