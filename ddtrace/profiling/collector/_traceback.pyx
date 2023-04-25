@@ -108,4 +108,9 @@ cpdef pyframe_to_frames(frame, max_nframes, use_libdatadog, use_pyprof):
                 frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
         nframes += 1
         frame = frame.f_back
+
+    if use_libdatadog:
+        omitted = nframes - max_nframes
+        if omitted > 0:
+            ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
     return frames, nframes

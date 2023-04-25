@@ -504,11 +504,11 @@ void ddup_push_classinfo(const char *class_name) {
 }
 
 void ddup_push_frame(const char *_name, const char *_fname, uint64_t address, int64_t line) {
-  if (!_name || !*_name)
-    _name = "NONAME";
+  if (!_name)
+    _name = "";
 
-  if (!_fname || !*_fname)
-    _fname = "NOFILE";
+  if (!_fname)
+    _fname = "";
 
   // Stash the name
   g_profile->strings.push_back(_name);
