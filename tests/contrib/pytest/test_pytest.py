@@ -128,6 +128,24 @@ class PytestTestCase(TracerTestCase):
 
         assert len(spans) == 3
 
+    def test_pytest_command(self):
+        """Test that the pytest run command is stored on a test span."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+        test_span = spans[0]
+        if PY2:
+            assert test_span.get_tag("test.command") == "pytest"
+        else:
+            assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(

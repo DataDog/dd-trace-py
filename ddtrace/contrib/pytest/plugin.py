@@ -281,6 +281,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
+        span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         test_session_span = _extract_span(item.session)
         span.set_tag(_SESSION_ID, test_session_span.span_id)
         test_suite_span = _extract_span(item.parent)
