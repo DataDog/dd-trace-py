@@ -548,24 +548,21 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
         resp, error = yield
 
-        completions = ""
+        choices = []
         if resp and not kwargs.get("stream"):
-            if "choices" in resp:
-                choices = resp["choices"]
-                completions = choices
-                span.set_tag("response.choices.num", len(choices))
-                for choice in choices:
-                    idx = choice["index"]
-                    span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                    if sample_pc_span and choice.get("message"):
-                        span.set_tag(
-                            "response.choices.%d.message.content" % idx,
-                            integration.trunc(choice.get("message").get("content")),
-                        )
-                        span.set_tag(
-                            "response.choices.%d.message.role" % idx,
-                            integration.trunc(choice.get("message").get("role")),
-                        )
+            choices = resp.get("choices", [])
+            for choice in choices:
+                idx = choice["index"]
+                span.set_tag_str("response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
+                if sample_pc_span and choice.get("message"):
+                    span.set_tag(
+                        "response.choices.%d.message.content" % idx,
+                        integration.trunc(choice.get("message").get("content")),
+                    )
+                    span.set_tag(
+                        "response.choices.%d.message.role" % idx,
+                        integration.trunc(choice.get("message").get("role")),
+                    )
             span.set_tag("response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
 
@@ -577,7 +574,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                     "sampled chat completion",
                     attrs={
                         "messages": messages,
-                        "completion": completions,
+                        "completion": choices,
                     },
                 )
         return self._handle_response(pin, span, integration, resp)
@@ -602,9 +599,8 @@ class _EmbeddingHook(_EndpointHook):
             if "data" in resp:
                 span.set_tag("response.data.num-embeddings", len(resp["data"]))
                 span.set_tag("response.data.embedding-length", len(resp["data"][0]["embedding"]))
-            for kw_attr in ["object", "usage"]:
-                if kw_attr in kwargs:
-                    span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
+            if "object" in kwargs:
+                span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
             integration.record_usage(span, resp.get("usage"))
 
 
