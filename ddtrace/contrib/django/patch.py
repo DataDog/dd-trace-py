@@ -20,6 +20,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
@@ -719,7 +720,7 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
         return wrapped(
-            *((LazyTaintDict(args[0], origins=("http.request.header.name", "http.request.header")),) + args[1:]),
+            *((LazyTaintDict(args[0], origins=(IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),) + args[1:]),
             **kwargs
         )
 
