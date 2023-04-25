@@ -27,7 +27,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 22070,
-      "response.usage.prompt_tokens": 7
+      "response.usage.prompt_tokens": 8
     },
     "duration": 14573000,
     "start": 1682410111145105000
@@ -51,7 +51,7 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
          "response.usage.completion_tokens": 15,
-         "response.usage.total_tokens": 22
+         "response.usage.total_tokens": 23
        },
        "duration": 2577000,
        "start": 1682410111184269000

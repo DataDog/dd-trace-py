@@ -788,7 +788,25 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
-        assert resp["messages"] == []
+        assert resp["choices"] == [
+            {
+                "finish_reason": "stop",
+                "index": 0,
+                "message": {
+                    "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, "
+                    "16, 17, 18, 19, 20,\n"
+                    "21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, "
+                    "34, 35, 36, 37, 38, 39, 40,\n"
+                    "41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, "
+                    "54, 55, 56, 57, 58, 59, 60,\n"
+                    "61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, "
+                    "74, 75, 76, 77, 78, 79, 80,\n"
+                    "81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, "
+                    "94, 95, 96, 97, 98, 99, 100.",
+                    "role": "assistant",
+                },
+            }
+        ]
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2
@@ -845,21 +863,53 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
 
 
 def test_est_tokens():
-    """
-    Oracle numbers come from https://platform.openai.com/tokenizer
-    """
+    """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
     est = _patch._est_tokens
-    assert est("hello world") == 2
-    assert est("Hello world, how are you?") == 7 - 2
-    assert est("hello") == 1
-    assert est("") == 0
+    assert est("") == 0  # oracle: 1
+    assert est("hello") == 1  # oracle: 1
+    assert est("hello, world") == 3  # oracle: 3
+    assert est("hello world") == 2  # oracle: 2
+    assert est("Hello world, how are you?") == 6  # oracle: 7
+    assert est("    hello    ") == 3  # oracle: 8
     assert (
         est(
-            """
-    A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common
-    English text.This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a
-    programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript,
-    the gpt-3-encoder package for node.js works for most GPT-3 models."""
+            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."
         )
-        == 80
-    )
+        == 54
+    )  # oracle: 44
+    assert (
+        est(
+            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."
+        )
+        == 33
+    )  # oracle: 33
+    assert (
+        est(
+            "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
+            "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
+            "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
+            "the gpt-3-encoder package for node.js works for most GPT-3 models."
+        )
+        == 83
+    )  # oracle: 87
+
+    # Expected to be a disparity since our assumption is based on english words
+    assert (
+        est(
+            """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
+ maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
+ vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
+ Nullam ultricies dolor sit amet nisl molestie, a porta metus suscipit. Vivamus eget luctus mauris. Proin commodo
+ elementum ex a pretium. Nam vitae ipsum sed dolor congue fermentum. Sed quis bibendum sapien, dictum venenatis urna.
+ Morbi molestie lacinia iaculis. Proin lorem mauris, interdum eget lectus a, auctor volutpat nisl. Suspendisse ac
+ tincidunt sapien. Cras congue ipsum sit amet congue ullamcorper. Proin hendrerit at erat vulputate consequat."""
+        )
+        == 175
+    )  # oracle 281
+
+    assert (
+        est(
+            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"
+        )
+        == 97
+    )  # oracle: 92
