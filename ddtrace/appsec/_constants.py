@@ -74,6 +74,7 @@ class IAST(object):
     HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
     HTTP_REQUEST_PARAMETER = "http.request.parameter"
     HTTP_REQUEST_PATH = "http.request.path"
+    HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
     HTTP_REQUEST_QUERYSTRING = "http.request.querystring"
 
 
