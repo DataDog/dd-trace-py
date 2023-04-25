@@ -88,6 +88,7 @@ def _lines(coverage, context):
 
 
 def build_payload(coverage, test_id=None, root=None):
+    # type: (Coverage, Optional[str], Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -114,7 +115,6 @@ def build_payload(coverage, test_id=None, root=None):
     :param test_id: a unique identifier for the current test run
     :param root: the directory relative to which paths to covered files should be resolved
     """
-    # type: (Coverage, Optional[str], Optional[str]) -> str
     return json.dumps(
         {
             "files": [
