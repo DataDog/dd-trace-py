@@ -67,8 +67,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
-        if COVERAGE_TAG_NAME in sp["meta"]:
-            del sp["meta"][COVERAGE_TAG_NAME]
         sp["type"] = span.span_type
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
@@ -78,6 +76,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["span_id"] = int(sp.get("span_id") or "1")
         sp["test_suite_id"] = 1  # TODO: populate with real ID
         sp["test_session_id"] = 1  # TODO: populate with real ID
+        if COVERAGE_TAG_NAME in sp["meta"]:
+            del sp["meta"][COVERAGE_TAG_NAME]
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         if span.span_type == "test":
