@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace import tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -322,3 +323,10 @@ tracer.trace("test-op").finish()
 """,
         env=env,
     )
+
+
+@pytest.mark.snapshot(token="tests.integration.test_integration_snapshots.test_snapshot_skip")
+def test_snapshot_skip():
+    pytest.skip("Test that snapshot tests can be skipped")
+    with tracer.trace("test"):
+        pass

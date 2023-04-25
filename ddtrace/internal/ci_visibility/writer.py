@@ -49,7 +49,7 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url=None,  # type: Optional[str]
+        intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -63,7 +63,10 @@ class CIVisibilityWriter(HTTPWriter):
         use_evp=False,  # type: bool
     ):
         if not intake_url:
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
+            if config._ci_visibility_agentless_url:
+                intake_url = config._ci_visibility_agentless_url
+            else:
+                intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
 
         client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
 
