@@ -7,6 +7,7 @@ from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.writer.writer import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
@@ -46,7 +47,36 @@ def test_ci_visibility_service_enable():
         assert CIVisibility.enabled
         assert ci_visibility_instance.tracer == dummy_tracer
         assert ci_visibility_instance._service == "test-service"
+        assert ci_visibility_instance._code_coverage_enabled_by_api is False
+        assert ci_visibility_instance._test_skipping_enabled_by_api is False
         assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key(_do_request):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=200,
+            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+            '{"code_coverage":true,"tests_skipping":true}}}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is True
+        assert CIVisibility._instance._test_skipping_enabled_by_api is True
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_request):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=404,
+            body='{"errors": ["Not found"]}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
         CIVisibility.disable()
 
 
