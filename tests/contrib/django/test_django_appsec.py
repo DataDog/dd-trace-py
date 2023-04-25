@@ -759,6 +759,32 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
         assert response.content == b"test/1.2.3"
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)):
+        oce.reconfigure()
+        clear_taint_mapping()
+        setup(bytes.join, bytearray.join)
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/appsec/taint-checking-disabled/?q=aaa",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
@@ -768,7 +794,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        tracer._iast_enabled = True
         setup(bytes.join, bytearray.join)
         clear_taint_mapping()
 
@@ -807,7 +832,6 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        tracer._iast_enabled = True
         setup(bytes.join, bytearray.join)
         clear_taint_mapping()
 
@@ -835,26 +859,27 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
         assert response.content == b"test/1.2.3"
 
 
+@pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
+def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import setup
 
-    with override_global_config(dict(_iast_enabled=False)):
-        oce.reconfigure()
-        tracer._iast_enabled = False
-        clear_taint_mapping()
+    with override_global_config(dict(_iast_enabled=False)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
         setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
 
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
             tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/taint-checking-disabled/?q=aaa",
+            url="/appsec/sqli_http_path_parameter/sqlite_master/",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
+
+        assert root_span.get_tag(IAST.JSON) is None
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
