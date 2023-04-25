@@ -137,17 +137,19 @@ class _OpenAIIntegration:
             tags.append("error_type:%s" % err_type)
         return tags
 
-    def metric(self, span, kind, name, val):
+    def metric(self, span, kind, name, val, tags=None):
         """Set a metric using the OpenAI context from the given span."""
         if not self._config.metrics_enabled:
             return
-        tags = self._metrics_tags(span)
+        metric_tags = self._metrics_tags(span)
+        if tags:
+            metric_tags += tags
         if kind == "dist":
-            self._statsd.distribution(name, val, tags=tags)
+            self._statsd.distribution(name, val, tags=metric_tags)
         elif kind == "incr":
-            self._statsd.increment(name, val, tags=tags)
+            self._statsd.increment(name, val, tags=metric_tags)
         elif kind == "gauge":
-            self._statsd.gauge(name, val, tags=tags)
+            self._statsd.gauge(name, val, tags=metric_tags)
         else:
             raise ValueError("Unexpected metric type %r" % kind)
 
@@ -155,6 +157,7 @@ class _OpenAIIntegration:
         if not usage or not self._config.metrics_enabled:
             return
         tags = self._metrics_tags(span)
+        tags.append("estimated:false")
         for token_type in ["prompt", "completion", "total"]:
             num_tokens = usage.get(token_type + "_tokens")
             if not num_tokens:
@@ -392,8 +395,8 @@ class _BaseCompletionHook(_EndpointHook):
             stream_span.set_metric("response.usage.completion_tokens", num_completion_tokens)
             total_tokens = num_prompt_tokens + num_completion_tokens
             stream_span.set_metric("response.usage.total_tokens", total_tokens)
-            integration.metric(span, "dist", "tokens.completion", num_completion_tokens)
-            integration.metric(span, "dist", "tokens.total", total_tokens)
+            integration.metric(span, "dist", "tokens.completion", num_completion_tokens, tags=["estimated:true"])
+            integration.metric(span, "dist", "tokens.total", total_tokens, tags=["estimated:true"])
             stream_span.finish()
 
             # ``span`` could be flushed here so this is a best effort to attach the metric
@@ -480,7 +483,7 @@ class _CompletionHook(_BaseCompletionHook):
                 for p in prompt:
                     num_prompt_tokens += _est_tokens(p)
             span.set_metric("response.usage.prompt_tokens", num_prompt_tokens)
-            integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
+            integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["estimated:true"])
 
         self._record_request(span, kwargs)
 
@@ -545,7 +548,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             for m in messages:
                 num_message_tokens += _est_tokens(m.get("content", ""))
             span.set_metric("response.usage.prompt_tokens", num_message_tokens)
-            integration.metric(span, "dist", "tokens.prompt", num_message_tokens)
+            integration.metric(span, "dist", "tokens.prompt", num_message_tokens, tags=["estimated:true"])
 
         self._record_request(span, kwargs)
 
@@ -605,6 +608,7 @@ class _EmbeddingHook(_EndpointHook):
             if "object" in kwargs:
                 span.set_tag("response.%s" % kw_attr, kwargs[kw_attr])
             integration.record_usage(span, resp.get("usage"))
+        return resp
 
 
 def _patched_convert(openai, integration):

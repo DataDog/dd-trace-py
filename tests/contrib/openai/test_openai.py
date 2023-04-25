@@ -226,17 +226,17 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
             mock.call.distribution(
                 "tokens.prompt",
                 2,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "tokens.completion",
                 12,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "tokens.total",
                 14,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "request.duration",
@@ -309,17 +309,17 @@ async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot
             mock.call.distribution(
                 "tokens.prompt",
                 10,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "tokens.completion",
                 150,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "tokens.total",
                 160,
-                tags=expected_tags,
+                tags=expected_tags + ["estimated:false"],
             ),
             mock.call.distribution(
                 "request.duration",
@@ -554,6 +554,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "organization.id:",
         "organization.name:",
         "error:0",
+        "estimated:true",
     ]
     mock_metrics.assert_has_calls(
         [
@@ -602,6 +603,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "organization.id:",
         "organization.name:",
         "error:0",
+        "estimated:true",
     ]
     mock_metrics.assert_has_calls(
         [
