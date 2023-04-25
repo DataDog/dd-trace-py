@@ -22,6 +22,11 @@ The following metrics are collected by default by the OpenAI integration.
     ``ddtrace`` to use it.
 
 
+.. important::
+   Metrics only reflect usage of the supported completions, chat completions, and embedding endpoints. Usage of other
+   OpenAI endpoints will not be recorded.
+
+
 .. py:data:: openai.request.duration
 
    Type: ``distribution``
@@ -66,9 +71,6 @@ The following metrics are collected by default by the OpenAI integration.
 
    Type: ``distribution``
 
-.. important::
-   Metrics only reflect usage of the supported completions, chat completions, and embedding endpoints.
-
 
 (beta) Prompt and Completion Sampling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,9 +102,9 @@ This is because the ``usage`` field is no longer returned in streamed completion
 the integration relies on for reporting metrics.
 
 Streaming responses should produce a ``openai.stream`` span. This span is tagged with estimated
-completion and total tokens. The integration will also make a best effort attempt to tag the
-original parent ``openai.request`` span with completion and total usage information, but this
-parent span may be flushed before the stream finishes.
+completion and total tokens. The integration will make a best effort attempt to tag the original
+parent ``openai.request`` span with completion and total usage information, but this parent span
+may be flushed before this information is available.
 
 The ``_est_tokens`` function implements token count estimations. It returns the average of simple
 token estimation techniques that do not rely on installing a tokenizer.
