@@ -74,7 +74,10 @@ class CIVisibilityWriter(HTTPWriter):
         use_evp=False,  # type: bool
     ):
         if not intake_url:
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
+            if config._ci_visibility_agentless_url:
+                intake_url = config._ci_visibility_agentless_url
+            else:
+                intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
 
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]

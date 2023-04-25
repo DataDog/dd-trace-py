@@ -111,6 +111,7 @@ def override_global_config(values):
         "_obfuscation_query_string_pattern",
         "_ci_visibility_code_coverage_enabled",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
     ]
 
