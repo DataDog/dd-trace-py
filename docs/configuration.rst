@@ -512,6 +512,15 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.12.0:
 
+   DD_CIVISIBILITY_AGENTLESS_URL:
+     type: String
+     default: ""
+     description: |
+        Configures the ``CIVisibility`` service to send event payloads to the specified host. If unspecified, the host "https://citestcycle-intake.<DD_SITE>"
+        is used, where ``<DD_SITE>`` is replaced by that environment variable's value, or "datadoghq.com" if unspecified.
+     version_added:
+        v1.13.0:
+
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
      default: False
@@ -527,4 +536,4 @@ The following environment variables for the tracer are supported:
 Dynamic Instrumentation
 -----------------------
 
-.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig

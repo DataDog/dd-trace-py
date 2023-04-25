@@ -19,6 +19,7 @@ from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
@@ -69,14 +70,44 @@ def test_ci_visibility_service_enable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
+            # dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
             assert CIVisibility.enabled
             assert ci_visibility_instance.tracer == dummy_tracer
             assert ci_visibility_instance._service == "test-service"
+            assert ci_visibility_instance._code_coverage_enabled_by_api is False
+            assert ci_visibility_instance._test_skipping_enabled_by_api is False
             assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
             CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key(_do_request):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=200,
+            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+            '{"code_coverage":true,"tests_skipping":true}}}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is True
+        assert CIVisibility._instance._test_skipping_enabled_by_api is True
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_request):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=404,
+            body='{"errors": ["Not found"]}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
 
 
 def test_ci_visibility_service_disable():
@@ -194,3 +225,17 @@ def test_git_client_upload_packfiles(git_repo):
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
         CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serde, DUMMY_RESPONSE, cwd=git_repo)
+
+
+def test_civisibilitywriter_agentless_url():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
+            dummy_writer = DummyCIVisibilityWriter()
+            assert dummy_writer.intake_url == "https://foo.bar"
+
+
+def test_civisibilitywriter_agentless_url_envvar():
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar")):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        dummy_writer = DummyCIVisibilityWriter()
+        assert dummy_writer.intake_url == "https://foo.bar"
