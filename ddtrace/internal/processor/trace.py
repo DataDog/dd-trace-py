@@ -1,10 +1,11 @@
 import abc
 from collections import defaultdict
 import threading
-from typing import DefaultDict
+from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import attr
 import six
@@ -157,19 +158,14 @@ class SpanAggregator(SpanProcessor):
           finished in the collection and ``partial_flush_enabled`` is True.
     """
 
-    @attr.s
-    class _Trace(object):
-        spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
-        num_finished = attr.ib(type=int, default=0)  # type: int
-
     _partial_flush_enabled = attr.ib(type=bool)
     _partial_flush_min_spans = attr.ib(type=int)
     _trace_processors = attr.ib(type=Iterable[TraceProcessor])
     _writer = attr.ib(type=TraceWriter)
     _traces = attr.ib(
-        factory=lambda: defaultdict(lambda: SpanAggregator._Trace()),
+        factory=lambda: defaultdict(lambda: ([], 0)),
         init=False,
-        type=DefaultDict[int, "_Trace"],
+        type=Dict[int, Tuple[List[Span], int]],
         repr=False,
     )
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
@@ -177,54 +173,43 @@ class SpanAggregator(SpanProcessor):
     def on_span_start(self, span):
         # type: (Span) -> None
         with self._lock:
-            trace = self._traces[span.trace_id]
-            trace.spans.append(span)
+            trace, num_finished = self._traces[span.trace_id]
+            trace.append(span)
+            self._traces[span.trace_id] = (trace, num_finished)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
-            trace = self._traces[span.trace_id]
-            trace.num_finished += 1
-            should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
-            if trace.num_finished == len(trace.spans) or should_partial_flush:
-                trace_spans = trace.spans
-                trace.spans = []
-                if trace.num_finished < len(trace_spans):
-                    finished = []
-                    for s in trace_spans:
-                        if s.finished:
-                            finished.append(s)
-                        else:
-                            trace.spans.append(s)
-
-                else:
-                    finished = trace_spans
-
-                num_finished = len(finished)
-
-                if should_partial_flush:
-                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
-
-                trace.num_finished -= num_finished
-
-                if len(trace.spans) == 0:
-                    del self._traces[span.trace_id]
-
-                spans = finished  # type: Optional[List[Span]]
-                for tp in self._trace_processors:
-                    try:
-                        if spans is None:
-                            return
-                        spans = tp.process_trace(spans)
-                    except Exception:
-                        log.error("error applying processor %r", tp, exc_info=True)
-
-                self._writer.write(spans)
+            trace_spans, num_finished = self._traces[span.trace_id]
+            num_finished += 1
+            if num_finished == len(trace_spans):
+                finished_spans = trace_spans  # type: List[Span]
+                del self._traces[span.trace_id]
+            elif self._partial_flush_enabled and num_finished >= self._partial_flush_min_spans:
+                open_spans = []  # type: List[Span]
+                finished_spans = []
+                for s in trace_spans:
+                    if s.finished:
+                        finished_spans.append(s)
+                    else:
+                        open_spans.append(s)
+                log.debug("Partially flushing %d spans for trace %d", len(finished_spans), span.trace_id)
+                finished_spans[0].set_metric("_dd.py.partial_flush", len(finished_spans))
+                self._traces[span.trace_id] = (open_spans, 0)
+            else:
+                finished_spans = []
+                log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace_spans), num_finished)
+                self._traces[span.trace_id] = (trace_spans, num_finished)
                 return
 
-            log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
-            return None
+        for tp in self._trace_processors:
+            try:
+                finished_spans = tp.process_trace(finished_spans) or []
+            except Exception:
+                log.error("error applying processor %r", tp, exc_info=True)
+
+        if finished_spans:
+            self._writer.write(finished_spans)
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None

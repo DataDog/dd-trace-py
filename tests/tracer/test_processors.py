@@ -193,7 +193,8 @@ def test_aggregator_partial_flush_0_spans():
     assert parent.get_metric("_dd.py.partial_flush") == 1
     child.finish()
     assert writer.pop() == [child]
-    assert child.get_metric("_dd.py.partial_flush") == 1
+    # child span was not partial flushed (number of unsent spans equals the number of finished spans, 1=1)
+    assert child.get_metric("_dd.py.partial_flush") is None
 
 
 def test_aggregator_partial_flush_2_spans():
