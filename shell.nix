@@ -64,6 +64,8 @@ in llvm.stdenv.mkDerivation {
 
     # for c++ dependencies such as grpcio-tools
     llvm.libcxx.dev
+    pinned.zlib
+    pinned.openssl
 
     #pinned.python35Packages.pip-tools
     #pinned.python36Packages.pip-tools
@@ -81,10 +83,20 @@ in llvm.stdenv.mkDerivation {
 
     # for c++ stuff like grpcio-tools, which is building from source but doesn't pick up the proper include
     export CFLAGS="-I${llvm.libcxx.dev}/include/c++/v1"
+    export CPPFLAGS="-I${pinned.zlib.dev}/include -I${pinned.openssl.dev}/include/openssl"
+    export LDFLAGS="-L${pinned.zlib}/lib -L${pinned.openssl.out}/lib"
+    echo $CPPFLAGS
+    echo $LDFLAGS
+    ls -al ${pinned.openssl.dev}/include/openssl
+    ls -al ${pinned.openssl.out}/lib
 
-    export PYTHONPATH=${python27.pkgs.setuptools}/lib/python2.7/site-packages:${python27.pkgs.pip}/lib/python2.7/site-packages:${piptools_py27}/lib/python2.7/site-packages:${python27}/lib/python2.7/site-packages:$PYTHONPATH
+    rm -rf ~/.pyenv
+    git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+    export PYENV_ROOT=~/.pyenv
+    export PATH=~/.pyenv/bin:$PATH
+    eval "$(pyenv init --path)"
+    pyenv install 2.7
 
-    virtualenv .venv
     .venv/bin/pip install -e .
     .venv/bin/pip install reno riot Cython
     .venv/bin/python setup.py develop
