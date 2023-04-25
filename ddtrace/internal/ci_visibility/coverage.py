@@ -94,7 +94,7 @@ def _lines(coverage, context):
 
 def build_payload(coverage, test_id=None, root=None):
     """
-    Generate a CI Visibility payload, formatted as follows:.
+    Generate a CI Visibility coverage payload, formatted as follows:
 
     {
         "filename": <String>,
