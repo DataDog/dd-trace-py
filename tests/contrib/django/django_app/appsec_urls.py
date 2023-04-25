@@ -7,6 +7,7 @@ from django.http import HttpResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec.iast._ast.aspects import add_aspect
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
@@ -79,7 +80,7 @@ def sqli_http_request_header_name(request):
     key = [x for x in request.META.keys() if x == "master"][0]
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT 1 FROM sqlite_" + key)
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
 
     return HttpResponse(request.META["master"], status=200)
 
@@ -88,7 +89,7 @@ def sqli_http_request_header_value(request):
     value = [x for x in request.META.values() if x == "master"][0]
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT 1 FROM sqlite_" + value)
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 

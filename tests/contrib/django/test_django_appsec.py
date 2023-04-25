@@ -822,19 +822,17 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         )
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == [
-            {"origin": "http.request.header.name", "name": "HTTP_USER_AGENT", "value": "master"}
-        ]
+        assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-        assert loaded["vulnerabilities"][0]["hash"] == 2546403702
+        assert loaded["vulnerabilities"][0]["hash"] == 1994003570
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
+            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 73
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 92
 
         assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+        assert response.content == b"master"
 
 
 @pytest.mark.django_db()
@@ -861,16 +859,14 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         )
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == [
-            {"origin": "http.request.header.name", "name": "master", "value": "master"}
-        ]
+        assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-        assert loaded["vulnerabilities"][0]["hash"] == 2546403702
+        assert loaded["vulnerabilities"][0]["hash"] == 3483638048
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
+            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 73
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 83
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"

@@ -718,7 +718,10 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
+        return wrapped(
+            *((LazyTaintDict(args[0], origins=("http.request.header.name", "http.request.header")),) + args[1:]),
+            **kwargs
+        )
 
     return wrapped(*args, **kwargs)
 
