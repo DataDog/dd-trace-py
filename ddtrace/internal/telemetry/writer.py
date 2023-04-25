@@ -155,18 +155,19 @@ class TelemetryBase(PeriodicService):
             self._events_queue.append(event)
 
     def enable(self):
-        # type: () -> None
+        # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
         if self.status == ServiceStatus.RUNNING:
-            return
+            return True
 
         self._enabled = True
         self.start()
 
         atexit.register(self.stop)
+        return True
 
     def disable(self):
         # type: () -> None
@@ -223,6 +224,28 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         self._namespace = MetricNamespace()
         self._logs = []  # type: List[Dict[str, Any]]
 
+    def _fork_writer(self):
+        # type: () -> None
+        self.disable()
+        self.reset_queues()
+
+    def enable(self):
+        # type: () -> bool
+        """
+        Enable the instrumentation telemetry collection service. If the service has already been
+        activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
+        """
+        if config._telemetry_metrics_enabled:
+            if self.status == ServiceStatus.RUNNING:
+                return True
+
+            self._enabled = True
+            self.start()
+
+            atexit.register(self.stop)
+            return True
+        return False
+
     def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
         """
@@ -274,7 +297,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         """
         Queues metric
         """
-        if self._enabled:
+        if self.enable():
             with self._lock:
                 self._namespace._add_metric(
                     metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
@@ -290,6 +313,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
             self._generate_logs_event(logs_metrics)
 
         telemetry_events = self._flush_events_queue()
+
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
@@ -328,6 +352,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
+
                     if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
                         self.add_event(payload, TELEMETRY_TYPE_DISTRIBUTION)
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
