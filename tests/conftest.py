@@ -205,6 +205,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
+    pythonpath = os.getenv("PYTHONPATH", None)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
         env.update(params)
