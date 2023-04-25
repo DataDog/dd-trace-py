@@ -65,12 +65,7 @@ def total_time(time_data, funcname):
     return sum(functime[funcname] for functime in time_data.values())
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_MAX_TIME_USAGE_PCT="100",
-        PYTHONPATH=".",
-    )
-)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MAX_TIME_USAGE_PCT="100"))
 def test_accuracy():
     import collections
 

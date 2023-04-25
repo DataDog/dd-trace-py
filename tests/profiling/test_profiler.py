@@ -181,7 +181,7 @@ def test_disable_memory():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", PYTHONPATH="."),
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar"),
     err=None,
 )
 def test_env_agentless():
@@ -193,7 +193,7 @@ def test_env_agentless():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE="datadoghq.eu", PYTHONPATH="."),
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE="datadoghq.eu"),
     err=None,
 )
 def test_env_agentless_site():
@@ -205,7 +205,7 @@ def test_env_agentless_site():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="false", DD_API_KEY="foobar", PYTHONPATH="."),
+    env=dict(DD_PROFILING_AGENTLESS="false", DD_API_KEY="foobar"),
     err=None,
 )
 def test_env_no_agentless():
