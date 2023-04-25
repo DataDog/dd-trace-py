@@ -77,7 +77,10 @@ class _OpenAIIntegration:
         resource = endpoint
         if model:
             resource += "/%s" % model
+        # Reuse the service of the application as we tag the downstream requests/aiohttp spans with the service
+        # `openai`. Eventually those should also be internal service spans once peer.service is implemented.
         span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
+        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag_str(COMPONENT, self._config.integration_name)
         # Do these dynamically as openai users can set these at any point
