@@ -9,6 +9,7 @@ import time
 from typing import List
 
 import attr
+import pkg_resources
 import pytest
 
 import ddtrace
@@ -109,6 +110,8 @@ def override_global_config(values):
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_url",
+        "_ci_visibility_agentless_enabled",
     ]
 
     # Grab the current values of all keys
@@ -1075,3 +1078,48 @@ def request_token(request):
     token += ".%s" % request.cls.__name__ if request.cls else ""
     token += ".%s" % request.node.name
     return token
+
+
+def package_installed(package_name):
+    try:
+        pkg_resources.get_distribution(package_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
+    cwd = str(tmpdir)
+    version = subprocess.check_output("git version", shell=True)
+    # decode "git version 2.28.0" to (2, 28, 0)
+    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
+    if decoded_version >= (2, 28):
+        # versions starting from 2.28 can have a different initial branch name
+        # configured in ~/.gitconfig
+        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
+    else:
+        # versions prior to 2.28 will create a master branch by default
+        subprocess.check_output("git init", cwd=cwd, shell=True)
+    return cwd
+
+
+def git_repo(git_repo_empty):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
+    cwd = git_repo_empty
+    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    # Set temporary git directory to not require gpg commit signing
+    subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
+    # Set committer user to be "Jane Doe"
+    subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
+    subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
+    subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
+    # Override author to be "John Doe"
+    subprocess.check_output(
+        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
+        '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
+        cwd=cwd,
+        shell=True,
+    )
+    return cwd

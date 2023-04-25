@@ -103,3 +103,13 @@ def pytest_ignore_collect(path, config):
             # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
                 outcome.force_result(True)
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    # Attach the outcome of the test (failed, passed, skipped) to the test node so that fixtures
+    # can access it.
+    # ref: https://stackoverflow.com/a/72629285
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)

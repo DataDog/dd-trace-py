@@ -20,6 +20,9 @@ parameters:
   coverage:
     type: boolean
     default: false
+  riot_run_latest:
+    type: boolean
+    default: false
 
 orbs:
   win: circleci/windows@5.0
@@ -68,36 +71,11 @@ commands:
       - store_artifacts:
           path: coverage
 
-  setup_tox:
-    description: "Install tox"
-    steps:
-      - run: pip install -U "tox<4"
-
   setup_riot:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.1
-
-  restore_tox_cache:
-    description: "Restore .tox directory from previous runs for faster installs"
-    steps:
-      - restore_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-
-  save_tox_cache:
-    description: "Save .tox directory into cache for faster installs next time"
-    steps:
-      - save_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-          paths:
-            - ".tox"
+      - run: pip3 install riot==0.17.2
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -165,9 +143,11 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - unless:
           condition:
               << parameters.snapshot >>
@@ -181,8 +161,11 @@ commands:
                       name: "Waiting for << parameters.wait >>"
                       command: riot -v run 'wait' << parameters.wait >>
             - run:
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -191,27 +174,6 @@ commands:
               - << parameters.store_coverage >>
           steps:
             - save_coverage
-      - store_test_results:
-          path: test-results
-      - store_artifacts:
-          path: test-results
-
-  run_tox_scenario:
-    description: "Run scripts/run-tox-scenario with setup, caching and persistence"
-    parameters:
-      pattern:
-        type: string
-      store_coverage:
-        type: boolean
-        default: true
-    steps:
-      - checkout
-      - setup_tox
-      - restore_tox_cache
-      - run:
-          name: "Run scripts/run-tox-scenario"
-          command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_tox_cache
       - store_test_results:
           path: test-results
       - store_artifacts:
@@ -381,6 +343,7 @@ jobs:
 
   tracer:
     <<: *contrib_job_large
+    parallelism: 11
     steps:
       - run_test:
           pattern: "tracer"
@@ -426,114 +389,16 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  # Building gevent (for which we never want wheels because they crash)
-  # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
-  # which is not installed.
-  # profile-windows-27:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 4
-  #   steps:
-  #     - run: choco install python2
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py27-profile'
-
-  profile-windows-35:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 4
-    steps:
-      - run: choco install -y python --version=3.5.4 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py35-profile'
-
-  profile-windows-36:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 4
-    steps:
-      - run: choco install -y python --version=3.6.8 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py36-profile'
-
-  # For whatever reason, choco does not install Python 3.7 correctly on Windows
-  # profile-windows-37:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install python --version=3.7.9
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py37-profile'
-
-  # This requires the machine to reboot :(
-  # profile-windows-38:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.8.10 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py38-profile'
-
-  # This requires the machine to reboot :(
-  # profile-windows-39:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.9.12 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py39-profile'
-
-  profile-windows-310:
-    executor:
-      name: win/default
-      shell: bash.exe
-    # This is the number of tox envs for this job
-    parallelism: 5
-    steps:
-      # circleci/windows@5.0 orb includes python 3.10.6
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py310-profile'
-
-  profile-windows-311:
-    executor:
-      name: win/default
-      shell: bash.exe
-    steps:
-      - run: choco install -y python --version=3.11.0 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py311-profile'
-
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 15
+    # There are 32 jobs, so 2 per-node
+    parallelism: 16
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py.\+-profile'
+          # We don't want to run the profile-diff venvs
+          pattern: 'profile$'
 
   integration_agent:
     <<: *machine_executor
@@ -546,20 +411,19 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
-            riot list --hash-only 'integration-latest' | shuf | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {} $( << pipeline.parameters.coverage >>=false; echo '--no-cov' )
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - save_coverage
+            # Sort the hashes to ensure a consistent ordering/division between each node
+            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
 
   integration_testagent:
     <<: *machine_executor
     steps:
       - run_test:
           snapshot: true
+          store_coverage: false
           pattern: 'integration-snapshot'
 
   vendor:
@@ -597,11 +461,11 @@ jobs:
           pattern: 'test_logging'
 
   stdlib:
-    <<: *contrib_job_small
-    parallelism: 2
+    <<: *contrib_job
+    parallelism: 4
     steps:
       - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
@@ -786,6 +650,8 @@ jobs:
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
@@ -970,9 +836,19 @@ jobs:
 
   psycopg:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg"
+          pattern: "psycopg$"
+          snapshot: true
+          docker_services: "postgres"
+
+  psycopg2:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "psycopg2"
           snapshot: true
           docker_services: "postgres"
 
@@ -1202,6 +1078,7 @@ requires_tests: &requires_tests
     - opentracer
     - opentelemetry
     - psycopg
+    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1234,14 +1111,6 @@ requires_tests: &requires_tests
     - urllib3
     - vertica
     - wsgi
-    # - profile-windows-27
-    # - profile-windows-35
-    # - profile-windows-36
-    # - profile-windows-37
-    # - profile-windows-38
-    # - profile-windows-39
-    # - profile-windows-310
-    # - profile-windows-311
 
 workflows:
   version: 2
@@ -1308,6 +1177,7 @@ workflows:
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
+      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs
@@ -1340,13 +1210,5 @@ workflows:
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
-      # - profile-windows-27: *requires_pre_check
-      # - profile-windows-35: *requires_pre_check
-      # - profile-windows-36: *requires_pre_check
-      # - profile-windows-37: *requires_pre_check
-      # - profile-windows-38: *requires_pre_check
-      # - profile-windows-39: *requires_pre_check
-      # - profile-windows-310: *requires_pre_check
-      # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
