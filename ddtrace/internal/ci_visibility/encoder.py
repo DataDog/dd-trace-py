@@ -67,6 +67,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
+        if COVERAGE_TAG_NAME in sp["meta"]:
+            del sp["meta"][COVERAGE_TAG_NAME]
         sp["type"] = span.span_type
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
@@ -111,7 +113,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # type: (Span, str) -> Dict[str, Any]
         return {
             "span_id": span.span_id,
-            "test_session_id": "",  # TODO: populate with real IDs
-            "test_suite_id": "",
+            "test_session_id": 1,  # TODO: populate with real IDs
+            "test_suite_id": 1,
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
