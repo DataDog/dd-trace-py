@@ -7,10 +7,15 @@ from django.http import HttpResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec.iast._ast.aspects import add_aspect
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
+
+try:
+    from ddtrace.appsec.iast._ast.aspects import add_aspect
+except ImportError:
+    # Python 2 compatibility
+    from operator import add as add_aspect
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
 if django.VERSION < (4, 0, 0):
