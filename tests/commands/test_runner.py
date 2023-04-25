@@ -378,6 +378,9 @@ def test_info_no_configs():
     assert (stdout) == (
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
+    Application Security enabled: False
+    Remote Configuration enabled: false
+    IAST enabled (experimental): False
     Debug logging: False
     Writing traces to: http://localhost:8126
     Agent error: Agent not reachable at http://localhost:8126. """
@@ -388,6 +391,7 @@ def test_info_no_configs():
     Priority sampling enabled: True
     Partial flushing enabled: True
     Partial flush minimum number of spans: 500
+    WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None
     DD Env: None
@@ -422,6 +426,9 @@ def test_info_w_configs():
     with override_env(
         dict(
             DD_SERVICE="tester",
+            DD_APPSEC_ENABLED="true",
+            DD_REMOTE_CONFIGURATION_ENABLED="true",
+            DD_IAST_ENABLED="true",
             DD_ENV="dev",
             DD_VERSION="0.45",
             DD_TRACE_DEBUG="true",
@@ -443,6 +450,9 @@ def test_info_w_configs():
         (stdout)
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
+    Application Security enabled: True
+    Remote Configuration enabled: true
+    IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
     Agent error: Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out
@@ -452,6 +462,7 @@ def test_info_w_configs():
     Priority sampling enabled: True
     Partial flushing enabled: True
     Partial flush minimum number of spans: 1000
+    WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: tester
     DD Env: dev

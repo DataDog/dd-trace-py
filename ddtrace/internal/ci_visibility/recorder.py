@@ -1,7 +1,10 @@
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Tuple
+from uuid import uuid4
 
 import ddtrace
 from ddtrace import Tracer
@@ -10,12 +13,21 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
+from ddtrace.internal import compat
+from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
+from .. import agent
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_PROXY_AGENT_BASE_PATH
+from .constants import EVP_SUBDOMAIN_HEADER_NAME
+from .constants import EVP_SUBDOMAIN_HEADER_VALUE
 from .writer import CIVisibilityWriter
 
 
@@ -32,6 +44,24 @@ def _extract_repository_name_from_url(repository_url):
         return repository_url
 
 
+def _get_git_repo():
+    # this exists only for the purpose of patching in tests
+    return None
+
+
+def _do_request(method, url, payload, headers):
+    # type: (str, str, str, Dict) -> Response
+    try:
+        conn = get_connection(url)
+        log.debug("Sending request: %s %s %s %s", (method, url, payload, headers))
+        conn.request("POST", url, payload, headers)
+        resp = compat.get_connection_response(conn)
+        log.debug("Response status: %s", resp.status)
+    finally:
+        conn.close()
+    return Response.from_http_response(resp)
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -41,13 +71,15 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        if ddconfig._ci_visibility_agentless_enabled and not isinstance(self.tracer._writer, CIVisibilityWriter):
-            writer = CIVisibilityWriter()
-            self.tracer.configure(writer=writer)
+        self._app_key = os.getenv("DD_APP_KEY")
+        self._api_key = os.getenv("DD_API_KEY")
+        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
+        self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
-        self._tags = ci.tags()  # type: Dict[str, str]
+        self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
         if self.config is not None:
@@ -66,6 +98,75 @@ class CIVisibility(Service):
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
+
+    def _check_enabled_features(self):
+        # type: () -> Tuple[bool, bool]
+        if not self._app_key:
+            return False, False
+        url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
+        _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "service": self._service,
+                    "env": ddconfig.env,
+                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
+                    "sha": self._tags.get(ci.git.COMMIT_SHA),
+                    "branch": self._tags.get(ci.git.BRANCH),
+                },
+            }
+        }
+        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            parsed = json.loads(response.body)
+        except json.JSONDecodeError:
+            return False, False
+        if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
+            log.warning(
+                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
+            )
+            return False, False
+
+        attributes = parsed["data"]["attributes"]
+        return attributes["code_coverage"], attributes["tests_skipping"]
+
+    def _configure_writer(self):
+        writer = None
+        if ddconfig._ci_visibility_agentless_enabled:
+            headers = {"dd-api-key": self._api_key}
+            if headers["dd-api-key"]:
+                writer = CIVisibilityWriter(
+                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, self._dd_site),
+                    headers=headers,
+                )
+            else:
+                raise EnvironmentError(
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                    "cannot be initialized."
+                )
+        elif self._agent_evp_proxy_is_available():
+            writer = CIVisibilityWriter(
+                intake_url=agent.get_trace_url(),
+                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+                use_evp=True,
+            )
+        if writer is not None:
+            self.tracer.configure(writer=writer)
+
+    def _agent_evp_proxy_is_available(self):
+        # type: () -> bool
+        try:
+            info = agent.info()
+        except Exception:
+            info = None
+
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
+                return True
+        return False
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

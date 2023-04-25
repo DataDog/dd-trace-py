@@ -2,6 +2,10 @@ import bm
 import bm.utils as utils
 
 from ddtrace import config
+from ddtrace import tracer
+
+
+utils.drop_traces(tracer)
 
 
 class Span(bm.Scenario):
@@ -28,7 +32,7 @@ class Span(bm.Scenario):
         def _(loops):
             for _ in range(loops):
                 for i in range(self.nspans):
-                    s = utils.gen_span("test." + str(i))
+                    s = tracer.start_span("test." + str(i))
                     if settags:
                         s.set_tags(tags)
                     if setmetrics:

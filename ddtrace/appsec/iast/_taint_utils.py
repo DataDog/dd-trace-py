@@ -5,6 +5,7 @@ from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
+DBAPI_PREFIXES = ("django-",)
 
 
 class LazyTaintDict(dict):
@@ -45,8 +46,12 @@ class LazyTaintDict(dict):
             yield v
 
 
+def supported_dbapi_integration(integration_name):
+    return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
+
+
 def check_tainted_args(args, kwargs, tracer, integration_name, method):
-    if integration_name in DBAPI_INTEGRATIONS and method.__name__ == "execute":
-        return args[0] and is_pyobject_tainted(args[0])
+    if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
+        return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False
