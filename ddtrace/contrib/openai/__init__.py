@@ -66,6 +66,9 @@ The following metrics are collected by default by the OpenAI integration.
 
    Type: ``distribution``
 
+.. important::
+   Metrics only reflect usage of the supported completions, chat completions, and embedding endpoints.
+
 
 (beta) Prompt and Completion Sampling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
