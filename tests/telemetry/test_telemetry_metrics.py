@@ -34,15 +34,15 @@ def _assert_metric(
     # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(payload, type_paypload, seq_id)
     expected_body_sorted = expected_body["payload"]["series"]
-    expected_body_sorted.sort(key=lambda x: x["metric"], reverse=False)
     for metric in expected_body_sorted:
         metric["tags"].sort()
+    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
 
     events.sort(key=lambda x: x["seq_id"], reverse=True)
     result_event = events[0]["payload"]["series"]
-    result_event.sort(key=lambda x: x["metric"], reverse=False)
     for metric in result_event:
         metric["tags"].sort()
+    result_event.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
 
     assert result_event == expected_body_sorted
 
