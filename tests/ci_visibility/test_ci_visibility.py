@@ -12,6 +12,7 @@ from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def test_filters_test_spans():
@@ -118,3 +119,17 @@ def test_repository_name_not_extracted_warning():
         extracted_repository_name = _extract_repository_name_from_url(repository_url)
         assert extracted_repository_name == repository_url
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
+
+
+def test_civisibilitywriter_agentless_url():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
+            dummy_writer = DummyCIVisibilityWriter()
+            assert dummy_writer.intake_url == "https://foo.bar"
+
+
+def test_civisibilitywriter_agentless_url_envvar():
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar")):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        dummy_writer = DummyCIVisibilityWriter()
+        assert dummy_writer.intake_url == "https://foo.bar"
