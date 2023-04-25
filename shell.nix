@@ -19,20 +19,35 @@ let
   # use this python version, and include the abvoe packages
   python = pinned.python310.withPackages python_packages;
 
-  python27_packages = python-packages:
-    [
-      (python.pkgs.buildPythonPackage rec {
-        pname = "pip-tools";
-        version = "5.5.0";
-        src = python.pkgs.fetchPypi {
-          inherit pname version;
-          sha256 =
-            "sha256-cb0108391366b3ef336185097b3c2c0f3fa115b15098dafbda5e78aef70ea114=";
-        };
-        doCheck = false;
-        propagatedBuildInputs = [ ];
-      })
+  click_py27 = python27.pkgs.buildPythonPackage rec {
+    pname = "click";
+    version = "7.1.2";
+    src = python27.pkgs.fetchPypi {
+      inherit pname version;
+      sha256 = "sha256-0rUlXHxjSbwb0eWeCM0SrLvWPOZJ8liHVXg6qU37axo=";
+    };
+    doCheck = false;
+    buildInputs = [ ];
+  };
+  piptools_py27 = python27.pkgs.buildPythonPackage rec {
+    pname = "pip-tools";
+    version = "5.5.0";
+    src = python27.pkgs.fetchPypi {
+      inherit pname version;
+      sha256 = "sha256-ywEIORNms+8zYYUJezwsDz+hFbFQmNr72l54rvcOoRQ=";
+    };
+    doCheck = false;
+    buildInputs = [
+      click_py27
+      pinned.python27.pkgs.setuptools
+      pinned.python27.pkgs.setuptools_scm
     ];
+  };
+  python27_packages = python-packages: [
+    click_py27
+    piptools_py27
+    pinned.python27.pkgs.pip
+  ];
   python27 = pinned.python27.withPackages python27_packages;
 
   # control llvm/clang version (e.g for packages built form source)
@@ -67,8 +82,9 @@ in llvm.stdenv.mkDerivation {
     # for c++ stuff like grpcio-tools, which is building from source but doesn't pick up the proper include
     export CFLAGS="-I${llvm.libcxx.dev}/include/c++/v1"
 
+    export PYTHONPATH=${python27.pkgs.setuptools}/lib/python2.7/site-packages:${python27.pkgs.pip}/lib/python2.7/site-packages:${piptools_py27}/lib/python2.7/site-packages:${python27}/lib/python2.7/site-packages:$PYTHONPATH
+
     virtualenv .venv
-    source .venv/bin/activate
     .venv/bin/pip install -e .
     .venv/bin/pip install reno riot Cython
     .venv/bin/python setup.py develop
