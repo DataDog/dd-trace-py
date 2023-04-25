@@ -33,8 +33,10 @@ def _assert_metric(
 
     # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(payload, type_paypload, seq_id)
-    expected_body_sorted = expected_body["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
-    result_event = events[0]["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
+    expected_body_sorted = expected_body["payload"]["series"]
+    expected_body_sorted.sort(key=lambda x: x["metric"], reverse=False)
+    result_event = events[0]["payload"]["series"]
+    result_event.sort(key=lambda x: x["metric"], reverse=False)
 
     assert result_event == expected_body_sorted
 
@@ -189,7 +191,7 @@ def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
                 "common": True,
                 "metric": "test-metric",
                 "points": [[1642544540, 1.0]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "count",
             },
         ]
@@ -211,7 +213,7 @@ def test_send_appsec_rate_metric(test_agent_metrics_session, mock_time):
                 "interval": 60,
                 "metric": "test-metric",
                 "points": [[1642544540, 0.016666666666666666]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "rate",
             },
             {
@@ -242,7 +244,7 @@ def test_send_appsec_gauge_metric(test_agent_metrics_session, mock_time):
                 "interval": 60,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "gauge",
             },
             {

@@ -81,7 +81,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
             "points": self._points,
-            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
+            "tags": ["%s:%s" % (str(k).lower(), str(v).lower()) for k, v in self._tags.items()],
         }
         if self.interval is not None:
             data["interval"] = int(self.interval)
