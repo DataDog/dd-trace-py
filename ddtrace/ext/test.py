@@ -51,6 +51,9 @@ TYPE = TEST_TYPE = "test.type"
 # Use when test implementation file is different from test suite name.
 FILE = TEST_FILE = "test.file"
 
+# Test Class Hierarchy
+CLASS_HIERARCHY = "test.class_hierarchy"
+
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 

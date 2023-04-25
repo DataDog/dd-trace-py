@@ -106,9 +106,9 @@ def _get_pytest_command(config):
 
 def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
-    if not isinstance(item.parent.parent, pytest.Package):
+    if not isinstance(item, pytest.Package):
         return None
-    return item.parent.parent.nodeid.rpartition("/")[0]
+    return item.nodeid.rpartition("/")[0]
 
 
 def _get_module_name(item):
@@ -122,8 +122,7 @@ def _get_module_name(item):
 def _start_test_module_span(item):
     """
     Starts a test module span at the start of a new pytest test package.
-    Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
-    to find the ``pytest.Package`` ``item``.
+    Note that ``item`` is a ``pytest.Package`` object referencing the test module being run.
     """
     test_session_span = _extract_span(item.session)
     test_module_span = _CIVisibility._instance.tracer._start_span(
@@ -143,20 +142,22 @@ def _start_test_module_span(item):
     test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
-    _store_span(item.parent.parent, test_module_span)
+    _store_span(item, test_module_span)
+    return test_module_span
 
 
 def _start_test_suite_span(item):
     """
     Starts a test suite span at the start of a new pytest test module.
-    Note that ``item`` is a ``pytest.Function`` object referencing the test function being run, so we need to go up
-    to find the ``pytest.Module`` ``item``.
+    Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
     test_session_span = _extract_span(item.session)
     parent_span = test_session_span
-    if isinstance(item.parent.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent.parent)
+    test_module_span = None
+    if isinstance(item.parent, pytest.Package):
+        test_module_span = _extract_span(item.parent)
         parent_span = test_module_span
+
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
@@ -172,13 +173,13 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
     test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
-    if isinstance(item.parent.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent.parent)
+    if test_module_span is not None:
         test_suite_span.set_tag(_MODULE_ID, test_module_span.span_id)
-        test_suite_span.set_tag_str(test.MODULE, _get_module_name(item))
-        test_suite_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
-    test_suite_span.set_tag_str(test.SUITE, item.parent.module.__name__)
-    _store_span(item.parent, test_suite_span)
+        test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+        test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
+    test_suite_span.set_tag_str(test.SUITE, item.name)
+    _store_span(item, test_suite_span)
+    return test_suite_span
 
 
 def pytest_addoption(parser):
@@ -256,18 +257,48 @@ def patch_all(request):
         ddtrace.patch_all()
 
 
+def _find_pytest_item(item, pytest_item_type):
+    """Given a `pytest.Item`, traverse upwards until we find a `pytest.Package` item, or return None."""
+    if pytest_item_type not in [pytest.Package, pytest.Module]:
+        return None
+    parent = item.parent
+    while not isinstance(parent, pytest_item_type) and parent is not None:
+        parent = parent.parent
+    return parent
+
+
+def _get_test_class_hierarchy(item):
+    """
+    Given a `pytest.Item` function item, traverse upwards to collect and return a string listing the
+    test class hierarchy, or an empty string if there are no test classes.
+    """
+    parent = item.parent
+    test_class_hierarchy = []
+    while parent is not None:
+        if isinstance(parent, pytest.Class):
+            test_class_hierarchy.insert(0, parent.name)
+        parent = parent.parent
+    return ".".join(test_class_hierarchy)
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
+    test_session_span = _extract_span(item.session)
 
-    if isinstance(item.parent.parent, pytest.Package):
-        if _extract_span(item.parent.parent) is None:
-            _start_test_module_span(item)
+    pytest_module_item = _find_pytest_item(item, pytest.Module)
+    pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-    if _extract_span(item.parent) is None:
-        _start_test_suite_span(item)
+    test_module_span = _extract_span(pytest_package_item)
+    if pytest_package_item is not None and test_module_span is None:
+        if test_module_span is None:
+            test_module_span = _start_test_module_span(pytest_package_item)
+
+    test_suite_span = _extract_span(pytest_module_item)
+    if pytest_module_item is not None and test_suite_span is None:
+        test_suite_span = _start_test_suite_span(pytest_module_item)
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
@@ -282,21 +313,23 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        test_session_span = _extract_span(item.session)
         span.set_tag(_SESSION_ID, test_session_span.span_id)
-        test_suite_span = _extract_span(item.parent)
-        span.set_tag(_SUITE_ID, test_suite_span.span_id)
 
-        if isinstance(item.parent.parent, pytest.Package):
-            test_module_span = _extract_span(item.parent.parent)
+        if test_module_span is not None:
             span.set_tag(_MODULE_ID, test_module_span.span_id)
-            span.set_tag_str(test.MODULE, _get_module_name(item))
-            span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
+            span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+            span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-        if hasattr(item, "module"):
-            span.set_tag_str(test.SUITE, item.module.__name__)
-        elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-            span.set_tag_str(test.SUITE, item.dtest.globs["__name__"])
+        if test_suite_span is not None:
+            span.set_tag(_SUITE_ID, test_suite_span.span_id)
+            test_class_hierarchy = _get_test_class_hierarchy(item)
+            if test_class_hierarchy:
+                span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
+            if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+                span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+            else:
+                span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
+
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
 
@@ -326,18 +359,17 @@ def pytest_runtest_protocol(item, nextitem):
 
         yield
 
-    test_suite_span = _extract_span(item.parent)
-    if test_suite_span is not None:
-        if nextitem is None or nextitem.parent != item.parent and not test_suite_span.finished:
-            _mark_test_status(item.parent, test_suite_span)
-            test_suite_span.finish()
+    if test_suite_span is not None and (
+        nextitem is None or nextitem.parent != pytest_module_item and not test_suite_span.finished
+    ):
+        _mark_test_status(item.parent, test_suite_span)
+        test_suite_span.finish()
 
-    if isinstance(item.parent.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent.parent)
-        if test_module_span is not None:
-            if nextitem is None or nextitem.parent.parent != item.parent.parent and not test_module_span.finished:
-                _mark_test_status(item.parent.parent, test_module_span)
-                test_module_span.finish()
+    if test_module_span is not None and (
+        nextitem is None or nextitem.parent.parent != pytest_package_item and not test_module_span.finished
+    ):
+        _mark_test_status(item.parent.parent, test_module_span)
+        test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)

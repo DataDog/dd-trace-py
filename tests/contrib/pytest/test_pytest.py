@@ -637,7 +637,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 6
         non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
         for span in non_session_spans:
-            assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+            assert span.get_tag(test.SUITE) == file_name
         test_session_span = spans[5]
         if PY2:
             assert test_session_span.get_tag("test.command") == "pytest"
@@ -820,6 +820,23 @@ class PytestTestCase(TracerTestCase):
         else:
             assert spans[0].get_tag("test.command") == "pytest --ddtrace"
 
+    def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
+        """Test that given a test class, the test span will include the hierarchy of test class(es) as a tag."""
+        py_file = self.testdir.makepyfile(
+            """
+            class TestNestedOuter:
+                class TestNestedInner:
+                    def test_ok(self):
+                        assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+        test_span = spans[0]
+        assert test_span.get_tag("test.class_hierarchy") == "TestNestedOuter.TestNestedInner"
+
     def test_pytest_suite(self):
         """Test that running pytest on a test file will generate a test suite span."""
         py_file = self.testdir.makepyfile(
@@ -844,7 +861,7 @@ class PytestTestCase(TracerTestCase):
             assert test_suite_span.get_tag("test.command") == "pytest"
         else:
             assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
-        assert test_suite_span.get_tag("test.suite") == str(file_name).split(".py")[0]
+        assert test_suite_span.get_tag("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
         """
