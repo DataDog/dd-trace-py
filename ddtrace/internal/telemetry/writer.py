@@ -59,7 +59,7 @@ class _TelemetryClient:
         self._endpoint = endpoint
         self._encoder = JSONEncoderV2()
         self._headers = {
-            "Content-type": "application/json",
+            "Content-Type": "application/json",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
