@@ -99,6 +99,11 @@ The OpenAI integration **estimates** prompt and completion token counts if strea
 This is because the ``usage`` field is no longer returned in streamed completions, which is what
 the integration relies on for reporting metrics.
 
+Streaming responses should produce a ``openai.stream`` span. This span is tagged with estimated
+completion and total tokens. The integration will also make a best effort attempt to tag the
+original parent ``openai.request`` span with completion and total usage information, but this
+parent span may be flushed before the stream finishes.
+
 The ``_est_tokens`` function implements token count estimations. It returns the average of simple
 token estimation techniques that do not rely on installing a tokenizer.
 
