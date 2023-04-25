@@ -104,7 +104,7 @@ def build_payload(coverage, test_id=None, root=None):
     }
 
     For each segment of code for which there is coverage, there are always five integer values:
-        The first number indicates the start line line of the code block (index starting in 1)
+        The first number indicates the start line of the code block (index starting in 1)
         The second number indicates the start column of the code block (index starting in 1). Use value -1 if the
             column is unknown.
         The third number indicates the end line of the code block
