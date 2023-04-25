@@ -645,11 +645,13 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-# Expect an error because the test agent doesn't support metrics
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
-    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+    env={
+        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+        # Disable metrics because the test agent doesn't support metrics
+        "DD_OPENAI_METRICS_ENABLED": "false",
+    },
 )
 def test_integration_sync():
     """OpenAI uses requests for its synchronous requests.
@@ -672,11 +674,13 @@ def test_integration_sync():
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-# Expect an error because the test agent doesn't support metrics
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    err=b"Error submitting packet: [Errno 61] Connection refused, dropping the packet and closing the socket\n",
-    env={"OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>")},
+    env={
+        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+        # Disable metrics because the test agent doesn't support metrics
+        "DD_OPENAI_METRICS_ENABLED": "false",
+    },
 )
 def test_integration_async():
     """OpenAI uses requests for its synchronous requests.
