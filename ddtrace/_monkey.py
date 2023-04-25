@@ -236,7 +236,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
             when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors, should_patch=should_patch))
-            
+
         # manually add module to patched modules
         with _LOCK:
             _PATCHED_MODULES.add(contrib)
