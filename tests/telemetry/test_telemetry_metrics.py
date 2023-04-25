@@ -35,8 +35,13 @@ def _assert_metric(
     expected_body = _get_request_body(payload, type_paypload, seq_id)
     expected_body_sorted = expected_body["payload"]["series"]
     expected_body_sorted.sort(key=lambda x: x["metric"], reverse=False)
+    for metric in expected_body_sorted:
+        metric["tags"].sort()
+
     result_event = events[0]["payload"]["series"]
     result_event.sort(key=lambda x: x["metric"], reverse=False)
+    for metric in result_event:
+        metric["tags"].sort()
 
     assert result_event == expected_body_sorted
 
