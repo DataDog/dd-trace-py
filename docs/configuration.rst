@@ -60,6 +60,15 @@ The following environment variables for the tracer are supported:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_ENABLED``
 
+   DD_TRACE_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables OpenTelemetry support. To enable OpenTelemetry without `ddtrace-run` refer
+         to the following :mod:`docs <ddtrace.opentelemetry>`.
+     version_added:
+       v1.12.0:
+
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
@@ -71,6 +80,8 @@ The following environment variables for the tracer are supported:
      default: False
      description: |
          This configuration enables the generation of 128 bit trace ids.
+     version_added:
+       v1.12.0:
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -493,9 +504,22 @@ The following environment variables for the tracer are supported:
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False
-     description: Configures the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``.
+     description: |
+        Configures the ``CIVisibility`` service to use a test-reporting ``CIVisibilityWriter``.
+        This writer sends payloads for traces on which it's used to the intake endpoint for
+        Datadog CI Visibility. If there is a reachable Datadog agent that supports proxying
+        these requests, the writer will send its payloads to that agent instead.
      version_added:
         v1.12.0:
+
+   DD_CIVISIBILITY_AGENTLESS_URL:
+     type: String
+     default: ""
+     description: |
+        Configures the ``CIVisibility`` service to send event payloads to the specified host. If unspecified, the host "https://citestcycle-intake.<DD_SITE>"
+        is used, where ``<DD_SITE>`` is replaced by that environment variable's value, or "datadoghq.com" if unspecified.
+     version_added:
+        v1.13.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
@@ -503,4 +527,4 @@ The following environment variables for the tracer are supported:
 Dynamic Instrumentation
 -----------------------
 
-.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig

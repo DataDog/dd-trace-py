@@ -2,6 +2,7 @@ import json
 import os
 import sys
 
+import mock
 import pytest
 
 import ddtrace
@@ -10,18 +11,32 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
+from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
 
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
+
+
 class PytestTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch):
+    def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
+        self.git_repo = git_repo
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
@@ -547,7 +562,6 @@ class PytestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
-
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
@@ -557,6 +571,15 @@ class PytestTestCase(TracerTestCase):
         assert len(decoded_trace) == 4
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+
+        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
+        ci_agentless_encoder.put(spans)
+        trace = ci_agentless_encoder.encode()
+        decoded_trace = self.tracer.encoder._decode(trace)
+        assert len(decoded_trace[b"events"]) == 4
+        for event in decoded_trace[b"events"]:
+            assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
+        pass
 
     def test_pytest_doctest_module(self):
         """Test that pytest with doctest works as expected."""
@@ -749,3 +772,32 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 2
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
+
+    def test_pytest_will_report_git_metadata(self):
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        def test_will_work():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            ggr.return_value = self.git_repo
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE) == "2021-01-19T09:24:53-0400"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME) == "John Doe"
+        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL) == "john@doe.com"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
+        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
+        assert test_span.get_tag(git.BRANCH)
+        assert test_span.get_tag(git.COMMIT_SHA)
+        assert test_span.get_tag(git.REPOSITORY_URL)

@@ -4,7 +4,12 @@ import sys
 
 import pytest
 
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._input_info import Input_info
+
+
+def setup():
+    oce._enabled = True
 
 
 @pytest.mark.parametrize(

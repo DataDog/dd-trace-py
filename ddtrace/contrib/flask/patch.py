@@ -49,6 +49,7 @@ from .helpers import simple_tracer
 from .helpers import with_instance_pin
 from .wrappers import wrap_function
 from .wrappers import wrap_signal
+from .wrappers import wrap_view
 
 
 try:
@@ -108,14 +109,17 @@ flask_version = parse_version(flask_version_str)
 def taint_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._input_info import Input_info
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        try:
+            from ddtrace.appsec.iast._input_info import Input_info
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-        taint_pyobject(
-            instance.query_string,
-            Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
-        )
-        taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+            taint_pyobject(
+                instance.query_string,
+                Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+            )
+            taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -241,9 +245,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
-        if config._appsec_enabled:
-            log.debug("Flask WAF call for Suspicious Request Blocking on request")
-            _asm_request_context.call_waf_callback()
 
 
 def patch():
@@ -521,7 +522,7 @@ def traced_add_url_rule(wrapped, instance, args, kwargs):
         if view_func:
             # TODO: `if hasattr(view_func, 'view_class')` then this was generated from a `flask.views.View`
             #   should we do something special with these views? Change the name/resource? Add tags?
-            view_func = wrap_function(instance, view_func, name=endpoint, resource=rule)
+            view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
         return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
 
