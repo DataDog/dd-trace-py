@@ -226,6 +226,6 @@ def extract_user_git_metadata(env=None):
 def build_git_packfiles(revisions, cwd=None):
     basename = str(random.randint(1, 1000000))
     with TemporaryDirectory() as tempdir:
-        path = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
-        _git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % path, cwd=cwd, std_in=revisions)
-        yield path
+        prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+        _git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions)
+        yield prefix

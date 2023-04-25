@@ -64,8 +64,8 @@ class CIVisibilityGitClient(object):
         backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serializer, _response)
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
-            with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_path:
-                cls._upload_packfiles(base_url, repo_url, packfiles_path, serializer, _response, cwd=cwd)
+            with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
+                cls._upload_packfiles(base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd)
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
@@ -112,10 +112,10 @@ class CIVisibilityGitClient(object):
         return build_git_packfiles(revisions, cwd=cwd)
 
     @classmethod
-    def _upload_packfiles(cls, base_url, repo_url, packfiles_path, serializer, _response, cwd=None):
+    def _upload_packfiles(cls, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):
         # type: (str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
-        parts = packfiles_path.split("/")
+        parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
         for filename in os.listdir(directory):
