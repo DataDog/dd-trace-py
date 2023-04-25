@@ -193,6 +193,7 @@ submodule
 submodules
 substring
 timestamp
+tokenizer
 tracestate
 tweens
 uWSGI
