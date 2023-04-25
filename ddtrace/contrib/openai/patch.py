@@ -538,6 +538,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span.set_tag_str("request.messages.%d.role" % idx, role)
 
         if "stream" in kwargs and kwargs["stream"]:
+            # streamed responses do not have a usage field, so we have to
+            # estimate the number of tokens returned.
             num_message_tokens = 0
             for m in messages:
                 num_message_tokens += _est_tokens(m.get("content", ""))

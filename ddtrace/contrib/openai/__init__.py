@@ -90,6 +90,17 @@ rates.
     Set ``DD_SITE`` to send logs to a Datadog site such as ``datadoghq.eu``. The default is ``datadoghq.com``.
 
 
+(beta) Streamed Responses Support
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The OpenAI integration **estimates** prompt and completion token counts if streaming is turned on.
+This is because the ``usage`` field is no longer returned in streamed completions, which is what
+the integration relies on for reporting metrics.
+
+The ``_est_tokens`` function implements token count estimations. It returns the average of simple
+token estimation techniques that do not rely on installing a tokenizer.
+
+
 Enabling
 ~~~~~~~~
 
