@@ -120,7 +120,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, {"a": "b"})
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": "d"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": True})
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, {})
 
         expected_series = [
@@ -135,7 +135,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
                 "common": True,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
-                "tags": ["a:b", "c:d"],
+                "tags": ["a:b", "c:true"],
                 "type": "count",
             },
             {
@@ -171,8 +171,8 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent
 def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "B"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"A": "b"})
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {})
         telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"}

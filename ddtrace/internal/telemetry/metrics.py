@@ -41,7 +41,8 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.is_common_to_all_tracers = common
         self.interval = interval
         self.namespace = namespace
-        self._tags = tags  # type: MetricTagType
+        self._tags = {}  # type: MetricTagType
+        self.set_tags(tags)
         self._count = 0.0
         self._points = []  # type: List[float]
 
@@ -69,9 +70,9 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
                 self.set_tag(k, v)
 
     def set_tag(self, name, value):
-        # type: (str, str) -> None
-        """sets a metrics tag"""
-        self._tags[name] = value
+        # type: (str, Any) -> None
+        """sets a metrics tag. name and values should be lowercase"""
+        self._tags[str(name).lower()] = str(value).lower()
 
     def to_dict(self):
         # type: () -> Dict
@@ -81,7 +82,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
             "points": self._points,
-            "tags": ["%s:%s" % (str(k).lower(), str(v).lower()) for k, v in self._tags.items()],
+            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
         }
         if self.interval is not None:
             data["interval"] = int(self.interval)
