@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where path parameters for the Flask framework were handled at
+    response time instead of at request time for suspicious request blocking. 
+    This close a known issue opened in 1.10.0.
