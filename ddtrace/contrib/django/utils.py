@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Text
 from typing import Union
+import urllib.parse
 
 from django.utils.functional import SimpleLazyObject
 import six
@@ -257,11 +258,13 @@ def _extract_body(request):
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
         try:
             if content_type == "application/x-www-form-urlencoded":
-                body_params = (request.body.decode("UTF-8")).replace("+", " ")
+                body_params = (request.body.decode("UTF-8", errors="ignore")).replace("+", " ")
                 req_body = dict()
                 for item in body_params.split("&"):
                     key, equal, val = item.partition("=")
                 if equal:
+                    key = urllib.parse.unquote(key)
+                    val = urllib.parse.unquote(val)
                     prev_value = req_body.get(key, None)
                     if prev_value is None:
                         req_body[key] = val
@@ -270,9 +273,9 @@ def _extract_body(request):
                     else:
                         req_body[key] = [prev_value, val]
             elif content_type in ("application/json", "text/json"):
-                req_body = json.loads(request.body.decode("UTF-8"))
+                req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
-                req_body = xmltodict.parse(request.body.decode("UTF-8"))
+                req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
         except BaseException:
