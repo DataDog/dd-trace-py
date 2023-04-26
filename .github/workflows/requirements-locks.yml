@@ -1,0 +1,18 @@
+name: Test Requirements Lockfiles Check
+on:
+  push:
+    branches:
+      - 1.x
+  pull_request:
+    types: [opened, reopened, synchronize]
+jobs:
+  validate:
+    name: Check requirements lockfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Ensure riot requirements lockfiles are in sync
+        run: scripts/compile-and-prune-test-requirements && git diff --exit-code
