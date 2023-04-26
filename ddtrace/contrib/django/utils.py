@@ -10,12 +10,12 @@ import six
 import xmltodict
 
 from ddtrace import config
+from ddtrace.appsec.utils import parse_form_params
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
-from ddtrace.internal.compat import parse
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
@@ -258,20 +258,7 @@ def _extract_body(request):
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
         try:
             if content_type == "application/x-www-form-urlencoded":
-                body_params = (request.body.decode("UTF-8", errors="ignore")).replace("+", " ")
-                req_body = dict()
-                for item in body_params.split("&"):
-                    key, equal, val = item.partition("=")
-                if equal:
-                    key = parse.unquote(key)
-                    val = parse.unquote(val)
-                    prev_value = req_body.get(key, None)
-                    if prev_value is None:
-                        req_body[key] = val
-                    elif isinstance(prev_value, list):
-                        req_body[key].append(val)
-                    else:
-                        req_body[key] = [prev_value, val]
+                req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/json", "text/json"):
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
