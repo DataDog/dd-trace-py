@@ -15,5 +15,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Dependencies
+        run: pip install riot>=0.17.0
+
       - name: Ensure riot requirements lockfiles are in sync
-        run: scripts/compile-and-prune-test-requirements && git diff --exit-code
+        run: scripts/compile-and-prune-test-requirements && pwd && ls && git diff --exit-code
