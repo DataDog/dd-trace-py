@@ -394,9 +394,9 @@ class _BaseCompletionHook(_EndpointHook):
 
             num_completion_tokens = yield
 
-            stream_span.set_metric("openai.openai.response.usage.completion_tokens", num_completion_tokens)
+            stream_span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
             total_tokens = num_prompt_tokens + num_completion_tokens
-            stream_span.set_metric("openai.openai.response.usage.total_tokens", total_tokens)
+            stream_span.set_metric("openai.response.usage.total_tokens", total_tokens)
             print(total_tokens)
             print(num_prompt_tokens)
             print(num_completion_tokens)
