@@ -21,5 +21,8 @@ jobs:
       - name: Install Dependencies
         run: $PYENV_ROOT/versions/3.10.3/bin/pip install --upgrade pip && $PYENV_ROOT/versions/3.10.3/bin/pip install riot
 
-      - name: Ensure riot requirements lockfiles are in sync
-        run: scripts/compile-and-prune-test-requirements $PYENV_ROOT/versions/3.10.3/bin/riot && ls -al
+      - name: Generate riot locks
+        run: scripts/compile-and-prune-test-requirements $PYENV_ROOT/versions/3.10.3/bin/riot
+
+      - name: Check git diff
+        run: git diff --exit-code
