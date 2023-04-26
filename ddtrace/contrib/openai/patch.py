@@ -365,7 +365,9 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    """Completion and ChatCompletion share a lot of logic, capture that here."""
+    """Share common logic between Completion and ChatCompletion endpoints
+    related to span processing and recording metrics.
+    """
 
     _request_tag_attrs = []
 
