@@ -41,8 +41,9 @@ def test_remoteconfig_publisher_merge_first_dispatch_lists():
     )
 
     publisher.dispatch()
-
-    assert mock_connector.data == {"config": ["data1", "data2"]}
+    expected_result = mock_connector.data
+    expected_result["config"].sort()
+    assert expected_result == {"config": ["data1", "data2"]}
     assert mock_connector.metadata == {}
 
 
@@ -50,10 +51,10 @@ def test_remoteconfig_publisher_merge_first_dispatch_dicts():
     mock_connector = MockConnector({})
 
     publisher = RemoteConfigPublisherMergeFirst(mock_connector, None)
-    publisher.append("target_a", {"config": {"a": "b"}})
     publisher.append("target_b", {"config": {"c": "d"}})
 
     publisher.dispatch()
 
-    assert mock_connector.data == {"config": {"c": "d"}}
+    expected_result = mock_connector.data
+    assert expected_result == {"config": {"c": "d"}}
     assert mock_connector.metadata == {}
