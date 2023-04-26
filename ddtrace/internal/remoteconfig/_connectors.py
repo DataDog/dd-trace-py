@@ -17,7 +17,7 @@ log = get_logger(__name__)
 # Size of the shared variable. It's calculated based on Remote Config Payloads. At 2023-04-26 we measure on stagging
 # RC payloads and the max size of a multiprocess.array was 139.002 (sys.getsizeof(data.value)) and
 # max len 138.969 (len(data.value))
-SHARED_MEMORY_SIZE = 603_432
+SHARED_MEMORY_SIZE = 603432
 
 SharedDataType = Mapping[str, Any]
 
