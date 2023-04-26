@@ -1012,13 +1012,37 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
+                            "~=2.2",  # latest 2.2
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.2",  # latest 2.2
+                        ],
+                    },
+                ),
+                Venv(
+                    # flask dropped support for Python 3.7 in 2.3.0
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
                             "~=2.0",  # latest 2.x
                             latest,
                         ],
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.8"),
                     command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
