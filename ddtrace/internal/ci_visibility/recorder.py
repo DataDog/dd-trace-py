@@ -71,7 +71,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APP_KEY")
+        self._app_key = os.getenv("DD_APPLICATION_KEY")
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._configure_writer()
@@ -82,13 +82,12 @@ class CIVisibility(Service):
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._git_client = None
-        app_key = os.environ.get("DD_APPLICATION_KEY")
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if app_key is None:
+            if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
             else:
-                self._git_client = CIVisibilityGitClient(api_key=os.environ.get("DD_API_KEY") or "", app_key=app_key)
+                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
 
         int_service = None
         if self.config is not None:

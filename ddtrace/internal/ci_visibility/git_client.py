@@ -22,6 +22,7 @@ from .constants import AGENTLESS_DEFAULT_SITE
 
 log = get_logger(__name__)
 
+# this exists only for the purpose of mocking in tests
 RESPONSE = None
 
 
@@ -125,8 +126,9 @@ class CIVisibilityGitClient(object):
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
             response = _response or cls.retry_request(base_url, "/packfile", payload, serializer, headers=headers)
-            return response.status == 204
-        return False
+            if response.status != 204:
+                return False
+        return True
 
     @classmethod
     def retry_request(cls, *args, **kwargs):
