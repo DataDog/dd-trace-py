@@ -658,6 +658,8 @@ def test_integration_sync(ddtrace_run_python_code_in_subprocess):
     """
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
     env.update(
         {
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
@@ -695,6 +697,8 @@ def test_integration_async(ddtrace_run_python_code_in_subprocess):
     """
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
     env.update(
         {
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
@@ -705,13 +709,6 @@ def test_integration_async(ddtrace_run_python_code_in_subprocess):
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
-import openai
-import ddtrace
-from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr().use_cassette("completion_2.yaml"):
-    resp = openai.Completion.create(model="ada", prompt="hello world")
 import asyncio
 import openai
 import ddtrace

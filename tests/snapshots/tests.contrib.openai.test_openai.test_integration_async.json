@@ -23,7 +23,7 @@
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
       "openai.response.object": "text_completion",
-      "runtime-id": "a7291f45053b48dca901cbffb71acabc"
+      "runtime-id": "35c3f07dcc184e90ae7a1f033948388e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,71 +32,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.choices.num": 1,
-      "process_id": 75353
+      "process_id": 92964
     },
-    "duration": 807000,
-    "start": 1682540295549775000
-  }],
-[
-  {
-    "name": "openai.request",
-    "service": "",
-    "resource": "completions/ada",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "",
-    "error": 0,
-    "meta": {
-      "_dd.p.dm": "-0",
-      "api_base": "https://api.openai.com/v1",
-      "component": "openai",
-      "language": "python",
-      "openai.endpoint": "completions",
-      "openai.model": "ada",
-      "openai.organization.name": "datadog-4",
-      "openai.organization.ratelimit.requests.remaining": "2999",
-      "openai.organization.ratelimit.tokens.remaining": "249983",
-      "openai.request.prompt": "hello world",
-      "openai.response.choices.0.finish_reason": "length",
-      "openai.response.choices.0.logprobs": "returned",
-      "openai.response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
-      "openai.response.object": "text_completion",
-      "runtime-id": "a7291f45053b48dca901cbffb71acabc"
-    },
-    "metrics": {
-      "_dd.agent_psr": 1.0,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "openai.response.choices.num": 1,
-      "process_id": 75353
-    },
-    "duration": 14389000,
-    "start": 1682540295507007000
-  },
-     {
-       "name": "requests.request",
-       "service": "openai",
-       "resource": "requests.request",
-       "trace_id": 1,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "http",
-       "error": 0,
-       "meta": {
-         "component": "requests",
-         "http.method": "POST",
-         "http.status_code": "200",
-         "http.url": "https://api.openai.com/v1/completions",
-         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
-         "span.kind": "client"
-       },
-       "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1
-       },
-       "duration": 2590000,
-       "start": 1682540295517997000
-     }]]
+    "duration": 8388000,
+    "start": 1682542462368434000
+  }]]
