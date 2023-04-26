@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiler: Fix support for latest versions of protobuf.
