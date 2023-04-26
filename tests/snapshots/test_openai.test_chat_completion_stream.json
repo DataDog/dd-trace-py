@@ -12,13 +12,13 @@
       "_dd.p.dm": "-0",
       "api_base": "https://api.openai.com/v1",
       "component": "openai",
-      "endpoint": "chat.completions",
       "language": "python",
-      "model": "gpt-3.5-turbo",
-      "request.messages.0.content": "Who won the world series in 2020?",
-      "request.messages.0.role": "user",
-      "request.stream": "True",
-      "runtime-id": "fa1ec83f0afa4c5a88048f3c1f664b21"
+      "openai.endpoint": "chat.completions",
+      "openai.model": "gpt-3.5-turbo",
+      "openai.request.messages.0.content": "Who won the world series in 2020?",
+      "openai.request.messages.0.role": "user",
+      "openai.request.stream": "True",
+      "runtime-id": "2709e1ecad094dc791d013c59526d638"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -26,11 +26,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 22070,
-      "response.usage.prompt_tokens": 8
+      "openai.response.usage.prompt_tokens": 8,
+      "process_id": 44817
     },
-    "duration": 14573000,
-    "start": 1682410111145105000
+    "duration": 3526000,
+    "start": 1682528627851317000
   },
      {
        "name": "openai.stream",
@@ -44,15 +44,15 @@
        "meta": {
          "_dd.p.dm": "-0",
          "language": "python",
-         "organization.name": "user-f23xvdxbrssd56y1ghcjdcue",
-         "organization.ratelimit.requests.remaining": "2"
+         "openai.organization.name": "user-f23xvdxbrssd56y1ghcjdcue",
+         "openai.organization.ratelimit.requests.remaining": "2"
        },
        "metrics": {
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "response.usage.completion_tokens": 15,
-         "response.usage.total_tokens": 23
+         "openai.openai.response.usage.completion_tokens": 15,
+         "openai.openai.response.usage.total_tokens": 23
        },
-       "duration": 2577000,
-       "start": 1682410111184269000
+       "duration": 3074000,
+       "start": 1682528627855114000
      }]]
