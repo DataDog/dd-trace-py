@@ -376,7 +376,7 @@ class _BaseCompletionHook(_EndpointHook):
             if kw_attr in kwargs:
                 if isinstance(kwargs[kw_attr], dict):
                     set_flattened_tags(
-                        span, [("request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
+                        span, [("openai.request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
                     )
                 else:
                     span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
@@ -574,7 +574,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                         "openai.response.choices.%d.message.role" % idx,
                         integration.trunc(choice.get("message").get("role")),
                     )
-            span.set_tag("openai.openai.response.object", resp["object"])
+            span.set_tag("openai.response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
 
             if integration.is_pc_sampled_log(span):
