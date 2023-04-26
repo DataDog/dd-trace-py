@@ -834,6 +834,7 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
+        assert len(spans) == 3
         test_span = spans[0]
         assert test_span.get_tag("test.class_hierarchy") == "TestNestedOuter.TestNestedInner"
 
@@ -898,6 +899,29 @@ class PytestTestCase(TracerTestCase):
         for test_suite_span in test_suite_spans:
             assert test_suite_span.name == "pytest.test_suite"
             assert test_suite_span.parent_id == test_session_span.span_id
+
+    def test_pytest_test_class_does_not_prematurely_end_test_suite(self):
+        """Test that given a test class, the test suite span will not end prematurely."""
+        self.testdir.makepyfile(
+            test_a="""
+                def test_outside_class_before():
+                    assert True
+                class TestClass:
+                    def test_ok(self):
+                        assert True
+                def test_outside_class_after():
+                    assert True
+                """
+        )
+        rec = self.inline_run("--ddtrace")
+        rec.assertoutcome(passed=3)
+        spans = self.pop_spans()
+        assert len(spans) == 5
+        test_span_a_inside_class = spans[1]
+        test_span_a_outside_after_class = spans[2]
+        test_suite_a_span = spans[4]
+        assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
+        assert test_suite_a_span.start_ns + test_suite_a_span.duration_ns >= test_span_a_outside_after_class.start_ns
 
     def test_pytest_suites_one_fails_propagates(self):
         """Test that if any tests fail, the status propagates upwards."""
@@ -1116,6 +1140,28 @@ class PytestTestCase(TracerTestCase):
             assert test_spans[i].name == "pytest.test"
             assert test_spans[i].parent_id is None
             assert test_spans[i].get_tag("test_module_id") == str(test_module_spans[i].span_id)
+
+    def test_pytest_test_class_does_not_prematurely_end_test_module(self):
+        """Test that given a test class, the test module span will not end prematurely."""
+        package_a_dir = self.testdir.mkpydir("test_package_a")
+        os.chdir(str(package_a_dir))
+        with open("test_a.py", "w+") as fd:
+            fd.write(
+                "def test_ok():\n\tassert True\n"
+                "class TestClassOuter:\n"
+                "\tclass TestClassInner:\n"
+                "\t\tdef test_class_inner(self):\n\t\t\tassert True\n"
+                "\tdef test_class_outer(self):\n\t\tassert True\n"
+                "def test_after_class():\n\tassert True"
+            )
+        self.testdir.chdir()
+        rec = self.inline_run("--ddtrace")
+        rec.assertoutcome(passed=4)
+        spans = self.pop_spans()
+        assert len(spans) == 7
+        test_span_outside_after_class = spans[3]
+        test_module_span = spans[5]
+        assert test_module_span.start_ns + test_module_span.duration_ns >= test_span_outside_after_class.start_ns
 
     def test_pytest_packages_skip_one(self):
         """

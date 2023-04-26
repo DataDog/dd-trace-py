@@ -258,7 +258,12 @@ def patch_all(request):
 
 
 def _find_pytest_item(item, pytest_item_type):
-    """Given a `pytest.Item`, traverse upwards until we find a `pytest.Package` item, or return None."""
+    """
+    Given a `pytest.Item`, traverse upwards until we find a specified `pytest.Package` or `pytest.Module` item,
+    or return None.
+    """
+    if item is None:
+        return None
     if pytest_item_type not in [pytest.Package, pytest.Module]:
         return None
     parent = item.parent
@@ -359,16 +364,18 @@ def pytest_runtest_protocol(item, nextitem):
 
         yield
 
+    nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
     if test_suite_span is not None and (
-        nextitem is None or nextitem.parent != pytest_module_item and not test_suite_span.finished
+        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
     ):
-        _mark_test_status(item.parent, test_suite_span)
+        _mark_test_status(pytest_module_item, test_suite_span)
         test_suite_span.finish()
 
+    nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
     if test_module_span is not None and (
-        nextitem is None or nextitem.parent.parent != pytest_package_item and not test_module_span.finished
+        nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
     ):
-        _mark_test_status(item.parent.parent, test_module_span)
+        _mark_test_status(pytest_package_item, test_module_span)
         test_module_span.finish()
 
 
