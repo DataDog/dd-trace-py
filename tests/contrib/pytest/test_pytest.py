@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import sys
@@ -13,12 +14,15 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
+from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import PY2
 from tests import utils
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -29,6 +33,14 @@ def git_repo_empty(tmpdir):
 @pytest.fixture
 def git_repo(git_repo_empty):
     yield utils.git_repo(git_repo_empty)
+
+
+@contextlib.contextmanager
+def _patch_dummy_writer():
+    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
+    yield
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 class PytestTestCase(TracerTestCase):
@@ -45,9 +57,10 @@ class PytestTestCase(TracerTestCase):
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    assert CIVisibility.enabled
-                    CIVisibility.disable()
-                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                    with _patch_dummy_writer():
+                        assert CIVisibility.enabled
+                        CIVisibility.disable()
+                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
@@ -1236,6 +1249,36 @@ class PytestTestCase(TracerTestCase):
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
         assert test_module_spans[1].get_tag("test.module") == "test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage(self):
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+        from test_module import lib_fn
+
+        def test_cov():
+            assert lib_fn()
+        """
+        )
+
+        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+
+        assert COVERAGE_TAG_NAME in spans[0].get_tags()
+        tag_data = json.loads(spans[0].get_tag(COVERAGE_TAG_NAME))
+        files = sorted(tag_data["files"], key=lambda x: x["filename"])
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(

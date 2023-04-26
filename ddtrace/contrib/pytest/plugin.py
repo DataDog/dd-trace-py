@@ -21,6 +21,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -362,7 +363,13 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        yield
+        if coverage_enabled():
+            from ddtrace.internal.ci_visibility.coverage import cover
+
+            with cover(span, root=str(item.config.rootdir)):
+                yield
+        else:
+            yield
 
     nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
     if test_suite_span is not None and (

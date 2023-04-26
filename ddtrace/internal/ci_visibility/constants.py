@@ -18,6 +18,8 @@ MODULE_TYPE = "test_module_end"
 SUITE_TYPE = "test_suite_end"
 
 # Agentless and EVP-specific constants
+COVERAGE_TAG_NAME = "test.coverage"
+
 EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2"
 EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/citestcycle".format(EVP_PROXY_AGENT_BASE_PATH)
 AGENTLESS_ENDPOINT = "api/v2/citestcycle"
