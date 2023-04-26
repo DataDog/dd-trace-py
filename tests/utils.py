@@ -941,6 +941,8 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
                 token=token,
             )
         finally:
+            # Wait for spans to be queued
+            time.sleep(0.2)
             # Force a flush so all traces are submitted.
             tracer._writer.flush_queue()
             if async_mode:
