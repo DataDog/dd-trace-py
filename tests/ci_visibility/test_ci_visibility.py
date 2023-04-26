@@ -212,9 +212,17 @@ def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
-        CIVisibilityGitClient._upload_packfiles(
-            "", remote_url, packfiles_path, serializer, DUMMY_RESPONSE, cwd=git_repo
-        )
+        with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient.retry_request") as rr:
+            CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serializer, None, cwd=git_repo)
+            assert rr.call_count == 1
+            call_args = rr.call_args_list[0][0]
+            call_kwargs = rr.call_args.kwargs
+            assert call_args[0] == ""
+            assert call_args[1] == "/packfile"
+            assert call_args[2].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
+            assert call_kwargs["headers"] == {
+                "Content-Type": "multipart/form-data; boundary=b'----------boundary------'"
+            }
 
 
 def test_civisibilitywriter_agentless_url():
