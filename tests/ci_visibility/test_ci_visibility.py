@@ -15,7 +15,6 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
-from tests import utils
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -23,16 +22,6 @@ from tests.utils import override_global_config
 
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
-
-
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    yield utils.git_repo_empty(tmpdir)
-
-
-@pytest.fixture
-def git_repo(git_repo_empty):
-    yield utils.git_repo(git_repo_empty)
 
 
 def test_filters_test_spans():

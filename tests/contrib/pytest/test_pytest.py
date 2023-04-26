@@ -25,16 +25,6 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    yield utils.git_repo_empty(tmpdir)
-
-
-@pytest.fixture
-def git_repo(git_repo_empty):
-    yield utils.git_repo(git_repo_empty)
-
-
 @contextlib.contextmanager
 def _patch_dummy_writer():
     original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
