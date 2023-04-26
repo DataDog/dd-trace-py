@@ -186,8 +186,8 @@ def test_git_client_get_latest_commits(git_repo):
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
-    serde = CIVisibilityGitClientSerializerV1("foo", "bar")
-    backend_commits = CIVisibilityGitClient._search_commits("", remote_url, latest_commits, serde, DUMMY_RESPONSE)
+    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    backend_commits = CIVisibilityGitClient._search_commits("", remote_url, latest_commits, serializer, DUMMY_RESPONSE)
     assert latest_commits[0] in backend_commits
 
 
@@ -220,10 +220,12 @@ def test_git_client_build_packfiles(git_repo):
 
 
 def test_git_client_upload_packfiles(git_repo):
-    serde = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
-        CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serde, DUMMY_RESPONSE, cwd=git_repo)
+        CIVisibilityGitClient._upload_packfiles(
+            "", remote_url, packfiles_path, serializer, DUMMY_RESPONSE, cwd=git_repo
+        )
 
 
 def test_civisibilitywriter_agentless_url():
