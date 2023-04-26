@@ -264,11 +264,11 @@ def _extract_body(request):
                 if equal:
                     prev_value = req_body.get(key, None)
                     if prev_value is None:
-                        req_body[key]=val
+                        req_body[key] = val
                     elif isinstance(prev_value, list):
                         req_body[key].append(val)
                     else:
-                        req_body[key]=[prev_value, val]
+                        req_body[key] = [prev_value, val]
             elif content_type in ("application/json", "text/json"):
                 req_body = json.loads(request.body.decode("UTF-8"))
             elif content_type in ("application/xml", "text/xml"):
