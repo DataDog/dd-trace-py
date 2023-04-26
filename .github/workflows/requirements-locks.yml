@@ -28,7 +28,5 @@ jobs:
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements $PYENV_ROOT/versions/3.10.3/bin/riot
 
-      - run: rm -rf .riot/requirements/*.txt
-
       - name: Check git diff
         run: /usr/bin/git diff --exit-code
