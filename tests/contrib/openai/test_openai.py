@@ -657,13 +657,16 @@ def test_integration_sync(ddtrace_run_python_code_in_subprocess):
     with both OpenAI and requests spans.
     """
     env = os.environ.copy()
-    env.update({
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
-        "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-        # Disable metrics because the test agent doesn't support metrics
-        "DD_OPENAI_METRICS_ENABLED": "false",
-    })
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess("""
+    env.update(
+        {
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+            "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_OPENAI_METRICS_ENABLED": "false",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
 import openai
 import ddtrace
 from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
@@ -671,7 +674,9 @@ pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 with get_openai_vcr().use_cassette("completion_2.yaml"):
     resp = openai.Completion.create(model="ada", prompt="hello world")
-""", env=env)
+""",
+        env=env,
+    )
     assert status == 0, err
     assert out == b""
     assert err == b""
@@ -688,13 +693,16 @@ def test_integration_async(ddtrace_run_python_code_in_subprocess):
            because the patching VCR does into aiohttp interferes with the tracing patching.
     """
     env = os.environ.copy()
-    env.update({
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
-        "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-        # Disable metrics because the test agent doesn't support metrics
-        "DD_OPENAI_METRICS_ENABLED": "false",
-    })
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess("""
+    env.update(
+        {
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+            "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_OPENAI_METRICS_ENABLED": "false",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
 import openai
 import ddtrace
 from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
@@ -713,7 +721,9 @@ async def task():
         resp = await openai.Completion.acreate(model="ada", prompt="hello world")
 
 asyncio.run(task())
-""", env=env)
+""",
+        env=env,
+    )
     assert status == 0, err
     assert out == b""
     assert err == b""
