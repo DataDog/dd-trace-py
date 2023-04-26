@@ -281,6 +281,18 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
+
+            # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
+            if _is_iast_enabled() and kwargs and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
+                try:
+                    from ddtrace.appsec.iast._input_info import Input_info
+                    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                    for k, v in kwargs.items():
+                        kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                except Exception:
+                    log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -661,7 +673,7 @@ def _patch(django):
     trace_utils.wrap(
         django,
         "http.request.QueryDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
     )
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
@@ -717,6 +729,9 @@ def _patch(django):
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     if _is_iast_enabled():
+        if not args:
+            return wrapped(*args, **kwargs)
+
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
         return wrapped(

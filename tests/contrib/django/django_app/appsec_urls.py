@@ -99,6 +99,16 @@ def sqli_http_request_header_value(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def sqli_http_path_parameter(request, q_http_path_parameter):
+    from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+    with connection.cursor() as cursor:
+        query = add_aspect("SELECT 1 from ", q_http_path_parameter)
+        cursor.execute(query)
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -151,6 +161,11 @@ urlpatterns = [
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
     handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
+    path(
+        "sqli_http_path_parameter/<str:q_http_path_parameter>/",
+        sqli_http_path_parameter,
+        name="sqli_http_path_parameter",
+    ),
 ]
 
 if django.VERSION >= (2, 0, 0):

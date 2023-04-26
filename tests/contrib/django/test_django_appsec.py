@@ -766,7 +766,6 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
     with override_global_config(dict(_iast_enabled=False)):
         oce.reconfigure()
-        tracer._iast_enabled = False
         clear_taint_mapping()
         setup(bytes.join, bytearray.join)
 
@@ -779,6 +778,8 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
             url="/appsec/taint-checking-disabled/?q=aaa",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
+
+        assert root_span.get_tag(IAST.JSON) is None
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -793,7 +794,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        tracer._iast_enabled = True
         setup(bytes.join, bytearray.join)
         clear_taint_mapping()
 
@@ -943,6 +943,70 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(c
             content_type="application/x-www-form-urlencoded",
             url="/appsec/sqli_http_request_header_name/",
             headers={"master": "test/1.2.3"},
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_path_parameter/sqlite_master/",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert loaded["sources"] == [
+            {"origin": "http.request.path.parameter", "name": "q_http_path_parameter", "value": "sqlite_master"}
+        ]
+        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+        assert loaded["vulnerabilities"][0]["hash"] == 2718740693
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "SELECT 1 from "}, {"value": "sqlite_master", "source": 0}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 107
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/appsec/sqli_http_path_parameter/sqlite_master/",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
         assert root_span.get_tag(IAST.JSON) is None
