@@ -1,5 +1,7 @@
 from ctypes import c_char
 import json
+import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import Mapping
@@ -7,10 +9,15 @@ from uuid import UUID
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.logger import get_logger
 
 
-# Size of the shared variable. It's calculated based on Remote Config Payloads
-SHARED_MEMORY_SIZE = 603432
+log = get_logger(__name__)
+
+# Size of the shared variable. It's calculated based on Remote Config Payloads. At 2023-04-26 we measure on stagging
+# RC payloads and the max size of a multiprocess.array was 139.002 (sys.getsizeof(data.value)) and
+# max len 138.969 (len(data.value))
+SHARED_MEMORY_SIZE = 603_432
 
 SharedDataType = Mapping[str, Any]
 
@@ -58,8 +65,18 @@ class PublisherSubscriberConnector(object):
         # type: (Any, Dict[str, Any]) -> None
         last_checksum = self._hash_config(config_raw)
         if last_checksum != self.checksum:
+            data_len = len(self.data.value)
+            if data_len >= (SHARED_MEMORY_SIZE - 1000):
+                log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
             data = self.serialize(metadata, config_raw, self.shared_data_counter + 1)
             self.data.value = data
+            log.debug(
+                "[%s][P: %s] write message of size %s and len %s",
+                os.getpid(),
+                os.getppid(),
+                sys.getsizeof(self.data.value),
+                data_len,
+            )
             self.checksum = last_checksum
 
     def serialize(self, metadata, config_raw, shared_data_counter):
