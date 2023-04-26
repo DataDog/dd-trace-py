@@ -1003,8 +1003,6 @@ def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, 
             client,
             test_spans,
             tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
             url="/appsec/sqli_http_path_parameter/sqlite_master/",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
