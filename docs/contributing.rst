@@ -68,9 +68,9 @@ to regenerate the requirements files for the environments that changed. In order
 The easiest way to get all of these is to simply spin up the testagent container and exec into it.
 .. code-block:: python
 
-docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
+cd dd-trace-py && docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
         -it ghcr.io/datadog/dd-trace-py/testrunner:1ed971833a2a3c97f43cbaeabcbb3f1e28745a00 \
-        bash -c "git config --global --add safe.directory /root/project && pip install riot && zsh -c 'export IN_DOCKER_SHELL=1;"
+        bash -c "git config --global --add safe.directory /root/project && pip install riot && bash -i './scripts/compile-and-prune-test-requirements'"
 
 
 Once you're exec'd into the container, run `./scripts/compile-and-prune-test-requirements`.
