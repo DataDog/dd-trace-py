@@ -300,11 +300,13 @@ def patch():
     # flask.app.Flask traced hook decorators
     flask_hooks = [
         "before_request",
-        "before_first_request",
         "after_request",
         "teardown_request",
         "teardown_appcontext",
     ]
+    if flask_version < (2, 3, 0):
+        flask_hooks.append("before_first_request")
+
     for hook in flask_hooks:
         _w("flask", "Flask.{}".format(hook), traced_flask_hook)
     _w("flask", "after_this_request", traced_flask_hook)
@@ -340,12 +342,14 @@ def patch():
     bp_hooks = [
         "after_app_request",
         "after_request",
-        "before_app_first_request",
         "before_app_request",
         "before_request",
         "teardown_request",
         "teardown_app_request",
     ]
+    if flask_version < (2, 3, 0):
+        bp_hooks.append("before_app_first_request")
+
     for hook in bp_hooks:
         _w("flask", "Blueprint.{}".format(hook), traced_flask_hook)
 

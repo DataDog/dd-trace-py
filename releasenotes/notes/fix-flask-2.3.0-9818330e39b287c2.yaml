@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove Flask hooks deprecated in version 2.3.0
