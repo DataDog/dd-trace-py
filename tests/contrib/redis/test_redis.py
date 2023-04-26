@@ -69,6 +69,22 @@ class TestRedisPatch(TracerTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_operation_name_v0_schema(self):
+        us = self.r.get("cheese")
+        assert us is None
+        spans = self.get_spans()
+        span = spans[0]
+        assert span.name == "redis.command"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_operation_name_v1_schema(self):
+        us = self.r.get("cheese")
+        assert us is None
+        spans = self.get_spans()
+        span = spans[0]
+        assert span.name == "redis.command"
+
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
