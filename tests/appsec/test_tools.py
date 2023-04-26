@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 
 from ddtrace.appsec.utils import parse_form_params
