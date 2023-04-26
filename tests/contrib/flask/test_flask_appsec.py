@@ -611,7 +611,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 584
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 586
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
