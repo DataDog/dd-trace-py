@@ -67,7 +67,7 @@ Thus, if you make changes to the riotfile, you need to run either `scripts/compi
 to regenerate the requirements files for the environments that changed. In order to run the script, you need to have all minor versions of Python that the tracer supports.
 The easiest way to accomplish this and generate the files is to simply spin up the testagent container, exec into it, and run the script from there.
 
-.. code-block:: python
+.. code-block:: bash
 
   cd dd-trace-py && docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
     -it ghcr.io/datadog/dd-trace-py/testrunner:1ed971833a2a3c97f43cbaeabcbb3f1e28745a00 \
