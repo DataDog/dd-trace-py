@@ -55,6 +55,11 @@ log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
 
+
+class NoEncodableSpansError(Exception):
+    pass
+
+
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
@@ -304,11 +309,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count):
-        return self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = self._headers.copy()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        return headers
 
     def _send_payload(self, payload, count, client):
-        headers = self._get_finalized_headers(count)
+        headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
 
@@ -386,6 +394,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -649,7 +659,8 @@ class AgentWriter(HTTPWriter):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count):
-        headers = self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

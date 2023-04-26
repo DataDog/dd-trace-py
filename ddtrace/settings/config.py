@@ -292,6 +292,9 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
+        self._ci_visibility_code_coverage_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
+        )
 
     def __getattr__(self, name):
         if name not in self._config:
