@@ -121,7 +121,7 @@ def test_send_on_exit():
     from ddtrace.contrib.openai._logging import V2LogWriter
     from tests.contrib.openai.test_logger import logs_vcr
 
-    ctx = logs_vcr.use_cassette("test_send_on_exit.yaml")
+    ctx = logs_vcr.use_cassette("tests.contrib.openai.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()
     # Save the cassette at exit, this atexit handler has to be
     # registered before logger.start() is called so that the request

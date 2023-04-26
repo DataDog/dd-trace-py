@@ -657,10 +657,11 @@ def test_integration_sync(ddtrace_run_python_code_in_subprocess):
     with both OpenAI and requests spans.
     """
     env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     env.update(
         {
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
-            "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            "PYTHONPATH": ":".join(pypath),
             # Disable metrics because the test agent doesn't support metrics
             "DD_OPENAI_METRICS_ENABLED": "false",
         }
@@ -693,10 +694,11 @@ def test_integration_async(ddtrace_run_python_code_in_subprocess):
            because the patching VCR does into aiohttp interferes with the tracing patching.
     """
     env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     env.update(
         {
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
-            "PYTHONPATH": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            "PYTHONPATH": ":".join(pypath),
             # Disable metrics because the test agent doesn't support metrics
             "DD_OPENAI_METRICS_ENABLED": "false",
         }

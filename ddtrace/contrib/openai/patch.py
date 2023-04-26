@@ -393,23 +393,22 @@ class _BaseCompletionHook(_EndpointHook):
 
         def shared_gen():
             stream_span = pin.tracer.start_span("openai.stream", child_of=span, activate=True)
-            num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
+            try:
+                num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
+                num_completion_tokens = yield
 
-            num_completion_tokens = yield
-
-            stream_span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-            total_tokens = num_prompt_tokens + num_completion_tokens
-            stream_span.set_metric("openai.response.usage.total_tokens", total_tokens)
-            print(total_tokens)
-            print(num_prompt_tokens)
-            print(num_completion_tokens)
-            integration.metric(span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"])
-            integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
-            stream_span.finish()
-
-            # ``span`` could be flushed here so this is a best effort to attach the metric
-            span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-            span.set_metric("openai.response.usage.total_tokens", total_tokens)
+                stream_span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
+                total_tokens = num_prompt_tokens + num_completion_tokens
+                stream_span.set_metric("openai.response.usage.total_tokens", total_tokens)
+                integration.metric(
+                    span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
+                )
+                integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
+            finally:
+                stream_span.finish()
+                # ``span`` could be flushed by this point. This is a best effort to attach the metric
+                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
+                span.set_metric("openai.response.usage.total_tokens", total_tokens)
 
         # A chunk corresponds to a token:
         #  https://community.openai.com/t/how-to-get-total-tokens-from-a-stream-of-completioncreaterequests/110700

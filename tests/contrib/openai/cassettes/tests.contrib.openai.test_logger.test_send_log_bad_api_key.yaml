@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '[{"timestamp": 1682229545734.1829, "message": "test msg", "hostname": "dev-mbp",
+    body: '[{"timestamp": 1682540723305.4048, "message": "test msg", "hostname": "dev-mbp",
       "ddsource": "python", "service": "", "status": "info", "ddtags": ""}]'
     headers:
       Content-Type:
@@ -21,7 +21,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 23 Apr 2023 05:59:05 GMT
+      - Wed, 26 Apr 2023 20:25:23 GMT
       accept-encoding:
       - identity,gzip,x-gzip,deflate,x-deflate,zstd
       cross-origin-resource-policy:

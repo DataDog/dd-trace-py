@@ -18,7 +18,7 @@
       "openai.request.messages.0.content": "Who won the world series in 2020?",
       "openai.request.messages.0.role": "user",
       "openai.request.stream": "True",
-      "runtime-id": "664245a0222e4225a98a5c6a691911ec"
+      "runtime-id": "2f435e80baf945dfbfe44fdeb4837898"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,10 +27,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.usage.prompt_tokens": 8,
-      "process_id": 99847
+      "process_id": 82481
     },
-    "duration": 4012000,
-    "start": 1682539883102930000
+    "duration": 2056000,
+    "start": 1682540724619562000
   },
      {
        "name": "openai.stream",
@@ -53,6 +53,6 @@
          "openai.response.usage.completion_tokens": 15,
          "openai.response.usage.total_tokens": 23
        },
-       "duration": 3438000,
-       "start": 1682539883107228000
+       "duration": 1472000,
+       "start": 1682540724621825000
      }]]

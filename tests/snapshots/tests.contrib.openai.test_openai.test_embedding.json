@@ -19,7 +19,7 @@
       "openai.organization.ratelimit.requests.remaining": "2999",
       "openai.request.input": "hello world",
       "openai.request.model": "text-embedding-ada-002",
-      "runtime-id": "a992937949c9458b948c867977313cb4"
+      "runtime-id": "2f435e80baf945dfbfe44fdeb4837898"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,8 +31,8 @@
       "openai.response.data.num-embeddings": 1,
       "openai.response.usage.prompt_tokens": 2,
       "openai.response.usage.total_tokens": 2,
-      "process_id": 30412
+      "process_id": 82481
     },
-    "duration": 3943000,
-    "start": 1682524124208514000
+    "duration": 2626000,
+    "start": 1682540724489205000
   }]]
