@@ -27,7 +27,6 @@ def _set_waf_updates_metric(info):
     try:
         tags = {
             "waf_version": version(),
-            "lib_language": "python",
         }
         if info and info.version:
             tags["event_rules_version"] = info.version
@@ -46,7 +45,6 @@ def _set_waf_init_metric(info):
     try:
         tags = {
             "waf_version": version(),
-            "lib_language": "python",
         }
         if info and info.version:
             tags["event_rules_version"] = info.version
@@ -68,25 +66,20 @@ def _set_waf_request_metrics():
             is_blocked = any(list_is_blocked)
             is_triggered = any((result.data for result in list_results))
             is_timeout = any((result.timeout for result in list_results))
-            is_truncation = any((result.truncation for result in list_results))
+            # TODO: enable it when Telemetry intake accepts this tag
+            # is_truncation = any((result.truncation for result in list_results))
             has_info = any(list_result_info)
 
-            common_tags = {
+            tags_request = {
                 "waf_version": version(),
                 "rule_triggered": is_triggered,
                 "request_blocked": is_blocked,
                 "waf_timeout": is_timeout,
-                "request_truncated": is_truncation,
+                # "request_truncated": is_truncation,
             }
 
             if has_info and list_result_info[0].version:
-                common_tags["event_rules_version"] = list_result_info[0].version
-
-            tags_request = {
-                "rule_triggered": is_triggered,
-                "request_blocked": is_blocked,
-            }
-            tags_request.update(common_tags)
+                tags_request["event_rules_version"] = list_result_info[0].version
 
             telemetry_metrics_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
