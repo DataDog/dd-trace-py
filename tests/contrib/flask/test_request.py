@@ -5,6 +5,8 @@ import flask
 from flask import abort
 from flask import jsonify
 from flask import make_response
+import pytest
+import werkzeug
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -163,9 +165,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=biz"
 
+    @pytest.mark.skipif(werkzeug.__version__ >= "2.3.0", reason="Decoding error thrown in werkzeug")
     def test_request_query_string_trace_encoding(self):
-        """Make sure when making a request that we create the expected spans and capture the query string with a non-UTF-8
-        encoding.
+        """Make sure when making a request that we create the expected spans and capture the query string
+        with a non-UTF-8 encoding.
         """
 
         @self.app.route("/")
@@ -1019,6 +1022,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.request.headers.host") == "localhost"
 
+    @pytest.mark.skipif(flask_version >= (2, 3, 0), reason="Dropped in Flask 2.3.0")
     def test_correct_resource_when_middleware_error(self):
         @self.app.route("/helloworld")
         @self.app.before_first_request
