@@ -49,6 +49,8 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
         if metric.name == "waf.requests":
             assert metric._tags["rule_triggered"] is is_rule_triggered
             assert metric._tags["request_blocked"] is is_blocked_request
+            # assert metric._tags["request_truncated"] is False
+            assert metric._tags["waf_timeout"] is False
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
         elif metric.name == "waf.init":

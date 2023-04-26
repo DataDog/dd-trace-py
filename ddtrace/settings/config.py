@@ -17,6 +17,7 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
+from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -204,7 +205,7 @@ class Config(object):
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
+        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -287,6 +288,7 @@ class Config(object):
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
+        self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
 
     def __getattr__(self, name):
         if name not in self._config:
