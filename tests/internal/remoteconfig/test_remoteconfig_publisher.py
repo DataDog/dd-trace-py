@@ -43,7 +43,7 @@ def test_remoteconfig_publisher_merge_first_dispatch_lists():
     publisher.dispatch()
 
     assert mock_connector.data == {"config": ["data1", "data2"]}
-    assert mock_connector.metadata == ""
+    assert mock_connector.metadata == {}
 
 
 def test_remoteconfig_publisher_merge_first_dispatch_dicts():
@@ -56,4 +56,4 @@ def test_remoteconfig_publisher_merge_first_dispatch_dicts():
     publisher.dispatch()
 
     assert mock_connector.data == {"config": {"c": "d"}}
-    assert mock_connector.metadata == ""
+    assert mock_connector.metadata == {}
