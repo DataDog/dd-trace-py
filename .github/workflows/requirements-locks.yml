@@ -25,4 +25,4 @@ jobs:
         run: scripts/compile-and-prune-test-requirements $PYENV_ROOT/versions/3.10.3/bin/riot
 
       - name: Check git diff
-        run: git diff --exit-code
+        run: /usr/bin/git diff --exit-code
