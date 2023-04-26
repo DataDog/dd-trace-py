@@ -1,9 +1,9 @@
-import abc
 from ctypes import c_char
 import json
+from typing import Any
+from typing import Dict
+from typing import Mapping
 from uuid import UUID
-
-import six
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import to_unicode
@@ -11,6 +11,8 @@ from ddtrace.internal.compat import to_unicode
 
 # Size of the shared variable. It's calculated based on Remote Config Payloads
 SHARED_MEMORY_SIZE = 603432
+
+SharedDataType = Mapping[str, Any]
 
 
 class UUIDEncoder(json.JSONEncoder):
@@ -21,62 +23,60 @@ class UUIDEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class ConnectorBase(six.with_metaclass(abc.ABCMeta)):
-    """Connector is the bridge between Publisher and Subscriber class"""
-
-    @abc.abstractmethod
-    def read(self):
-        pass
-
-    @abc.abstractmethod
-    def write(self, metadata, config_raw):
-        pass
-
-
-class ConnectorSharedMemoryJson(ConnectorBase):
-    """ConnectorSharedMemoryJson uses an array of chars to share information between processes.
-    `multiprocessing.Array``, as far as we know, was the most efficient way to share information. We compare this
-    approach with: Multiprocess Manager, Multiprocess Value, Multiprocess Queues
+class PublisherSubscriberConnector(object):
+    """ "PublisherSubscriberConnector is the bridge between Publisher and Subscriber class that uses an array of chars
+    to share information between processes. `multiprocessing.Array``, as far as we know, was the most efficient way to
+    share information. We compare this approach with: Multiprocess Manager, Multiprocess Value, Multiprocess Queues
     """
 
     def __init__(self):
         import multiprocessing
 
         self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+        # Checksum attr validates if the Publisher send new data
+        self.checksum = -1
+        # shared_data_counter attr validates if the Subscriber send new data
+        self.shared_data_counter = 0
 
-    def write(self, metadata, config_raw):
-        if PY2:
-            data = bytes(json.dumps(config_raw))
-        else:
-            data = bytes(json.dumps(config_raw), encoding="utf-8")
-
-        self.data.value = data
-
-    def read(self):
-        config = {}
-        config_raw = to_unicode(self.data.value)
-        if config_raw:
-            config = json.loads(config_raw)
-        return config
-
-
-class ConnectorSharedMemoryMetadataJson(ConnectorBase):
-    def __init__(self):
-        import multiprocessing
-
-        self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
-
-    def write(self, metadata, config_raw):
-        if PY2:
-            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}, cls=UUIDEncoder))
-        else:
-            data = bytes(json.dumps({"metadata": metadata, "config": config_raw}, cls=UUIDEncoder), encoding="utf-8")
-
-        self.data.value = data
+    @staticmethod
+    def _hash_config(config_raw):
+        # type: (SharedDataType) -> int
+        return hash(str(config_raw))
 
     def read(self):
-        config = {}
+        # type: () -> SharedDataType
         config_raw = to_unicode(self.data.value)
-        if config_raw:
-            config = json.loads(config_raw)
-        return config
+        config = json.loads(config_raw) if config_raw else {}
+        if config:
+            shared_data_counter = config["shared_data_counter"]
+            if shared_data_counter > self.shared_data_counter:
+                self.shared_data_counter += 1
+                return config
+        return {}
+
+    def write(self, metadata, config_raw):
+        # type: (Any, Dict[str, Any]) -> None
+        last_checksum = self._hash_config(config_raw)
+        if last_checksum != self.checksum:
+            data = self.serialize(metadata, config_raw, self.shared_data_counter + 1)
+            self.data.value = data
+            self.checksum = last_checksum
+
+    def serialize(self, metadata, config_raw, shared_data_counter):
+        # type: (Any, Dict[str, Any], int) -> bytes
+        if PY2:
+            data = bytes(
+                json.dumps(
+                    {"metadata": metadata, "config": config_raw, "shared_data_counter": shared_data_counter},
+                    cls=UUIDEncoder,
+                )
+            )
+        else:
+            data = bytes(
+                json.dumps(
+                    {"metadata": metadata, "config": config_raw, "shared_data_counter": shared_data_counter},
+                    cls=UUIDEncoder,
+                ),
+                encoding="utf-8",
+            )
+        return data
