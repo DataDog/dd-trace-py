@@ -64,8 +64,19 @@ Changing Test Requirements
 `.riot/requirements` contains requirements files generated with `pip-compile` for every environment specified by `riotfile.py`.
 Riot uses these files to build its environments, and they do not get rebuilt automatically when the riotfile changes.
 Thus, if you make changes to the riotfile, you need to run either `scripts/compile-and-prune-test-requirements` or `riot run -c <mytests>`
-to regenerate the requirements files for the environments that changed. You can commit and pull request changes to files in `.riot/requirements`
-alongside the corresponding changes to `riotfile.py`.
+to regenerate the requirements files for the environments that changed. In order to run the script, you need to have all minor versions of Python that the tracer supports.
+The easiest way to get all of these is to simply spin up the testagent container and exec into it.
+.. code-block:: python
+
+docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
+        -it ghcr.io/datadog/dd-trace-py/testrunner:1ed971833a2a3c97f43cbaeabcbb3f1e28745a00 \
+        bash -c "git config --global --add safe.directory /root/project && pip install riot && zsh -c 'export IN_DOCKER_SHELL=1;"
+
+
+Once you're exec'd into the container, run `./scripts/compile-and-prune-test-requirements`.
+
+This can also be accomplished using pyenv and installing all of the Python versions before running the script.
+You can commit and pull request changes to files in `.riot/requirements` alongside the corresponding changes to `riotfile.py`.
 
 
 .. toctree::
