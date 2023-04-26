@@ -191,11 +191,15 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
 
+    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The aiopg integration should not use it.
+            The aiopg integration does use it.
+
+            **note** Unlike other integrations, the current behavior already matches v1 behavior,
+            as the service specified by aiopg is overwritten with `service=None` by psycopg
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -210,8 +214,9 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service != "mysvc"
+        assert spans[0].service == "mysvc"
 
+    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
@@ -233,6 +238,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
+    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v0(self):
         """
@@ -240,10 +246,6 @@ class AiopgTestCase(AsyncioTestCase):
             The aiopg integration should use it.
         """
         # Ensure that the service name was configured
-        from ddtrace import config
-
-        assert config.service == "mysvc"
-
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute("select 'blah'")

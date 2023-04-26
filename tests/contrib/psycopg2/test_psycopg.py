@@ -12,6 +12,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -431,7 +432,7 @@ class PsycopgCore(TracerTestCase):
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
-        assert spans[0].service == "unnamed-python-service"
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
     def test_contextmanager_connection(self):
