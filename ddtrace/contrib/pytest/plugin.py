@@ -15,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -157,7 +158,13 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        yield
+        if coverage_enabled():
+            from ddtrace.internal.ci_visibility.coverage import cover
+
+            with cover(span, root=str(item.config.rootdir)):
+                yield
+        else:
+            yield
 
 
 def _extract_reason(call):

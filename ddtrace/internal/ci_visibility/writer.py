@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from typing import List
 from typing import Optional
 
 import ddtrace
@@ -18,6 +19,8 @@ from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import AGENTLESS_ENDPOINT
 from .constants import EVP_PROXY_AGENT_ENDPOINT
+from .coverage import enabled as coverage_enabled
+from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
 
@@ -35,6 +38,14 @@ class CIVisibilityEventClient(WriterClientBase):
         super(CIVisibilityEventClient, self).__init__(encoder)
 
 
+class CIVisibilityCoverageClient(WriterClientBase):
+    ENDPOINT = "api/v2/citestcov"
+
+    def __init__(self):
+        encoder = CIVisibilityCoverageEncoderV02(0, 0)
+        super(CIVisibilityCoverageClient, self).__init__(encoder)
+
+
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
 
@@ -46,7 +57,7 @@ class CIVisibilityProxiedEventClient(CIVisibilityEventClient):
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "POST"
-    STATSD_NAMESPACE = "civisibilitywriter"
+    STATSD_NAMESPACE = "civisibility.writer"
 
     def __init__(
         self,
@@ -68,14 +79,15 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
-        client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
-
-        headers = headers or dict()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        clients = (
+            [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
+        )  # type: List[WriterClientBase]
+        if coverage_enabled():
+            clients.append(CIVisibilityCoverageClient())
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[client],
+            clients=clients,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,
