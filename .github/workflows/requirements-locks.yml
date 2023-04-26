@@ -8,7 +8,6 @@ on:
 jobs:
   validate:
     name: Check requirements lockfiles
-    runs-on: ubuntu-latest
     container: ghcr.io/datadog/dd-trace-py/testrunner:latest
     steps:
       - uses: actions/checkout@v3
