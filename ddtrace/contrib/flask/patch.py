@@ -408,7 +408,6 @@ def unpatch():
         "Flask.send_static_file",
         # Flask Hooks
         "Flask.before_request",
-        "Flask.before_first_request",
         "Flask.after_request",
         "Flask.teardown_request",
         "Flask.teardown_appcontext",
@@ -418,7 +417,6 @@ def unpatch():
         # Blueprint Hooks
         "Blueprint.after_app_request",
         "Blueprint.after_request",
-        "Blueprint.before_app_first_request",
         "Blueprint.before_app_request",
         "Blueprint.before_request",
         "Blueprint.teardown_request",
@@ -457,6 +455,11 @@ def unpatch():
     # These were removed in 2.2.0
     if flask_version < (2, 2, 0):
         props.append("Flask.try_trigger_before_first_request_functions")
+
+    # These were removed in 2.3.0
+    if flask_version < (2, 3, 0):
+        props.append("Flask.before_first_request")
+        props.append("Blueprint.before_app_first_request")
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
