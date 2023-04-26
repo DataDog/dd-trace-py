@@ -15,14 +15,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Init pyenv
-        run: eval "$(pyenv init -)"
-
       - name: Set python interpreters
-        run: pyenv shell 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 3.10.3 3.11.0
+        run: pyenv global 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 3.10.3 3.11.0
 
       - name: Install Dependencies
-        run: pip install --upgrade pip && pip install riot
+        run: $PYENV_ROOT/versions/3.10.3/bin/pip install --upgrade pip && $PYENV_ROOT/versions/3.10.3/bin/pip install riot
+
+      - name: Link riot command
+        run: ln -s $PYENV_ROOT/versions/3.10.3/bin/riot riot
 
       - name: Ensure riot requirements lockfiles are in sync
         run: scripts/compile-and-prune-test-requirements && pwd && ls && git diff --exit-code
