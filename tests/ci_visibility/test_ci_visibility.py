@@ -70,7 +70,6 @@ def test_ci_visibility_service_enable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
-            # dummy_tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
