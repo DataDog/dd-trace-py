@@ -264,6 +264,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
+                "coverage": latest,
                 "attrs": ["==20.1.0", latest],
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
@@ -310,7 +311,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             command="pytest --no-cov {cmdargs} tests/integration/",
-            pkgs={"msgpack": [latest]},
+            pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -2698,6 +2699,7 @@ venv = Venv(
             name="ci_visibility",
             command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
+            pkgs={"coverage": latest},
         ),
         Venv(
             name="profile",
