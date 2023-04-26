@@ -134,10 +134,6 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     # to trace asynchronous HTTP requests from the OpenAI library
     # patch(openai=True, aiohttp=True)
 
-    # to disable requests or aiohttp integrations
-    # patch(openai=True, requests=False)
-    # patch(openai=True, aiohttp=False)
-
 
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
