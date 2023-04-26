@@ -4,6 +4,8 @@ from warnings import warn
 
 from envier import En
 
+from ddtrace.debugging._probe.model import CaptureLimits
+
 
 def parse_venv(value):
     # type: (str) -> t.Optional[str]
@@ -51,6 +53,23 @@ class ExplorationConfig(En):
         "dd.debugger.expl.elusive",
         default=False,
         help="Whether to include elusive modules in the exploration",
+    )
+
+    conservative = En.v(
+        bool,
+        "dd.debugger.expl.conservative",
+        default=False,
+        help="Use extremely low capture limits to reduce overhead",
+    )
+
+    limits = En.d(
+        CaptureLimits,
+        lambda c: CaptureLimits(
+            max_level=0 if c.conservative else 1,
+            max_size=1,
+            max_len=1 if c.conservative else 8,
+            max_fields=1,
+        ),
     )
 
     class ProfilerConfig(En):

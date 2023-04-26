@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "test",
+    "service": "",
+    "resource": "test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "789fe9fe8de744c88f2eb7faf6deb686"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 64352
+    },
+    "duration": 48000,
+    "start": 1682367123656059000
+  }]]
