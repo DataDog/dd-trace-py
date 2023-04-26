@@ -11,8 +11,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
-from .cold_start import is_cold_start
-from .cold_start import set_cold_start
+from ._cold_start import is_cold_start
+from ._cold_start import set_cold_start
 
 
 class DDLambdaLogger:
