@@ -12,13 +12,9 @@ log = get_logger(__name__)
 
 
 class LazyTaintDict(dict):
-    def __init__(self, *args, origins=None):
-        if origins is not None and len(origins) == 2:
-            self.origin_key = origins[0]
-            self.origin_value = origins[1]
-        else:
-            self.origin_key = 0
-            self.origin_value = 0
+    def __init__(self, *args, origins=(0, 0)):
+        self.origin_key = origins[0]
+        self.origin_value = origins[1]
         super(LazyTaintDict, self).__init__(*args)
 
     def __getitem__(self, key):
