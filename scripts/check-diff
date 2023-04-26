@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ "$(git diff --exit-code)" || ! -z "$(git ls-files -o --exclude-standard)" ]]
+then
+    echo "Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result."
+    exit 1
+fi
