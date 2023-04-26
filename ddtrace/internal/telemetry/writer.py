@@ -310,7 +310,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
             self._generate_logs_event(logs_metrics)
 
         telemetry_events = self._flush_events_queue()
-
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
@@ -349,7 +348,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
-
                     if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
                         self.add_event(payload, TELEMETRY_TYPE_DISTRIBUTION)
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
