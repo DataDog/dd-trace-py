@@ -6,7 +6,6 @@ from flask import abort
 from flask import jsonify
 from flask import make_response
 import pytest
-import werkzeug
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -165,7 +164,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=biz"
 
-    @pytest.mark.skipif(werkzeug.__version__ >= "2.3.0", reason="Decoding error thrown in werkzeug")
+    @pytest.mark.skipif(flask_version >= (2, 2, 0), reason="Decoding error thrown in url_split")
     def test_request_query_string_trace_encoding(self):
         """Make sure when making a request that we create the expected spans and capture the query string
         with a non-UTF-8 encoding.

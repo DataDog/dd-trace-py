@@ -1014,7 +1014,6 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2",  # latest 2.2
                         ],
-                        "werkzeug": "<2.3.0",
                     },
                 ),
                 Venv(
@@ -1029,7 +1028,6 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2",  # latest 2.2
                         ],
-                        "werkzeug": "<2.3.0",
                     },
                 ),
                 Venv(
@@ -1041,7 +1039,6 @@ venv = Venv(
                             "~=2.0",  # latest 2.x
                             latest,
                         ],
-                        "werkzeug": "<2.3.0",
                     },
                 ),
                 Venv(
@@ -1057,7 +1054,6 @@ venv = Venv(
                             "~=2.0",  # latest 2.x
                             latest,
                         ],
-                        "werkzeug": "<2.3.0",
                     },
                 ),
             ],
