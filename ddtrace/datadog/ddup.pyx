@@ -1,11 +1,14 @@
 import os
 import platform
 
+import ddtrace
+from ddtrace.internal import runtime
+
 from libc.stdint cimport uint64_t, int64_t
 
 IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
     cdef extern from "exporter.hpp":
-        void ddup_uploader_init(const char *_service, const char *_env, const char *_version);
+        void ddup_uploader_init(const char *_service, const char *_env, const char *_version, const char *_runtime, const char *_runtime_version, const char *profiler_version);
         void ddup_start_sample();
         void ddup_push_walltime(int64_t walltime, int64_t count);
         void ddup_push_cputime(int64_t cputime, int64_t count);
@@ -21,12 +24,15 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_push_classinfo(const char *class_name);
         void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line);
         void ddup_flush_sample();
+        void ddup_set_runtime_id(const char *_id);
         void ddup_upload();
 
-    def init(service = "myservice", env = "prod", version = "custom"):
+    def init(str service = "myservice", str env = "prod", str version = "custom"):
       if version is not None:
         version += ".libdatadog"
-      ddup_uploader_init(str.encode(service), str.encode(env), str.encode(version))
+      runtime = platform.python_implementation()
+      runtime_version = platform.python_version()
+      ddup_uploader_init(str.encode(service), str.encode(env), str.encode(version), str.encode(runtime), str.encode(runtime_version), str.encode(ddtrace.__version__))
 
     def start_sample():
       ddup_start_sample()
@@ -79,11 +85,11 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
       else:
         ddup_push_taskinfo(task_id, str.encode(task_name))
 
-    def push_exceptioninfo(exception_type, count):
+    def push_exceptioninfo(exception_type: type, count):
       if exception_type is not None:
-        ddup_push_exceptioninfo(str.encode(exception_type), count)
+        ddup_push_exceptioninfo(str.encode(exception_type.__name__), count)
 
-    def push_classinfo(class_name):
+    def push_classinfo(str class_name):
       if class_name is not None:
         ddup_push_exceptioninfo(str.encode(class_name), 1)
 
@@ -91,10 +97,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
       ddup_flush_sample()
 
     def upload():
+      cdef bytes runtime_id = str.encode(runtime.get_runtime_id())
+      ddup_set_runtime_id(runtime_id)
       ddup_upload()
 
 ELSE:
-    def init(service = "myservice", env = "prod", version = "custom"):
+    def init(bytes service = b"myservice", bytes env = b"prod", bytes version = b"custom"):
         pass
 
     def start_sample():

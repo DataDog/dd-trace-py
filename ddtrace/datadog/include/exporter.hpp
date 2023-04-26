@@ -23,14 +23,19 @@ class Profile;
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
 // referenced in `add_tag()`.
+// There are two columns because runtime-id has a dash.
 #define EXPORTER_TAGS(X) \
-  X(language) \
-  X(env) \
-  X(service) \
-  X(version) \
-  X(profiler_version)
+  X(language,         language) \
+  X(env,              env) \
+  X(service,          service) \
+  X(version,          version) \
+  X(runtime_version,  runtime_version) \
+  X(runtime,          runtime) \
+  X(runtime_id,       runtime-id) \
+  X(profiler_version, profiler_version) \
+  X(profile_seq,      profile_seq)
 
-#define X_ENUM(a) a,
+#define X_ENUM(a, b) a,
 enum class ExportTagKey {
   EXPORTER_TAGS(X_ENUM)
   _Length
@@ -38,35 +43,46 @@ enum class ExportTagKey {
 #undef X_ENUM
 
 class DdogProfExporter {
+public:
   void add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
 
-public:
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
-  static constexpr std::string_view profiler_version = "1.8.0rc2_libdatadog";
 
-  DdogProfExporter(std::string_view env, std::string_view service, std::string_view version, std::string_view url);
+  DdogProfExporter(std::string_view env,
+                   std::string_view service,
+                   std::string_view version,
+                   std::string_view runtime,
+                   std::string_view runtime_version,
+                   std::string_view profiler_version,
+                   std::string_view url);
   ~DdogProfExporter();
 
   ddog_prof_Exporter *ptr;
 };
 
 class Uploader {
-  std::string env;     // ex: staging / local / prod
-  std::string service; // service name (ex:prof-probe-native)
-  std::string version; // appended to tags (example: 1.2.1)
-  std::string url;     // host:port
+  std::string env;
+  std::string service;
+  std::string version;
+  std::string url;
   std::string api_key; // Datadog api key
   bool agentless; // Whether or not to actually use API key/intake
+  size_t profile_seq = 0;
 
+  std::string runtime_id;
   std::unique_ptr<DdogProfExporter> ddog_exporter;
 
 public:
   Uploader(std::string_view _env = "prod",
            std::string_view _service = "py_libdatadog",
            std::string_view _version = "",
+           std::string_view runtime = "cython",
+           std::string_view runtime_version = "???",
+           std::string_view profiler_version = "???",
            std::string_view _url = "http://localhost:8126");
 
+  void set_runtime_id(const std::string &id);
   bool upload(const Profile *profile);
 
 };
@@ -188,7 +204,7 @@ public:
 } // namespace Datadog
 
 extern "C" {
-  void ddup_uploader_init(const char *_service, const char *_env, const char *_version);
+  void ddup_uploader_init(const char *_service, const char *_env, const char *_version, const char *_runtime, const char *_runtime_version, const char *_profiler_version);
   void ddup_start_sample();
   void ddup_push_walltime(int64_t walltime, int64_t count);
   void ddup_push_cputime(int64_t cputime, int64_t count);
@@ -204,5 +220,6 @@ extern "C" {
   void ddup_push_classinfo(const char *class_name);
   void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line);
   void ddup_flush_sample();
+  void ddup_set_runtime_id(const char *_id);
   void ddup_upload();
 } // extern "C"

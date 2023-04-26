@@ -143,6 +143,10 @@ class MemoryCollector(collector.PeriodicCollector):
             ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
             for frame in stack:
                 ddup.push_frame(frame[2], frame[0], 0, frame[1])
+            omitted = nframes - len(stack)
+            if omitted > 0:
+                ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
+            ddup.flush_sample()
 
         if self.use_pyprof:
             return (
@@ -175,6 +179,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
+
         if self.use_libdatadog:
             for (stack, nframes, thread_id), size, domain in events:
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
@@ -185,6 +190,10 @@ class MemoryCollector(collector.PeriodicCollector):
 
             for frame in stack:
                 ddup.push_frame(frame[2], frame[0], 0, frame[1])
+            omitted = nframes - len(stack)
+            if omitted > 0:
+                ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
+            ddup.flush_sample()
 
         if self.use_pyprof:
             return (

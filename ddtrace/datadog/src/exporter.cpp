@@ -28,6 +28,9 @@ inline ddog_CharSlice to_slice(const std::string_view &str) {
 DdogProfExporter::DdogProfExporter(std::string_view env,
                                    std::string_view service,
                                    std::string_view version, 
+                                   std::string_view runtime,
+                                   std::string_view runtime_version,
+                                   std::string_view profiler_version,
                                    std::string_view url) {
 
   // Setup
@@ -36,6 +39,8 @@ DdogProfExporter::DdogProfExporter(std::string_view env,
   add_tag(tags, ExportTagKey::env, env);
   add_tag(tags, ExportTagKey::service, service);
   add_tag(tags, ExportTagKey::version, version);
+  add_tag(tags, ExportTagKey::runtime, runtime);
+  add_tag(tags, ExportTagKey::runtime_version, runtime_version);
   add_tag(tags, ExportTagKey::profiler_version, profiler_version);
 
   ddog_prof_Exporter_NewResult new_exporter = ddog_prof_Exporter_new(
@@ -62,15 +67,22 @@ DdogProfExporter::~DdogProfExporter() {
 Uploader::Uploader(std::string_view _env,
                    std::string_view _service,
                    std::string_view _version,
+                   std::string_view runtime,
+                   std::string_view runtime_version,
+                   std::string_view profiler_version,
                    std::string_view _url) :
   env(_env),
   service(_service),
   version(_version),
   url(_url) {
-    ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, url);
+    ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, runtime, runtime_version, profiler_version, url);
 }
 
-#define X_STR(a) #a,
+void Uploader::set_runtime_id(const std::string &id) {
+  runtime_id = id;
+}
+
+#define X_STR(a, b) #b,
 void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val) {
   constexpr std::array<std::string_view, static_cast<size_t>(ExportTagKey::_Length)> keys = {
     EXPORTER_TAGS(X_STR)
@@ -114,15 +126,22 @@ bool Uploader::upload(const Profile *profile) {
     },
   };
 
+  // If we have any custom tags, set them now
+  ddog_Vec_Tag tags = ddog_Vec_Tag_new();
+  ddog_exporter->add_tag(tags, ExportTagKey::profile_seq, std::to_string(profile_seq++));
+  ddog_exporter->add_tag(tags, ExportTagKey::runtime_id, runtime_id);
+
   // Build the request object
   ddog_prof_Exporter_Request_BuildResult build_res = ddog_prof_Exporter_Request_build(
       ddog_exporter->ptr,
       start,
       end,
       {.ptr = file, .len = 1},
-      nullptr,
+      &tags,
       nullptr,
       5000);
+  ddog_Vec_Tag_drop(tags);
+
   if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
     // TODO consolidate errors
     std::cout << "Could not build request" << std::endl;
@@ -429,12 +448,12 @@ Datadog::Profile *g_profile;
 Datadog::Profile *g_profile_real[2];
 bool g_prof_flag;
 
-void ddup_uploader_init(const char *service, const char *env, const char *version) {
+void ddup_uploader_init(const char *service, const char *env, const char *version, const char *runtime, const char *runtime_version, const char *profiler_version) {
   if (!is_initialized) {
     g_profile_real[0] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
     g_profile_real[1] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
     g_profile = g_profile_real[0];
-    g_uploader = new Datadog::Uploader(env, service, version);
+    g_uploader = new Datadog::Uploader(env, service, version, runtime, runtime_version, profiler_version);
     is_initialized = true;
   }
 }
@@ -523,6 +542,10 @@ void ddup_push_frame(const char *_name, const char *_fname, uint64_t address, in
 
 void ddup_flush_sample() {
   g_profile->flush_sample();
+}
+
+void ddup_set_runtime_id(const char *id) {
+  g_uploader->set_runtime_id(id);
 }
 
 void ddup_upload_impl(Datadog::Profile *prof) {
