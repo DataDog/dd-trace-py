@@ -80,6 +80,7 @@ entrypoint
 entrypoints
 env
 enqueuer
+exec
 fastapi
 formatter
 gRPC
@@ -150,6 +151,7 @@ protobuf
 proxying
 psycopg
 py
+pyenv
 PyFrameObject
 pylibmc
 pymemcache
@@ -189,6 +191,7 @@ subdomains
 submodule
 submodules
 substring
+testagent
 timestamp
 tracestate
 tweens
