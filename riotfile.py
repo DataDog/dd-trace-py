@@ -1015,6 +1015,7 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2",  # latest 2.2
                         ],
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
@@ -1029,6 +1030,7 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2",  # latest 2.2
                         ],
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
@@ -1041,6 +1043,7 @@ venv = Venv(
                             latest,
                         ],
                         "importlib_metadata": "<=6.0",
+                        "packaging": ">=17.1",
                     },
                 ),
                 Venv(
