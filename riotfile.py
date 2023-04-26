@@ -1040,6 +1040,7 @@ venv = Venv(
                             "~=2.0",  # latest 2.x
                             latest,
                         ],
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
