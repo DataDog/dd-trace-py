@@ -4,7 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Text
 from typing import Union
-import urllib.parse
 
 from django.utils.functional import SimpleLazyObject
 import six
@@ -16,6 +15,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal.compat import parse
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
@@ -263,8 +263,8 @@ def _extract_body(request):
                 for item in body_params.split("&"):
                     key, equal, val = item.partition("=")
                 if equal:
-                    key = urllib.parse.unquote(key)
-                    val = urllib.parse.unquote(val)
+                    key = parse.unquote(key)
+                    val = parse.unquote(val)
                     prev_value = req_body.get(key, None)
                     if prev_value is None:
                         req_body[key] = val
