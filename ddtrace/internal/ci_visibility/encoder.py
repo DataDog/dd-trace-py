@@ -9,8 +9,11 @@ from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
+from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.writer.writer import NoEncodableSpansError
@@ -73,12 +76,12 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
-        if dd_origin is not None:
-            sp["meta"].update({"_dd.origin": dd_origin})
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._meta.items()))
         sp["metrics"] = dict(sorted(span._metrics.items()))
+        if dd_origin is not None:
+            sp["meta"].update({"_dd.origin": dd_origin})
 
         sp = CIVisibilityEncoderV01._filter_ids(sp)
 
@@ -103,24 +106,24 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             del sp["span_id"]
             del sp["parent_id"]
         else:
-            sp["trace_id"] = int(sp.get("trace_id") or "0")
-            sp["parent_id"] = int(sp.get("parent_id") or "0")
-            sp["span_id"] = int(sp.get("span_id") or "0")
+            sp["trace_id"] = int(sp.get("trace_id") or "1")
+            sp["parent_id"] = int(sp.get("parent_id") or "1")
+            sp["span_id"] = int(sp.get("span_id") or "1")
         if sp["meta"].get(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
-            test_session_id = sp["meta"].get("test_session_id")
+            test_session_id = sp["meta"].get(SESSION_ID)
             if test_session_id:
-                sp["test_session_id"] = int(test_session_id)
-                del sp["meta"]["test_session_id"]
+                sp[SESSION_ID] = int(test_session_id)
+                del sp["meta"][SESSION_ID]
         if sp["meta"].get(EVENT_TYPE) in [MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
-            test_module_id = sp["meta"].get("test_module_id")
+            test_module_id = sp["meta"].get(MODULE_ID)
             if test_module_id:
-                sp["test_module_id"] = int(test_module_id)
-                del sp["meta"]["test_module_id"]
+                sp[MODULE_ID] = int(test_module_id)
+                del sp["meta"][MODULE_ID]
         if sp["meta"].get(EVENT_TYPE) in [SUITE_TYPE, SpanTypes.TEST]:
-            test_suite_id = sp["meta"].get("test_suite_id")
+            test_suite_id = sp["meta"].get(SUITE_ID)
             if test_suite_id:
-                sp["test_suite_id"] = int(test_suite_id)
-                del sp["meta"]["test_suite_id"]
+                sp[SUITE_ID] = int(test_suite_id)
+                del sp["meta"][SUITE_ID]
         if COVERAGE_TAG_NAME in sp["meta"]:
             del sp["meta"][COVERAGE_TAG_NAME]
         return sp
