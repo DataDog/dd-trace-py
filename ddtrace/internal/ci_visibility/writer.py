@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 from typing import Optional
 
@@ -62,11 +63,10 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
     ):
+        if config._ci_visibility_agentless_url:
+            intake_url = config._ci_visibility_agentless_url
         if not intake_url:
-            if config._ci_visibility_agentless_url:
-                intake_url = config._ci_visibility_agentless_url
-            else:
-                intake_url = "%s.%s" % (AGENTLESS_BASE_URL, AGENTLESS_DEFAULT_SITE)
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         client = CIVisibilityProxiedEventClient() if use_evp else CIVisibilityAgentlessEventClient()
 
