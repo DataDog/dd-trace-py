@@ -9,7 +9,7 @@ blinker==1.5
 click==8.0.4
 coverage[toml]==6.2
 dataclasses==0.8
-flask==1.0.4
+flask==1.0
 flask-caching==1.10.1
 hypothesis==6.31.6
 importlib-metadata==4.8.3
