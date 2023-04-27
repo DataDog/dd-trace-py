@@ -2452,6 +2452,17 @@ venv = Venv(
             },
         ),
         Venv(
+            name="openai",
+            command="pytest {cmdargs} tests/contrib/openai",
+            pys=select_pys(min_version="3.8"),
+            pkgs={
+                "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
+                "vcrpy": "==4.2.1",
+                "packaging": latest,
+                "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
             name="opentracer",
             pkgs={"opentracing": latest},
             venvs=[
