@@ -21,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings.core import config as core_config
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -110,7 +111,7 @@ class CIVisibility(Service):
                 "type": "ci_app_test_service_libraries_settings",
                 "attributes": {
                     "service": self._service,
-                    "env": ddconfig.env,
+                    "env": core_config.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
                     "branch": self._tags.get(ci.git.BRANCH),

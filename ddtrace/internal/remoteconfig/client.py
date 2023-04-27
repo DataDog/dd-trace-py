@@ -27,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
+from ddtrace.settings.core import config as core_config
 
 from ..utils.version import _pep440_to_semver
 
@@ -213,8 +214,8 @@ class RemoteConfigClient(object):
                 self._headers["Datadog-Container-Id"] = container_id
 
         tags = ddtrace.config.tags.copy()
-        if ddtrace.config.env:
-            tags["env"] = ddtrace.config.env
+        if core_config.env:
+            tags["env"] = core_config.env
         if ddtrace.config.version:
             tags["version"] = ddtrace.config.version
         tags["tracer_version"] = tracer_version
@@ -225,7 +226,7 @@ class RemoteConfigClient(object):
             language="python",
             tracer_version=tracer_version,
             service=ddtrace.config.service,
-            env=ddtrace.config.env,
+            env=core_config.env,
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
         )

@@ -8,6 +8,8 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.settings.core import config as core_config
+
 from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
@@ -144,7 +146,7 @@ class TelemetryBase(PeriodicService):
                 "api_version": "v1",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
-                "application": get_application(config.service, config.version, config.env),
+                "application": get_application(config.service, config.version, core_config.env),
                 "host": get_host_info(),
                 "payload": payload,
                 "request_type": payload_type,

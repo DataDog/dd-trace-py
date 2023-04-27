@@ -10,6 +10,7 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.settings.core import config as core_config
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
@@ -204,7 +205,7 @@ class Config(object):
         # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
-        self.env = os.getenv("DD_ENV") or self.tags.get("env")
+        self.env = core_config.env or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()

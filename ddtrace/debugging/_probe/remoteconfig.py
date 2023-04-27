@@ -29,6 +29,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
 from ddtrace.internal.utils.cache import LFUCache
+from ddtrace.settings.core import config as core_config
 
 
 log = get_logger(__name__)
@@ -97,7 +98,7 @@ def _match_env_and_version(probe):
     probe_env = probe.tags.get("env", None)
 
     return (probe_version is None or probe_version == tracer_config.version) and (
-        probe_env is None or probe_env == tracer_config.env
+        probe_env is None or probe_env == core_config.env
     )
 
 

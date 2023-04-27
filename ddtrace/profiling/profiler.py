@@ -25,6 +25,7 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.settings.core import config as core_config
 from ddtrace.settings.profiling import config
 
 from . import _asyncio
@@ -109,7 +110,7 @@ class _ProfilerInstance(service.Service):
     url = attr.ib(default=None)
     service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
-    env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
+    env = attr.ib(type=Optional[str], default=core_config.env)
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])

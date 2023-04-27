@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace import config
+from ddtrace.settings.core import config as core_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
@@ -30,7 +31,7 @@ class CIVisibilityEventClient(WriterClientBase):
         encoder.set_metadata(
             {
                 "language": "python",
-                "env": config.env,
+                "env": core_config.env,
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
             }

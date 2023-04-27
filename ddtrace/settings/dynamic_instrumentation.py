@@ -4,6 +4,7 @@ from ddtrace import config
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.settings.core import config as core_config
 from ddtrace.version import get_version
 
 
@@ -13,7 +14,7 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 def _derive_tags(c):
     # type: (En) -> str
-    _tags = dict(env=config.env, version=config.version, debugger_version=get_version())
+    _tags = dict(env=core_config.env, version=config.version, debugger_version=get_version())
     _tags.update(config.tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])

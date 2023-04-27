@@ -10,12 +10,9 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
+.. ddtrace-envier-configuration:: ddtrace.settings.core:CoreConfig
 
 .. ddtrace-configuration-options::
-   DD_ENV:
-     description: |
-         Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
-
    DD_SERVICE:
      default: (autodetected)
      description: |
