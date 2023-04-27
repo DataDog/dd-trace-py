@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dependencies: This fix resolves an issue where ddtrace would install the latest version of cattrs by default.
+    However, since cattrs ``>=1.1.0`` dropped support for Python 3.6 and below, this would cause applications to crash. 
+    By pinning the cattrs version to ``<1.1.0``, if Python 3.6 and below are detected, we avoid this issue.
