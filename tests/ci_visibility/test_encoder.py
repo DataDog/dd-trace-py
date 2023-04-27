@@ -114,8 +114,8 @@ def test_encode_traces_civisibility_v2_coverage():
     assert len(received_covs) == 1
 
     expected_cov = {
-        b"test_session_id": coverage_span.get_tag(SESSION_ID).encode("utf-8"),
-        b"test_suite_id": coverage_span.get_tag(SUITE_ID).encode("utf-8"),
+        b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
+        b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
         b"span_id": coverage_span.span_id,
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
