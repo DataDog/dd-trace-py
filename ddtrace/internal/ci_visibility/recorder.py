@@ -16,6 +16,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
+from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -71,7 +72,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APPLICATION_KEY")
+        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._configure_writer()
@@ -129,7 +130,7 @@ class CIVisibility(Service):
         response = _do_request("POST", url, json.dumps(payload), _headers)
         try:
             parsed = json.loads(response.body)
-        except json.JSONDecodeError:
+        except JSONDecodeError:
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
             log.warning(

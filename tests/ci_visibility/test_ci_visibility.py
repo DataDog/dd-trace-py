@@ -141,7 +141,13 @@ def test_repository_name_not_extracted_warning():
 DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA)
 
 
-def test_git_client_worker(git_repo):
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_git_client_worker(_do_request, git_repo):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+        '{"code_coverage":true,"tests_skipping":true}}}',
+    )
     with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana", DD_CIVISIBILITY_ITR_ENABLED="1")):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         with _patch_dummy_writer():
@@ -220,9 +226,7 @@ def test_git_client_upload_packfiles(git_repo):
             assert call_args[0] == ""
             assert call_args[1] == "/packfile"
             assert call_args[2].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
-            assert call_kwargs["headers"] == {
-                "Content-Type": "multipart/form-data; boundary=b'----------boundary------'"
-            }
+            assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
 
 
 def test_civisibilitywriter_agentless_url():

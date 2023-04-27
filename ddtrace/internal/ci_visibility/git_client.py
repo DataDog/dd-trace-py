@@ -188,4 +188,4 @@ class CIVisibilityGitClientSerializerV1(object):
             ]
         )
         body.extend([b"--" + BOUNDARY + b"--", b""])
-        return "multipart/form-data; boundary=%s" % BOUNDARY, CRLF.join(body)  # type: ignore[str-bytes-safe]
+        return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)  # type: ignore[str-bytes-safe]
