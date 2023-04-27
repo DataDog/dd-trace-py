@@ -1,15 +1,20 @@
-import threading
-
 import pytest
-
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import threading as collector_threading
 
 from . import _asyncio_compat
 
 
 @pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
-def test_lock_acquire_events(tmp_path, monkeypatch):
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_CAPTURE_PCT="100"),
+    err=None,
+)
+def test_lock_acquire_events():
+    import threading
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import threading as collector_threading
+    from tests.profiling.collector import _asyncio_compat
+
     async def _lock():
         lock = threading.Lock()
         lock.acquire()
@@ -19,8 +24,6 @@ def test_lock_acquire_events(tmp_path, monkeypatch):
         lock.acquire()
         _asyncio_compat.run(_lock())
 
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", str(tmp_path / "pprof"))
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
     p.start()
@@ -32,13 +35,12 @@ def test_lock_acquire_events(tmp_path, monkeypatch):
 
     lock_found = 0
     for event in events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading_asyncio.py:%d" % (test_lock_acquire_events.__code__.co_firstlineno + 3):
+        if event.lock_name == "test_threading_asyncio.py:19":
             assert event.task_name.startswith("Task-")
             lock_found += 1
-        elif event.lock_name == "test_threading_asyncio.py:%d" % (test_lock_acquire_events.__code__.co_firstlineno + 7):
+        elif event.lock_name == "test_threading_asyncio.py:23":
             assert event.task_name is None
             assert event.thread_name == "foobar"
             lock_found += 1
 
-    if lock_found != 2:
-        pytest.fail("Lock events not found")
+    assert lock_found == 2, lock_found
