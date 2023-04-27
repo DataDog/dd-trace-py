@@ -132,40 +132,37 @@ commands:
           at: .
       - checkout
       - restore_pip_cache
-      - when:
-          condition:
-              << parameters.snapshot >>
-          steps:
-            - setup_riot
-            - start_docker_services:
-                env: SNAPSHOT_CI=1
-                services: testagent << parameters.docker_services >>
-            - run:
-                environment:
-                  DD_TRACE_AGENT_URL: http://localhost:9126
-                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-                command: |
-                  mv .riot .ddriot
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-      - unless:
-          condition:
-              << parameters.snapshot >>
-          steps:
-            - setup_riot
-            - when:
-                condition:
-                  << parameters.wait >>
-                steps:
-                  - run:
-                      name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait' << parameters.wait >>
-            - run:
-                environment:
-                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-                command: |
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+      - setup_riot
+      - start_docker_services:
+          env: SNAPSHOT_CI=1
+          services: testagent << parameters.docker_services >>
+      - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+          command: |
+            mv .riot .ddriot
+            # Sort the hashes to ensure a consistent ordering/division between each node
+            riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+
+      # - unless:
+      #     condition:
+      #         << parameters.snapshot >>
+      #     steps:
+      #       - setup_riot
+      #       - when:
+      #           condition:
+      #             << parameters.wait >>
+      #           steps:
+      #             - run:
+      #                 name: "Waiting for << parameters.wait >>"
+      #                 command: riot -v run 'wait' << parameters.wait >>
+      #       - run:
+      #           environment:
+      #             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+      #           command: |
+      #             # Sort the hashes to ensure a consistent ordering/division between each node
+      #             riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -517,6 +514,7 @@ jobs:
           - HEAP_NEWSIZE=256M
     steps:
       - run_test:
+          docker_services: cassandra
           wait: cassandra
           pattern: 'cassandra'
 
@@ -690,6 +688,7 @@ jobs:
       - *mysql_server
     steps:
       - run_test:
+          docker_services: mysql
           wait: mysql
           pattern: 'mysql'
 
@@ -700,6 +699,7 @@ jobs:
       - *mysql_server
     steps:
       - run_test:
+          docker_services: mysql
           wait: mysql
           pattern: 'mysqldb'
 
@@ -710,6 +710,7 @@ jobs:
       - *mysql_server
     steps:
       - run_test:
+          docker_services: mysql
           wait: mysql
           pattern: 'pymysql'
 
@@ -828,6 +829,7 @@ jobs:
       - *mysql_server
     steps:
       - run_test:
+          docker_services: postgres mysql
           wait: postgres mysql
           pattern: "sqlalchemy"
 
@@ -874,6 +876,7 @@ jobs:
       - *postgres_server
     steps:
       - run_test:
+          docker_services: postgres
           wait: postgres
           pattern: 'aiopg'
 
@@ -944,6 +947,7 @@ jobs:
           - VP_TEST_DATABASE=docker
     steps:
       - run_test:
+          docker_services: vertica
           wait: vertica
           pattern: 'vertica'
 
@@ -970,6 +974,7 @@ jobs:
       - image: *rabbitmq_image
     steps:
       - run_test:
+          docker_services: rabbitmq
           wait: rabbitmq
           pattern: 'kombu'
 
