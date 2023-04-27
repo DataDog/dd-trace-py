@@ -18,6 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.settings.profiling import config
 
 
 # These are special features that might not be available depending on your Python version and platform
@@ -432,9 +433,9 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
-    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    max_time_usage_pct = attr.ib(type=float, default=config.max_time_usage_pct)
+    nframes = attr.ib(type=int, default=config.max_frames)
+    ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
     endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
