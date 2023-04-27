@@ -1,0 +1,32 @@
+name: Test Requirements Lockfiles Check
+on:
+  push:
+    branches:
+      - 1.x
+  pull_request:
+    types: [opened, reopened, synchronize]
+jobs:
+  validate:
+    name: Check requirements lockfiles
+    runs-on: ubuntu-latest
+    container: ghcr.io/datadog/dd-trace-py/testrunner:latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fixup git permissions
+        # https://github.com/actions/checkout/issues/766
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set python interpreters
+        run: pyenv global 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 3.10.3 3.11.0
+
+      - name: Install Dependencies
+        run: $PYENV_ROOT/versions/3.10.3/bin/pip install --upgrade pip && $PYENV_ROOT/versions/3.10.3/bin/pip install riot
+
+      - name: Generate riot locks
+        run: scripts/compile-and-prune-test-requirements $PYENV_ROOT/versions/3.10.3/bin/riot
+
+      - name: Check git diff
+        run: scripts/check-diff

@@ -1013,13 +1013,41 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2",  # latest 2.2
                         ],
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.2",  # latest 2.2
+                        ],
+                        "importlib_metadata": "<=6.0",
+                    },
+                ),
+                Venv(
+                    # flask dropped support for Python 3.7 in 2.3.0
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
+                        "importlib_metadata": "<=6.0",
+                        "packaging": ">=17.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
                     command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
@@ -1042,6 +1070,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
+                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(
@@ -2420,6 +2449,18 @@ venv = Venv(
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
+            },
+        ),
+        Venv(
+            name="openai",
+            command="pytest {cmdargs} tests/contrib/openai",
+            env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
+            pys=select_pys(min_version="3.8"),
+            pkgs={
+                "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
+                "vcrpy": "==4.2.1",
+                "packaging": latest,
+                "pytest-asyncio": latest,
             },
         ),
         Venv(

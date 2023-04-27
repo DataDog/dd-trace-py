@@ -293,6 +293,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.mysqldb
 
 
+.. _openai:
+
+OpenAI
+^^^^^^
+.. automodule:: ddtrace.contrib.openai
+
+
 .. _pylibmc:
 
 pylibmc
