@@ -160,14 +160,14 @@ commands:
                 steps:
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait' testagent << parameters.wait >>
-            - unless:
-                condition:
-                  << parameters.wait >>
-                steps:
-                  - run:
-                      name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait'
+                      command: riot -v run 'wait' << parameters.wait >>
+            # - unless:
+            #     condition:
+            #       << parameters.wait >>
+            #     steps:
+            #       - run:
+            #           name: "Waiting for << parameters.wait >>"
+            #           command: riot -v run 'wait'
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
