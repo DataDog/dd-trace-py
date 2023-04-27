@@ -41,7 +41,7 @@ exclude = '''
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/vendor/
   | \.eggs
@@ -79,8 +79,10 @@ exclude-modules = '''
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # protobuf file fails to import
-  | ddtrace.profiling.exporter.pprof_pre312_pb2
-  | ddtrace.profiling.exporter.pprof_pre319_pb2
+  | ddtrace.profiling.exporter.pprof_3_pb2
+  | ddtrace.profiling.exporter.pprof_312_pb2
+  | ddtrace.profiling.exporter.pprof_319_pb2
+  | ddtrace.profiling.exporter.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
   | ddtrace.appsec.ddwaf.ddwaf_types
