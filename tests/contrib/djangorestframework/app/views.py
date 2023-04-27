@@ -45,6 +45,10 @@ router.register(r"users", UserViewSet)
 
 
 class CustomParser(MultiPartParser):
+    """
+    Custom parser that extract specific data from request
+    """
+
     def parse(self, stream, media_type=None, parser_context=None):
         """
         Return a dataframe representing mds
@@ -58,9 +62,7 @@ class CustomParser(MultiPartParser):
 @permission_classes([])
 class ASM_View(APIView):
     """
-    MDS generation through CSV file export — DEPRECATED
-    This mechanism will be replaced by generation_from_dispatch below once
-    it is adopted.
+    ASM View with custom parser
     """
 
     parser_classes = (CustomParser,)
