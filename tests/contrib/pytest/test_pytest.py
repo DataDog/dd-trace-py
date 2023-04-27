@@ -18,21 +18,10 @@ from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import PY2
-from tests import utils
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    yield utils.git_repo_empty(tmpdir)
-
-
-@pytest.fixture
-def git_repo(git_repo_empty):
-    yield utils.git_repo(git_repo_empty)
 
 
 class PytestTestCase(TracerTestCase):
