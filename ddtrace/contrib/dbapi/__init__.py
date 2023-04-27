@@ -50,8 +50,8 @@ class TracedCursor(wrapt.ObjectProxy):
             else config.dbapi2["_dbapi_span_name_prefix"]
         )
         span_name = (
-            cfg['_dbapi_span_operation_name']
-            if cfg and '_dbapi_span_operation_name' in cfg
+            cfg["_dbapi_span_operation_name"]
+            if cfg and "_dbapi_span_operation_name" in cfg
             else "{}.query".format(span_name_prefix)
         )
         self._self_datadog_name = span_name
