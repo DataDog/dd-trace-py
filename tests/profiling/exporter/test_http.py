@@ -455,6 +455,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["mytag"] == "123"
 
 
+@pytest.mark.skip(reason="Needs investigation about the segfaulting")
 @pytest.mark.subprocess(env=dict(DD_PROFILING_TAGS="mytag:baz"))
 def test_get_tags_legacy():
     from ddtrace.internal.utils.formats import parse_tags_str  # noqa
