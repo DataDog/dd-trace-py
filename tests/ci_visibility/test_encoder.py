@@ -9,6 +9,8 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
@@ -94,6 +96,8 @@ def test_encode_traces_civisibility_v2_coverage():
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
     coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span.set_tag(SUITE_ID, "12345")
+    coverage_span.set_tag(SESSION_ID, "67890")
     traces = [
         [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
     ]
@@ -109,18 +113,16 @@ def test_encode_traces_civisibility_v2_coverage():
     received_covs = decoded[b"coverages"]
     assert len(received_covs) == 1
 
-    all_spans = [span for trace in traces for span in trace]
-    for given_span, received_cov in zip(all_spans, received_covs):
-        expected_cov = {
-            b"test_session_id": 1,
-            b"test_suite_id": 1,
-            b"span_id": given_span.span_id,
-            b"files": [
-                {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
-                for file in coverage_data["files"]
-            ],
-        }
-        assert expected_cov == received_cov
+    expected_cov = {
+        b"test_session_id": coverage_span.get_tag(SESSION_ID).encode("utf-8"),
+        b"test_suite_id": coverage_span.get_tag(SUITE_ID).encode("utf-8"),
+        b"span_id": coverage_span.span_id,
+        b"files": [
+            {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
+            for file in coverage_data["files"]
+        ],
+    }
+    assert expected_cov == received_covs[0]
 
 
 @contextlib.contextmanager
