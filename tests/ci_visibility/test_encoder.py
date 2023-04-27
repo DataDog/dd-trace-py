@@ -69,7 +69,7 @@ def test_encode_traces_civisibility_v0():
             b"content": {
                 b"trace_id": int(given_span._trace_id_64bits),
                 b"span_id": int(given_span.span_id),
-                b"parent_id": 0,
+                b"parent_id": 1,
                 b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
                 b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
                 b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
@@ -181,6 +181,7 @@ class PytestEncodingTestCase(TracerTestCase):
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_span._meta.items())
         }
+        expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
         expected_metrics = {
@@ -193,7 +194,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"meta": expected_meta,
                 b"metrics": expected_metrics,
                 b"name": given_test_span.name.encode("utf-8"),
-                b"parent_id": 0,
+                b"parent_id": 1,
                 b"resource": given_test_span.resource.encode("utf-8"),
                 b"service": given_test_span.service.encode("utf-8"),
                 b"span_id": given_test_span.span_id,
@@ -234,6 +235,7 @@ class PytestEncodingTestCase(TracerTestCase):
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_suite_span._meta.items())
         }
+        expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
         expected_metrics = {
@@ -284,6 +286,7 @@ class PytestEncodingTestCase(TracerTestCase):
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_module_span._meta.items())
         }
+        expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_module_id")
         expected_metrics = {
@@ -334,6 +337,7 @@ class PytestEncodingTestCase(TracerTestCase):
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_session_span._meta.items())
         }
+        expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_metrics = {
             "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_session_span._metrics.items())
