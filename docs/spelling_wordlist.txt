@@ -139,6 +139,7 @@ opentracing
 otel
 ObjectProxy
 parameterized
+parsers
 perf
 pid
 plugin
