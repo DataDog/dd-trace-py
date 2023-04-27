@@ -14,6 +14,8 @@ from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.internal.schema import schematize_cache_operation
+
 
 
 format_command_args = stringify_cache_args
@@ -40,7 +42,9 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
     """Create a span for the execute command method and tag it"""
 
     with pin.tracer.trace(
-        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP), service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
+        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        service=trace_utils.ext_service(pin, config_integration),
+        span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag_str(COMPONENT, config_integration.integration_name)
