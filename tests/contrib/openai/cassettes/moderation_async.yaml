@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"input": "Sample text goes here"}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.26.5
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.26.5", "httplib": "requests", "lang": "python", "lang_version":
+        "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
+        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: post
+    uri: https://api.openai.com/v1/moderations
+  response:
+    body:
+      string: '{"id":"modr-79xRP3Ef5IScFr30MOakjnzSUE5RK","model":"text-moderation-004","results":[{"flagged":false,"categories":{"sexual":false,"hate":false,"violence":false,"self-harm":false,"sexual/minors":false,"hate/threatening":false,"violence/graphic":false},"category_scores":{"sexual":2.6840883947443217e-05,"hate":4.9093769121100195e-06,"violence":2.1939989892416634e-05,"self-harm":8.846825494401855e-09,"sexual/minors":2.5037425643859024e-07,"hate/threatening":1.1040917069493617e-09,"violence/graphic":5.328389761416474e-06}}]}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7be7f39938d34385-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 27 Apr 2023 15:03:20 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '882'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - c224ffada7c869e5f5b740caa084f7fe
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/moderations
+version: 1

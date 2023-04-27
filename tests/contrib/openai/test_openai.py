@@ -183,7 +183,13 @@ def test_patching(openai):
             (openai.ChatCompletion, "acreate"),
             (openai.api_resources.chat_completion.ChatCompletion, "acreate"),
         ]
-
+    if hasattr(openai, "Moderation"):
+        methods += [
+            (openai.Moderation, "create"),
+            (openai.api_resources.moderation.Moderation, "create"),
+            (openai.Moderation, "acreate"),
+            (openai.api_resources.moderation.Moderation, "acreate"),
+        ]
     for m in methods:
         assert not iswrapped(getattr(m[0], m[1]))
 
@@ -936,3 +942,33 @@ def test_est_tokens():
         )
         == 97
     )  # oracle: 92
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_moderation(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("moderation.yaml"):
+        openai.Moderation.create(input="Sample text goes here")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+async def test_amoderation(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    with openai_vcr.use_cassette("moderation_async.yaml"):
+        await openai.Moderation.acreate(input="Sample text goes here")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_edit(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("edit.yaml"):
+        openai.Edit.create(
+            model="text-davinci-edit-001", input="What day of the wek is it?", instruction="Fix the spelling mistakes"
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+async def test_aedit(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    with openai_vcr.use_cassette("edit_async.yaml"):
+        await openai.Edit.acreate(
+            model="text-davinci-edit-001", input="What day of the wek is it?", instruction="Fix the spelling mistakes"
+        )

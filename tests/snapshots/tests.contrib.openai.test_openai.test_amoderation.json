@@ -1,0 +1,45 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "moderations",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "openai.endpoint": "moderations",
+      "openai.organization.name": "datadog-4",
+      "openai.response.categories.hate": "False",
+      "openai.response.categories.hate/threatening": "False",
+      "openai.response.categories.self-harm": "False",
+      "openai.response.categories.sexual": "False",
+      "openai.response.categories.sexual/minors": "False",
+      "openai.response.categories.violence": "False",
+      "openai.response.categories.violence/graphic": "False",
+      "openai.response.flagged": "False",
+      "runtime-id": "50321762292141d4aea26f8635dad8a5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.response.category_scores.hate": 4.9093769121100195e-06,
+      "openai.response.category_scores.hate/threatening": 1.1040917069493617e-09,
+      "openai.response.category_scores.self-harm": 8.846825494401855e-09,
+      "openai.response.category_scores.sexual": 2.6840883947443217e-05,
+      "openai.response.category_scores.sexual/minors": 2.5037425643859024e-07,
+      "openai.response.category_scores.violence": 2.1939989892416634e-05,
+      "openai.response.category_scores.violence/graphic": 5.328389761416474e-06,
+      "process_id": 2104
+    },
+    "duration": 1013309000,
+    "start": 1682607799161276000
+  }]]

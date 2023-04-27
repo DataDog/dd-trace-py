@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "edits/text-davinci-edit-001",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "openai.endpoint": "edits",
+      "openai.model": "text-davinci-edit-001",
+      "openai.organization.name": "datadog-4",
+      "openai.organization.ratelimit.requests.remaining": "19",
+      "openai.request.input": "What day of the wek is it?",
+      "openai.request.instruction": "Fix the spelling mistakes",
+      "openai.request.model": "text-davinci-edit-001",
+      "openai.response.choices.0": "{\n  \"index\": 0,\n  \"text\": \"What day of the wek is it?\\nits Friday\\n\"\n}",
+      "openai.response.object": "edit",
+      "runtime-id": "d86d541b9263431b8c8d74c4536342c6"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.response.usage.completion_tokens": 12,
+      "openai.response.usage.prompt_tokens": 25,
+      "openai.response.usage.total_tokens": 37,
+      "process_id": 2429
+    },
+    "duration": 481533000,
+    "start": 1682607812419488000
+  }]]

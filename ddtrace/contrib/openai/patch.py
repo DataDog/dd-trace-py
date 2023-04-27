@@ -244,6 +244,26 @@ def patch():
             _patched_endpoint_async(openai, integration, _EmbeddingHook),
         )
 
+    if hasattr(openai.api_resources, "moderation"):
+        _wrap_classmethod(
+            openai.api_resources.moderation.Moderation.create,
+            _patched_endpoint(openai, integration, _ModerationHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.moderation.Moderation.acreate,
+            _patched_endpoint_async(openai, integration, _ModerationHook),
+        )
+
+    if hasattr(openai.api_resources, "edit"):
+        _wrap_classmethod(
+            openai.api_resources.edit.Edit.create,
+            _patched_endpoint(openai, integration, _EditHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.edit.Edit.acreate,
+            _patched_endpoint_async(openai, integration, _EditHook),
+        )
+
     setattr(openai, "__datadog_patch", True)
 
 
@@ -266,7 +286,12 @@ def _patched_make_session(func, args, kwargs):
 
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
-    span = integration.trace(pin, args[0].OBJECT_NAME, kwargs.get("model"))
+    kls = args[0]
+    if hasattr(kls, "OBJECT_NAME"):
+        endpoint = kls.OBJECT_NAME
+    else:
+        endpoint = endpoint_hook.DEFAULT_NAME
+    span = integration.trace(pin, endpoint, kwargs.get("model"))
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
@@ -616,6 +641,88 @@ class _EmbeddingHook(_EndpointHook):
                 span.set_tag("openai.response.%s" % kw_attr, kwargs[kw_attr])
             integration.record_usage(span, resp.get("usage"))
         return resp
+
+
+class _ModerationHook(_EndpointHook):
+    DEFAULT_NAME = "moderations"
+
+    def handle_request(self, pin, integration, span, args, kwargs):
+        # moderation endpoint is free
+        # TODO: metrics for moderation endpoint
+        for kw_attr in ["model", "input"]:
+            if kw_attr in kwargs:
+                if kw_attr == "input" and integration.is_pc_sampled_span(span):
+                    if isinstance(kwargs["input"], list):
+                        for idx, inp in enumerate(kwargs["input"]):
+                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
+                    else:
+                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+
+        resp, error = yield
+        if resp:
+            if "results" in resp:
+                try:
+                    res = resp["results"][0]
+                    categories = res["categories"]
+                    scores = res["category_scores"]
+                    for category in categories:
+                        span.set_metric("openai.response.category_scores.{}".format(category), scores[category])
+                        span.set_tag("openai.response.categories.{}".format(category), categories[category])
+                    span.set_tag("openai.response.flagged", res["flagged"])
+                except (IndexError, KeyError):
+                    pass
+
+        return resp
+
+
+class _EditHook(_EndpointHook):
+    DEFAULT_NAME = "edits"
+
+    def handle_request(self, pin, integration, span, args, kwargs):
+        for kw_attr in ["model", "input", "instruction", "n", "temperature", "top_p"]:
+            for kw_attr in kwargs:
+                # don't need special handling for input, it can't be an array for this endpoint
+                span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+
+        resp, error = yield
+        if resp:
+            choices = resp.get("choices")
+            for i, choice in enumerate(choices):
+                span.set_tag("openai.response.choices.%d" % i, choice)
+            span.set_tag("openai.response.object", resp["object"])
+            integration.record_usage(span, resp.get("usage"))
+            if integration.is_pc_sampled_log(span):
+                inp = kwargs.get("input")
+                integration.log(
+                    span,
+                    "info" if error is None else "error",
+                    "sampled edit",
+                    attrs={
+                        "input": inp,
+                        "choices": choices,
+                    },
+                )
+        return resp
+
+
+class _AudioTranslationHook(_EndpointHook):
+    def handle_request(self, pin, integration, span, args, kwargs):
+        # TODO
+        pass
+
+
+class _AudioTranscriptionHook(_EndpointHook):
+    def handle_request(self, pin, integration, span, args, kwargs):
+        # TODO
+        pass
+
+
+class _ImageHook(_EndpointHook):
+    def handle_request(self, pin, integration, span, args, kwargs):
+        # TODO
+        pass
 
 
 def _patched_convert(openai, integration):
