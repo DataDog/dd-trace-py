@@ -1,0 +1,9 @@
+#!/bin/bash
+
+message=${1:-"Unexpected files changed or added"}
+
+if [[ "$(git diff --exit-code)" || ! -z "$(git ls-files -o --exclude-standard)" ]]
+then
+    echo "${message}"
+    exit 1
+fi
