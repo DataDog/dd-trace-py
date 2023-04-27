@@ -27,7 +27,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
-    TEST_FUNCTION_EVENT_VERSION = 2
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
 
