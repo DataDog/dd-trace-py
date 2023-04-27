@@ -480,7 +480,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
-          wait: testagent
 
   asyncpg:
     <<: *machine_executor
@@ -497,7 +496,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylons'
-          wait: 'testagent'
 
   aiohttp:
     <<: *machine_executor
@@ -515,7 +513,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'asgi$'
-          wait: 'testagent'
 
   tornado:
     <<: *contrib_job_small
@@ -524,7 +521,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'tornado'
-          wait: 'testagent'
 
   bottle:
     <<: *contrib_job_small
@@ -533,7 +529,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'bottle'
-          wait: testagent
 
   cassandra:
     <<: *contrib_job_small
@@ -548,7 +543,7 @@ jobs:
           - HEAP_NEWSIZE=256M
     steps:
       - run_test:
-          wait: cassandra testagent
+          wait: cassandra
           pattern: 'cassandra'
 
   celery:
@@ -562,7 +557,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'celery'
-          wait: testagent
 
   cherrypy:
     <<: *machine_executor
@@ -603,7 +597,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'falcon'
-          wait: testagent
 
   django:
     <<: *machine_executor
@@ -655,7 +648,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'gevent'
-          wait: testagent
 
   graphene:
     <<: *machine_executor
@@ -724,7 +716,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'molten'
-          wait: testagent
 
   mysqlconnector:
     <<: *contrib_job
@@ -734,7 +725,7 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: mysql testagent
+          wait: mysql
           pattern: 'mysql'
 
   mysqlpython:
@@ -745,7 +736,7 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: mysql testagent
+          wait: mysql
           pattern: 'mysqldb'
 
   pymysql:
@@ -756,7 +747,7 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: mysql testagent
+          wait: mysql
           pattern: 'pymysql'
 
   pylibmc:
@@ -768,7 +759,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylibmc'
-          wait: testagent
 
   pytest:
     executor: ddtrace_dev
@@ -797,7 +787,6 @@ jobs:
     steps:
       - run_test:
           pattern: "pymemcache"
-          wait: testagent
 
   mongoengine:
     <<: *machine_executor
@@ -816,7 +805,6 @@ jobs:
     steps:
       - run_test:
           pattern: "pymongo"
-          wait: testagent
 
   pynamodb:
     <<: *contrib_job
@@ -825,7 +813,6 @@ jobs:
     steps:
       - run_test:
           pattern: "pynamodb"
-          wait: testagent
 
   pyodbc:
     <<: *contrib_job_small
@@ -835,7 +822,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pyodbc'
-          wait: testagent
 
   pyramid:
     <<: *machine_executor
@@ -853,7 +839,6 @@ jobs:
     steps:
       - run_test:
           pattern: "requests"
-          wait: testagent
 
   sanic:
     <<: *machine_executor
@@ -888,7 +873,7 @@ jobs:
       - *mysql_server
     steps:
       - run_test:
-          wait: postgres mysql testagent
+          wait: postgres mysql
           pattern: "sqlalchemy"
 
   psycopg:
@@ -918,14 +903,13 @@ jobs:
     steps:
        - run_test:
           pattern: 'aiobotocore'
-          wait: testagent
 
   aiomysql:
     <<: *machine_executor
     steps:
       - run_test:
           docker_services: 'mysql'
-          wait: mysql testagent
+          wait: mysql
           pattern: 'aiomysql'
           snapshot: true
 
@@ -937,7 +921,7 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: postgres testagent
+          wait: postgres
           pattern: 'aiopg'
 
   aioredis:
@@ -1035,7 +1019,7 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: rabbitmq testagent
+          wait: rabbitmq
           pattern: 'kombu'
 
   benchmarks:
@@ -1051,7 +1035,6 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: testagent
           pattern: 'jinja2'
 
   mako:
@@ -1060,7 +1043,6 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: testagent
           pattern: 'mako'
 
   algoliasearch:
@@ -1069,7 +1051,6 @@ jobs:
       - *testagent
     steps:
       - run_test:
-          wait: testagent
           pattern: 'algoliasearch'
 
   build_docs:
