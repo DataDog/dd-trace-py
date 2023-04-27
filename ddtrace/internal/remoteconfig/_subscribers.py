@@ -32,6 +32,7 @@ class RemoteConfigSubscriber(object):
 
     @property
     def interval(self):
+        # type: () -> float
         return get_poll_interval_seconds()
 
     def _exec_callback(self, data, test_tracer=None):

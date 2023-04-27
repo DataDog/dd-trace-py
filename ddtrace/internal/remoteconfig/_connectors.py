@@ -24,6 +24,7 @@ SharedDataType = Mapping[str, Any]
 
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
+        # type: (Any) -> Any
         if isinstance(obj, UUID):
             # if the obj is uuid, we simply return the value of uuid
             return obj.hex
@@ -79,7 +80,8 @@ class PublisherSubscriberConnector(object):
             )
             self.checksum = last_checksum
 
-    def serialize(self, metadata, config_raw, shared_data_counter):
+    @staticmethod
+    def serialize(metadata, config_raw, shared_data_counter):
         # type: (Any, Dict[str, Any], int) -> bytes
         if PY2:
             data = bytes(

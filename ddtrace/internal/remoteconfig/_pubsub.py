@@ -73,6 +73,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Optional
 
+    from ddtrace import Tracer
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 
 log = get_logger(__name__)
@@ -92,6 +93,7 @@ class PubSub(object):
         self._subscriber.force_restart()
 
     def _poll_data(self, test_tracer=None):
+        # type: (Optional[Tracer]) -> None
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
     def stop(self):

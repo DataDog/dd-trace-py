@@ -17,17 +17,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
-    PreprocessFunc = Optional[Callable[[Any, Optional[PubSub]], Any]]
+    PreprocessFunc = Callable[[Dict[str, Any], Optional[PubSub]], Any]
 
 log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
-    _preprocess_results_func = None  # type: PreprocessFunc
+    _preprocess_results_func = None  # type: Optional[PreprocessFunc]
 
-    def __init__(self, data_connector, preprocess_results):
+    def __init__(self, data_connector, preprocess_func=None):
+        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
         self._data_connector = data_connector
-        self._preprocess_results_func = preprocess_results
+        self._preprocess_results_func = preprocess_func
 
     def dispatch(self, config, metadata=None, pubsub_instance=None):
         # type: (Any, Optional[Any], Optional[Any]) -> None
@@ -43,9 +44,9 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     shared it to all process.
     """
 
-    def __init__(self, data_connector, preprocess_results):
-        # type: (PublisherSubscriberConnector, PreprocessFunc) -> None
-        super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_results)
+    def __init__(self, data_connector, preprocess_func=None):
+        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+        super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
 
     def dispatch(self, config, metadata=None, pubsub_instance=None):
         # type: (Any, Optional[Any], Optional[Any]) -> None
@@ -66,9 +67,9 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
     payloads and send it to the subscriber
     """
 
-    def __init__(self, data_connector, preprocess_results):
+    def __init__(self, data_connector, preprocess_func):
         # type: (PublisherSubscriberConnector, PreprocessFunc) -> None
-        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_results)
+        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_func)
         self._configs = {}  # type: Dict[str, Any]
 
     def append(self, target, config):
