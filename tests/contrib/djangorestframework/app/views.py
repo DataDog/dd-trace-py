@@ -52,7 +52,7 @@ class CustomParser(MultiPartParser):
         """
         Return a dataframe representing mds
         """
-        parsed_files = super().parse(stream, media_type, parser_context)
+        parsed_files = MultiPartParser.parse(self, stream, media_type, parser_context)
         value = json.loads(parsed_files.data.get("json", "")).get("value")
         return {value: parsed_files.files.get("file1").read().decode("utf-8", errors="ignore")}
 
