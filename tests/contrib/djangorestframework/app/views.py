@@ -3,7 +3,6 @@ import json
 import django
 from django.conf.urls import include
 from django.contrib.auth.models import User
-from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import routers
 from rest_framework import serializers
@@ -77,7 +76,7 @@ class ASM_View(APIView):
 
 
 urlpatterns = [
-    path(r"asm/", ASM_View.as_view()),
+    handler(r"asm/", ASM_View.as_view()),
     handler(r"^", include(router.urls)),
     handler(r"^api-auth/", include("rest_framework.urls", namespace="rest_framework")),
 ]
