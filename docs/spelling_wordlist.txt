@@ -75,6 +75,7 @@ dogstatsd
 elasticsearch
 elasticsearch1
 elasticsearch7
+embeddings
 enqueue
 entrypoint
 entrypoints
@@ -137,7 +138,9 @@ opentracer
 opentracing
 otel
 ObjectProxy
+packfiles
 parameterized
+parsers
 perf
 pid
 plugin
@@ -147,6 +150,7 @@ pre
 prepended
 profiler
 protobuf
+proxying
 psycopg
 py
 PyFrameObject
@@ -160,6 +164,7 @@ pyston
 pytest
 pytest-bdd
 quickstart
+ratelimit
 redis
 rediscluster
 renderers
@@ -182,6 +187,7 @@ sqlalchemy
 sqlite
 stacktrace
 starlette
+statsd
 stringable
 subclass
 subdomains
@@ -189,6 +195,7 @@ submodule
 submodules
 substring
 timestamp
+tokenizer
 tracestate
 tweens
 uWSGI

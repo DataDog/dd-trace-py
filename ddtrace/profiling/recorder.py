@@ -6,6 +6,7 @@ import typing
 import attr
 
 from ddtrace.internal import forksafe
+from ddtrace.settings.profiling import config
 
 from . import event
 
@@ -30,9 +31,7 @@ EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 class Recorder(object):
     """An object that records program activity."""
 
-    _DEFAULT_MAX_EVENTS = 16384
-
-    default_max_events = attr.ib(default=_DEFAULT_MAX_EVENTS)
+    default_max_events = attr.ib(default=config.spec.max_events.default, type=int)
     """The maximum number of events for an event type if one is not specified."""
 
     max_events = attr.ib(factory=dict, type=typing.Dict[typing.Type[event.Event], typing.Optional[int]])

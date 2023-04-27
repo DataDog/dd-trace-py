@@ -52,6 +52,6 @@ def supported_dbapi_integration(integration_name):
 
 def check_tainted_args(args, kwargs, tracer, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-        return args[0] and is_pyobject_tainted(args[0])
+        return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False

@@ -5,9 +5,6 @@ from ddtrace import config
 from ddtrace import tracer
 
 
-utils.drop_traces(tracer)
-
-
 class Span(bm.Scenario):
     nspans = bm.var(type=int)
     ntags = bm.var(type=int)
@@ -26,8 +23,12 @@ class Span(bm.Scenario):
         setmetrics = len(metrics) > 0
 
         # run scenario to include finishing spans
+        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
+        # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
         config._128_bit_trace_id_enabled = self.traceid128
+        # Recreate span processors and configure global tracer to avoid sending traces to the agent
+        utils.drop_traces(tracer)
 
         def _(loops):
             for _ in range(loops):
