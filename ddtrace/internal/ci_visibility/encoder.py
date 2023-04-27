@@ -155,7 +155,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # type: (Span, str) -> Dict[str, Any]
         return {
             "span_id": span.span_id,
-            "test_session_id": int(span.get_tag(SESSION_ID)),
-            "test_suite_id": int(span.get_tag(SUITE_ID)),
+            "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
+            "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
