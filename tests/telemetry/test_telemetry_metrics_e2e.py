@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 
+import pytest
 import tenacity
 
 from tests.webclient import Client
@@ -74,6 +75,7 @@ def parse_payload(data):
     return json.loads(decoded)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
     assert len(test_agent_session.get_events()) == 0
