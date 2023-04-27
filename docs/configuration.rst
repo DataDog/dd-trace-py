@@ -365,72 +365,6 @@ The following environment variables for the tracer are supported:
      default: True
      description: Prevents large payloads being sent to APM.
 
-   DD_PROFILING_ENABLED:
-     type: Boolean
-     default: False
-     description: Enable Datadog profiling when using ``ddtrace-run``.
-
-   DD_PROFILING_API_TIMEOUT:
-     type: Float
-     default: 10
-     description: The timeout in seconds before dropping events if the HTTP API does not reply.
-
-   DD_PROFILING_MAX_TIME_USAGE_PCT:
-     type: Float
-     default: 1
-     description: |
-         The percentage of maximum time the stack profiler can use when computing
-         statistics. Must be greater than 0 and lesser or equal to 100.
-
-   DD_PROFILING_MAX_FRAMES:
-     type: Integer
-     default: 64
-     description: The maximum number of frames to capture in stack execution tracing.
-
-   DD_PROFILING_ENABLE_CODE_PROVENANCE:
-     type: Boolean
-     default: True
-     description: Whether to enable code provenance.
-
-   DD_PROFILING_MEMORY_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the memory profiler.
-
-   DD_PROFILING_HEAP_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the heap memory profiler.
-
-   DD_PROFILING_CAPTURE_PCT:
-     type: Float
-     default: 1
-     description: |
-         The percentage of events that should be captured (e.g. memory
-         allocation). Greater values reduce the program execution speed. Must be
-         greater than 0 lesser or equal to 100.
-
-   DD_PROFILING_UPLOAD_INTERVAL:
-     type: Float
-     default: 60
-     description: The interval in seconds to wait before flushing out recorded events.
-
-   DD_PROFILING_IGNORE_PROFILER:
-     type: Boolean
-     default: False
-     description: |
-       **Deprecated**: whether to ignore the profiler in the generated data.
-
-   DD_PROFILING_TAGS:
-     description: |
-         The tags to apply to uploaded profile. Must be a list in the
-         ``key1:value,key2:value2`` format.
-
-   DD_PROFILING_ENDPOINT_COLLECTION_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the endpoint data collection in profiles.
-
    DD_APPSEC_ENABLED:
      type: Boolean
      default: False
@@ -522,6 +456,13 @@ The following environment variables for the tracer are supported:
         v1.13.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+
+Profiling
+---------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.profiling:ProfilingConfig
+   :recursive: true
 
 
 Dynamic Instrumentation

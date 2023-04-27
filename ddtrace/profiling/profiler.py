@@ -14,8 +14,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
-from ddtrace.internal.utils import attr as attr_utils
-from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -27,6 +25,7 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.settings.profiling import config
 
 from . import _asyncio
 from ._asyncio import DdtraceProfilerEventLoopPolicy
@@ -114,18 +113,11 @@ class _ProfilerInstance(service.Service):
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
+    agentless = attr.ib(type=bool, default=config.agentless)
     asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
-    _memory_collector_enabled = attr.ib(
-        factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
-    )
-    enable_code_provenance = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", True, formats.asbool),
-        type=bool,
-    )
-    endpoint_collection_enabled = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
-    )
+    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
+    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -142,7 +134,7 @@ class _ProfilerInstance(service.Service):
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
-        _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
+        _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
@@ -206,7 +198,7 @@ class _ProfilerInstance(service.Service):
                 # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
                 memalloc.MemoryHeapSampleEvent: None,
             },
-            default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
+            default_max_events=config.max_events,
         )
 
         self._collectors = [
