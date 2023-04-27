@@ -360,7 +360,7 @@ ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[Traceback
 try:
     from json import JSONDecodeError
 except ImportError:
-    JSONDecodeError = ValueError
+    JSONDecodeError = ValueError  # type: ignore[misc,assignment]
 
 
 def ip_is_global(ip):
