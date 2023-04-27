@@ -944,31 +944,68 @@ def test_est_tokens():
     )  # oracle: 92
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_moderation(openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("moderation.yaml"):
-        openai.Moderation.create(input="Sample text goes here")
+class TestModerationEndpoint:
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_moderation(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        with openai_vcr.use_cassette("moderation.yaml"):
+            openai.Moderation.create(input="Sample text goes here")
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_amoderation(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("moderation_async.yaml"):
+            await openai.Moderation.acreate(input="Sample text goes here")
 
 
-@pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_amoderation(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    with openai_vcr.use_cassette("moderation_async.yaml"):
-        await openai.Moderation.acreate(input="Sample text goes here")
+class TestEditEnpoint:
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_edit(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        with openai_vcr.use_cassette("edit.yaml"):
+            openai.Edit.create(
+                model="text-davinci-edit-001",
+                input="What day of the wek is it?",
+                instruction="Fix the spelling mistakes",
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_aedit(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("edit_async.yaml"):
+            await openai.Edit.acreate(
+                model="text-davinci-edit-001",
+                input="What day of the wek is it?",
+                instruction="Fix the spelling mistakes",
+            )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_edit(openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("edit.yaml"):
-        openai.Edit.create(
-            model="text-davinci-edit-001", input="What day of the wek is it?", instruction="Fix the spelling mistakes"
-        )
+class TestAudioTranscriptionEndpoint:
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_transcript(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        pass
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_atranscript(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        pass
 
 
-@pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_aedit(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    with openai_vcr.use_cassette("edit_async.yaml"):
-        await openai.Edit.acreate(
-            model="text-davinci-edit-001", input="What day of the wek is it?", instruction="Fix the spelling mistakes"
-        )
+class TestAudioTranslationEndpoint:
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_translate(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        pass
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_atranslate(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        pass
+
+
+class TestImageEndpoint:
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_image(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        pass
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_aiamge(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        pass

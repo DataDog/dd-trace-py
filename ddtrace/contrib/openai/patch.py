@@ -264,6 +264,34 @@ def patch():
             _patched_endpoint_async(openai, integration, _EditHook),
         )
 
+    if hasattr(openai.api_resources, "audio"):
+        _wrap_classmethod(
+            openai.api_resources.audio.Audio.transcribe,
+            _patched_endpoint(openai, integration, _TranscriptionHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.audio.Audio.atranscribe,
+            _patched_endpoint_async(openai, integration, _TranscriptionHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.audio.Audio.translate,
+            _patched_endpoint(openai, integration, _TranslationHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.audio.Audio.atranslate,
+            _patched_endpoint_async(openai, integration, _TranslationHook),
+        )
+
+    if hasattr(openai.api_resources, "image"):
+        _wrap_classmethod(
+            openai.api_resources.image.Image.create,
+            _patched_endpoint(openai, integration, _ImageHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.image.Image.acreate,
+            _patched_endpoint_async(openai, integration, _ImageHook),
+        )
+
     setattr(openai, "__datadog_patch", True)
 
 
@@ -683,8 +711,10 @@ class _EditHook(_EndpointHook):
     def handle_request(self, pin, integration, span, args, kwargs):
         for kw_attr in ["model", "input", "instruction", "n", "temperature", "top_p"]:
             for kw_attr in kwargs:
-                # don't need special handling for input, it can't be an array for this endpoint
-                span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+                if kw_attr == "input":
+                    span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
 
         resp, error = yield
         if resp:
@@ -707,22 +737,57 @@ class _EditHook(_EndpointHook):
         return resp
 
 
-class _AudioTranslationHook(_EndpointHook):
+class _TranscriptionHook(_EndpointHook):
+    DEFAULT_NAME = "audio.transcriptions"
+
     def handle_request(self, pin, integration, span, args, kwargs):
-        # TODO
-        pass
+        for kw_attr in ["file", "model", "prompt", "response_format", "temperature", "language"]:
+            for kw_attr in kwargs:
+                if kw_attr == "prompt":
+                    span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        resp, error = yield
+        if resp:
+            if "text" in resp:
+                span.set_tag_str("openai.response.text", resp["text"])
+        return resp
 
 
-class _AudioTranscriptionHook(_EndpointHook):
+class _TranslationHook(_EndpointHook):
+    DEFAULT_NAME = "audio.translations"
+
     def handle_request(self, pin, integration, span, args, kwargs):
-        # TODO
-        pass
+        for kw_attr in ["file", "model", "prompt", "response_format", "temperature"]:
+            for kw_attr in kwargs:
+                if kw_attr == "prompt":
+                    span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        resp, error = yield
+        if resp:
+            if "text" in resp:
+                span.set_tag_str("openai.response.text", resp["text"])
+        return resp
 
 
 class _ImageHook(_EndpointHook):
+    DEFAULT_NAME = "images"
+
     def handle_request(self, pin, integration, span, args, kwargs):
-        # TODO
-        pass
+        for kw_attr in ["image", "mask", "prompt", "n", "size", "response_format"]:
+            for kw_attr in kwargs:
+                if kw_attr == "prompt":
+                    span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        resp, error = yield
+        if resp:
+            if "data" in resp:
+                images = resp["data"]
+                for i, image in enumerate(images):
+                    span.set_tag("openai.response.%d.url" % i, image["url"])
+        return resp
 
 
 def _patched_convert(openai, integration):
@@ -746,6 +811,7 @@ def _patched_convert(openai, integration):
                 continue
 
             val = val._headers
+
             if val.get("openai-organization"):
                 org_name = val.get("openai-organization")
                 span.set_tag("openai.organization.name", org_name)
