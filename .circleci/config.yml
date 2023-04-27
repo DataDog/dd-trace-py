@@ -372,6 +372,14 @@ jobs:
       - run_test:
           pattern: "debugger"
 
+  openai:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'openai'
+          snapshot: true
+
   opentracer:
     <<: *contrib_job
     steps:
@@ -1072,6 +1080,7 @@ requires_tests: &requires_tests
     - mongoengine
     - mysqlconnector
     - mysqlpython
+    - openai
     - opentracer
     - opentelemetry
     - psycopg
@@ -1171,6 +1180,7 @@ workflows:
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
+      - openai: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
