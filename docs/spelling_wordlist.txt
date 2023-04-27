@@ -75,6 +75,7 @@ dogstatsd
 elasticsearch
 elasticsearch1
 elasticsearch7
+embeddings
 enqueue
 entrypoint
 entrypoints
@@ -162,6 +163,7 @@ pyston
 pytest
 pytest-bdd
 quickstart
+ratelimit
 redis
 rediscluster
 renderers
@@ -184,6 +186,7 @@ sqlalchemy
 sqlite
 stacktrace
 starlette
+statsd
 stringable
 subclass
 subdomains
@@ -191,6 +194,7 @@ submodule
 submodules
 substring
 timestamp
+tokenizer
 tracestate
 tweens
 uWSGI
