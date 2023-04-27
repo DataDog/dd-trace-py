@@ -1,7 +1,9 @@
 #!/bin/bash
 
+message=${1:-"Unexpected files changed or added"}
+
 if [[ "$(git diff --exit-code)" || ! -z "$(git ls-files -o --exclude-standard)" ]]
 then
-    echo "Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result."
+    echo "${message}"
     exit 1
 fi
