@@ -15,6 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+testagent_image: &testagent_image williamconti549/dd-apm-test-agent:latest
 
 parameters:
   coverage:
@@ -132,37 +133,47 @@ commands:
           at: .
       - checkout
       - restore_pip_cache
-      - setup_riot
-      - start_docker_services:
-          env: SNAPSHOT_CI=1
-          services: testagent << parameters.docker_services >>
-      - run:
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            mv .riot .ddriot
-            # Sort the hashes to ensure a consistent ordering/division between each node
-            riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-
-      # - unless:
-      #     condition:
-      #         << parameters.snapshot >>
-      #     steps:
-      #       - setup_riot
-      #       - when:
-      #           condition:
-      #             << parameters.wait >>
-      #           steps:
-      #             - run:
-      #                 name: "Waiting for << parameters.wait >>"
-      #                 command: riot -v run 'wait' << parameters.wait >>
-      #       - run:
-      #           environment:
-      #             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-      #           command: |
-      #             # Sort the hashes to ensure a consistent ordering/division between each node
-      #             riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+      - when:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
+            - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  mv .riot .ddriot
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - when:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: riot -v run 'wait' testagent << parameters.wait >>
+            - unless:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: riot -v run 'wait'
+            - run:
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
       - save_pip_cache
       - when:
           condition:
@@ -214,6 +225,13 @@ postgres_server: &postgres_server
     - POSTGRES_PASSWORD=postgres
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
+
+testagent: &testagent
+  image: *testagent_image
+  environment:
+    - LOG_LEVEL=DEBUG
+    - SNAPSHOT_DIR=/snapshots
+    - SNAPSHOT_CI=1
 
 jobs:
   pre_check:
@@ -456,6 +474,8 @@ jobs:
 
   stdlib:
     <<: *contrib_job
+    docker:
+      - *testagent
     parallelism: 4
     steps:
       - run_test:
@@ -471,6 +491,8 @@ jobs:
 
   pylons:
     <<: *contrib_job_small
+    docker:
+      - *testagent
     steps:
       - run_test:
           pattern: 'pylons'
@@ -486,18 +508,24 @@ jobs:
 
   asgi:
     <<: *contrib_job
+    docker:
+      - *testagent
     steps:
       - run_test:
           pattern: 'asgi$'
 
   tornado:
     <<: *contrib_job_small
+    docker:
+      - *testagent
     steps:
       - run_test:
           pattern: 'tornado'
 
   bottle:
     <<: *contrib_job_small
+    docker:
+      - *testagent
     steps:
       - run_test:
           pattern: 'bottle'
@@ -505,6 +533,7 @@ jobs:
   cassandra:
     <<: *contrib_job_small
     docker:
+      - *testagent
       - image: *ddtrace_dev_image
         environment:
           CASS_DRIVER_NO_EXTENSIONS: 1
@@ -514,7 +543,6 @@ jobs:
           - HEAP_NEWSIZE=256M
     steps:
       - run_test:
-          docker_services: cassandra
           wait: cassandra
           pattern: 'cassandra'
 
@@ -525,6 +553,7 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
       - image: *rabbitmq_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'celery'
@@ -541,6 +570,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'consul'
@@ -686,9 +716,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
-          docker_services: mysql
           wait: mysql
           pattern: 'mysql'
 
@@ -697,9 +727,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
-          docker_services: mysql
           wait: mysql
           pattern: 'mysqldb'
 
@@ -708,9 +738,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
-          docker_services: mysql
           wait: mysql
           pattern: 'pymysql'
 
@@ -719,6 +749,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pylibmc'
@@ -746,6 +777,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymemcache"
@@ -763,6 +795,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymongo"
@@ -777,6 +810,7 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pyodbc'
@@ -792,6 +826,7 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *httpbin_local
     steps:
       - run_test:
@@ -825,11 +860,11 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *postgres_server
       - *mysql_server
     steps:
       - run_test:
-          docker_services: postgres mysql
           wait: postgres mysql
           pattern: "sqlalchemy"
 
@@ -856,6 +891,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
+      - *testagent
     steps:
        - run_test:
           pattern: 'aiobotocore'
@@ -874,9 +910,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
+      - *testagent
     steps:
       - run_test:
-          docker_services: postgres
           wait: postgres
           pattern: 'aiopg'
 
@@ -940,6 +976,7 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - image: *vertica_image
         environment:
           - VP_TEST_USER=dbadmin
@@ -947,7 +984,6 @@ jobs:
           - VP_TEST_DATABASE=docker
     steps:
       - run_test:
-          docker_services: vertica
           wait: vertica
           pattern: 'vertica'
 
@@ -972,9 +1008,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
+      - *testagent
     steps:
       - run_test:
-          docker_services: rabbitmq
           wait: rabbitmq
           pattern: 'kombu'
 
