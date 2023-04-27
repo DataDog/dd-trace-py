@@ -179,8 +179,9 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         elif command_name == "get":
             # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
             # missing key
-            if result and result != getattr(instance, "_missing_key", None):
+            if result is not None and result != getattr(instance, "_missing_key", None):
                 span.set_metric(db.ROWCOUNT, 1)
+            # else result is invalid or None, set row count to 0
             else:
                 span.set_metric(db.ROWCOUNT, 0)
         return result
