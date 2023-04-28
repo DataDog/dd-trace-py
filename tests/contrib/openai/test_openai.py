@@ -978,34 +978,84 @@ class TestEditEnpoint:
             )
 
 
-class TestAudioTranscriptionEndpoint:
+class TestAudioEndpoint:
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-    def test_transcript(openai, openai_vcr, mock_metrics, snapshot_tracer):
-        pass
+    def test_transcribe(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        with openai_vcr.use_cassette("transcribe.yaml"):
+            audio_file = open(os.path.join(os.path.dirname(__file__), "audio/") + "birthday.mp3", "rb")
+            openai.Audio.transcribe("whisper-1", audio_file)
 
     @pytest.mark.asyncio
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-    async def test_atranscript(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
-        pass
+    async def test_atranscribe(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("transcribe_async.yaml"):
+            audio_file = open(os.path.join(os.path.dirname(__file__), "audio/") + "birthday.mp3", "rb")
+            await openai.Audio.transcribe("whisper-1", audio_file)
 
-
-class TestAudioTranslationEndpoint:
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
     def test_translate(openai, openai_vcr, mock_metrics, snapshot_tracer):
-        pass
+        with openai_vcr.use_cassette("translate.yaml"):
+            audio_file = open(os.path.join(os.path.dirname(__file__), "audio/") + "buenos-dias.mp3", "rb")
+            openai.Audio.translate("whisper-1", audio_file)
 
     @pytest.mark.asyncio
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
     async def test_atranslate(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
-        pass
+        with openai_vcr.use_cassette("translate_async.yaml"):
+            audio_file = open(os.path.join(os.path.dirname(__file__), "audio/") + "buenos-dias.mp3", "rb")
+            await openai.Audio.translate("whisper-1", audio_file)
 
 
 class TestImageEndpoint:
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
     def test_image(openai, openai_vcr, mock_metrics, snapshot_tracer):
-        pass
+        with openai_vcr.use_cassette("image.yaml"):
+            openai.Image.create(prompt="A cute baby sea otter", n=2, size="1024x1024")
 
     @pytest.mark.asyncio
     @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-    async def test_aiamge(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
-        pass
+    async def test_aimage(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("image_async.yaml"):
+            await openai.Image.create(prompt="A cute baby sea otter", n=2, size="1024x1024")
+
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_image_edit(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        with openai_vcr.use_cassette("image_edit.yaml"):
+            openai.Image.create_edit(
+                image=open(os.path.join(os.path.dirname(__file__), "images/") + "image.png", "rb"),
+                mask=open(os.path.join(os.path.dirname(__file__), "images/") + "mask.png", "rb"),
+                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+                n=1,
+                size="1024x1024",
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_aimage_edit(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("image_edit_async.yaml"):
+            await openai.Image.create_edit(
+                image=open(os.path.join(os.path.dirname(__file__), "images/") + "image.png", "rb"),
+                mask=open(os.path.join(os.path.dirname(__file__), "images/") + "mask.png", "rb"),
+                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+                n=1,
+                size="1024x1024",
+            )
+
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    def test_image_variation(openai, openai_vcr, mock_metrics, snapshot_tracer):
+        with openai_vcr.use_cassette("image_variation.yaml"):
+            openai.Image.create_variation(
+                image=open(os.path.join(os.path.dirname(__file__), "images/") + "image.png", "rb"),
+                n=1,
+                size="1024x1024",
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.snapshot(ignores=["meta.http.useragent"])
+    async def test_aimage_variation(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+        with openai_vcr.use_cassette("image_variation_async.yaml"):
+            await openai.Image.create_variation(
+                image=open(os.path.join(os.path.dirname(__file__), "images/") + "image.png", "rb"),
+                n=1,
+                size="1024x1024",
+            )

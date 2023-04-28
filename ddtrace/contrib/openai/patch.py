@@ -291,6 +291,22 @@ def patch():
             openai.api_resources.image.Image.acreate,
             _patched_endpoint_async(openai, integration, _ImageHook),
         )
+        _wrap_classmethod(
+            openai.api_resources.image.Image.create_edit,
+            _patched_endpoint(openai, integration, _ImageHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.image.Image.acreate_edit,
+            _patched_endpoint_async(openai, integration, _ImageHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.image.Image.create_variation,
+            _patched_endpoint(openai, integration, _ImageHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.image.Image.acreate_variation,
+            _patched_endpoint_async(openai, integration, _ImageHook),
+        )
 
     setattr(openai, "__datadog_patch", True)
 
@@ -677,7 +693,7 @@ class _ModerationHook(_EndpointHook):
     def handle_request(self, pin, integration, span, args, kwargs):
         # moderation endpoint is free
         # TODO: metrics for moderation endpoint
-        for kw_attr in ["model", "input"]:
+        for kw_attr in ["model", "input", "user"]:
             if kw_attr in kwargs:
                 if kw_attr == "input" and integration.is_pc_sampled_span(span):
                     if isinstance(kwargs["input"], list):
@@ -709,8 +725,8 @@ class _EditHook(_EndpointHook):
     DEFAULT_NAME = "edits"
 
     def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "instruction", "n", "temperature", "top_p"]:
-            for kw_attr in kwargs:
+        for kw_attr in ["model", "input", "instruction", "n", "temperature", "top_p", "user"]:
+            if kw_attr in kwargs:
                 if kw_attr == "input":
                     span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
                 else:
@@ -741,8 +757,8 @@ class _TranscriptionHook(_EndpointHook):
     DEFAULT_NAME = "audio.transcriptions"
 
     def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["file", "model", "prompt", "response_format", "temperature", "language"]:
-            for kw_attr in kwargs:
+        for kw_attr in ["file", "model", "prompt", "response_format", "temperature", "language", "user"]:
+            if kw_attr in kwargs:
                 if kw_attr == "prompt":
                     span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
                 else:
@@ -758,8 +774,8 @@ class _TranslationHook(_EndpointHook):
     DEFAULT_NAME = "audio.translations"
 
     def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["file", "model", "prompt", "response_format", "temperature"]:
-            for kw_attr in kwargs:
+        for kw_attr in ["file", "model", "prompt", "response_format", "temperature", "user"]:
+            if kw_attr in kwargs:
                 if kw_attr == "prompt":
                     span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
                 else:
@@ -775,8 +791,8 @@ class _ImageHook(_EndpointHook):
     DEFAULT_NAME = "images"
 
     def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["image", "mask", "prompt", "n", "size", "response_format"]:
-            for kw_attr in kwargs:
+        for kw_attr in ["image", "mask", "prompt", "n", "size", "response_format", "user"]:
+            if kw_attr in kwargs:
                 if kw_attr == "prompt":
                     span.set_tag("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
                 else:
