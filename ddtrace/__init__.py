@@ -1,5 +1,6 @@
 from ddtrace.internal import telemetry
 
+
 telemetry.install_excepthook()
 
 from ddtrace.internal.module import ModuleWatchdog

@@ -18,11 +18,6 @@ from typing import cast
 from six import PY3
 
 import ddtrace
-from ddtrace.debugging._capture.collector import CapturedEventCollector
-from ddtrace.debugging._capture.metric_sample import MetricSample
-from ddtrace.debugging._capture.model import CapturedEvent
-from ddtrace.debugging._capture.snapshot import Snapshot
-from ddtrace.debugging._capture.tracing import DynamicSpan
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
@@ -45,6 +40,11 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.metric_sample import MetricSample
+from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -161,7 +161,7 @@ class Debugger(Service):
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
-    __collector__ = CapturedEventCollector
+    __collector__ = SignalCollector
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
 
@@ -277,13 +277,13 @@ class Debugger(Service):
         """
         try:
             actual_frame = sys._getframe(1)
-            event = None  # type: Optional[CapturedEvent]
+            signal = None  # type: Optional[Signal]
             if isinstance(probe, MetricLineProbe):
-                event = MetricSample(
+                signal = MetricSample(
                     probe=probe,
                     frame=actual_frame,
                     thread=threading.current_thread(),
-                    context=self._tracer.current_trace_context(),
+                    trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
                 )
             elif isinstance(probe, LogLineProbe):
@@ -292,19 +292,19 @@ class Debugger(Service):
                     if self._global_rate_limiter.limit() is RateLimitExceeded:
                         return
 
-                event = Snapshot(
+                signal = Snapshot(
                     probe=probe,
                     frame=actual_frame,
                     thread=threading.current_thread(),
-                    context=self._tracer.current_trace_context(),
+                    trace_context=self._tracer.current_trace_context(),
                 )
             else:
                 log.error("Unsupported probe type: %r", type(probe))
                 return
 
-            event.line()
+            signal.line()
 
-            self._collector.push(event)
+            self._collector.push(signal)
 
         except Exception:
             log.error("Failed to execute debugger probe hook", exc_info=True)
@@ -331,38 +331,38 @@ class Debugger(Service):
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
-            event = None  # type: Optional[CapturedEvent]
+            signal = None  # type: Optional[Signal]
             for probe in wrappers.values():
                 if isinstance(probe, MetricFunctionProbe):
-                    event = MetricSample(
+                    signal = MetricSample(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
                         args=allargs,
-                        context=trace_context,
+                        trace_context=trace_context,
                         meter=self._probe_meter,
                     )
                 elif isinstance(probe, LogFunctionProbe):
-                    event = Snapshot(
+                    signal = Snapshot(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
                         args=allargs,
-                        context=trace_context,
+                        trace_context=trace_context,
                     )
                 elif isinstance(probe, SpanFunctionProbe):
-                    event = DynamicSpan(
+                    signal = DynamicSpan(
                         probe=probe,
                         frame=actual_frame,
                         thread=thread,
                         args=allargs,
-                        context=trace_context,
+                        trace_context=trace_context,
                     )
                 else:
                     log.error("Unsupported probe type: %s", type(probe))
                     continue
 
-                open_contexts.append(self._collector.attach(event))
+                open_contexts.append(self._collector.attach(signal))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)

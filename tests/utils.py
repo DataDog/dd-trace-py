@@ -9,6 +9,7 @@ import time
 from typing import List
 
 import attr
+import pkg_resources
 import pytest
 
 import ddtrace
@@ -16,6 +17,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -107,7 +109,10 @@ def override_global_config(values):
         "_waf_timeout",
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
+        "_ci_visibility_code_coverage_enabled",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_url",
+        "_ci_visibility_agentless_enabled",
     ]
 
     # Grab the current values of all keys
@@ -437,19 +442,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             setattr(ddtrace, "tracer", original)
 
 
-class DummyWriter(AgentWriter):
-    """DummyWriter is a small fake writer used for tests. not thread-safe."""
-
+class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
-
-        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -457,9 +453,6 @@ class DummyWriter(AgentWriter):
             # put spans in a list like we do in the real execution path
             # with both encoders
             traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
@@ -474,6 +467,41 @@ class DummyWriter(AgentWriter):
         traces = self.traces
         self.traces = []
         return traces
+
+
+class DummyWriter(DummyWriterMixin, AgentWriter):
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
+
+    def __init__(self, *args, **kwargs):
+        # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
+
+        AgentWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+
+
+class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
+    def __init__(self, *args, **kwargs):
+        CIVisibilityWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self._encoded = None
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        CIVisibilityWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        self._encoded = self._encoder._build_payload()
 
 
 class DummyTracer(Tracer):
@@ -505,9 +533,10 @@ class DummyTracer(Tracer):
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriter
+            kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+        if not kwargs.get("writer"):
+            kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
@@ -1050,3 +1079,48 @@ def request_token(request):
     token += ".%s" % request.cls.__name__ if request.cls else ""
     token += ".%s" % request.node.name
     return token
+
+
+def package_installed(package_name):
+    try:
+        pkg_resources.get_distribution(package_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
+    cwd = str(tmpdir)
+    version = subprocess.check_output("git version", shell=True)
+    # decode "git version 2.28.0" to (2, 28, 0)
+    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
+    if decoded_version >= (2, 28):
+        # versions starting from 2.28 can have a different initial branch name
+        # configured in ~/.gitconfig
+        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
+    else:
+        # versions prior to 2.28 will create a master branch by default
+        subprocess.check_output("git init", cwd=cwd, shell=True)
+    return cwd
+
+
+def git_repo(git_repo_empty):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
+    cwd = git_repo_empty
+    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    # Set temporary git directory to not require gpg commit signing
+    subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
+    # Set committer user to be "Jane Doe"
+    subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
+    subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
+    subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
+    # Override author to be "John Doe"
+    subprocess.check_output(
+        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
+        '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
+        cwd=cwd,
+        shell=True,
+    )
+    return cwd

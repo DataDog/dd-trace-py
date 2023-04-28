@@ -652,7 +652,7 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
     assert (
-        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+        str(e.value) == "Unsupported protocol 'foo' in intake URL 'foo://foobar:12'. Must be one of: http, https, unix"
     )
 
 
@@ -1656,18 +1656,18 @@ def test_bad_agent_url(monkeypatch):
         Tracer()
     assert (
         str(e.value)
-        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+        == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+    assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+    assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
 def test_context_priority(tracer, test_spans):
