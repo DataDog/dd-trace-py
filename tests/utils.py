@@ -476,7 +476,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
             kwargs["agent_url"] = agent.get_trace_url()
-            kwargs["api_version"] = "v0.4"
+            kwargs["api_version"] = "v0.5"
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
