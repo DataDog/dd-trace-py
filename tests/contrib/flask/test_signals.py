@@ -25,6 +25,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         func = mock.Mock(signal, name=name)
         func.__module__ = "tests.contrib.flask"
         func.__name__ = name
+        func.__code__.co_flags = 12  # Assume the signal uses *args and **kwargs
         return func
 
     def call_signal(self, signal_name, *args, **kwargs):
