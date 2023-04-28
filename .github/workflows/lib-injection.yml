@@ -5,14 +5,12 @@ on:
 
 jobs:
   build-and-publish-test-image:
-    uses: ./.github/workflows/build-and-publish-image.yml
-    with:
-      tags: 'ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}'
-      platforms: 'linux/amd64,linux/arm64/v8'
-      build-args: 'DDTRACE_PYTHON_VERSION=git+https://github.com/Datadog/dd-trace-py@${{ github.sha }}'
-      context: ./lib-injection
+    uses: ./.github/workflows/lib-inject-publish.yml
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: v1.10
+      image-tag: ${{ github.sha }}
 
   test:
     needs:
@@ -64,11 +62,26 @@ jobs:
         run: |
           docker run \
             -d \
+            --name=testagent \
             --network=test-inject \
             -p 8126:8126 \
             ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.7.2
-      - name: Apply a fixed, stable version of the library
-        run: sed -i "s~<DD_TRACE_VERSION_TO_BE_REPLACED>~git+https://github.com/Datadog/dd-trace-py@${{ github.sha }}~g" lib-injection/sitecustomize.py
+      - name: Prepare the volume
+        run: |
+          cd lib-injection
+          mkdir -p lib-injection/ddtrace_pkgs
+          cp sitecustomize.py lib-injection/
+          ./dl_wheels.py \
+            --ddtrace-version=v1.10 \
+            --python-version=3.11 \
+            --python-version=3.10 \
+            --python-version=3.9 \
+            --python-version=3.8 \
+            --python-version=3.7 \
+            --arch x86_64 \
+            --platform manylinux2014 \
+            --output-dir ddtrace_pkgs \
+            --verbose
       - name: Build test app
         run: |
           docker build \
@@ -81,15 +94,19 @@ jobs:
             --network test-inject \
             -p 18080:18080 \
             -e PYTHONPATH=/lib-injection \
+            -e DD_TRACE_AGENT_URL=http://testagent:8126 \
             -v $PWD/lib-injection:/lib-injection \
             ${{matrix.variant}}
-          # Package has to be built from source, wait a while
-          sleep 85
+          # Wait for the app to start
+          sleep 20
           docker logs ${{matrix.variant}}
       - name: Test the app
         run: |
           curl http://localhost:18080
           sleep 1  # wait for traces to be sent
-      - name: Check test agent
+      - name: Print traces
+        run: curl http://localhost:8126/test/traces
+      - name: Check test agent received a trace
         run: |
-          curl http://localhost:8126/test/traces
+          N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
+          [[ $N == "1" ]]

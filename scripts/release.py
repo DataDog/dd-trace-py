@@ -95,7 +95,7 @@ def create_release_draft(dd_repo, base, rc, patch):
                 continue
             if other_patch_num > latest_patch_version:
                 latest_patch_version = other_patch_num
-        new_patch_version = latest_patch_version + 1
+        new_patch_version = latest_patch_version if latest_patch_version == 1 else latest_patch_version + 1
 
         name = "%s.%s" % (base, str(new_patch_version))
         tag = "v%s" % name

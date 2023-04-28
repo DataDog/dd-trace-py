@@ -1,4 +1,5 @@
 import functools
+from itertools import chain
 import json
 import logging
 import os
@@ -467,7 +468,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self._writer, AgentWriter):
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if any(
             x is not None
@@ -754,7 +755,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in self._span_processors:
+            for p in chain(self._span_processors, SpanProcessor.__processors__):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
 
@@ -772,7 +773,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in self._span_processors:
+            for p in chain(self._span_processors, SpanProcessor.__processors__):
                 p.on_span_finish(span)
 
         if log.isEnabledFor(logging.DEBUG):
@@ -1008,7 +1009,7 @@ class Tracer(object):
             # Thread safety: Ensures tracer is shutdown synchronously
             span_processors = self._span_processors
             self._span_processors = []
-            for processor in span_processors:
+            for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 

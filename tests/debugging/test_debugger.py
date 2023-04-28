@@ -9,8 +9,8 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.debugging._capture.dynamic_span import SPAN_NAME
 from ddtrace.debugging._capture.model import CaptureState
+from ddtrace.debugging._capture.tracing import SPAN_NAME
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind

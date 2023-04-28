@@ -7,11 +7,25 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+from ddtrace.internal.logger import get_logger
+from ddtrace.sampler import RateSampler
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
     from typing import Tuple
     from typing import Type
+
+    from ddtrace.span import Span
+
+log = get_logger(__name__)
+
+
+def get_request_sampling_value():  # type: () -> float
+    # Percentage of requests analyzed by IAST (default: 30%)
+    return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
+
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
 MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
@@ -62,16 +76,24 @@ class Operation(object):
 
 
 class OverheadControl(object):
+    """This class is meant to control the overhead introduced by IAST analysis.
+    The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
+    """
+
     _request_quota = MAX_REQUESTS
     _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
+    _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self):
-        """Block a request's quota at start of the request.
+    def reconfigure(self):
+        self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-        TODO: Implement sampling request in this method
+    def acquire_request(self, span):  # type: (Span) -> None
+        """Decide whether if IAST analysis will be done for this request.
+        - Block a request's quota at start of the request to limit simultaneous requests analyzed.
+        - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota > 0:
+        if self._request_quota > 0 and self._sampler.sample(span):
             self._request_quota -= 1
             self._enabled = True
 
@@ -84,6 +106,7 @@ class OverheadControl(object):
             self._request_quota += 1
             self._enabled = False
         self.vulnerabilities_reset_quota()
+        clear_taint_mapping()
 
     def register(self, klass):
         # type: (Type[Operation]) -> Type[Operation]

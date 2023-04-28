@@ -235,8 +235,8 @@ class ExplorationDebugger(Debugger):
         cls._instance._collector.on_snapshot = cls.on_snapshot
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls, join=True):
+        # type: (bool) -> None
         registry = cls._instance._probe_registry
 
         nprobes = len(registry)
@@ -254,7 +254,7 @@ class ExplorationDebugger(Debugger):
         if snapshots and snapshots[-1]:
             print(snapshots[-1].decode())
 
-        super(ExplorationDebugger, cls).disable()
+        super(ExplorationDebugger, cls).disable(join=join)
 
     @classmethod
     def get_snapshots(cls):
