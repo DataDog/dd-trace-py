@@ -115,9 +115,9 @@ class TelemetryBase(PeriodicService):
         # type: (float) -> None
         super(TelemetryBase, self).__init__(interval=interval)
 
-        # _enabled is None at startup, and is only set to true or false
+        # _is_running is None at startup, and is only set to true or false
         # after the config has been processed
-        self._enabled = None  # type: Optional[bool]
+        self._is_running = None  # type:  Optional[bool]
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
@@ -137,7 +137,7 @@ class TelemetryBase(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
-        if self._enabled:
+        if self.is_running:
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
@@ -151,20 +151,30 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
+    @property
+    def is_running(self):
+        return self._is_running
+
+    def _enable(self):
+        if self.status == ServiceStatus.RUNNING:
+            return
+
+        with self._lock:
+            self._is_running = True
+
+        self.start()
+        atexit.register(self.stop)
+
     def enable(self):
         # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if self.status == ServiceStatus.RUNNING:
+        if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+            self._enable()
             return True
-
-        self._enabled = True
-        self.start()
-
-        atexit.register(self.stop)
-        return True
+        return False
 
     def disable(self):
         # type: () -> None
@@ -173,7 +183,7 @@ class TelemetryBase(PeriodicService):
         Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
         """
         with self._lock:
-            self._enabled = False
+            self._is_running = False
         self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
@@ -197,6 +207,7 @@ class TelemetryBase(PeriodicService):
     def _fork_writer(self):
         # type: () -> None
         self._forked = True
+        self._is_running = False
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self.reset_queues()
@@ -229,17 +240,12 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
     def enable(self):
         # type: () -> bool
         """
-        Enable the instrumentation telemetry collection service. If the service has already been
-        activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
+        Enable the telemetry metrics collection service. If the service has already been
+        activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
+        service.
         """
         if config._telemetry_metrics_enabled:
-            if self.status == ServiceStatus.RUNNING:
-                return True
-
-            self._enabled = True
-            self.start()
-
-            atexit.register(self.stop)
+            self._enable()
             return True
         return False
 
@@ -387,7 +393,7 @@ class TelemetryWriter(TelemetryBase):
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if self._enabled is None or self._enabled:
+        if self._is_running is None or self._is_running:
             # Integrations can be patched before the telemetry writer is enabled.
             integration = {
                 "name": integration_name,

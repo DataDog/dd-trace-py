@@ -39,7 +39,7 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    telemetry_writer._enabled = False
+    telemetry_writer._is_running = False
 
     payload = {"test": "123"}
     payload_type = "test-event"

@@ -23,15 +23,13 @@ def telemetry_writer():
     telemetry_writer = TelemetryWriter()
     # Enable the TelemetryWriter without queuing an app-started event
     # and setting up exit hooks
-    telemetry_writer._enabled = True
+    telemetry_writer._is_running = True
     yield telemetry_writer
-
 
 @pytest.fixture
 def telemetry_metrics_writer():
     telemetry_metrics_writer = TelemetryLogsMetricsWriter()
 
-    telemetry_metrics_writer._enabled = True
     return telemetry_metrics_writer
 
 
