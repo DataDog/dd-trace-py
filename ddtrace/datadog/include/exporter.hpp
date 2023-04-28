@@ -194,8 +194,8 @@ public:
   // Clears temporary things
   void clear_buffers();
 
-  // Zero out stats
-  void zero_stats();
+  // Make the profile reusable
+  void reset();
 
   Profile(ProfileType type);
   ~Profile();

@@ -169,13 +169,8 @@ bool Uploader::upload(const Profile *profile) {
   ddog_prof_Exporter_Request_drop(&req);
   ddog_prof_EncodedProfile_drop(encoded);
 
-  // We're done exporting, so reset the profile.  If this is false, then the
-  // cleanup failed, but we cannot reuse the profiling object.
-  if (!ddog_prof_Profile_reset(profile->ddog_profile, nullptr)) {
-    // TODO consolidate errors
-    std::cout << "Unable to reset!" << std::endl;
-    return false;
-  }
+  // We don't reset here; that's up to the caller.
+
   return true;
 }
 
@@ -235,6 +230,9 @@ Profile::Profile(ProfileType type) : type_mask{type & ProfileType::All} {
       &default_sampler,
       nullptr);
 
+  // Prepare for use
+  reset();
+
   // Initialize the size for buffers
   locations.reserve(2048);
   lines.reserve(2048);
@@ -245,9 +243,13 @@ Profile::~Profile() {
   ddog_prof_Profile_drop(ddog_profile);
 }
 
-void Profile::zero_stats() {
+void Profile::reset() {
   frames = 0;
   samples = 0;
+  if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
+    // TODO consolidate errors
+    std::cout << "Unable to reset!" << std::endl;
+  }
 }
 
 void Profile::start_sample() {
@@ -271,7 +273,7 @@ void Profile::push_frame(
             .name = to_slice(name),
             .system_name = {},
             .filename = to_slice(filename),
-            .start_line = -1,
+            .start_line = 0,
             },
           .line = line,
   });
@@ -553,10 +555,12 @@ void ddup_upload_impl(Datadog::Profile *prof) {
 }
 
 void ddup_upload() {
-  new std::thread(ddup_upload_impl, g_profile); // set it and forget it
+  std::cout << "Uploading" << std::endl;
+  auto *this_prof = g_profile;
+  new std::thread(ddup_upload_impl, this_prof); // set it and forget it
   g_profile = g_profile_real[g_prof_flag];
   g_prof_flag ^= true;
-  g_profile->zero_stats();
+  g_profile->reset();
 }
 
 #endif
