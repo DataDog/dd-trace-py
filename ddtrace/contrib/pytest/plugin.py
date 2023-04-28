@@ -1,5 +1,5 @@
 """
-Tracing for pytest is implemented with a custom pytest plugin that uses pytest hooks. The plugin registers tracing code
+This custom pytest plugin implements tracing for pytest by using pytest hooks. The plugin registers tracing code
 to be run at specific points during pytest execution. The most important hooks used are:
 
     * pytest_sessionstart: during pytest session startup, a custom trace filter is configured to the global tracer to
