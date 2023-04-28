@@ -37,7 +37,8 @@ Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
-    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.    
+    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
+    Default is 0 e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
 
