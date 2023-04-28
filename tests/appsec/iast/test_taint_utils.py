@@ -104,9 +104,9 @@ def test_tainted_items():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
 
-    # Values are tainted if string-like, keys aren't
+    # Keys and values are tainted if string-like
     for k, v in tainted_knights.items():
-        assert not is_pyobject_tainted(k)
+        assert is_pyobject_tainted(k)
         assert is_pyobject_tainted(v)
 
     # Regular dict is not affected
@@ -115,9 +115,13 @@ def test_tainted_items():
         assert not is_pyobject_tainted(v)
 
 
-def test_tainted_values():
+def test_tainted_keys_and_values():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+
+    # Keys are tainted if string-like
+    for k in tainted_knights.keys():
+        assert is_pyobject_tainted(k)
 
     # Values are tainted if string-like
     for v in tainted_knights.values():
