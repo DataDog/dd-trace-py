@@ -17,6 +17,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
@@ -474,7 +475,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
+            kwargs["agent_url"] = agent.get_trace_url()
+            kwargs["api_version"] = "v0.4"
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
@@ -487,7 +489,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
+            self._encoder.put(spans)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -524,11 +526,15 @@ class DummyTracer(Tracer):
 
     def pop(self):
         # type: () -> List[Span]
-        return self._writer.pop()
+        spans = self._writer.pop()
+        self._writer.flush_queue()
+        return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        return self._writer.pop_traces()
+        traces = self._writer.pop_traces()
+        self._writer.flush_queue()
+        return traces
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
