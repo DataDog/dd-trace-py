@@ -475,6 +475,7 @@ jobs:
   stdlib:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     parallelism: 4
     steps:
@@ -492,6 +493,7 @@ jobs:
   pylons:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -509,6 +511,7 @@ jobs:
   asgi:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -517,6 +520,7 @@ jobs:
   tornado:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -525,6 +529,7 @@ jobs:
   bottle:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -533,7 +538,6 @@ jobs:
   cassandra:
     <<: *contrib_job_small
     docker:
-      - *testagent
       - image: *ddtrace_dev_image
         environment:
           CASS_DRIVER_NO_EXTENSIONS: 1
@@ -541,6 +545,7 @@ jobs:
         environment:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
+      - *testagent
     steps:
       - run_test:
           wait: cassandra
@@ -593,6 +598,7 @@ jobs:
   falcon:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -644,6 +650,7 @@ jobs:
   gevent:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -712,6 +719,7 @@ jobs:
   molten:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -809,6 +817,7 @@ jobs:
   pynamodb:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -1032,6 +1041,7 @@ jobs:
   jinja2:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -1040,6 +1050,7 @@ jobs:
   mako:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -1048,6 +1059,7 @@ jobs:
   algoliasearch:
     <<: *contrib_job_small
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
