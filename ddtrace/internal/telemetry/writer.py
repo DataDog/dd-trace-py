@@ -114,10 +114,7 @@ class TelemetryBase(PeriodicService):
     def __init__(self, interval):
         # type: (float) -> None
         super(TelemetryBase, self).__init__(interval=interval)
-
-        # _is_running is None at startup, and is only set to true or false
-        # after the config has been processed
-        self._is_running = None  # type:  Optional[bool]
+        self._disabled = False
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
@@ -137,7 +134,7 @@ class TelemetryBase(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
-        if self.is_running:
+        if not self._disabled and self.enable():
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
@@ -151,16 +148,9 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
-    @property
-    def is_running(self):
-        return self._is_running
-
     def _enable(self):
         if self.status == ServiceStatus.RUNNING:
             return
-
-        with self._lock:
-            self._is_running = True
 
         self.start()
         atexit.register(self.stop)
@@ -180,10 +170,9 @@ class TelemetryBase(PeriodicService):
         # type: () -> None
         """
         Disable the telemetry collection service and drop the existing integrations and events
-        Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
+        Once disabled, telemetry collection can not be re-enabled.
         """
-        with self._lock:
-            self._is_running = False
+        self._disabled = True
         self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
@@ -207,10 +196,14 @@ class TelemetryBase(PeriodicService):
     def _fork_writer(self):
         # type: () -> None
         self._forked = True
-        self._is_running = False
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self.reset_queues()
+        if self.status == ServiceStatus.STOPPED:
+            return
+
+        atexit.unregister(self.stop)
+        self.stop()
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
@@ -231,11 +224,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         super(TelemetryLogsMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
         self._namespace = MetricNamespace()
         self._logs = []  # type: List[Dict[str, Any]]
-
-    def _fork_writer(self):
-        # type: () -> None
-        self.disable()
-        self.reset_queues()
 
     def enable(self):
         # type: () -> bool
@@ -393,17 +381,16 @@ class TelemetryWriter(TelemetryBase):
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if self._is_running is None or self._is_running:
-            # Integrations can be patched before the telemetry writer is enabled.
-            integration = {
-                "name": integration_name,
-                "version": "",
-                "enabled": True,
-                "auto_enabled": auto_enabled,
-                "compatible": True,
-                "error": "",
-            }
-            self._integrations_queue.append(integration)
+        # Integrations can be patched before the telemetry writer is enabled.
+        integration = {
+            "name": integration_name,
+            "version": "",
+            "enabled": True,
+            "auto_enabled": auto_enabled,
+            "compatible": True,
+            "error": "",
+        }
+        self._integrations_queue.append(integration)
 
     def _app_started_event(self):
         # type: () -> None
@@ -468,10 +455,11 @@ class TelemetryWriter(TelemetryBase):
             self._integrations_queue = []
         return integrations
 
-    def _start_service(self, *args, **kwargs):
+    def start(self, *args, **kwargs):
         # type: (...) -> None
+        super(TelemetryBase, self).start(*args, **kwargs)
+        # Queue app-started event after the telemetry worker thread is running
         self._app_started_event()
-        return super(TelemetryBase, self)._start_service(*args, **kwargs)
 
     def on_shutdown(self):
         self._app_closing_event()

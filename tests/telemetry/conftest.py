@@ -21,9 +21,8 @@ from tests.utils import request_token
 @pytest.fixture
 def telemetry_writer():
     telemetry_writer = TelemetryWriter()
-    # Enable the TelemetryWriter without queuing an app-started event
-    # and setting up exit hooks
-    telemetry_writer._is_running = True
+    telemetry_writer.start = lambda *args, **kwargs: None
+    telemetry_writer.stop = lambda *args, **kwargs: None
     yield telemetry_writer
 
 
