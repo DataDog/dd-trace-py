@@ -476,6 +476,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
             kwargs["agent_url"] = agent.get_trace_url()
+        if "api_version" not in kwargs:
             kwargs["api_version"] = "v0.5"
 
         AgentWriter.__init__(self, *args, **kwargs)
@@ -489,7 +490,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             self.msgpack_encoder.put(spans)
-            self._encoder.put(spans)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -512,6 +512,7 @@ class DummyTracer(Tracer):
 
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
+        self._trace_flush_disabled = False
         self.configure(*args, **kwargs)
 
     @property
@@ -527,13 +528,15 @@ class DummyTracer(Tracer):
     def pop(self):
         # type: () -> List[Span]
         spans = self._writer.pop()
-        self._writer.flush_queue()
+        if not self._trace_flush_disabled:
+            AgentWriter.flush_queue()
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
         traces = self._writer.pop_traces()
-        self._writer.flush_queue()
+        if not self._trace_flush_disabled:
+            AgentWriter.flush_queue()
         return traces
 
     def configure(self, *args, **kwargs):
@@ -542,6 +545,11 @@ class DummyTracer(Tracer):
         ), "cannot configure writer of DummyTracer"
         if not kwargs.get("writer"):
             kwargs["writer"] = DummyWriter()
+
+        # disable flushing tracer if included as argument
+        if kwargs.get("trace_flush_disabled", False) is True:
+            self._trace_flush_disabled = True
+            kwargs.pop("trace_flush_disabled")
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
