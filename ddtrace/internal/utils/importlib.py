@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
-from importlib import import_module
 from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Type
+
+from ddtrace.internal.module import find_loader
 
 
 class require_modules(object):
@@ -16,9 +17,9 @@ class require_modules(object):
         # type: (List[str]) -> None
         self._missing_modules = []
         for module in modules:
-            try:
-                import_module(module)
-            except ImportError:
+            # Look for the loader to avoid the side effects of importing the
+            # module.
+            if find_loader(module) is None:
                 self._missing_modules.append(module)
 
     def __enter__(self):
