@@ -26,6 +26,7 @@ def telemetry_writer():
     telemetry_writer._is_running = True
     yield telemetry_writer
 
+
 @pytest.fixture
 def telemetry_metrics_writer():
     telemetry_metrics_writer = TelemetryLogsMetricsWriter()
