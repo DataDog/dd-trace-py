@@ -148,21 +148,18 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def _enable(self):
-        if self.status == ServiceStatus.RUNNING:
-            return
-
-        self.start()
-        atexit.register(self.stop)
-
     def enable(self):
         # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-            self._enable()
+        if config._telemetry_enabled:
+            if self.status == ServiceStatus.RUNNING:
+                return True
+
+            self.start()
+            atexit.register(self.stop)
             return True
         return False
 
@@ -232,10 +229,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
         service.
         """
-        if config._telemetry_metrics_enabled:
-            self._enable()
-            return True
-        return False
+        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable()
 
     def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
