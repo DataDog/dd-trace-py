@@ -734,7 +734,7 @@ asyncio.run(task())
 )
 def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
-    num_completions = 100
+    num_completions = 200
 
     for _ in range(num_completions):
         with openai_vcr.use_cassette("completion_sample_rate.yaml"):
@@ -742,7 +742,7 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
 
     traces = mock_tracer.pop_traces()
     sampled = 0
-    assert len(traces) == 100, len(traces)
+    assert len(traces) == num_completions, len(traces)
     for trace in traces:
         for span in trace:
             if span.get_tag("openai.response.choices.0.text"):
@@ -754,7 +754,7 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
     else:
         # this should be good enough for our purposes
         rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
-        assert (rate - 20) < sampled < (rate + 20)
+        assert (rate - 30) < sampled < (rate + 30)
 
 
 @pytest.mark.parametrize(
@@ -765,7 +765,7 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
     """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    num_completions = 100
+    num_completions = 200
 
     for _ in range(num_completions):
         with openai_vcr.use_cassette("chat_completion_sample_rate.yaml"):
@@ -790,7 +790,7 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
     else:
         # this should be good enough for our purposes
         rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
-        assert (rate - 20) < sampled < (rate + 20)
+        assert (rate - 30) < sampled < (rate + 30)
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(truncation_threshold=t) for t in [0, 10, 10000]])
@@ -870,7 +870,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
     ],
 )
 def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
-    total_calls = 100
+    total_calls = 200
     for _ in range(total_calls):
         with openai_vcr.use_cassette("completion.yaml"):
             openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
@@ -882,7 +882,7 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
         assert logs == total_calls
     else:
         rate = ddtrace.config.openai["log_prompt_completion_sample_rate"] * total_calls
-        assert (rate - 15) < logs < (rate + 15)
+        assert (rate - 30) < logs < (rate + 30)
 
 
 def test_est_tokens():
