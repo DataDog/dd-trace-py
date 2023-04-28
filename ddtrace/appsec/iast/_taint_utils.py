@@ -23,6 +23,10 @@ class LazyTaintDict(dict):
             try:
                 value = taint_pyobject(value, Input_info(key, value, self.origin_value))
                 super(LazyTaintDict, self).__setitem__(key, value)
+            except SystemError:
+                # TODO: Find the root cause for
+                # SystemError: NULL object passed to Py_BuildValue
+                log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
             except Exception:
                 log.debug("Unexpected exception while tainting value", exc_info=True)
         return value
