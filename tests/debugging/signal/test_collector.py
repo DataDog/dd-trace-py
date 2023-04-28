@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import mock
 
-from ddtrace.debugging._capture.collector import CapturedEventCollector
-from ddtrace.debugging._capture.model import CaptureState
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._probe.model import DDExpression
+from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.model import SignalState
+from ddtrace.debugging._signal.snapshot import Snapshot
 from tests.debugging.utils import create_snapshot_line_probe
 
 
@@ -23,7 +23,7 @@ def mock_encoder(wraps=None):
 def test_collector_cond():
     encoder, _ = mock_encoder()
 
-    collector = CapturedEventCollector(encoder=encoder)
+    collector = SignalCollector(encoder=encoder)
 
     def foo(a=42):
         c = True  # noqa
@@ -66,13 +66,13 @@ def test_collector_cond():
 def test_collector_collect_enqueue_only_commit_state():
     encoder, _ = mock_encoder()
 
-    collector = CapturedEventCollector(encoder=encoder)
+    collector = SignalCollector(encoder=encoder)
     for i in range(10):
-        mockedEvent = mock.Mock()
-        with collector.attach(mockedEvent):
-            mockedEvent.enter.assert_called_once()
-            mockedEvent.state = CaptureState.DONE_AND_COMMIT if i % 2 == 0 else CaptureState.SKIP_COND
-        mockedEvent.exit.assert_called_once()
+        mocked_signal = mock.Mock()
+        with collector.attach(mocked_signal):
+            mocked_signal.enter.assert_called_once()
+            mocked_signal.state = SignalState.DONE_AND_COMMIT if i % 2 == 0 else SignalState.SKIP_COND
+        mocked_signal.exit.assert_called_once()
 
     assert len(encoder.put.mock_calls) == 5
 
@@ -80,7 +80,7 @@ def test_collector_collect_enqueue_only_commit_state():
 def test_collector_push_enqueue():
     encoder, _ = mock_encoder()
 
-    collector = CapturedEventCollector(encoder=encoder)
+    collector = SignalCollector(encoder=encoder)
     for _ in range(10):
         snapshot = Snapshot(
             probe=create_snapshot_line_probe(probe_id=uuid4(), source_file="file.py", line=123),

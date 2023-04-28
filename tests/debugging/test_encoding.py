@@ -7,14 +7,14 @@ import threading
 
 import pytest
 
-from ddtrace.debugging._capture import utils
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._encoding import _capture_context
 from ddtrace.debugging._encoding import format_message
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import MAXSIZE
+from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
