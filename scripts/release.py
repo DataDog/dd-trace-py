@@ -22,7 +22,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
 5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
 
-6. Create and activate a virtual environment, and install PyGithub, requests, and : 
+6. Create an activate a virtual environment, and install required packages : 
 `python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client`
 
 
@@ -234,6 +234,10 @@ def setup_gh():
 def create_notebook(dd_repo, name, rn, base, rc, patch):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
+    if not dd_api_key and dd_app_key:
+        raise ValueError(
+            "We need DD_API_KEY_STAGING and DD_APP_KEY_STAGING values. Please follow the instructions in the script."
+        )
     if rc:
         # need to figure out which versions to compare in order to get commits
         # if this is the first RC need to grab the last released version branch e.g base = 1.19, compare = 1.18
