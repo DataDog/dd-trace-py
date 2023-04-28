@@ -103,7 +103,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 10  # 3 scenarios + 7 steps
+        assert len(spans) == 12  # 3 scenarios + 7 steps
         assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
         assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
         assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
@@ -145,7 +145,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 6
         assert spans[0].get_tag("component") == "pytest"
         assert spans[0].get_tag("test.name") == "Simple scenario"
         assert spans[0].span_type == "test"
@@ -191,9 +191,9 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
-        assert spans[-1].name == "then"
-        assert spans[-1].get_tag(ERROR_MSG)
+        assert len(spans) == 6
+        assert spans[3].name == "then"
+        assert spans[3].get_tag(ERROR_MSG)
 
     def test_pytest_bdd_with_missing_step_implementation(self):
         """Test that pytest-bdd captures missing steps."""
@@ -214,5 +214,5 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 3
         assert spans[0].get_tag(ERROR_MSG)
