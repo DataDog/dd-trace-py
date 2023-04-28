@@ -17,6 +17,7 @@ import pytest
 from six import PY2
 
 import ddtrace
+from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -354,3 +355,13 @@ setup(
 """,
     ) as package:
         yield package
+
+
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)

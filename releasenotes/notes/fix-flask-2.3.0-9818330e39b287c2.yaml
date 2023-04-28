@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask: Remove patching for Flask hooks ``app.before_first_request`` and ``bp.before_app_first_request`` if Flask version >= 2.3.0.
