@@ -233,7 +233,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 "tracer_time": int(time.time()),
             }
             if tags:
-                data["tags"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+                data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
             self._logs.append(data)

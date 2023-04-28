@@ -2,23 +2,33 @@
 from ddtrace.appsec.iast._input_info import Input_info
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+from ddtrace.internal.logger import get_logger
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
 DBAPI_PREFIXES = ("django-",)
 
+log = get_logger(__name__)
+
 
 class LazyTaintDict(dict):
+    def __init__(self, *args, origins=(0, 0)):
+        self.origin_key = origins[0]
+        self.origin_value = origins[1]
+        super(LazyTaintDict, self).__init__(*args)
+
     def __getitem__(self, key):
         value = super(LazyTaintDict, self).__getitem__(key)
         if value and isinstance(value, (str, bytes, bytearray)) and not is_pyobject_tainted(value):
             try:
-                value = taint_pyobject(value, Input_info(key, value, 0))
+                value = taint_pyobject(value, Input_info(key, value, self.origin_value))
                 super(LazyTaintDict, self).__setitem__(key, value)
             except SystemError:
                 # TODO: Find the root cause for
                 # SystemError: NULL object passed to Py_BuildValue
-                pass
+                log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+            except Exception:
+                log.debug("Unexpected exception while tainting value", exc_info=True)
         return value
 
     def get(self, key, default=None):
@@ -30,19 +40,27 @@ class LazyTaintDict(dict):
 
     def items(self):
         for k, v in super(LazyTaintDict, self).items():
+            if k and isinstance(k, (str, bytes, bytearray)) and not is_pyobject_tainted(k):
+                try:
+                    k = taint_pyobject(k, Input_info(k, k, self.origin_key))
+                except Exception:
+                    log.debug("Unexpected exception while tainting key", exc_info=True)
+
             if v and isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
                 try:
-                    v = taint_pyobject(v, Input_info(k, v, 0))
+                    v = taint_pyobject(v, Input_info(k, v, self.origin_value))
                     super(LazyTaintDict, self).__setitem__(k, v)
-                except SystemError:
-                    # TODO: Find the root cause for
-                    # SystemError: NULL object passed to Py_BuildValue
-                    pass
+                except Exception:
+                    log.debug("Unexpected exception while tainting value", exc_info=True)
 
             yield (k, v)
 
+    def keys(self):
+        for k, _ in self.items():
+            yield k
+
     def values(self):
-        for k, v in self.items():
+        for _, v in self.items():
             yield v
 
 
