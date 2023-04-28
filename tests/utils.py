@@ -529,14 +529,14 @@ class DummyTracer(Tracer):
         # type: () -> List[Span]
         spans = self._writer.pop()
         if not self._trace_flush_disabled:
-            AgentWriter.flush_queue()
+            self._writer.flush_queue()
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
         traces = self._writer.pop_traces()
         if not self._trace_flush_disabled:
-            AgentWriter.flush_queue()
+            self._writer.flush_queue()
         return traces
 
     def configure(self, *args, **kwargs):
