@@ -36,6 +36,8 @@ deploy_to_reliability_env:
 deploy_to_di_backend:automatic:
   stage: deploy
   rules:
+    - if: $CI_PIPELINE_SOURCE == "scheduled"
+      when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
   trigger:
