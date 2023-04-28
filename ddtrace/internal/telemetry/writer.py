@@ -72,6 +72,7 @@ class _TelemetryClient:
     def send_event(self, request):
         # type: (Dict) -> Optional[httplib.HTTPResponse]
         """Sends a telemetry request to the trace agent"""
+        conn = None
         resp = None
         try:
             rb_json = self._encoder.encode(request)
@@ -87,10 +88,8 @@ class _TelemetryClient:
         except Exception:
             log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
         finally:
-            try:
+            if conn:
                 conn.close()
-            except UnboundLocalError:
-                pass
         return resp
 
     def get_headers(self, request):
