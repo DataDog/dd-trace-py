@@ -226,6 +226,8 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
+        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
+
         self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
 
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
@@ -289,6 +291,9 @@ class Config(object):
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
+        self._ci_visibility_intelligent_testrunner_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+        )
         self._ci_visibility_code_coverage_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
         )
