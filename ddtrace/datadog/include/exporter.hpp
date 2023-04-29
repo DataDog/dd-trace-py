@@ -13,7 +13,7 @@
 
 extern "C" {
 #include "datadog/profiling.h"
-};
+}
 
 namespace Datadog {
 
@@ -25,19 +25,37 @@ class Profile;
 // referenced in `add_tag()`.
 // There are two columns because runtime-id has a dash.
 #define EXPORTER_TAGS(X) \
-  X(language,         language) \
-  X(env,              env) \
-  X(service,          service) \
-  X(version,          version) \
-  X(runtime_version,  runtime_version) \
-  X(runtime,          runtime) \
-  X(runtime_id,       runtime-id) \
-  X(profiler_version, profiler_version) \
-  X(profile_seq,      profile_seq)
+  X(language,         "language") \
+  X(env,              "env") \
+  X(service,          "service") \
+  X(version,          "version") \
+  X(runtime_version,  "runtime_version") \
+  X(runtime,          "runtime") \
+  X(runtime_id,       "runtime-id") \
+  X(profiler_version, "profiler_version") \
+  X(profile_seq,      "profile_seq")
+
+#define EXPORTER_LABELS(X) \
+  X(exception_type,           "exception type") \
+  X(thread_id,                "thread id") \
+  X(thread_native_id,         "thread native id") \
+  X(thread_name,              "thread name") \
+  X(task_id,                  "task id") \
+  X(task_name,                "task name") \
+  X(span_id,                  "span id") \
+  X(local_root_span_id,       "local root span id") \
+  X(trace_type,               "trace type") \
+  X(trace_resource_container, "trace resource container") \
+  X(class_name,               "class name")
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey {
   EXPORTER_TAGS(X_ENUM)
+  _Length
+};
+
+enum class ExportLabelKey {
+  EXPORTER_LABELS(X_ENUM)
   _Length
 };
 #undef X_ENUM
@@ -130,14 +148,13 @@ private:
   } val_idx;
 
   // Helpers
-  void push_label(const std::string_view &key, const std::string_view &val);
-  void push_label(const std::string_view &key, int64_t val);
+  void push_label(const ExportLabelKey key, const std::string_view &val);
+  void push_label(const ExportLabelKey key, int64_t val);
 
 public:
   std::vector<std::string> strings;
 
   uint64_t samples = 0;
-  uint64_t frames = 0;
   ddog_prof_Profile *ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
@@ -194,9 +211,10 @@ public:
   // Clears temporary things
   void clear_buffers();
 
-  // Make the profile reusable
-  void reset();
+  // Zero out stats
+  void zero_stats();
 
+  void reset();
   Profile(ProfileType type);
   ~Profile();
 };

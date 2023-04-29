@@ -134,19 +134,21 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
+        if self.ignore_profiler:
+            return
+
+        stacks = [((stack, nframes, thread_id), size) for (stack, nframes, thread_id), size in _memalloc.heap() if thread_id not in thread_id_ignore_set]
         if self.use_libdatadog:
-            for (stack, nframes, thread_id), size in _memalloc.heap():
-                if self.ignore_profiler or thread_id in thread_id_ignore_set:
-                    continue
-            ddup.start_sample()
-            ddup.push_heap(size)
-            ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
-            for frame in stack:
-                ddup.push_frame(frame[2], frame[0], 0, frame[1])
-            omitted = nframes - len(stack)
-            if omitted > 0:
-                ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
-            ddup.flush_sample()
+            for (stack, nframes, thread_id), size in stacks:
+                ddup.start_sample()
+                ddup.push_heap(self.heap_sample_size)
+                ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+                for frame in stack:
+                    ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                omitted = nframes - len(stack)
+                if omitted > 0:
+                    ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
+                ddup.flush_sample()
 
         if self.use_pyprof:
             return (
@@ -159,9 +161,7 @@ class MemoryCollector(collector.PeriodicCollector):
                         nframes=nframes,
                         size=size,
                         sample_size=self.heap_sample_size,
-                    )
-                    for (stack, nframes, thread_id), size in _memalloc.heap()
-                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
+                    ) for (stack, nframes, thread_id), size in stacks
                 ),
             )
 
@@ -170,6 +170,9 @@ class MemoryCollector(collector.PeriodicCollector):
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
         # timestamp in C and then return it via iter_events.
+        if self.ignore_profiler:
+            return
+
         try:
             events, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
@@ -182,7 +185,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
         if self.use_libdatadog:
             for (stack, nframes, thread_id), size, domain in events:
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
+                if thread_id in thread_id_ignore_set:
                     continue
             ddup.start_sample()
             ddup.push_alloc(size * capture_pct, count)
