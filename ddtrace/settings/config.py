@@ -54,6 +54,7 @@ def _parse_propagation_styles(name, default):
     - "datadog"
     - "b3multi"
     - "b3 single header"
+    - "tracecontext"
     - "none"
 
 
