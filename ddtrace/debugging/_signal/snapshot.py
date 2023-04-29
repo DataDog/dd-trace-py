@@ -9,11 +9,6 @@ from typing import cast
 import attr
 
 from ddtrace.debugging import safety
-from ddtrace.debugging._capture import utils
-from ddtrace.debugging._capture.model import CaptureState
-from ddtrace.debugging._capture.model import CapturedEvent
-from ddtrace.debugging._capture.model import EvaluationError
-from ddtrace.debugging._capture.utils import serialize
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
@@ -22,6 +17,11 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
+from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalState
+from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.utils.time import HourGlass
@@ -60,7 +60,7 @@ def _capture_context(
 
 
 @attr.s
-class Snapshot(CapturedEvent):
+class Snapshot(Signal):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
@@ -111,7 +111,7 @@ class Snapshot(CapturedEvent):
             return
 
         if probe.limiter.limit() is RateLimitExceeded:
-            self.state = CaptureState.SKIP_RATE
+            self.state = SignalState.SKIP_RATE
             return
 
         if probe.take_snapshot:
@@ -124,7 +124,7 @@ class Snapshot(CapturedEvent):
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
-            self.state = CaptureState.DONE_AND_COMMIT
+            self.state = SignalState.DONE_AND_COMMIT
 
     def exit(self, retval, exc_info, duration):
         if not isinstance(self.probe, LogFunctionProbe):
@@ -137,9 +137,9 @@ class Snapshot(CapturedEvent):
             if not self._eval_condition(_args):
                 return
             if probe.limiter.limit() is RateLimitExceeded:
-                self.state = CaptureState.SKIP_RATE
+                self.state = SignalState.SKIP_RATE
                 return
-        elif self.state != CaptureState.NONE and self.state != CaptureState.DONE_AND_COMMIT:
+        elif self.state != SignalState.NONE and self.state != SignalState.DONE_AND_COMMIT:
             return
 
         _locals = []
@@ -151,7 +151,7 @@ class Snapshot(CapturedEvent):
                 self.args or safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
             )
         self.duration = duration
-        self.state = CaptureState.DONE_AND_COMMIT
+        self.state = SignalState.DONE_AND_COMMIT
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
 
@@ -167,7 +167,7 @@ class Snapshot(CapturedEvent):
 
         if probe.take_snapshot:
             if probe.limiter.limit() is RateLimitExceeded:
-                self.state = CaptureState.SKIP_RATE
+                self.state = SignalState.SKIP_RATE
                 return
 
             self.line_capture = _capture_context(
@@ -178,4 +178,4 @@ class Snapshot(CapturedEvent):
             )
 
         self._eval_message(frame.f_locals)
-        self.state = CaptureState.DONE_AND_COMMIT
+        self.state = SignalState.DONE_AND_COMMIT
