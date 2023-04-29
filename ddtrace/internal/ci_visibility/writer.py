@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from typing import List
 from typing import Optional
 
 import ddtrace
@@ -14,12 +15,16 @@ from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
+from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import AGENTLESS_ENDPOINT
+from .constants import EVP_PROXY_AGENT_ENDPOINT
+from .coverage import enabled as coverage_enabled
+from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
 
 class CIVisibilityEventClient(WriterClientBase):
-    ENDPOINT = "api/v2/citestcycle"
-
     def __init__(self):
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
@@ -33,14 +38,30 @@ class CIVisibilityEventClient(WriterClientBase):
         super(CIVisibilityEventClient, self).__init__(encoder)
 
 
+class CIVisibilityCoverageClient(WriterClientBase):
+    ENDPOINT = "api/v2/citestcov"
+
+    def __init__(self):
+        encoder = CIVisibilityCoverageEncoderV02(0, 0)
+        super(CIVisibilityCoverageClient, self).__init__(encoder)
+
+
+class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
+    ENDPOINT = AGENTLESS_ENDPOINT
+
+
+class CIVisibilityProxiedEventClient(CIVisibilityEventClient):
+    ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
+
+
 class CIVisibilityWriter(HTTPWriter):
     RETRY_ATTEMPTS = 5
     HTTP_METHOD = "POST"
-    STATSD_NAMESPACE = "civisibilitywriter"
+    STATSD_NAMESPACE = "civisibility.writer"
 
     def __init__(
         self,
-        intake_url=None,  # type: Optional[str]
+        intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=get_writer_interval_seconds(),  # type: float
@@ -51,20 +72,22 @@ class CIVisibilityWriter(HTTPWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        use_evp=False,  # type: bool
     ):
+        if config._ci_visibility_agentless_url:
+            intake_url = config._ci_visibility_agentless_url
         if not intake_url:
-            intake_url = "https://citestcycle-intake.%s" % os.environ.get("DD_SITE", "datadoghq.com")
-        headers = headers or dict()
-        headers["dd-api-key"] = os.environ.get("DD_API_KEY") or ""
-        if not headers["dd-api-key"]:
-            raise ValueError("Required environment variable DD_API_KEY not defined")
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
-        client = CIVisibilityEventClient()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        clients = (
+            [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
+        )  # type: List[WriterClientBase]
+        if coverage_enabled():
+            clients.append(CIVisibilityCoverageClient())
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
-            clients=[client],
+            clients=clients,
             sampler=sampler,
             priority_sampler=priority_sampler,
             processing_interval=processing_interval,

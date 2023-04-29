@@ -85,6 +85,7 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
+    "openai": True,
 }
 
 
@@ -111,7 +112,10 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch7",
         "opensearchpy",
     ),
-    "psycopg": ("psycopg2",),
+    "psycopg": (
+        "psycopg",
+        "psycopg2",
+    ),
     "snowflake": ("snowflake.connector",),
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),

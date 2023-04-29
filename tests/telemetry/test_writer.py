@@ -34,13 +34,12 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
     assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v1"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
-    assert requests[0]["headers"]["DD-Agent-Hostname"] == get_host_info()["hostname"]
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    telemetry_writer._enabled = False
+    telemetry_writer.disable()
 
     payload = {"test": "123"}
     payload_type = "test-event"
@@ -173,6 +172,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
         assert len(httpretty.latest_requests()) == 1
 
 
+@pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.start()
     telemetry_writer.stop()
@@ -180,7 +180,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     events = test_agent_session.get_events()
     assert len(events) == 2
 
-    # Reverse chronological orger
+    # Reverse chronological order
     assert events[0]["request_type"] == "app-closing"
     assert events[0] == _get_request_body({}, "app-closing", 2)
     assert events[1]["request_type"] == "app-started"

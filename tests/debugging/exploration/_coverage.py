@@ -4,6 +4,7 @@ import sys
 from types import ModuleType
 import typing as t
 
+from _config import config as expl_config
 from debugger import COLS
 from debugger import CWD
 from debugger import ExplorationDebugger
@@ -12,9 +13,9 @@ from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_line_probe
 
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import origin
 
 
@@ -35,6 +36,7 @@ class LineCollector(ModuleCollector):
                     source_file=origin(sys.modules[f.__module__]),
                     line=line,
                     rate=0.0,
+                    limits=expl_config.limits,
                 )
                 for line, functions in discovery.items()
                 for f in functions
