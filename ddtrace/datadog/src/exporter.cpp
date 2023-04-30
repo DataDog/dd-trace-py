@@ -247,7 +247,7 @@ Profile::Profile(ProfileType type) : type_mask{type & ProfileType::All} {
   reset();
 
   // Initialize the size for buffers
-  locations.reserve(2048);
+  locations.reserve(2040);
   lines.reserve(2048);
   strings.reserve(8192);
 }
@@ -267,11 +267,6 @@ void Profile::start_sample() {
   clear_buffers();
 }
 
-// TODO
-// It's possible that the underlying string table references can be moved by the runtime over the course of
-// processing, invalidating what we saved by the time we come back to it
-// It may be possible to avoid intermediate copies by writing down indices or referring to other elements
-// of the Python frame object
 void Profile::push_frame(
     const std::string_view &name,
     const std::string_view &filename,
@@ -304,8 +299,8 @@ void Profile::push_label(const ExportLabelKey key, const std::string_view &val) 
   labels[cur_label].key = to_slice(key_sv);
 
   // Label may not persist, so it needs to be saved
-  strings.push_back(std::string{val});
-  labels[cur_label].str = to_slice(strings.back());
+  auto [it, _] = strings.insert(std::string{val});
+  labels[cur_label].str = to_slice(*it);
   cur_label++;
 }
 
@@ -538,22 +533,13 @@ void ddup_push_classinfo(const char *class_name) {
 
 }
 
-void ddup_push_frame(const char *_name, const char *_fname, uint64_t address, int64_t line) {
-  if (!_name)
-    _name = "";
+void ddup_push_frame(const char *name, const char *fname, uint64_t address, int64_t line) {
+  auto insert_or_get = [&](const char *str) -> const std::string & {
+    auto [it, _] = g_profile->strings.insert(str ? str : "");
+    return *it;
+  };
 
-  if (!_fname)
-    _fname = "";
-
-  // Stash the name
-  g_profile->strings.push_back(_name);
-  const auto &name = g_profile->strings.back();
-
-  // Stash the filename
-  g_profile->strings.push_back(_fname);
-  const auto &fname = g_profile->strings.back();
-
-  g_profile->push_frame(name, fname, address, line);
+  g_profile->push_frame(insert_or_get(name), insert_or_get(fname), address, line);
 }
 
 void ddup_flush_sample() {

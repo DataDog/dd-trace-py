@@ -10,6 +10,7 @@
 #include <string_view>
 #include <memory>
 #include <vector>
+#include <unordered_set>
 
 extern "C" {
 #include "datadog/profiling.h"
@@ -152,7 +153,7 @@ private:
   void push_label(const ExportLabelKey key, int64_t val);
 
 public:
-  std::vector<std::string> strings;
+  std::unordered_set<std::string> strings;
 
   uint64_t samples = 0;
   ddog_prof_Profile *ddog_profile;
