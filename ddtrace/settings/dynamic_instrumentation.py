@@ -35,7 +35,7 @@ class DynamicInstrumentationConfig(En):
         "enabled",
         default=False,
         help_type="Boolean",
-        help="Enable the debugger",
+        help="Enable Dynamic Instrumentation",
     )
 
     metrics = En.v(
@@ -43,7 +43,7 @@ class DynamicInstrumentationConfig(En):
         "metrics.enabled",
         default=True,
         help_type="Boolean",
-        help="Enable diagnostic metrics",
+        help="Enable Dynamic Instrumentation diagnostic metrics",
     )
 
     max_payload_size = En.v(
@@ -59,7 +59,7 @@ class DynamicInstrumentationConfig(En):
         "upload.timeout",
         default=30,  # seconds
         help_type="Integer",
-        help="Timeout in seconds for uploading a snapshot",
+        help="Timeout in seconds for uploading Dynamic Instrumentation payloads",
     )
 
     upload_flush_interval = En.v(
@@ -67,7 +67,7 @@ class DynamicInstrumentationConfig(En):
         "upload.flush_interval",
         default=1.0,  # seconds
         help_type="Float",
-        help="Interval in seconds for flushing the snapshot upload queue.",
+        help="Interval in seconds for flushing the dynamic logs upload queue",
     )
 
     diagnostics_interval = En.v(
@@ -75,5 +75,5 @@ class DynamicInstrumentationConfig(En):
         "diagnostics.interval",
         default=3600,  # 1 hour
         help_type="Integer",
-        help="Interval in seconds for periodically sending probe diagnostic messages",
+        help="Interval in seconds for periodically emitting probe diagnostic messages",
     )

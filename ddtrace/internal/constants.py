@@ -18,6 +18,8 @@ W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
+HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
+MAX_UINT_64BITS = (1 << 64) - 1
 
 APPSEC_BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
@@ -42,3 +44,5 @@ APPSEC_BLOCKED_RESPONSE_JSON = """
 {"errors": [{"title": "You've been blocked", "detail": "Sorry, you cannot access this page.
 Please contact the customer service team. Security provided by Datadog."}]}
 """
+
+MESSAGING_SYSTEM = "messaging.system"

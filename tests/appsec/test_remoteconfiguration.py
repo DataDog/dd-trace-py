@@ -26,6 +26,7 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
+from ddtrace.internal.utils.formats import asbool
 from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR
 from tests.utils import override_env
@@ -48,7 +49,7 @@ def remote_config_worker(tracer):
 
 
 def _set_and_get_appsec_tags(tracer):
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(
             span,
             {},
@@ -117,20 +118,37 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "Afw="),
-        ("false", "true", "Afw="),
-        ("true", "false", "Afw="),
+        ("true", "true", "Afw="),  # All capabilities except ASM_ACTIVATION
+        ("false", "true", ""),
+        ("true", "false", ""),
         ("false", "false", ""),
-        ("true", "", "Af4="),
+        ("true", "", "Ag=="),  # ASM_ACTIVATION
         ("false", "", ""),
     ],
 )
-def test_rc_capabilities(rc_enabled, appsec_enabled, capability):
+def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     env = {"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}
+    config = {}
+    tracer.configure(appsec_enabled=False, api_version="v0.4")
     if appsec_enabled:
         env[APPSEC.ENV] = appsec_enabled
+        config["appsec_enabled"] = asbool(appsec_enabled)
+        config["api_version"] = "v0.4"
     with override_env(env):
-        assert _appsec_rc_capabilities() == capability
+        tracer.configure(**config)
+        assert _appsec_rc_capabilities(test_tracer=tracer) == capability
+
+
+def test_rc_activation_capabilities(tracer, remote_config_worker):
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    with override_env(env), override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
+        rc_config = {"asm": {"enabled": True}}
+
+        assert not RemoteConfig._worker
+
+        RCAppSecFeaturesCallBack(tracer)(None, rc_config)
+
+        assert _appsec_rc_capabilities(test_tracer=tracer) == "Af4="  # All capabilities
 
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):

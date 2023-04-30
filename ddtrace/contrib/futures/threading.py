@@ -1,7 +1,7 @@
 import ddtrace
 
 
-def _wrap_submit(func, instance, args, kwargs):
+def _wrap_submit(func, args, kwargs):
     """
     Wrap `Executor` method used to submit a work executed in another
     thread. This wrapper ensures that a new `Context` is created and
@@ -22,12 +22,13 @@ def _wrap_submit(func, instance, args, kwargs):
         current_ctx = ddtrace.tracer.context_provider.active()
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
+    self = args[0]
     if "fn" in kwargs:
         fn = kwargs.pop("fn")
-        fn_args = args
+        fn_args = args[1:]
     else:
-        fn, fn_args = args[0], args[1:]
-    return func(_wrap_execution, current_ctx, fn, fn_args, kwargs)
+        fn, fn_args = args[1], args[2:]
+    return func(self, _wrap_execution, current_ctx, fn, fn_args, kwargs)
 
 
 def _wrap_execution(ctx, fn, args, kwargs):

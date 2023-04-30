@@ -26,7 +26,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request()
+        oce.acquire_request(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -40,12 +40,16 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
+        if not oce._enabled:
+            span.set_metric(IAST.ENABLED, 0.0)
+            return
+
         span.set_metric(IAST.ENABLED, 1.0)
 
         data = _context.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data)))
+            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:

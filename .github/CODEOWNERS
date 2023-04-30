@@ -35,13 +35,14 @@ ddtrace/appsec/                     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
+tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
 tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py    @DataDog/asm-python
 
 # Profiling
-ddtrace/profiling                   @DataDog/apm-core-python @DataDog/debugger-python
-tests/profiling                     @DataDog/apm-core-python @DataDog/debugger-python
+ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
+tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python

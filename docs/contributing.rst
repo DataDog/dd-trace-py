@@ -64,8 +64,18 @@ Changing Test Requirements
 `.riot/requirements` contains requirements files generated with `pip-compile` for every environment specified by `riotfile.py`.
 Riot uses these files to build its environments, and they do not get rebuilt automatically when the riotfile changes.
 Thus, if you make changes to the riotfile, you need to run either `scripts/compile-and-prune-test-requirements` or `riot run -c <mytests>`
-to regenerate the requirements files for the environments that changed. You can commit and pull request changes to files in `.riot/requirements`
-alongside the corresponding changes to `riotfile.py`.
+to regenerate the requirements files for the environments that changed. In order to run the script, you need to have all minor versions of Python that the tracer supports.
+The easiest way to accomplish this and generate the files is to simply spin up the testagent container, exec into it, and run the script from there.
+
+.. code-block:: bash
+
+  cd dd-trace-py && docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
+    -it ghcr.io/datadog/dd-trace-py/testrunner:1ed971833a2a3c97f43cbaeabcbb3f1e28745a00 \
+    bash -c "git config --global --add safe.directory /root/project && pip install riot && bash -i './scripts/compile-and-prune-test-requirements'"
+
+
+This can also be accomplished using pyenv and installing all of the Python versions before running the script.
+You can commit and pull request changes to files in `.riot/requirements` alongside the corresponding changes to `riotfile.py`.
 
 
 .. toctree::
@@ -73,3 +83,14 @@ alongside the corresponding changes to `riotfile.py`.
 
     contributing-integrations
     releasenotes
+
+Pre-commit Hooks
+================
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are also **optionally** available to be automated to run
+when you call git commit as pre-commit hooks to catch any formatting errors before you commit.
+To initialize the pre-commit hook script to run in your development branch, run the following command:
+
+    $ rm .git/hooks/pre-commit
+

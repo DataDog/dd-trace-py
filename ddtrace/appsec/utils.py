@@ -1,14 +1,22 @@
 import base64
 import os
 import sys
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Optional
+
+    from ddtrace import Tracer
+    from ddtrace.internal.compat import text_type as unicode
 
 
 log = get_logger(__name__)
@@ -21,8 +29,8 @@ def _appsec_rc_features_is_enabled():
     return False
 
 
-def _appsec_rc_capabilities():
-    # type: () -> str
+def _appsec_rc_capabilities(test_tracer=None):
+    # type: (Optional[Tracer]) -> str
     r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation
@@ -38,18 +46,24 @@ def _appsec_rc_capabilities():
     ...
     256         -> 100000000        -> b'\x01\x00'          -> b'AQA='
     """
+    if test_tracer is None:
+        from ddtrace import tracer
+    else:
+        tracer = test_tracer
+
     value = 0b0
     result = ""
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")) or asbool(os.environ.get(APPSEC_ENV)):
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
-        value |= 1 << 2  # Enable ASM_IP_BLOCKING
-        value |= 1 << 3  # Enable ASM_DD_RULES
-        value |= 1 << 4  # Enable ASM_EXCLUSIONS
-        value |= 1 << 5  # Enable ASM_REQUEST_BLOCKING
-        value |= 1 << 6  # Enable ASM_ASM_RESPONSE_BLOCKING
-        value |= 1 << 7  # Enable ASM_USER_BLOCKING
-        value |= 1 << 8  # Enable ASM_CUSTOM_RULES
+        if tracer._appsec_processor:
+            value |= 1 << 2  # Enable ASM_IP_BLOCKING
+            value |= 1 << 3  # Enable ASM_DD_RULES
+            value |= 1 << 4  # Enable ASM_EXCLUSIONS
+            value |= 1 << 5  # Enable ASM_REQUEST_BLOCKING
+            value |= 1 << 6  # Enable ASM_ASM_RESPONSE_BLOCKING
+            value |= 1 << 7  # Enable ASM_USER_BLOCKING
+            value |= 1 << 8  # Enable ASM_CUSTOM_RULES
 
         if sys.version_info.major < 3:
             bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
@@ -107,3 +121,23 @@ def _get_blocked_template(accept_header_value):
 
     _JSON_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_JSON
     return APPSEC_BLOCKED_RESPONSE_JSON
+
+
+def parse_form_params(body):
+    # type: (unicode) -> dict[unicode, unicode|list[unicode]]
+    """Return a dict of form data after HTTP form parsing"""
+    body_params = body.replace("+", " ")
+    req_body = dict()  # type: dict[unicode, unicode|list[unicode]]
+    for item in body_params.split("&"):
+        key, equal, val = item.partition("=")
+        if equal:
+            key = parse.unquote(key)
+            val = parse.unquote(val)
+            prev_value = req_body.get(key, None)
+            if prev_value is None:
+                req_body[key] = val
+            elif isinstance(prev_value, list):
+                prev_value.append(val)
+            else:
+                req_body[key] = [prev_value, val]
+    return req_body

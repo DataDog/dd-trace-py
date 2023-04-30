@@ -15,6 +15,8 @@ from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
+from ddtrace.debugging._probe.model import FunctionProbe
+from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -108,37 +110,45 @@ def _filter_by_env_and_version(f):
     return _wrapper
 
 
-def _create_probe_based_on_location(args, attribs, line_class, function_class):
-    # type: (Dict[str, Any], Dict[str, Any], Optional[Type], Optional[Type]) -> Any
-    if attribs["where"].get("sourceFile", None):
-        if line_class is None:
-            raise TypeError("Line probe type is not supported")
-        ProbeType = line_class
-        args["source_file"] = attribs["where"]["sourceFile"]
-        args["line"] = int(attribs["where"]["lines"][0])
-    else:
-        if function_class is None:
+class ProbeFactory(object):
+    __line_class__ = None  # type: Optional[Type[LineProbe]]
+    __function_class__ = None  # type: Optional[Type[FunctionProbe]]
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        raise NotImplementedError()
+
+    @classmethod
+    def build(cls, args, attribs):
+        # type: (Dict[str, Any], Dict[str, Any]) -> Any
+        cls.update_args(args, attribs)
+
+        where = attribs["where"]
+        if where.get("sourceFile", None) is not None:
+            if cls.__line_class__ is None:
+                raise TypeError("Line probe type is not supported")
+
+            args["source_file"] = where["sourceFile"]
+            args["line"] = int(where["lines"][0])
+
+            return cls.__line_class__(**args)
+
+        if cls.__function_class__ is None:
             raise TypeError("Function probe type is not supported")
-        ProbeType = function_class
-        args["module"] = attribs["where"].get("type") or attribs["where"]["typeName"]
-        args["func_qname"] = attribs["where"].get("method") or attribs["where"]["methodName"]
+
+        args["module"] = where.get("type") or where["typeName"]
+        args["func_qname"] = where.get("method") or where["methodName"]
         args["evaluate_at"] = attribs.get("evaluateAt")
 
-    return ProbeType(**args)
+        return cls.__function_class__(**args)
 
 
-def probe_factory(attribs):
-    # type: (Dict[str, Any]) -> Probe
-    """
-    Create a new Probe instance.
-    """
-    try:
-        _type = attribs["type"]
-        _id = attribs["id"]
-    except KeyError as e:
-        raise ValueError("Invalid probe attributes: %s" % e)
+class LogProbeFactory(ProbeFactory):
+    __line_class__ = LogLineProbe
+    __function_class__ = LogFunctionProbe
 
-    if _type == ProbeType.LOG_PROBE:
+    @classmethod
+    def update_args(cls, args, attribs):
         take_snapshot = attribs.get("captureSnapshot", False)
 
         rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
@@ -146,10 +156,8 @@ def probe_factory(attribs):
         if sampling is not None:
             rate = sampling.get("snapshotsPerSecond", rate)
 
-        args = dict(
-            probe_id=_id,
+        args.update(
             condition=_compile_expression(attribs.get("when")),
-            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             rate=rate,
             limits=CaptureLimits(
                 **xlate_keys(
@@ -170,40 +178,64 @@ def probe_factory(attribs):
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
 
-        return _create_probe_based_on_location(args, attribs, LogLineProbe, LogFunctionProbe)
 
-    elif _type == ProbeType.METRIC_PROBE:
-        args = dict(
-            probe_id=_id,
+class MetricProbeFactory(ProbeFactory):
+    __line_class__ = MetricLineProbe
+    __function_class__ = MetricFunctionProbe
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        args.update(
             condition=_compile_expression(attribs.get("when")),
-            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             name=attribs["metricName"],
             kind=attribs["kind"],
-            rate=DEFAULT_PROBE_RATE,  # unused
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             value=_compile_expression(attribs.get("value")),
         )
 
-        return _create_probe_based_on_location(args, attribs, MetricLineProbe, MetricFunctionProbe)
 
-    elif _type == ProbeType.SPAN_PROBE:
-        args = dict(
-            probe_id=_id,
+class SpanProbeFactory(ProbeFactory):
+    __function_class__ = SpanFunctionProbe
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        args.update(
             condition=_compile_expression(attribs.get("when")),
-            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
-            rate=DEFAULT_PROBE_RATE,  # TODO: should we take rate limit out of Probe?
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 
-        return _create_probe_based_on_location(args, attribs, None, SpanFunctionProbe)
 
-    raise ValueError("Unknown probe type: %s" % _type)
+def build_probe(attribs):
+    # type: (Dict[str, Any]) -> Probe
+    """
+    Create a new Probe instance.
+    """
+    try:
+        _type = attribs["type"]
+        _id = attribs["id"]
+    except KeyError as e:
+        raise ValueError("Invalid probe attributes: %s" % e)
+
+    args = dict(
+        probe_id=_id,
+        version=attribs.get("version", 0),
+        tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
+    )
+
+    if _type == ProbeType.LOG_PROBE:
+        return LogProbeFactory.build(args, attribs)
+    elif _type == ProbeType.METRIC_PROBE:
+        return MetricProbeFactory.build(args, attribs)
+    elif _type == ProbeType.SPAN_PROBE:
+        return SpanProbeFactory.build(args, attribs)
+
+    raise ValueError("Unsupported probe type: %s" % _type)
 
 
 @_filter_by_env_and_version
 def get_probes(config_id, config):
     # type: (str, dict) -> Iterable[Probe]
-    return [probe_factory(config)]
+    return [build_probe(config)]
 
 
 log = get_logger(__name__)
@@ -237,9 +269,10 @@ class ProbeRCAdapter(RemoteConfigCallBack):
         self._status_timestamp = time.time() + config.diagnostics_interval
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
+        # type: (Dict[str, Probe], Dict[str, Probe]) -> None
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
-        modified_probes = []  # DEV: Probes are currently immutable
+        modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
 
         if deleted_probes:
             self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)

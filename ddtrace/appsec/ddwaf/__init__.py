@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 LOGGER = get_logger(__name__)
 
 try:
+    from .ddwaf_types import _observator
     from .ddwaf_types import ddwaf_config
     from .ddwaf_types import ddwaf_context_capsule
     from .ddwaf_types import ddwaf_get_version
@@ -42,15 +43,16 @@ except OSError:
 
 
 class DDWaf_result(object):
-    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout"]
+    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation"]
 
-    def __init__(self, data, actions, runtime, total_runtime, timeout):
-        # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool) -> None
+    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation):
+        # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool, int) -> None
         self.data = data
         self.actions = actions
         self.runtime = runtime
         self.total_runtime = total_runtime
         self.timeout = timeout
+        self.truncation = truncation
 
 
 class DDWaf_info(object):
@@ -86,7 +88,7 @@ if _DDWAF_LOADED:
             if not self._handle or self._info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
                 # at the same time some invalid ones are rejected
-                LOGGER.error(
+                LOGGER.debug(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
                     ruleset_map_object.struct,
                     self._info.loaded,
@@ -126,7 +128,7 @@ if _DDWAF_LOADED:
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
             if not ctx:
-                LOGGER.error("DDWaf._at_request_start: failure to create the context.")
+                LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
             return ctx
 
         def _at_request_end(self):
@@ -143,20 +145,22 @@ if _DDWAF_LOADED:
             start = time.time()
 
             if not ctx:
-                LOGGER.error("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False)
+                LOGGER.debug("DDWaf.run: dry run. no context created.")
+                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0)
 
             result = ddwaf_result()
-            wrapper = ddwaf_object(data)
+            observator = _observator()
+            wrapper = ddwaf_object(data, observator=observator)
             error = ddwaf_run(ctx.ctx, wrapper, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
-                LOGGER.warning("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
+                LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
                 result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
                 [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
                 result.total_runtime / 1e3,
                 (time.time() - start) * 1e6,
                 result.timeout,
+                observator.truncation,
             )
 
     def version():
@@ -181,12 +185,12 @@ else:
             timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
         ):
             # type: (...) -> DDWaf_result
-            LOGGER.warning("DDWaf features disabled. dry run")
-            return DDWaf_result(None, [], 0.0, 0.0, False)
+            LOGGER.debug("DDWaf features disabled. dry run")
+            return DDWaf_result(None, [], 0.0, 0.0, False, 0)
 
         def update_rules(self, _):
             # type: (dict[text_type, DDWafRulesType]) -> bool
-            LOGGER.warning("DDWaf features disabled. dry update")
+            LOGGER.debug("DDWaf features disabled. dry update")
             return False
 
         def _at_request_start(self):
@@ -197,5 +201,5 @@ else:
 
     def version():
         # type: () -> text_type
-        LOGGER.warning("DDWaf features disabled. null version")
+        LOGGER.debug("DDWaf features disabled. null version")
         return "0.0.0"

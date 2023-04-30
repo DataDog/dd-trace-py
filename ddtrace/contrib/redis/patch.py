@@ -4,14 +4,20 @@ from six import PY3
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .util import _trace_redis_cmd
-from .util import _trace_redis_execute_pipeline
+from ..trace_utils_redis import _trace_redis_cmd
+from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
-config._add("redis", dict(_default_service="redis"))
+config._add(
+    "redis",
+    {
+        "_default_service": schematize_service_name("redis"),
+    },
+)
 
 
 def patch():

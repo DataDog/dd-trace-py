@@ -318,3 +318,6 @@ class DDExpression(object):
             return self.callable(_locals)
         except Exception as e:
             raise DDExpressionEvaluationError(self.dsl, e)
+
+    def __call__(self, _locals):
+        return self.eval(_locals)

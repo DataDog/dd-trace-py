@@ -2,12 +2,12 @@
 from __future__ import absolute_import
 
 import sys
-import threading as ddtrace_threading  # this is ddtrace's internal copy of the module, not the application's copy
 import typing
 
 import attr
 import six
 
+from ddtrace import _threading as ddtrace_threading
 from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
@@ -18,6 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.settings.profiling import config
 
 
 # These are special features that might not be available depending on your Python version and platform
@@ -309,7 +310,11 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, thread_pyframes, exception, span, cpu_time in running_threads:
-        thread_task_id, thread_task_name, thread_task_frame = _task.get_task(thread_id)
+        if thread_name is None:
+            # A Python thread with no name is likely still initialising so we
+            # ignore it to avoid reporting potentially misleading data.
+            # Effectively we would be discarding a negligible number of samples.
+            continue
 
         tasks = _task.list_tasks(thread_id)
 
@@ -318,9 +323,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             # Ignore tasks with no frames; nothing to show.
             if task_pyframes is None:
-                continue
-
-            if task_id in thread_id_ignore_list:
                 continue
 
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
@@ -344,8 +346,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
+                task_id=None,
+                task_name=None,
                 nframes=nframes,
                 frames=frames,
                 wall_time_ns=wall_time,
@@ -362,8 +364,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_id=thread_id,
                 thread_name=thread_name,
                 thread_native_id=thread_native_id,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
+                task_id=None,
+                task_name=None,
                 nframes=nframes,
                 frames=frames,
                 sampling_period=int(interval * 1e9),
@@ -431,9 +433,9 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
-    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    max_time_usage_pct = attr.ib(type=float, default=config.max_time_usage_pct)
+    nframes = attr.ib(type=int, default=config.max_frames)
+    ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
     endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)

@@ -16,15 +16,18 @@ from six.moves import http_client
 import tenacity
 
 import ddtrace
+from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
+from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling.exporter import pprof
+from ddtrace.settings.profiling import config
 
 
 HOSTNAME = platform.node()
@@ -50,10 +53,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(default=None, type=typing.Optional[str])
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.
-    timeout = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float),
-        type=float,
-    )
+    timeout = attr.ib(default=config.api_timeout, type=float)
     service = attr.ib(default=None, type=typing.Optional[str])
     env = attr.ib(default=None, type=typing.Optional[str])
     version = attr.ib(default=None, type=typing.Optional[str])
@@ -64,6 +64,19 @@ class PprofHTTPExporter(pprof.PprofExporter):
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     endpoint_call_counter_span_processor = attr.ib(default=None, type=EndpointCallCounterProcessor)
+
+    def _update_git_metadata_tags(self, tags):
+        """
+        Update profiler tags with git metadata
+        """
+        # clean tags, because values will be combined and inserted back in the same way as for tracer
+        gitmetadata.clean_tags(tags)
+        repository_url, commit_sha = gitmetadata.get_git_tags()
+        if repository_url:
+            tags[REPOSITORY_URL] = repository_url
+        if commit_sha:
+            tags[COMMIT_SHA] = commit_sha
+        return tags
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
@@ -78,8 +91,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         tags = {
             k: six.ensure_str(v, "utf-8")
             for k, v in itertools.chain(
-                parse_tags_str(os.environ.get("DD_TAGS")).items(),
-                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+                self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+                config.tags.items(),
             )
         }
         tags.update(self.tags)

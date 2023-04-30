@@ -32,6 +32,7 @@ def compile_template(*args):
 def create_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("tags", dict())
+        kwargs.setdefault("version", 0)
         return f(*args, **kwargs)
 
     return _wrapper
@@ -78,7 +79,6 @@ def snapshot_probe_defaults(f):
 
 def metric_probe_defaults(f):
     def _wrapper(*args, **kwargs):
-        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         kwargs.setdefault("value", None)
         return f(*args, **kwargs)
 
@@ -87,7 +87,6 @@ def metric_probe_defaults(f):
 
 def span_probe_defaults(f):
     def _wrapper(*args, **kwargs):
-        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         return f(*args, **kwargs)
 
     return _wrapper
