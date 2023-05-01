@@ -148,6 +148,7 @@ commands:
                   mv .riot .ddriot
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  mv .ddriot .riot
                   ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
@@ -424,6 +425,7 @@ jobs:
             mv .riot .ddriot
             # Sort the hashes to ensure a consistent ordering/division between each node
             riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+            mv .ddriot .riot
             ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   integration_testagent:
@@ -663,6 +665,7 @@ jobs:
           command: |
             mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
+            mv .ddriot .riot
             ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   httplib:
