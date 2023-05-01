@@ -14,7 +14,6 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -312,12 +311,6 @@ class Tracer(object):
     @property
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
-
-    def global_excepthook(self, tp, value, traceback):
-        """The global tracer except hook."""
-        if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-            telemetry_writer.add_error(1, tp)
-            telemetry_writer.enable()
 
     def current_trace_context(self, *args, **kwargs):
         # type: (...) -> Optional[Context]
