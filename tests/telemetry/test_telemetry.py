@@ -1,5 +1,4 @@
 import os
-import sys
 
 import pytest
 
@@ -160,15 +159,28 @@ os.fork()
 
 def test_app_started_error(test_agent_session, run_python_code_in_subprocess):
     code = """
-from ddtrace import patch, tracer
-"""
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+import logging
+logging.basicConfig()
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-    assert status == 1, stderr
-    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+
+class FailingFilture(TraceFilter):
+    def process_trace(self, trace):
+       raise Exception("Exception raised in trace filter")
+
+tracer.configure(
+    settings={
+        "FILTERS": [FailingFilture()],
+    }
+)
+
+# generate and encode span
+tracer.trace("hello").finish()
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    assert b"Exception raised in trace filter" in stderr
 
     events = test_agent_session.get_events()
 
@@ -179,15 +191,14 @@ from ddtrace import patch, tracer
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-started"
     assert events[1]["payload"]["error"]["code"] == 1
-    if sys.version_info < (3, 7):
-        expected_str = u"ValueError(\"Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'\",)"
-    else:
-        expected_str = "ValueError(\"Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'\")"
-    assert events[1]["payload"]["error"]["message"] == expected_str
+    assert events[1]["payload"]["error"]["message"] == "error applying processor FailingFilture()"
 
 
 def test_integration_error(test_agent_session, run_python_code_in_subprocess):
     code = """
+import logging
+logging.basicConfig()
+
 import sqlite3
 # patch() of the sqlite integration assumes this attribute is there
 # removing it should cause patching to fail.
@@ -202,11 +213,7 @@ tracer.flush()
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
-    if sys.version_info[0] < 3:
-        # not quite sure why python 2.7 has a different error here, probably a difference with how it loads modules
-        expected_stderr = b"No handlers could be found for logger"
-    else:
-        expected_stderr = b"failed to import"
+    expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
     events = test_agent_session.get_events()
@@ -217,8 +224,7 @@ tracer.flush()
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-started"
 
-    if sys.version_info[0] < 3:
-        expected_str = u"failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
-    else:
-        expected_str = "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
-    assert events[1]["payload"]["integrations"][0]["error"] == expected_str
+    assert (
+        events[1]["payload"]["integrations"][0]["error"]
+        == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
+    )

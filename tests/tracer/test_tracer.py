@@ -1944,3 +1944,5 @@ def test_installed_excepthook():
     assert sys.excepthook is not telemetry._excepthook
     telemetry.install_excepthook()
     assert sys.excepthook is telemetry._excepthook
+    # Reset exception hooks
+    telemetry.uninstall_excepthook()
