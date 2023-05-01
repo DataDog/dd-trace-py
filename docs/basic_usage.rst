@@ -65,6 +65,29 @@ that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
 
 API documentation can be found here :py:meth:`ddtrace.Tracer`.
 
+
+Generator
+---------
+
+The :py:meth:`ddtrace.Tracer.wrap` decorator does not trace the generator iterator returned by generator function. Instead, a basic decorator can be added, for example::
+
+  import functools
+
+
+  def wrap(name=None, service=None, resource=None, span_type=None):
+      def wrap_decorator(f):
+          span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+          @functools.wraps(f)
+          def func_wrapper(*args, **kwargs):
+              with tracer.trace(span_name, service=service, resource=resource, span_type=span_type):
+                  for _ in f(*args, **kwargs):
+                      yield _
+          return func_wrapper
+
+      return wrap_decorator
+
+API documentation can be found here :py:meth:`ddtrace.Tracer.wrap`.
+
 Using the API
 -------------
 
