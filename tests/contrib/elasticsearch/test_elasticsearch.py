@@ -234,11 +234,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert config.service == "mysvc"
 
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
-        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert spans[0].service != "es"
+        assert spans[0].service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
