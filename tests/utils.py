@@ -416,7 +416,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.pop()
+        self.tracer._writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -479,6 +479,11 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         if "api_version" not in kwargs:
             kwargs["api_version"] = "v0.5"
 
+        self._trace_flush_enabled = True
+        if kwargs.get("trace_flush_disabled", False) is True:
+            kwargs.pop("trace_flush_disabled")
+            self._trace_flush_enabled = False
+
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
@@ -489,7 +494,17 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            AgentWriter.write(self, spans=spans)
+            if self._trace_flush_enabled:
+                AgentWriter.write(self, spans=spans)
+            else:
+                self.msgpack_encoder.put(spans)
+                self.msgpack_encoder.encode()
+
+    def pop(self):
+        spans = DummyWriterMixin.pop(self)
+        if self._trace_flush_enabled:
+            AgentWriter.flush_queue(self)
+        return spans
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -550,13 +565,16 @@ class DummyTracer(Tracer):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        if not kwargs.get("writer"):
-            kwargs["writer"] = DummyWriter()
 
         # disable flushing tracer if included as argument
         if kwargs.get("trace_flush_disabled", False) is True:
             self._trace_flush_enabled = False
             kwargs.pop("trace_flush_disabled")
+            if not kwargs.get("writer"):
+                kwargs["writer"] = DummyWriter()
+        else:
+            if not kwargs.get("writer"):
+                kwargs["writer"] = DummyWriter(trace_flush_disabled=True)
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
