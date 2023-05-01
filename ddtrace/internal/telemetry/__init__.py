@@ -23,7 +23,6 @@ _ORIGINAL_EXCEPTHOOK = sys.excepthook
 
 def _excepthook(tp, value, traceback):
     telemetry_writer.add_error(1, repr(value))
-    telemetry_writer.enable()
     return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
 
 

@@ -4,7 +4,8 @@ def get_version():
         from ._version import version
 
         return version
-    except ImportError:
+    except (ImportError, SystemError):
+        # SystemError is raised in py2.7 when the parent module (ddtrace) is not yet available
         import pkg_resources
 
         try:
