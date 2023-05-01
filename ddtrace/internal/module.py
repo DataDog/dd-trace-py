@@ -526,6 +526,15 @@ class ModuleWatchdog(dict):
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
 
     @classmethod
+    def after_module_imported(cls, module):
+        # type: (str) -> Callable[[ModuleHookType], None]
+        def _(hook):
+            # type: (ModuleHookType) -> None
+            cls.register_module_hook(module, hook)
+
+        return _
+
+    @classmethod
     def register_pre_exec_module_hook(cls, cond, hook):
         # type: (Type[ModuleWatchdog], PreExecHookCond, PreExecHookType) -> None
         """Register a hook to execute before/instead of exec_module.
