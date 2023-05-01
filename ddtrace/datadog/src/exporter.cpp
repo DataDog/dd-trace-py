@@ -12,8 +12,6 @@
 #include "exporter.hpp"
 
 #include <iostream>
-#include <fstream> // TODO delete file writing part
-#include <thread>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -117,11 +115,6 @@ bool Uploader::upload(const Profile *profile) {
   ddog_Timespec end = encoded->end;
 
   // Attach file
-  static int counter = 0;
-  std::cout << "WRiting file " << counter << std::endl;
-  std::ofstream outfile("/tmp/out." + std::to_string(counter++) + ".pprof");
-  outfile.write(reinterpret_cast<char *>(const_cast<unsigned char *>(encoded->buffer.ptr)), encoded->buffer.len);
-  outfile.close();
   ddog_prof_Exporter_File file[] = {
     {
       .name = to_slice("auto.pprof"),
@@ -134,10 +127,6 @@ bool Uploader::upload(const Profile *profile) {
 
   // If we have any custom tags, set them now
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-  if (profile_seq == 0) {
-    std::cout << "Profile seq is 0" << std::endl;
-    std::cout << "  runtime_id is" << runtime_id << std::endl;
-  }
   ddog_exporter->add_tag(tags, ExportTagKey::profile_seq, std::to_string(profile_seq++));
   ddog_exporter->add_tag(tags, ExportTagKey::runtime_id, runtime_id);
 
@@ -160,9 +149,9 @@ bool Uploader::upload(const Profile *profile) {
     ddog_Vec_Tag_drop(tags);
     return false;
   }
-  ddog_prof_Exporter_Request *req = build_res.ok;
 
   // Build and check the response object
+  ddog_prof_Exporter_Request *req = build_res.ok;
   ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter->ptr, &req, nullptr);
   if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
     // TODO consolidate errors
@@ -174,8 +163,6 @@ bool Uploader::upload(const Profile *profile) {
     ddog_Vec_Tag_drop(tags);
     return false;
   }
-
-  std::cout << "Code is " << res.http_response.code << std::endl;
 
   // Cleanup
   // TODO which of these can be moved closer to point of allocation?
@@ -226,7 +213,7 @@ Profile::Profile(ProfileType type) : type_mask{type & ProfileType::All} {
     samplers.push_back({to_slice("alloc-samples"), to_slice("count")});
   }
   if (type & ProfileType::Heap) {
-    val_idx.alloc_space = samplers.size();
+    val_idx.heap_space = samplers.size();
     samplers.push_back({to_slice("heap-space"), to_slice("bytes")});
   }
 
@@ -390,8 +377,6 @@ bool Profile::flush_sample() {
   return true;
 }
 
-
-
 void Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
   values[val_idx.cpu_time] += cputime * count;
   values[val_idx.cpu_count] += count;
@@ -450,117 +435,6 @@ void Datadog::Profile::push_traceinfo(const std::string_view &trace_type, const 
 
 void Datadog::Profile::push_classinfo(const std::string_view &class_name) {
   push_label(ExportLabelKey::class_name, class_name);
-}
-
-// C interface
-bool is_initialized = false;
-Datadog::Uploader *g_uploader;
-Datadog::Profile *g_profile;
-Datadog::Profile *g_profile_real[2];
-bool g_prof_flag;
-
-void ddup_uploader_init(const char *service, const char *env, const char *version, const char *runtime, const char *runtime_version, const char *profiler_version) {
-  if (!is_initialized) {
-    g_profile_real[0] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
-    g_profile_real[1] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
-    g_profile = g_profile_real[0];
-    g_uploader = new Datadog::Uploader(env, service, version, runtime, runtime_version, profiler_version);
-    is_initialized = true;
-  }
-}
-
-void ddup_start_sample() {
-  g_profile->start_sample();
-}
-
-void ddup_push_walltime(int64_t walltime, int64_t count){
-  g_profile->push_walltime(walltime, count);
-}
-
-void ddup_push_cputime(int64_t cputime, int64_t count){
-  g_profile->push_cputime(cputime, count);
-}
-
-void ddup_push_acquire(int64_t acquire_time, int64_t count) {
-  g_profile->push_acquire(acquire_time, count);
-}
-
-void ddup_push_release(int64_t release_time, int64_t count) {
-  g_profile->push_release(release_time, count);
-}
-
-void ddup_push_alloc(int64_t alloc_size, int64_t count) {
-  g_profile->push_alloc(alloc_size, count);
-}
-
-void ddup_push_heap(int64_t heap_size) {
-  g_profile->push_heap(heap_size);
-}
-
-void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
-  if (!thread_name)
-    return;
-  g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
-}
-
-void ddup_push_taskinfo(int64_t task_id, const char *task_name){
-  if (!task_name)
-    return;
-  g_profile->push_taskinfo(task_id, task_name);
-}
-
-void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id){
-  g_profile->push_spaninfo(span_id, local_root_span_id);
-}
-
-void ddup_push_traceinfo(const char *trace_type, const char *trace_resource_container){
-  if (!trace_type || !trace_resource_container)
-    return;
-  g_profile->push_traceinfo(trace_type, trace_resource_container);
-}
-
-void ddup_push_exceptioninfo(const char *exception_type, int64_t count) {
-  if (!exception_type || !count)
-    return;
-  return;
-  g_profile->push_exceptioninfo(exception_type, count);
-}
-
-void ddup_push_classinfo(const char *class_name) {
-  if (!class_name)
-    return;
-  g_profile->push_classinfo(class_name);
-
-}
-
-void ddup_push_frame(const char *name, const char *fname, uint64_t address, int64_t line) {
-  auto insert_or_get = [&](const char *str) -> const std::string & {
-    auto [it, _] = g_profile->strings.insert(str ? str : "");
-    return *it;
-  };
-
-  g_profile->push_frame(insert_or_get(name), insert_or_get(fname), address, line);
-}
-
-void ddup_flush_sample() {
-  g_profile->flush_sample();
-}
-
-void ddup_set_runtime_id(const char *id) {
-  g_uploader->set_runtime_id(id);
-}
-
-void ddup_upload_impl(Datadog::Profile *prof) {
-  g_uploader->upload(prof);
-}
-
-void ddup_upload() {
-  std::cout << "Uploading" << std::endl;
-  auto *this_prof = g_profile;
-  new std::thread(ddup_upload_impl, this_prof); // set it and forget it
-  g_profile = g_profile_real[g_prof_flag];
-  g_prof_flag ^= true;
-  g_profile->reset();
 }
 
 #endif

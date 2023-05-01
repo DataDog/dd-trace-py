@@ -585,12 +585,12 @@ setup(
                 "ddtrace.datadog.ddup",
                 sources=[
                     "ddtrace/datadog/ddup.pyx",
-                    "ddtrace/datadog/src/exporter.cpp"
+                    "ddtrace/datadog/src/exporter.cpp",
+                    "ddtrace/datadog/src/interface.cpp",
                 ],
                 include_dirs=LibDatadog_Download.get_include_dirs(),
                 extra_objects=LibDatadog_Download.get_extra_objects(),
-                extra_compile_args=["-std=c++17", "-fno-omit-frame-pointer", "-fsanitize=address", "-g3", "-static-libasan"],
-                extra_link_args=["-fsanitize=address"],
+                extra_compile_args=["-std=c++17"],
                 language='c++',
             ),
         ],
