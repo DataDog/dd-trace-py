@@ -15,6 +15,16 @@ skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build
 skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py"]
 line_length = 120
 
+[tool.cython-lint]
+max-line-length = 120
+exclude = '''
+(
+  .venv*
+  | \.riot
+  | ddtrace/profiling/
+)
+'''
+
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py35', 'py36', 'py37', 'py38']

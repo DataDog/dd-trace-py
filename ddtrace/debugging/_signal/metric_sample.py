@@ -3,18 +3,18 @@ from typing import cast
 
 import attr
 
-from ddtrace.debugging._capture.model import CaptureState
-from ddtrace.debugging._capture.model import CapturedEvent
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.metrics import Metrics
 
 
 @attr.s
-class MetricSample(CapturedEvent):
+class MetricSample(Signal):
     """wrapper for making a metric sample"""
 
     meter = attr.ib(type=Optional[Metrics.Meter], factory=lambda: probe_metrics.get_meter("probe"))
@@ -35,7 +35,7 @@ class MetricSample(CapturedEvent):
             return
 
         self.sample(_args)
-        self.state = CaptureState.DONE
+        self.state = SignalState.DONE
 
     def exit(self, retval, exc_info, duration):
         if not isinstance(self.probe, MetricFunctionProbe):
@@ -50,7 +50,7 @@ class MetricSample(CapturedEvent):
             return
 
         self.sample(_args)
-        self.state = CaptureState.DONE
+        self.state = SignalState.DONE
 
     def line(self):
         frame = self.frame
@@ -59,7 +59,7 @@ class MetricSample(CapturedEvent):
             return
 
         self.sample(frame.f_locals)
-        self.state = CaptureState.DONE
+        self.state = SignalState.DONE
 
     def sample(self, _locals):
         probe = cast(MetricProbeMixin, self.probe)

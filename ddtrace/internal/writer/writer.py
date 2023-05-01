@@ -645,13 +645,8 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-            # are initialized
-            if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                telemetry_writer.enable()
-
-            if config._telemetry_metrics_enabled:
-                telemetry_metrics_writer.enable()
+            telemetry_writer.enable()
+            telemetry_metrics_writer.enable()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

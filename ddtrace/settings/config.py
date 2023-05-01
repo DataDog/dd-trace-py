@@ -54,6 +54,7 @@ def _parse_propagation_styles(name, default):
     - "datadog"
     - "b3multi"
     - "b3 single header"
+    - "tracecontext"
     - "none"
 
 
@@ -225,6 +226,8 @@ class Config(object):
         self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
+
+        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
 
         self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
 
