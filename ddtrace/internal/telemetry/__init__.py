@@ -22,7 +22,12 @@ _ORIGINAL_EXCEPTHOOK = sys.excepthook
 
 
 def _excepthook(tp, value, traceback):
-    telemetry_writer.add_error(1, repr(value))
+    try:
+        telemetry_writer.add_error(1, str(value))
+        telemetry_writer.enable()
+    except Exception:
+        # Required to avoid circular references, _excepthook should not raise an unhandled exception
+        pass
     return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
 
 

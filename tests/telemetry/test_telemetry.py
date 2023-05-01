@@ -157,7 +157,7 @@ os.fork()
     assert err == b""
 
 
-def test_app_started_error(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_error_handled_exception(test_agent_session, run_python_code_in_subprocess):
     code = """
 import logging
 logging.basicConfig()
@@ -192,6 +192,30 @@ tracer.trace("hello").finish()
     assert events[1]["request_type"] == "app-started"
     assert events[1]["payload"]["error"]["code"] == 1
     assert events[1]["payload"]["error"]["message"] == "error applying processor FailingFilture()"
+
+
+def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import ddtrace
+"""
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 1, stderr
+    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+
+    events = test_agent_session.get_events()
+
+    assert len(events) == 2
+
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-started"
+    assert events[1]["payload"]["error"]["code"] == 1
+    assert events[1]["payload"]["error"]["message"] == "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'"
 
 
 def test_integration_error(test_agent_session, run_python_code_in_subprocess):
