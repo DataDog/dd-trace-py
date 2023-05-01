@@ -9,7 +9,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.schema import schematize_service_name
 from tests.utils import TracerTestCase
 
 from ..config import ELASTICSEARCH_CONFIG
@@ -76,7 +75,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
-        assert span.service == schematize_service_name("elasticsearch")
+        assert span.service == "elasticsearch"
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
         assert span.error == 0

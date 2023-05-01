@@ -6,7 +6,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysqldb.patch import patch
 from ddtrace.contrib.mysqldb.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.internal.schema import schematize_service_name
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -55,7 +54,7 @@ class MySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
@@ -85,7 +84,7 @@ class MySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == schematize_service_name("mysql")
+            assert span.service == "mysql"
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -116,7 +115,7 @@ class MySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
@@ -146,7 +145,7 @@ class MySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == schematize_service_name("mysql")
+            assert span.service == "mysql"
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -302,7 +301,7 @@ class MySQLCore(object):
         # can expect the next to the last closed span to be our proc.
         span = spans[-2]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
@@ -343,7 +342,7 @@ class MySQLCore(object):
         assert ot_span.name == "mysql_op"
 
         assert_is_measured(dd_span)
-        assert dd_span.service == schematize_service_name("mysql")
+        assert dd_span.service == "mysql"
         assert dd_span.name == "mysql.query"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
@@ -384,7 +383,7 @@ class MySQLCore(object):
             assert ot_span.name == "mysql_op"
 
             assert_is_measured(dd_span)
-            assert dd_span.service == schematize_service_name("mysql")
+            assert dd_span.service == "mysql"
             assert dd_span.name == "mysql.query"
             assert dd_span.span_type == "sql"
             assert dd_span.error == 0
@@ -410,7 +409,7 @@ class MySQLCore(object):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "MySQLdb.connection.commit"
 
     def test_rollback(self):
@@ -420,7 +419,7 @@ class MySQLCore(object):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "MySQLdb.connection.rollback"
 
     def test_analytics_default(self):
@@ -524,7 +523,7 @@ class MySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == schematize_service_name("mysql")
+            assert span.service == "mysql"
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -624,7 +623,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == schematize_service_name("mysql")
+            assert span.service == "mysql"
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -720,7 +719,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             self.assertEqual(len(spans), 1)
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == schematize_service_name("mysql")
+            assert span.service == "mysql"
             assert span.name == "MySQLdb.connection.connect"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -734,7 +733,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("mysql")
+        assert span.service == "mysql"
         assert span.name == "MySQLdb.connection.connect"
         assert span.span_type == "sql"
         assert span.error == 0

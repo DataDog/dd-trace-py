@@ -15,7 +15,6 @@ from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.internal.schema import schematize_service_name
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -220,7 +219,7 @@ class TestSQLite(TracerTestCase):
             dict(name="sqlite_op", service="sqlite_svc"),
             (
                 dict(
-                    name="sqlite.query", service=schematize_service_name("sqlite"), span_type="sql", resource=q, error=0
+                    name="sqlite.query", service="sqlite", span_type="sql", resource=q, error=0
                 ),
             ),
         )
@@ -251,14 +250,14 @@ class TestSQLite(TracerTestCase):
         connection.commit()
         self.assertEqual(len(self.spans), 1)
         span = self.spans[0]
-        self.assertEqual(span.service, schematize_service_name("sqlite"))
+        self.assertEqual(span.service, "sqlite")
         self.assertEqual(span.name, "sqlite.connection.commit")
 
     def test_rollback(self):
         connection = self._given_a_traced_connection(self.tracer)
         connection.rollback()
         self.assert_structure(
-            dict(name="sqlite.connection.rollback", service=schematize_service_name("sqlite")),
+            dict(name="sqlite.connection.rollback", service="sqlite"),
         )
 
     def test_patch_unpatch(self):

@@ -3,7 +3,6 @@ from ddtrace import patch_all
 from ddtrace.contrib.algoliasearch.patch import algoliasearch_version
 from ddtrace.contrib.algoliasearch.patch import patch
 from ddtrace.contrib.algoliasearch.patch import unpatch
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.pin import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -77,7 +76,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.name == "algoliasearch.search"
         assert span.span_type == "http"
         assert span.error == 0
-        assert span.service == schematize_service_name("algoliasearch")
+        assert span.service == "algoliasearch"
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors

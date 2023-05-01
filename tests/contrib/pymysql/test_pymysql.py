@@ -7,7 +7,6 @@ from ddtrace.contrib.pymysql.patch import unpatch
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.internal.schema import schematize_service_name
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -65,7 +64,7 @@ class PyMySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("pymysql")
+        assert span.service == "pymysql"
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
@@ -90,7 +89,7 @@ class PyMySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == schematize_service_name("pymysql")
+            assert span.service == "pymysql"
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -242,7 +241,7 @@ class PyMySQLCore(object):
         # can expect the last closed span to be our proc.
         span = spans[len(spans) - 2]
         assert_is_measured(span)
-        assert span.service == schematize_service_name("pymysql")
+        assert span.service == "pymysql"
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
@@ -274,7 +273,7 @@ class PyMySQLCore(object):
         assert ot_span.name == "mysql_op"
 
         assert_is_measured(dd_span)
-        assert dd_span.service == schematize_service_name("pymysql")
+        assert dd_span.service == "pymysql"
         assert dd_span.name == "pymysql.query"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
@@ -307,7 +306,7 @@ class PyMySQLCore(object):
             assert ot_span.name == "mysql_op"
 
             assert_is_measured(dd_span)
-            assert dd_span.service == schematize_service_name("pymysql")
+            assert dd_span.service == "pymysql"
             assert dd_span.name == "pymysql.query"
             assert dd_span.span_type == "sql"
             assert dd_span.error == 0
@@ -325,7 +324,7 @@ class PyMySQLCore(object):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == schematize_service_name("pymysql")
+        assert span.service == "pymysql"
         assert span.name == "pymysql.connection.commit"
 
     def test_rollback(self):
@@ -335,7 +334,7 @@ class PyMySQLCore(object):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == schematize_service_name("pymysql")
+        assert span.service == "pymysql"
         assert span.name == "pymysql.connection.rollback"
 
     def test_analytics_default(self):
@@ -417,7 +416,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == schematize_service_name("pymysql")
+            assert span.service == "pymysql"
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
