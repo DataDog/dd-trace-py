@@ -59,7 +59,7 @@ def test_inject_128bit_trace_id_datadog():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         # Get the hex representation of the 64 most signicant bits
@@ -85,7 +85,7 @@ def test_inject_128bit_trace_id_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
@@ -107,7 +107,7 @@ def test_inject_128bit_trace_id_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
@@ -129,7 +129,7 @@ def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
@@ -286,7 +286,7 @@ def test_extract_128bit_trace_ids_datadog():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -316,7 +316,7 @@ def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -343,7 +343,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -369,7 +369,7 @@ def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(trace_flush_disabled=True)
 
     for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
