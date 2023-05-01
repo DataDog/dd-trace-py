@@ -571,10 +571,10 @@ class DummyTracer(Tracer):
             self._trace_flush_enabled = False
             kwargs.pop("trace_flush_disabled")
             if not kwargs.get("writer"):
-                kwargs["writer"] = DummyWriter()
+                kwargs["writer"] = DummyWriter(trace_flush_disabled=True)
         else:
             if not kwargs.get("writer"):
-                kwargs["writer"] = DummyWriter(trace_flush_disabled=True)
+                kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
