@@ -5,6 +5,10 @@ Add all monkey-patching that needs to run by default here
 import sys
 
 
+ddtrace_sitecustomize = sys.modules["sitecustomize"]
+sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize
+
+
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from functools import partial  # noqa
@@ -249,10 +253,15 @@ try:
         # NOTE: this reference to the module is crucial in Python 2.
         # Without it the current module gets gc'd and all subsequent references
         # will be `None`.
-        ddtrace_sitecustomize = sys.modules["sitecustomize"]
         del sys.modules["sitecustomize"]
         try:
-            import sitecustomize  # noqa
+            original_sitecustomize = sys.modules.pop("ddtrace.cache.sitecustomize", None)
+            if original_sitecustomize is None:
+                import sitecustomize  # noqa
+            else:
+                # Do not re-import the original sitecustomize if it was already
+                # imported.
+                sys.modules["sitecustomize"] = original_sitecustomize
         except ImportError:
             # If an additional sitecustomize is not found then put the ddtrace
             # sitecustomize back.

@@ -1,1 +1,1 @@
-import ddtrace.bootstrap.sitecustomize  # noqa
+# no-op. We keep this for backwards compatibility.
