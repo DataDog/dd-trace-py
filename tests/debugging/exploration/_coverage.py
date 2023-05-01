@@ -13,9 +13,9 @@ from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_line_probe
 
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import origin
 
 

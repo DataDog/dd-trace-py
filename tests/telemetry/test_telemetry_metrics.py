@@ -33,8 +33,16 @@ def _assert_metric(
 
     # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(payload, type_paypload, seq_id)
-    expected_body_sorted = expected_body["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
-    result_event = events[0]["payload"]["series"].sort(key=lambda x: x["metric"], reverse=False)
+    expected_body_sorted = expected_body["payload"]["series"]
+    for metric in expected_body_sorted:
+        metric["tags"].sort()
+    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+
+    events.sort(key=lambda x: x["seq_id"], reverse=True)
+    result_event = events[0]["payload"]["series"]
+    for metric in result_event:
+        metric["tags"].sort()
+    result_event.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
 
     assert result_event == expected_body_sorted
 
@@ -112,7 +120,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, {"a": "b"})
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": "d"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": True})
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, {})
 
         expected_series = [
@@ -127,7 +135,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
                 "common": True,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
-                "tags": ["a:b", "c:d"],
+                "tags": ["a:b", "c:true"],
                 "type": "count",
             },
             {
@@ -163,8 +171,8 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(test_agent
 def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_writer = test_agent_metrics_session.telemetry_writer
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "B"})
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"A": "b"})
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {})
         telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"}
@@ -189,7 +197,7 @@ def test_send_tracers_count_metric(test_agent_metrics_session, mock_time):
                 "common": True,
                 "metric": "test-metric",
                 "points": [[1642544540, 1.0]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "count",
             },
         ]
@@ -211,7 +219,7 @@ def test_send_appsec_rate_metric(test_agent_metrics_session, mock_time):
                 "interval": 60,
                 "metric": "test-metric",
                 "points": [[1642544540, 0.016666666666666666]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "rate",
             },
             {
@@ -242,7 +250,7 @@ def test_send_appsec_gauge_metric(test_agent_metrics_session, mock_time):
                 "interval": 60,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
-                "tags": ["hi:HELLO", "NAME:CANDY"],
+                "tags": ["hi:hello", "name:candy"],
                 "type": "gauge",
             },
             {
