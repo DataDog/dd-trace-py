@@ -404,7 +404,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer._writer.spans
+        return self.tracer.get_spans()
 
     def pop_spans(self):
         # type: () -> List[Span]
@@ -416,7 +416,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer._writer.pop()
+        self.tracer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -476,8 +476,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
             kwargs["agent_url"] = agent.get_trace_url()
-        # if "api_version" not in kwargs:
-        #     kwargs["api_version"] = "v0.5"
+        if "api_version" not in kwargs:
+            kwargs["api_version"] = "v0.5"
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
@@ -489,8 +489,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
+            AgentWriter.write(self, spans=spans)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -525,6 +524,13 @@ class DummyTracer(Tracer):
     def encoder(self):
         # type: () -> Encoder
         return self._writer.msgpack_encoder
+
+    def get_spans(self):
+        # type: () -> List[List[Span]]
+        spans = self._writer.spans
+        if self._trace_flush_enabled:
+            self._writer.flush_queue()
+        return spans
 
     def pop(self):
         # type: () -> List[Span]
