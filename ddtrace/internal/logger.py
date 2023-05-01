@@ -125,6 +125,13 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
+        if record.levelno >= logging.ERROR:
+            # avoid circular import
+            from ddtrace.internal.telemetry import telemetry_writer
+
+            # currently we only have one error code
+            telemetry_writer.add_error(1, record.msg % record.args)
+
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
         if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
@@ -161,12 +168,3 @@ class DDLogger(logging.Logger):
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
-
-    def _log(self, level, msg, args, **kwargs):
-        if level >= logging.ERROR:
-            # avoid circular import
-            from ddtrace.internal.telemetry import telemetry_writer
-
-            # currently we only have one error code
-            telemetry_writer.add_error(1, msg % args)
-        return super(DDLogger, self)._log(level, msg, args, **kwargs)
