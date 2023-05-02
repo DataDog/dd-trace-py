@@ -190,19 +190,18 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             )
         elif command_name == "get":
             try:
-                # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
-                # missing key
-                if hasattr(result, "empty"):
-                    span.set_metric(db.ROWCOUNT, 0 if result.empty else 1)
-                elif result is not None and result != getattr(instance, "_missing_key", None):
-                    span.set_metric(db.ROWCOUNT, 1)
-                # else result is invalid or None, set row count to 0
-                else:
+                # check if Python unique id of result is equal to that of None since None is a singleton and
+                # all objects with value of None will return the same id memory address
+                if id(result) == id(None):
                     span.set_metric(db.ROWCOUNT, 0)
-            # catch any value / attribute errors that may occur
-            except (ValueError, AttributeError, NotImplementedError):
+                # check also for special case for Django~3.0 that returns an empty Sentinel object for empty results
+                # also check if result is Iterable first since some iterables return ambiguous truth results with ``==``
+                elif not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None):
+                    span.set_metric(db.ROWCOUNT, 0)
+                else:
+                    span.set_metric(db.ROWCOUNT, 1)
+            except (AttributeError, NotImplementedError, ValueError):
                 span.set_metric(db.ROWCOUNT, 0)
-
         return result
 
 
