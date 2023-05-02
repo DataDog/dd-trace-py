@@ -192,3 +192,9 @@ def identify(request):
         scope="usr.scope",
     )
     return HttpResponse(status=200)
+
+
+def ossystem(request):
+    import os
+    ret = os.system("ls")
+    return HttpResponse(str(ret), status=200)

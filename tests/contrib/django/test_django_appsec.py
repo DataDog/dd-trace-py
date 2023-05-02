@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import os
 
 import mock
 import pytest
+from ddtrace.contrib import trace_utils
 
-from ddtrace import config
+from ddtrace import config, _monkey, Pin, patch_all
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._patch_subprocess_executions import _patch
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.ext import http
+from ddtrace.ext import http, SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
@@ -25,6 +28,7 @@ from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.appsec.test_processor import _ALLOWED_IP
 from tests.appsec.test_processor import _BLOCKED_IP
+from tests.contrib.patch import PatchTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -821,3 +825,39 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
+
+
+# XXX move out of test_django_appsec!
+
+def test_django_subexec_system(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        tracer._appsec_enabled = config._appsec_enabled
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        _monkey.patch_all()
+        import os
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/ossystem/",
+        )
+        assert response.status_code == 200
+        assert response.content == b"XXX0"
+        pin = Pin.get_from(os)
+        span = pin.tracer.current_span()
+        pass
+        # system_span = test_spans.find_span(name="os.system")
+        # assert system_span
+
+
+def test_XXX():
+    with override_global_config(dict(_appsec_enabled=True)):
+        import os
+        patch_all()
+
+        ret = os.system("ls")
+        assert ret == "XXX0"
+        pin = Pin.get_from(os)
+        span = pin.tracer.current_span()
+        pass

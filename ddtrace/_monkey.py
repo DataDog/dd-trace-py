@@ -87,6 +87,18 @@ PATCH_MODULES = {
     "tornado": False,
 }
 
+# Patch some more modules for tracing subprocess executions if ASM is enabled
+# XXX JJJ get list from the module dict
+if formats.asbool(os.getenv("DD_APPSEC_ENABLED")):
+    # XXX add more as needed
+    PATCH_MODULES.update(
+        {
+            "os": True,
+            "subprocess": True,
+        }
+    )
+
+
 
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
@@ -195,6 +207,7 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     patch_iast(**IAST_PATCH)
+    patch_subprocess_executions()
 
 
 def patch_iast(**patch_modules):
@@ -210,6 +223,14 @@ def patch_iast(**patch_modules):
             when_imported("hashlib")(
                 _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
             )
+
+
+def patch_subprocess_executions():
+    if not config._appsec_enabled:
+        return
+
+    from .appsec._patch_subprocess_executions import _patch
+    _patch()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
