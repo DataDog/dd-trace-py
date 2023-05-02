@@ -69,7 +69,7 @@ coverage.json
 .hypothesis/
 .pytest_cache/
 test.db
-benchmarks/**/*.json
+.benchmarks/**/*.json
 
 # Translations
 *.mo
