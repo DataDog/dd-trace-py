@@ -23,7 +23,7 @@ async def traced_async_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+    cmds = [stringify_cache_args(c, cmd_max_len=config.redis.cmd_max_length) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.redis, resource, instance):
         return await func(*args, **kwargs)
