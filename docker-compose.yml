@@ -166,7 +166,7 @@ services:
           - ddagent:/tmp/ddagent
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
-          - ./.ddriot:/root/project/.riot
+          - ./.riot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

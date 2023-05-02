@@ -15,6 +15,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 
@@ -22,7 +23,7 @@ from ...internal.utils.wrappers import unwrap as _u
 config._add(
     "mysqldb",
     dict(
-        _default_service="mysql",
+        _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
