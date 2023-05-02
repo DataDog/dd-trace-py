@@ -1,3 +1,5 @@
+import os
+
 # 3p
 import rediscluster
 
@@ -13,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
@@ -25,7 +28,13 @@ from .. import trace_utils
 #      but in `1.x.x` `__version__` is a tuple annd `VERSION` does not exist
 REDISCLUSTER_VERSION = getattr(rediscluster, "VERSION", rediscluster.__version__)
 
-config._add("rediscluster", dict(_default_service="rediscluster"))
+config._add(
+    "rediscluster",
+    dict(
+        _default_service="rediscluster",
+        cmd_max_length=int(os.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+    ),
+)
 
 
 def patch():
@@ -71,7 +80,9 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    cmds = [stringify_cache_args(c.args) for c in instance.command_stack]
+    cmds = [
+        stringify_cache_args(c.args, cmd_max_len=config.rediscluster.cmd_max_length) for c in instance.command_stack
+    ]
     resource = "\n".join(cmds)
     tracer = pin.tracer
     with tracer.trace(
