@@ -1,3 +1,5 @@
+import os
+
 import redis
 from six import PY3
 
@@ -5,6 +7,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
+from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
@@ -16,6 +19,7 @@ config._add(
     "redis",
     {
         "_default_service": schematize_service_name("redis"),
+        "cmd_max_length": int(os.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
     },
 )
 
@@ -119,9 +123,15 @@ def traced_execute_pipeline(integration_config, is_cluster=False):
             return func(*args, **kwargs)
 
         if is_cluster:
-            cmds = [stringify_cache_args(c.args) for c in instance.command_stack]
+            cmds = [
+                stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
+                for c in instance.command_stack
+            ]
         else:
-            cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+            cmds = [
+                stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
+                for c, _ in instance.command_stack
+            ]
         resource = "\n".join(cmds)
         with _trace_redis_execute_pipeline(pin, integration_config, resource, instance, is_cluster):
             return func(*args, **kwargs)
