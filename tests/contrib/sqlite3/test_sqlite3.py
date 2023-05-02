@@ -217,11 +217,7 @@ class TestSQLite(TracerTestCase):
 
         self.assert_structure(
             dict(name="sqlite_op", service="sqlite_svc"),
-            (
-                dict(
-                    name="sqlite.query", service="sqlite", span_type="sql", resource=q, error=0
-                ),
-            ),
+            (dict(name="sqlite.query", service="sqlite", span_type="sql", resource=q, error=0),),
         )
         assert_is_measured(self.get_spans()[1])
         self.reset()

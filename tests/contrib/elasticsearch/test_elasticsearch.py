@@ -8,8 +8,8 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 
 from ..config import ELASTICSEARCH_CONFIG
