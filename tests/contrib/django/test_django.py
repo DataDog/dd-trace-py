@@ -811,6 +811,95 @@ def test_cache_get_rowcount_missing_key_with_default(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
 
 
+class RaiseNotImplementedError:
+    def __eq__(self, _):
+        raise NotImplementedError
+
+
+class RaiseValueError:
+    def __eq__(self, _):
+        raise ValueError
+
+
+class RaiseAttributeError:
+    def __eq__(self, _):
+        raise AttributeError
+
+
+def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
+
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.set(1, RaiseNotImplementedError())
+    cache.set(2, RaiseValueError())
+    cache.set(3, RaiseAttributeError())
+
+    # This is the diff with `test_cache_get_rowcount_missing_key`,
+    # we are setting a default value to be returned in case of a cache miss
+    result = cache.get(1)
+    assert isinstance(result, RaiseNotImplementedError)
+
+    result = cache.get(2)
+    assert isinstance(result, RaiseValueError)
+
+    result = cache.get(3)
+    assert isinstance(result, RaiseAttributeError)
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 6
+
+    set_1 = spans[0]
+    set_2 = spans[1]
+    set_3 = spans[2]
+    assert set_1.resource == "django.core.cache.backends.locmem.set"
+    assert set_2.resource == "django.core.cache.backends.locmem.set"
+    assert set_3.resource == "django.core.cache.backends.locmem.set"
+
+    get_1 = spans[3]
+    assert get_1.service == "django"
+    assert get_1.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 0})
+
+    get_2 = spans[4]
+    assert get_2.service == "django"
+    assert get_2.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
+
+    get_3 = spans[5]
+    assert get_3.service == "django"
+    assert get_3.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_3.get_metrics(), {"db.row_count": 0})
+
+
+def test_cache_get_rowcount_pandas_dataframe(test_spans):
+    # get the default cache
+    import pandas as pd
+
+    data = {"col1": 1, "col2": 2, "col3": 3}
+
+    cache = django.core.cache.caches["default"]
+    cache.set(1, pd.DataFrame())
+    cache.set(2, pd.DataFrame(data, index=[0]))
+
+    # This is the diff with `test_cache_get_rowcount_missing_key`,
+    # we are setting a default value to be returned in case of a cache miss
+    cache.get(1)
+    cache.get(2)
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
+
+    span = spans[1]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+
+
 def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
