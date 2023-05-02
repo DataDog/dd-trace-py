@@ -11,6 +11,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -357,10 +358,10 @@ class PsycopgCore(TracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_app_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_app_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The psycopg2 integration should not use it.
         """
         # Ensure that the service name was configured
@@ -375,14 +376,63 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_app_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The psycopg2 integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_user_specified_service_v0(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_user_specified_service_v1(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "postgres"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
     def test_contextmanager_connection(self):
