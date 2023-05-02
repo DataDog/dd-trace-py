@@ -319,18 +319,20 @@ class PatchTestCase(object):
         @raise_if_no_attrs
         def test_patch_import(self):
             """
-            The integration should test that each class, method or function that
-            is to be patched is in fact done so when ddtrace.patch() is called
-            after the module is imported.
+                The integration should test that each class, method or function that
+                is to be patched is in fact done so when ddtrace.patch() is called
+            after the module is imported. In addition, we check that the integration has
+            not been imported due to patching.
 
-            an appropriate ``test_patch_import`` would be::
+                an appropriate ``test_patch_import`` would be::
 
-                import redis
-                ddtrace.patch(redis=True)
-                self.assert_module_patched(redis)
+                    import redis
+                    ddtrace.patch(redis=True)
+                    self.assert_module_patched(redis)
             """
-            module = importlib.import_module(self.__module_name__)
             self.__patch_func__()
+            self.assert_not_module_imported(self, self.__module_name__)
+            module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
 
         @raise_if_no_attrs
