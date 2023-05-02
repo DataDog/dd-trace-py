@@ -884,20 +884,31 @@ def test_cache_get_rowcount_pandas_dataframe(test_spans):
 
     # This is the diff with `test_cache_get_rowcount_missing_key`,
     # we are setting a default value to be returned in case of a cache miss
-    cache.get(1)
-    cache.get(2)
+    result = cache.get(1)
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty is True
+
+    result = cache.get(2)
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty is False
 
     spans = test_spans.get_spans()
-    assert len(spans) == 2
-    span = spans[0]
-    assert span.service == "django"
-    assert span.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
+    assert len(spans) == 4
 
-    span = spans[1]
-    assert span.service == "django"
-    assert span.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+    set_1 = spans[0]
+    set_2 = spans[1]
+    assert set_1.resource == "django.core.cache.backends.locmem.set"
+    assert set_2.resource == "django.core.cache.backends.locmem.set"
+
+    get_1 = spans[2]
+    assert get_1.service == "django"
+    assert get_1.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 0})
+
+    get_2 = spans[3]
+    assert get_2.service == "django"
+    assert get_2.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 1})
 
 
 def test_cache_get_unicode(test_spans):
