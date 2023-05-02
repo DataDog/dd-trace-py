@@ -53,9 +53,6 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
-    # queue integrations
-    telemetry_writer.add_integration("integration-t", True)
-    telemetry_writer.add_integration("integration-f", False)
     # queue an app started event
     telemetry_writer._app_started_event()
     # force a flush
@@ -71,24 +68,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     # validate request body
     payload = {
         "dependencies": get_dependencies(),
-        "integrations": [
-            {
-                "name": "integration-t",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": True,
-                "compatible": True,
-                "error": "",
-            },
-            {
-                "name": "integration-f",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": False,
-                "compatible": True,
-                "error": "",
-            },
-        ],
         "configurations": [],
     }
     assert events[0] == _get_request_body(payload, "app-started")

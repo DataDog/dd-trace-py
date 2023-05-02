@@ -394,7 +394,6 @@ class TelemetryWriter(TelemetryBase):
             return
         payload = {
             "dependencies": get_dependencies(),
-            "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
         self.add_event(payload, "app-started")
