@@ -147,6 +147,28 @@ async def test_long_command(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+async def test_cmd_max_length(redis_client):
+    with override_config("aioerdis", dict(cmd_max_length=7)):
+        await redis_client.get("here-is-a-long-key")
+
+
+@pytest.mark.skip(reason="No traces sent to the test agent")
+@pytest.mark.subprocess(env=dict(DD_AIOREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
+@pytest.mark.snapshot
+def test_cmd_max_length_env():
+    import asyncio
+
+    from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+    async def main():
+        redis_client = await get_redis_instance(1)
+        await redis_client.get("here-is-a-long-key")
+
+    asyncio.run(main())
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_override_service_name(redis_client):
     with override_config("aioredis", dict(service_name="myaioredis")):
         val = await redis_client.get("cheese")

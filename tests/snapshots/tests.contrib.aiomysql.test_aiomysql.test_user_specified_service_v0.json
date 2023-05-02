@@ -16,7 +16,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "2ba0d890e92448718fffeb1d278f2400",
+      "runtime-id": "edd004724e314daf9ff1e51e8234b4df",
       "span.kind": "client",
       "sql.query": "select 'dba4x4'"
     },
@@ -29,8 +29,8 @@
       "db.row_count": 1,
       "db.rownumber": 0,
       "network.destination.port": 3306,
-      "process_id": 41643
+      "process_id": 1191
     },
-    "duration": 2190000,
-    "start": 1667240729554151000
+    "duration": 339958,
+    "start": 1682180471955479013
   }]]
