@@ -19,11 +19,11 @@ from tests.utils import request_token
 
 
 @pytest.fixture
-def telemetry_writer():
-    telemetry_writer = TelemetryWriter()
-    telemetry_writer.start = lambda *args, **kwargs: None
-    telemetry_writer.stop = lambda *args, **kwargs: None
-    yield telemetry_writer
+def telemetry_lifecycle_writer():
+    telemetry_lifecycle_writer = TelemetryWriter()
+    telemetry_lifecycle_writer.start = lambda *args, **kwargs: None
+    telemetry_lifecycle_writer.stop = lambda *args, **kwargs: None
+    yield telemetry_lifecycle_writer
 
 
 @pytest.fixture
@@ -86,11 +86,11 @@ class TelemetryTestSession(object):
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
+def test_agent_session(telemetry_lifecycle_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request)
-    telemetry_writer._restart_sequence()
-    telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
+    telemetry_lifecycle_writer._restart_sequence()
+    telemetry_lifecycle_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
     # Also add a header to the environment for subprocesses test cases that might use snapshotting.
     existing_headers = parse_tags_str(os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS", ""))
@@ -99,7 +99,7 @@ def test_agent_session(telemetry_writer, request):
         ["%s:%s" % (k, v) for k, v in existing_headers.items()]
     )
 
-    requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_writer)
+    requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_lifecycle_writer)
 
     conn = requests.create_connection()
     try:
@@ -111,8 +111,8 @@ def test_agent_session(telemetry_writer, request):
     try:
         yield requests
     finally:
-        telemetry_writer.periodic()
-        del telemetry_writer._client._headers["X-Datadog-Test-Session-Token"]
+        telemetry_lifecycle_writer.periodic()
+        del telemetry_lifecycle_writer._client._headers["X-Datadog-Test-Session-Token"]
         del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
 
 
