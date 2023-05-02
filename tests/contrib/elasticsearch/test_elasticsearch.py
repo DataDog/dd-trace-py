@@ -264,7 +264,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert spans[0].service == "elasticsearch"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def test_unspecified_service_v1(self):
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
         Pin(service="es", tracer=self.tracer).onto(self.es.transport)
         spans = self.get_spans()
