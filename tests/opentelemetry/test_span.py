@@ -1,6 +1,7 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
 
+import mock
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.span import NonRecordingSpan
@@ -12,6 +13,8 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.internal.constants import SPAN_API_KEY
+from ddtrace.internal.constants import SPAN_API_OTEL
 
 
 @pytest.mark.snapshot
@@ -204,3 +207,12 @@ def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):
         assert child_context.is_remote is False  # parent_context.is_remote is True
         assert child_context.trace_flags == remote_context.trace_flags
         assert remote_context.trace_state.to_header() in child_context.trace_state.to_header()
+
+
+def test_otel_span_creation_metrics(oteltracer):
+    otelspan = oteltracer.start_span("otel")
+    assert otelspan._ddspan._get_ctx_item(SPAN_API_KEY) is SPAN_API_OTEL
+
+    with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer._add_metric") as mock_tm:
+        otelspan.end()
+        mock_tm.assert_called_once_with("count", "tracer", "otel.span_created", 1.0, {})

@@ -14,11 +14,14 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import SPAN_API_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import telemetry_metrics_writer
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
@@ -278,3 +281,17 @@ class SpanSamplingProcessor(SpanProcessor):
                     if config._trace_compute_stats:
                         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
+
+
+@attr.s
+class SpanTelemetryProcessor(SpanProcessor):
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        pass
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        span_api = span._get_ctx_item(SPAN_API_KEY) or SPAN_API_DATADOG
+        metric = "{}.span_created".format(span_api)
+
+        telemetry_metrics_writer.add_count_metric("tracer", metric)

@@ -11,6 +11,8 @@ from opentelemetry.trace.span import TraceState
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import time_ns
+from ddtrace.internal.constants import SPAN_API_KEY
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 
 
@@ -47,6 +49,8 @@ class Span(OtelSpan):
         if start_time is not None:
             # start_time should be set in nanoseconds
             datadog_span.start_ns = start_time
+
+        datadog_span._set_ctx_item(SPAN_API_KEY, SPAN_API_OTEL)
 
         self._ddspan = datadog_span
         if record_exception is not None:

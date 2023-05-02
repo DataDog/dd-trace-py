@@ -22,6 +22,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
+from ddtrace.internal.processor.trace import SpanTelemetryProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
@@ -372,6 +373,18 @@ def test_span_normalizator():
     assert span.name == DEFAULT_SPAN_NAME
     assert span.resource == DEFAULT_SPAN_NAME
     assert span.span_type == "x" * MAX_TYPE_LENGTH
+
+
+def test_span_telemetry_metrics_processor():
+    """Test that telemetry metrics are queued on span finish"""
+    tracer = DummyTracer()
+    assert any(isinstance(sp, SpanTelemetryProcessor) for sp in tracer._span_processors)
+
+    with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer._add_metric") as mock_tm:
+        span = tracer.trace("span")
+        mock_tm.assert_not_called()
+        span.finish()
+        mock_tm.assert_called_once_with("count", "tracer", "datadog.span_created", 1.0, {})
 
 
 def test_single_span_sampling_processor():
