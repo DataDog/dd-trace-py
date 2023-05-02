@@ -70,7 +70,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
 
     # validate request body
     payload = {
-        "dependencies": get_dependencies(),
         "integrations": [
             {
                 "name": "integration-t",
@@ -92,6 +91,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         "configurations": [],
     }
     assert events[0] == _get_request_body(payload, "app-started")
+
+
+def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
+    telemetry_writer._app_dependencies_loaded()
+    # force a flush
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    payload = {"dependencies": get_dependencies()}
+    assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
@@ -178,12 +187,13 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     telemetry_writer.stop()
 
     events = test_agent_session.get_events()
-    assert len(events) == 2
+    assert len(events) == 3
 
     # Reverse chronological order
     assert events[0]["request_type"] == "app-closing"
-    assert events[0] == _get_request_body({}, "app-closing", 2)
-    assert events[1]["request_type"] == "app-started"
+    assert events[0] == _get_request_body({}, "app-closing", 3)
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):

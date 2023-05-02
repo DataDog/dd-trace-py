@@ -16,12 +16,13 @@ telemetry_writer.enable()
     assert stderr == b""
 
     events = test_agent_session.get_events()
-    assert len(events) == 2
+    assert len(events) == 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
 
 
 @pytest.mark.snapshot
@@ -41,9 +42,10 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     events = test_agent_session.get_events()
-    assert len(events) == 2
+    assert len(events) == 3
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -76,12 +78,15 @@ else:
     requests = test_agent_session.get_requests()
 
     # We expect 2 events from the parent process to get sent, but none from the child process
-    assert len(requests) == 2
+    assert len(requests) == 3
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
     assert requests[0]["body"]["request_type"] == "app-closing"
     assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[1]["body"]["request_type"] == "app-started"
+    assert requests[1]["body"]["request_type"] == "app-dependencies-loaded"
+    assert requests[1]["body"]["runtime_id"] == runtime_id
+    assert requests[2]["body"]["request_type"] == "app-started"
+    assert requests[2]["body"]["runtime_id"] == runtime_id
 
 
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):

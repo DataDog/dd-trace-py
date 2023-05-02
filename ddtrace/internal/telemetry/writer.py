@@ -393,7 +393,6 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            "dependencies": get_dependencies(),
             "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
@@ -428,6 +427,10 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    def _app_dependencies_loaded(self):
+        payload = {"dependencies": get_dependencies()}
+        self.add_event(payload, "app-dependencies-loaded")
+
     def periodic(self):
         integrations = self._flush_integrations_queue()
         if integrations:
@@ -454,6 +457,7 @@ class TelemetryWriter(TelemetryBase):
         super(TelemetryBase, self).start(*args, **kwargs)
         # Queue app-started event after the telemetry worker thread is running
         self._app_started_event()
+        self._app_dependencies_loaded()
 
     def on_shutdown(self):
         self._app_closing_event()
