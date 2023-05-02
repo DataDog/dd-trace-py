@@ -24,7 +24,8 @@ _ORIGINAL_EXCEPTHOOK = sys.excepthook
 def _excepthook(tp, value, traceback):
     try:
         telemetry_writer.add_error(1, str(value))
-        telemetry_writer.enable()
+        sys.stdout.write(value)
+        # telemetry_writer.enable()
     except Exception:
         # Required to avoid circular references, _excepthook should not raise an unhandled exception
         pass
