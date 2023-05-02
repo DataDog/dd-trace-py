@@ -498,3 +498,13 @@ class TestRedisPatchSnapshot(TracerTestCase):
         # Do a manual override
         Pin.override(self.r, service="override-redis", tracer=self.tracer)
         self.r.get("cheese")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_CMD_MAX_LENGTH="10"))
+    @snapshot()
+    def test_custom_cmd_length_env(self):
+        self.r.get("here-is-a-long-key-name")
+
+    @snapshot()
+    def test_custom_cmd_length(self):
+        with self.override_config("redis", dict(cmd_max_length=7)):
+            self.r.get("here-is-a-long-key-name")
