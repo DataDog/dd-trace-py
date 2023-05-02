@@ -2,13 +2,11 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import sys
-
-
-LOADED_MODULES = frozenset(sys.modules.keys())
+from ddtrace import LOADED_MODULES  # isort:skip
 
 import logging  # noqa
 import os  # noqa
+import sys
 from typing import Any  # noqa
 from typing import Dict  # noqa
 import warnings  # noqa
