@@ -334,7 +334,7 @@ class PatchTestCase(object):
             """
             self.__patch_func__()
             for modname in sys.modules:
-                assert not modname.startswith(self.__module_name__)
+                assert not modname.startswith(self.__module_name__), "{} module is imported".format(modname)
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
 
