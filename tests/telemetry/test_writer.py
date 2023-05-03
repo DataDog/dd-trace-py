@@ -67,7 +67,7 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
 
     # validate request body
     payload = {
-        "configurations": [],
+        "configuration": [],
     }
     assert events[0] == _get_request_body(payload, "app-started")
 
