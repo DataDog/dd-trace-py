@@ -190,11 +190,9 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             )
         elif command_name == "get":
             try:
-                if result is None:
-                    span.set_metric(db.ROWCOUNT, 0)
-                # check also for special case for Django~3.0 that returns an empty Sentinel object for empty results
+                # check also for special case for Django~3.2 that returns an empty Sentinel object for empty results
                 # also check if result is Iterable first since some iterables return ambiguous truth results with ``==``
-                elif not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None):
+                if result is None or (not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)):
                     span.set_metric(db.ROWCOUNT, 0)
                 else:
                     span.set_metric(db.ROWCOUNT, 1)
