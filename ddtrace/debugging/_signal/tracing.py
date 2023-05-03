@@ -5,6 +5,7 @@ import attr
 import ddtrace
 from ddtrace import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
@@ -104,13 +105,10 @@ class SpanDecoration(Signal):
                     try:
                         tag_value = tag.value(_locals)
                     except DDExpressionEvaluationError as e:
-                        self.errors.append(
-                            EvaluationError(
-                                expr=e.dsl, message="Failed to evaluate value for tag %s: %s" % (tag.name, e.error)
-                            )
-                        )
-                        continue
-                    span.set_tag(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
+                        span.set_tag("_dd.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args]))
+                    else:
+                        span.set_tag(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
+                        span.set_tag("_dd.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
     def enter(self):
         # type: () -> None
