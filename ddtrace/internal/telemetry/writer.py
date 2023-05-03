@@ -393,9 +393,8 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            "integrations": self._flush_integrations_queue(),
             "configurations": [],
-        }
+        }  # type: Union[Dict[str, Any], List[Any]]
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):

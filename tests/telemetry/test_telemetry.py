@@ -42,10 +42,11 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     events = test_agent_session.get_events()
-    assert len(events) == 3
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
+    assert len(events) == 4
+    assert events[0]["request_type"] == "app-integrations-change"
+    assert events[1]["request_type"] == "app-closing"
+    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert events[3]["request_type"] == "app-started"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
