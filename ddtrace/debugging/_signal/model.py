@@ -28,7 +28,7 @@ class EvaluationError(object):
 
 
 # TODO: make this an Enum once Python 2 support is dropped.
-class CaptureState(object):
+class SignalState(object):
     NONE = "NONE"
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
@@ -39,22 +39,23 @@ class CaptureState(object):
 
 
 @attr.s
-class CapturedEvent(six.with_metaclass(abc.ABCMeta)):
-    """Captured event base class.
+class Signal(six.with_metaclass(abc.ABCMeta)):
+    """Debugger signal base class.
 
-    Used to store captured data when a probe is triggered.
+    Used to model the data carried by the signal emitted by a probe when it is
+    triggered.
     """
 
     probe = attr.ib(type=Probe)
     frame = attr.ib(type=FrameType)
     thread = attr.ib(type=Thread)
 
-    context = attr.ib(type=Optional[Context], default=None)
+    trace_context = attr.ib(type=Optional[Context], default=None)
     args = attr.ib(type=Optional[List[Tuple[str, Any]]], default=None)
-    state = attr.ib(type=str, default=CaptureState.NONE)
+    state = attr.ib(type=str, default=SignalState.NONE)
     errors = attr.ib(type=List[EvaluationError], factory=lambda: list())
     timestamp = attr.ib(type=float, factory=time.time)
-    event_id = attr.ib(type=str, init=False, factory=lambda: str(uuid4()))
+    uuid = attr.ib(type=str, init=False, factory=lambda: str(uuid4()))
 
     def _eval_condition(self, _locals=None):
         # type: (Optional[Dict[str, Any]]) -> bool
@@ -70,11 +71,11 @@ class CapturedEvent(six.with_metaclass(abc.ABCMeta)):
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
             if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                self.state = CaptureState.SKIP_COND_ERROR
+                self.state = SignalState.SKIP_COND_ERROR
             else:
-                self.state = CaptureState.COND_ERROR_AND_COMMIT
+                self.state = SignalState.COND_ERROR_AND_COMMIT
         else:
-            self.state = CaptureState.SKIP_COND
+            self.state = SignalState.SKIP_COND
 
         return False
 

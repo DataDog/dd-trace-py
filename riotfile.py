@@ -144,6 +144,14 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={
+                "cython-lint": latest,
+            },
+            name="cython-lint",
+            command="cython-lint {cmdargs} .",
+        ),
+        Venv(
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -301,6 +309,9 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 # httpretty v1.0 drops python 2.7 support
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": "<=2.2.3",
                 "httpretty": "==0.9.7",
             },
         ),

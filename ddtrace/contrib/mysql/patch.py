@@ -9,13 +9,14 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 
 
 config._add(
     "mysql",
     dict(
-        _default_service="mysql",
+        _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         trace_fetch_methods=asbool(os.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
     ),

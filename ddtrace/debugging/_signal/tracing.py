@@ -4,9 +4,9 @@ import attr
 
 import ddtrace
 from ddtrace import Span
-from ddtrace.debugging._capture.model import CaptureState
-from ddtrace.debugging._capture.model import CapturedEvent
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -18,7 +18,7 @@ PROBE_ID_TAG_NAME = "debugger.probeid"
 
 
 @attr.s
-class DynamicSpan(CapturedEvent):
+class DynamicSpan(Signal):
     """Dynamically created span"""
 
     _span_cm = attr.ib(type=t.Optional[t.ContextManager[Span]], init=False)
@@ -48,7 +48,7 @@ class DynamicSpan(CapturedEvent):
         span.set_tags(probe.tags)
         span.set_tag(PROBE_ID_TAG_NAME, probe.probe_id)
 
-        self.state = CaptureState.DONE
+        self.state = SignalState.DONE
 
     def exit(self, retval, exc_info, duration):
         # type: (t.Any, ExcInfoType, float) -> None
