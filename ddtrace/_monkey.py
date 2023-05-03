@@ -87,18 +87,6 @@ PATCH_MODULES = {
     "tornado": False,
 }
 
-# Patch some more modules for tracing subprocess executions if ASM is enabled
-# XXX JJJ get list from the module dict
-if formats.asbool(os.getenv("DD_APPSEC_ENABLED")):
-    # XXX add more as needed
-    PATCH_MODULES.update(
-        {
-            "os": True,
-            "subprocess": True,
-        }
-    )
-
-
 
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
