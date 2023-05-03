@@ -9,14 +9,14 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 
 
 config._add(
     "pymysql",
     dict(
-        # TODO[v1.0] this should be "mysql"
-        _default_service="pymysql",
+        _default_service=schematize_service_name("pymysql"),
         _dbapi_span_name_prefix="pymysql",
         trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
     ),

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    redis: Introducing redis command span tag max length configuration for :ref:`aioredis<aioredis>`, :ref:`aredis<aredis>`, :ref:`redis<redis>`,
+    :ref:`rediscluster<rediscluster>`, and :ref:`yaaredis<yaaredis>` integrations.

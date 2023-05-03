@@ -81,6 +81,7 @@ entrypoint
 entrypoints
 env
 enqueuer
+exec
 fastapi
 formatter
 gRPC
@@ -138,7 +139,9 @@ opentracer
 opentracing
 otel
 ObjectProxy
+packfiles
 parameterized
+parsers
 perf
 pid
 plugin
@@ -151,6 +154,7 @@ protobuf
 proxying
 psycopg
 py
+pyenv
 PyFrameObject
 pylibmc
 pymemcache
@@ -192,6 +196,7 @@ subdomains
 submodule
 submodules
 substring
+testagent
 timestamp
 tokenizer
 tracestate

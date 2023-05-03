@@ -22,9 +22,6 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
-from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
@@ -295,106 +292,6 @@ def decode(obj, reconstruct=True):
         traces = unpacked
 
     return traces
-
-
-def test_encode_traces_civisibility_v0():
-    traces = [
-        [
-            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
-            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
-        ],
-        [
-            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
-            Span(name="client.testing", span_id=0xAAAAAA, service="foo"),
-        ],
-        [
-            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
-            Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"),
-        ],
-    ]
-
-    encoder = CIVisibilityEncoderV01(0, 0)
-    encoder.set_metadata(
-        {
-            "language": "python",
-        }
-    )
-    for trace in traces:
-        encoder.put(trace)
-    payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
-    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
-    assert decoded[b"version"] == 1
-    assert len(decoded[b"metadata"]) == 1
-
-    star_metadata = decoded[b"metadata"][b"*"]
-    assert star_metadata[b"language"] == b"python"
-
-    received_events = sorted(decoded[b"events"], key=lambda event: event[b"content"][b"start"])
-    assert len(received_events) == 6
-
-    all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
-    for given_span, received_event in zip(all_spans, received_events):
-        expected_event = {
-            b"type": b"test" if given_span.span_type == "test" else b"span",
-            b"version": 2,
-            b"content": {
-                b"trace_id": int(given_span._trace_id_64bits),
-                b"span_id": int(given_span.span_id),
-                b"parent_id": 1,
-                b"name": JSONEncoder._normalize_str(given_span.name).encode("utf-8"),
-                b"resource": JSONEncoder._normalize_str(given_span.resource).encode("utf-8"),
-                b"service": JSONEncoder._normalize_str(given_span.service).encode("utf-8"),
-                b"type": given_span.span_type.encode("utf-8") if given_span.span_type else None,
-                b"start": given_span.start_ns,
-                b"duration": given_span.duration_ns,
-                b"meta": dict(sorted(given_span._meta.items())),
-                b"metrics": dict(sorted(given_span._metrics.items())),
-                b"error": 0,
-                b"test_session_id": 1,
-                b"test_suite_id": 1,
-            },
-        }
-        assert expected_event == received_event
-
-
-def test_encode_traces_civisibility_v2_coverage():
-    coverage_data = {
-        "files": [
-            {"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]},
-            {"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]},
-        ]
-    }
-    coverage_json = json.dumps(coverage_data)
-    coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
-    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
-    traces = [
-        [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
-    ]
-
-    encoder = CIVisibilityCoverageEncoderV02(0, 0)
-    for trace in traces:
-        encoder.put(trace)
-    payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
-    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
-    assert decoded[b"version"] == 2
-
-    received_covs = decoded[b"coverages"]
-    assert len(received_covs) == 1
-
-    all_spans = [span for trace in traces for span in trace]
-    for given_span, received_cov in zip(all_spans, received_covs):
-        expected_cov = {
-            b"test_session_id": 1,
-            b"test_suite_id": 1,
-            b"span_id": given_span.span_id,
-            b"files": [
-                {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
-                for file in coverage_data["files"]
-            ],
-        }
-        assert expected_cov == received_cov
 
 
 def allencodings(f):
