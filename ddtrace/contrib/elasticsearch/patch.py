@@ -1,4 +1,5 @@
 from importlib import import_module
+import logging
 
 from ddtrace import config
 from ddtrace._tracing import _limits
@@ -19,6 +20,8 @@ from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
 
+
+log = logging.Logger(__name__)
 
 config._add(
     "elasticsearch",
@@ -54,9 +57,12 @@ def patch():
 def _patch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
         return
-    setattr(elasticsearch, "_datadog_patch", True)
-    _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
-    Pin().onto(elasticsearch.transport.Transport)
+    try:
+        setattr(elasticsearch, "_datadog_patch", True)
+        _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
+        Pin().onto(elasticsearch.transport.Transport)
+    except AttributeError:
+        log.error("Elasticsearch patching failed, will continue", exc_info=True)
 
 
 def unpatch():
