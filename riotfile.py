@@ -913,6 +913,10 @@ venv = Venv(
             name="django_celery",
             command="pytest {cmdargs} tests/contrib/django_celery",
             pkgs={
+                # The test app was built with Django 2. We don't need to test
+                # other versions as the main purpose of these tests is to ensure
+                # an error-free interaction between Django and Celery. We find
+                # that we currently have no reasons for expanding this matrix.
                 "django": "==2.2.1",
                 "sqlalchemy": "~=1.2.18",
                 "celery": "~=5.0.5",
