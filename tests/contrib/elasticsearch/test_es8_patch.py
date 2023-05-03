@@ -5,7 +5,7 @@ from tests.utils import TracerTestCase
 
 
 class ElasticsearchPatchTest(TracerTestCase):
-    def test_patch():
+    def test_patch(self):
         # This is to stop crashing applications if ES8 is used
-        # If it doesn't fail, we are good.
+        # If it doesn't error, we are good.
         patch()

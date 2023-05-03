@@ -16,6 +16,7 @@ from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...internal.compat import urlencode
 from ...internal.schema import schematize_service_name
+from ...internal.utils.version import parse_version
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
@@ -48,6 +49,12 @@ def _es_modules():
             pass
 
 
+def get_version():
+    import elasticsearch
+
+    return getattr(elasticsearch, "__version__", "0.0.0")
+
+
 # NB: We are patching the default elasticsearch.transport module
 def patch():
     for elasticsearch in _es_modules():
@@ -55,14 +62,12 @@ def patch():
 
 
 def _patch(elasticsearch):
-    if getattr(elasticsearch, "_datadog_patch", False):
+    # elasticsearch 8 is not yet supported
+    if getattr(elasticsearch, "_datadog_patch", False) or get_version() >= (8, 0, 0):
         return
-    try:
-        setattr(elasticsearch, "_datadog_patch", True)
-        _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
-        Pin().onto(elasticsearch.transport.Transport)
-    except AttributeError:
-        log.error("Elasticsearch patching failed, will continue", exc_info=True)
+    setattr(elasticsearch, "_datadog_patch", True)
+    _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
+    Pin().onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
