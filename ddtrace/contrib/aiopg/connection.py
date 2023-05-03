@@ -13,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -86,7 +87,8 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
-        name = dbapi._get_vendor(conn)
+        vendor = dbapi._get_vendor(conn)
+        name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the

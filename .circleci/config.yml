@@ -75,7 +75,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.2
+      - run: pip3 install riot==0.17.3
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -145,9 +145,9 @@ commands:
                   DD_TRACE_AGENT_URL: http://localhost:9126
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  mv .riot .ddriot
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
               << parameters.snapshot >>
@@ -166,6 +166,7 @@ commands:
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - save_pip_cache
       - when:
           condition:
@@ -422,9 +423,9 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            mv .riot .ddriot
             # Sort the hashes to ensure a consistent ordering/division between each node
             riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+            ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   integration_testagent:
     <<: *machine_executor
@@ -661,8 +662,8 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
+            ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   httplib:
     <<: *machine_executor

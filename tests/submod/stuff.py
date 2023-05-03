@@ -125,12 +125,13 @@ class PropertyStuff(object):
     foo = property(operator.attrgetter("_foo"))
 
 
-from time import sleep  # noqa
+from ddtrace.internal.compat import monotonic_ns  # noqa
 
 
 def durationstuff(ns):
-
-    sleep(ns / 1e9)
+    end = monotonic_ns() + ns
+    while monotonic_ns() < end:
+        pass
 
 
 def mutator(arg):

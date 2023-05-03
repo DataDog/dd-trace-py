@@ -27,6 +27,17 @@ Global Configuration
    Default: ``"redis"``
 
 
+.. py:data:: ddtrace.config.redis["cmd_max_length"]
+
+   Max allowable size for the redis command span tag.
+   Anything beyond the max length will be replaced with ``"..."``.
+
+   This option can also be set with the ``DD_REDIS_CMD_MAX_LENGTH`` environment
+   variable.
+
+   Default: ``1000``
+
+
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
