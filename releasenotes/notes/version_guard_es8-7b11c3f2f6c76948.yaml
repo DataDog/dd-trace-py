@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    elasticsearch: This fix resolves an issue where the tracer would throw an error when 
+    unsupported versions of elasticsearch (> 8.0). Now if we detect an unsupported version,
+    we skip patching.
