@@ -32,7 +32,7 @@ def test_add_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
     assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
-    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v1"
+    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
@@ -219,7 +219,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
     return {
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
-        "api_version": "v1",
+        "api_version": "v2",
         "debug": False,
         "seq_id": seq_id,
         "application": get_application(config.service, config.version, config.env),

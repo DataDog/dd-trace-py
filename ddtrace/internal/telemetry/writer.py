@@ -91,7 +91,7 @@ class _TelemetryClient:
 
     def get_headers(self, request):
         # type: (Dict) -> Dict
-        """Get all telemetry api v1 request headers"""
+        """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
@@ -132,13 +132,13 @@ class TelemetryBase(PeriodicService):
 
         :param Dict payload: stores a formatted telemetry event
         :param str payload_type: The payload_type denotes the type of telmetery request.
-            Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
+            Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if not self._disabled and self.enable():
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
-                "api_version": "v1",
+                "api_version": "v2",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),
