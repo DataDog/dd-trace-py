@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from ddtrace.appsec._patch_subprocess_executions import _unpatch, ShellCmdLine
+from ddtrace.appsec._patch_subprocess_executions import _unpatch, SubprocessCmdLine
 from ddtrace.internal import _context
 
 from ddtrace import Pin, patch_all
@@ -13,7 +13,6 @@ from tests.utils import DummyTracer, override_global_config
 
 # JJJ test truncated
 # JJJ test scrub_arg
-# JJJ test forbidden commands
 # JJJ use some command that can work also on Windoze
 # JJJ test _unpatch
 
@@ -27,22 +26,23 @@ def auto_unpatch():
         pass
 
 
-# JJJ test dir with spaces
-allowed_fixture_list = []
-for allowed in ShellCmdLine.ENV_VARS_ALLOWLIST:
-    allowed_fixture_list.extend(
+
+
+allowed_envvars_fixture_list = []
+for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
+    allowed_envvars_fixture_list.extend(
     [
         (
-            ShellCmdLine(["%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True),
-            ["%s=bar" % allowed, "ls", "-li", "/", "OTHER=any"],
-            ["%s=bar"% allowed],
+            SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
+            ["%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+            ["%s=bar"% allowed, "BAR=?"],
             "ls",
             ["-li", "/", "OTHER=any"]
         ),
         (
-            ShellCmdLine(["FOO=bar", "%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True),
-            ["%s=bar" % allowed, "ls", "-li", "/", "OTHER=any"],
-            ["%s=bar" % allowed],
+            SubprocessCmdLine(["FOO=bar", "%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
+            ["FOO=?", "%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+            ["FOO=?", "%s=bar" % allowed, "BAR=?"],
             "ls",
             ["-li", "/", "OTHER=any"]
         ),
@@ -51,37 +51,63 @@ for allowed in ShellCmdLine.ENV_VARS_ALLOWLIST:
 
 
 @pytest.mark.parametrize(
-    "cmdline_obj,list,env_vars,binary,arguments",
+    "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-                ShellCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/"], True),
-                ["ls", "-li", "/"],
-                [],
+                SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/"], True, shell=True),
+                ["FOO=?", "BAR=?", "ls", "-li", "/"],
+                ["FOO=?", "BAR=?"],
                 "ls",
                 ["-li", "/"]
         ),
         (
-                ShellCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/dir with spaces", "OTHER=any"], True),
-                ["ls", "-li", "/dir with spaces", "OTHER=any"],
-                [],
+                SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
+                ["FOO=?", "BAR=?", "ls", "-li", "/dir with spaces", "OTHER=any"],
+                ["FOO=?", "BAR=?"],
                 "ls",
                 ["-li", "/dir with spaces", "OTHER=any"]
         ),
         (
-                ShellCmdLine(["FOO=bar", "lower=baz", "ls", "-li", "/", "OTHER=any"], True),
-                ["lower=baz", "ls", "-li", "/", "OTHER=any"],
-                [],
+                SubprocessCmdLine(["FOO=bar", "lower=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
+                ["FOO=?", "lower=baz", "ls", "-li", "/", "OTHER=any"],
+                ["FOO=?"],
                 "lower=baz",
                 ["ls", "-li", "/", "OTHER=any"]
         ),
-    ] + allowed_fixture_list
+    ] + allowed_envvars_fixture_list
 )
-def test_shellcmdline(cmdline_obj, list, env_vars, binary, arguments):
-    assert cmdline_obj.as_list() == list
+def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
+    assert cmdline_obj.as_list() == full_list
     assert cmdline_obj.env_vars == env_vars
     assert cmdline_obj.binary == binary
     assert cmdline_obj.arguments == arguments
 
+
+denied_binaries_fixture_list = []
+for denied in SubprocessCmdLine.BINARIES_DENYLIST:
+    denied_binaries_fixture_list.extend(
+        [
+            (
+                SubprocessCmdLine([denied, "-foo", "bar", "baz"], True),
+                [denied, "?", "?", "?"],
+                ["?", "?", "?"],
+            )
+        ]
+    )
+
+@pytest.mark.parametrize(
+    "cmdline_obj,full_list,arguments",
+    [
+        (
+            SubprocessCmdLine(["ls", "-li", "/"], True),
+            ["ls", "-li", "/"],
+            ["-li", "/"]
+        )
+    ]
+)
+def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
+    assert cmdline_obj.as_list() == full_list
+    assert cmdline_obj.arguments == arguments
 
 
 def test_ossystem(tracer):
