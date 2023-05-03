@@ -121,9 +121,20 @@ def cleanup_loaded_modules():
     # uses a copy of that module that is distinct from the copy that user code
     # gets when it does `import threading`. The same applies to every module
     # not in `KEEP_MODULES`.
-    KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing", "logging", "attr"])
+    KEEP_MODULES = frozenset(
+        [
+            "atexit",
+            "copyreg",  # pickling issues for tracebacks with gevent
+            "ddtrace",
+            "asyncio",
+            "concurrent",
+            "typing",
+            "logging",
+            "attr",
+        ]
+    )
     if PY2:
-        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
+        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs", "copy_reg"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
