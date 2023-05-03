@@ -190,9 +190,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
             )
         elif command_name == "get":
             try:
-                # check if Python unique id of result is equal to that of None since None is a singleton and
-                # all objects with value of None will return the same id memory address
-                if id(result) == id(None):
+                if result is None:
                     span.set_metric(db.ROWCOUNT, 0)
                 # check also for special case for Django~3.0 that returns an empty Sentinel object for empty results
                 # also check if result is Iterable first since some iterables return ambiguous truth results with ``==``
