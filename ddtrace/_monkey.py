@@ -7,7 +7,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal.telemetry import telemetry_writer
+from .internal.telemetry import telemetry_lifecycle_writer
 from .internal.utils import formats
 from .settings import _config as config
 
@@ -162,7 +162,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, shou
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(should_patch)
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+            telemetry_lifecycle_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 
