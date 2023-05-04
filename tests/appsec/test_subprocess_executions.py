@@ -236,7 +236,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
         assert span.get_tag("name") == "command_execution"
         assert span.get_tag("resource") == arguments[0]
         param_arguments = arguments[1:-1] if "e" in cleaned_name else arguments[1:]
-        assert span.get_tag("cmd.exec") == arguments[0] + " " + " ".join(param_arguments)
+        assert span.get_tag("cmd.exec") == str([arguments[0]] + param_arguments)
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
 
@@ -274,20 +274,21 @@ def test_subprocess_init_shell_false(tracer):
         assert len(spans) > 1
         span = spans[2]
         assert not span.get_tag("cmd.shell")
-        assert span.get_tag("cmd.exec") == "ls -li /"
+        assert span.get_tag("cmd.exec") == "['ls', '-li', '/']"
 
 
 def test_subprocess_wait_shell_false(tracer):
+    args = ['ls', '-li', '/']
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM) as span:
-            subp = subprocess.Popen(args=["ls", "-li", "/"], shell=False)
+            subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
 
             assert not _context.get_item("subprocess_popen_is_shell", span=span)
             assert not _context.get_item("subprocess_popen_truncated", span=span)
-            assert _context.get_item("subprocess_popen_line", span=span) == "ls -li /"
+            assert _context.get_item("subprocess_popen_line", span=span) == args
 
 
 def test_subprocess_wait_shell_true(tracer):

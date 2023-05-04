@@ -180,8 +180,8 @@ class SubprocessCmdLine(object):
     def as_list(self):
         return self.env_vars + [self.binary] + self.arguments
 
-    def maybe_truncate_string(self, str):
-        # type: (str) -> str
+    # def maybe_truncate_string(self, str):
+    #     # type: (str) -> str
 
 
     def as_string(self):
@@ -216,7 +216,7 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
         mode, file, func_args, _, _ = args
 
         shellcmd = SubprocessCmdLine(func_args, True, shell=False)
-        span.set_tag_str("cmd.exec", shellcmd.as_string())
+        span.set_tag("cmd.exec", shellcmd.as_list())
         if shellcmd.truncated:
             span.set_tag_str("cmd.truncated", "true")
         span.set_tag_str("component", "os")
@@ -241,7 +241,12 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         shellcmd = SubprocessCmdLine(cmd_args_list, True, shell=is_shell)
         if shellcmd.truncated:
             _context.set_item("subprocess_popen_truncated", "yes", span=span)
-        _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
+
+        if is_shell:
+            _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
+        else:
+            _context.set_item("subprocess_popen_line", shellcmd.as_list(), span=span)
+
         _context.set_item("subprocess_popen_binary", shellcmd.binary, span=span)
 
         wrapped(*args, **kwargs)
@@ -252,8 +257,11 @@ def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     with pin.tracer.trace("subprocess.Popen.wait", span_type=SpanTypes.SYSTEM) as span:
         span.set_tag_str("name", "command_execution")
 
-        sh_tag = "cmd.shell" if _context.get_item("subprocess_popen_is_shell", span=span) else "cmd.exec"
-        span.set_tag_str(sh_tag, _context.get_item("subprocess_popen_line", span=span))
+        if _context.get_item("subprocess_popen_is_shell", span=span):
+            span.set_tag_str("cmd.shell", _context.get_item("subprocess_popen_line", span=span))
+        else:
+            span.set_tag("cmd.exec", _context.get_item("subprocess_popen_line", span=span))
+
         truncated = _context.get_item("subprocess_popen_truncated", span=span)
         if truncated:
             span.set_tag_str("cmd.truncated", "yes")
