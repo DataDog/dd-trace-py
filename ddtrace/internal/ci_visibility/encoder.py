@@ -147,20 +147,20 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def _build_coverage1(self, data):
         return [
-            b"--%s\r\n" % self.boundary,
-            b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n',
-            b"Content-Type: application/msgpack\r\n\r\n",
+            b"--%s" % self.boundary,
+            b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
+            b"Content-Type: application/msgpack",
+            b"",
             data,
-            b"\r\n",
         ]
 
     def _build_event_json(self):
         return [
-            b"--%s\r\n" % self.boundary,
-            b'Content-Disposition: form-data; name="event"; filename="event.json"\r\n',
-            b"Content-Type: application/json\r\n\r\n",
+            b"--%s" % self.boundary,
+            b'Content-Disposition: form-data; name="event"; filename="event.json"',
+            b"Content-Type: application/json",
+            b"",
             b'{"dummy":true}',
-            b"\r\n",
         ]
 
     def _build_body(self, data):
@@ -179,7 +179,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        return b"".join(self._build_body(self._build_data(traces)))
+        return b"\r\n".join(self._build_body(self._build_data(traces)))
 
     @staticmethod
     def _convert_span(span, dd_origin):
