@@ -333,6 +333,7 @@ def unpatch():
 
 
 def patch_submodules(submodules):
+    # type: (Union[List[str], bool]) -> None
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
     elif isinstance(submodules, list):
