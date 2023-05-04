@@ -73,7 +73,7 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
 
 
 def test_app_dependencies_loaded_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
-    telemetry_lifecycle_writer._app_dependencies_loaded()
+    telemetry_lifecycle_writer._app_dependencies_loaded_event()
     # force a flush
     telemetry_lifecycle_writer.periodic()
     events = test_agent_session.get_events()

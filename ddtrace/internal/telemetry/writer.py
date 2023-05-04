@@ -426,7 +426,9 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
-    def _app_dependencies_loaded(self):
+    def _app_dependencies_loaded_event(self):
+        # type: () -> None
+        """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         payload = {"dependencies": get_dependencies()}
         self.add_event(payload, "app-dependencies-loaded")
 
@@ -456,7 +458,7 @@ class TelemetryWriter(TelemetryBase):
         super(TelemetryBase, self).start(*args, **kwargs)
         # Queue app-started event after the telemetry worker thread is running
         self._app_started_event()
-        self._app_dependencies_loaded()
+        self._app_dependencies_loaded_event()
 
     def on_shutdown(self):
         self._app_closing_event()
