@@ -62,7 +62,7 @@ class CIVisibilityCoverageClient(WriterClientBase):
         yield "\r\n"
 
     def _put(self, data, headers, client):
-        super(CIVisibilityCoverageClient, self)._put(self._build_body(data), headers, client)
+        super(CIVisibilityCoverageClient, self)._put([x for x in self._build_body(data)], headers, client)
 
 
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
