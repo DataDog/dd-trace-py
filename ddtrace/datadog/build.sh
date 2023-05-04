@@ -1,3 +1,0 @@
-#!/bin/bash
-gcc-11 -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wextra -fanalyzer -fPIC -Iinclude -Ilibdatadog/x86_64/include -I/home/ubuntu/.pyenv/versions/libdatadog/include -I/home/ubuntu/.pyenv/versions/3.10.10/include/python3.10 -c src/exporter.cpp -o /tmp/exporter.o -std=c++17 && \
-gcc-11 -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wextra -fanalyzer -fPIC -Iinclude -Ilibdatadog/x86_64/include -I/home/ubuntu/.pyenv/versions/libdatadog/include -I/home/ubuntu/.pyenv/versions/3.10.10/include/python3.10 -c src/interface.cpp -o /tmp/interface.o -std=c++17
