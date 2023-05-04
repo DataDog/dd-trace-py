@@ -145,30 +145,26 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    @staticmethod
-    def _build_coverage1(data):
+    def _build_coverage1(self, data):
         return [
+            b"--%s\r\n" % self.boundary,
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n',
             b"Content-Type: application/msgpack\r\n\r\n",
             data,
+            b"\r\n",
         ]
 
-    @staticmethod
-    def _build_event_json():
+    def _build_event_json(self):
         return [
+            b"--%s\r\n" % self.boundary,
             b'Content-Disposition: form-data; name="event"; filename="event.json"\r\n',
             b"Content-Type: application/json\r\n\r\n",
-            b'{"dummy":true}\r\n',
+            b'{"dummy":true}',
+            b"\r\n",
         ]
 
     def _build_body(self, data):
-        return (
-            [b"--%s\r\n" % self.boundary]
-            + self._build_coverage1(data)
-            + [b"\r\n", b"--%s\r\n" % self.boundary]
-            + self._build_event_json()
-            + [b"\r\n"]
-        )
+        return self._build_coverage1(data) + self._build_event_json()
 
     def _build_data(self, traces):
         normalized_covs = [
