@@ -13,6 +13,7 @@ from ddtrace.debugging._probe.model import SpanDecorationMixin
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.utils import serialize
@@ -75,7 +76,7 @@ class DynamicSpan(Signal):
 
 
 @attr.s
-class SpanDecoration(Signal):
+class SpanDecoration(LogSignal):
     """Decorate a span."""
 
     def _decorate_span(self, _locals):
@@ -142,3 +143,11 @@ class SpanDecoration(Signal):
         self._decorate_span(self.frame.f_locals)
 
         self.state = SignalState.DONE
+
+    @property
+    def message(self):
+        return ("Condition evaluation errors for probe %s" % self.probe.probe_id) if self.errors else None
+
+    def has_message(self):
+        # type () -> bool
+        return bool(self.errors)
