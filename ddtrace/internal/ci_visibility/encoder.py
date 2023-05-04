@@ -1,4 +1,3 @@
-# import email.generator
 import json
 import threading
 from typing import Any
@@ -160,12 +159,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
             b"Content-Type: application/json",
             b"",
-            b'{"dummy":true}\r\n',
-            b"--%s--" % self.boundary,
+            b'{"dummy":true}',
         ]
 
     def _build_body(self, data):
-        return self._build_coverage1(data) + self._build_event_json()
+        return self._build_coverage1(data) + self._build_event_json() + [b"--%s--" % self.boundary]
 
     def _build_data(self, traces):
         normalized_covs = [
