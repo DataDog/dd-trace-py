@@ -133,10 +133,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
-    def __init__(self):
+    def __init__(self, *args):
         self.boundary = email.generator._make_boundary()
         self.content_type = "multipart/form-data; boundary=%s" % self.boundary
-        return super(CIVisibilityCoverageEncoderV02, self).__init__()
+        return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
