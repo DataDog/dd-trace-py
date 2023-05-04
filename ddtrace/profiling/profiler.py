@@ -112,8 +112,8 @@ class _ProfilerInstance(service.Service):
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    use_libdatadog = attr.ib(default=True)
-    use_pyprof = attr.ib(default=True)
+    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
+    export_py = attr.ib(type=bool, default=config.export_py)
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
@@ -171,7 +171,7 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        if self.use_libdatadog:
+        if self.export_libdatadog:
           max_nframes = int(os.environ.get("DD_PROFILING_MAX_frames", 64))
           ddup.init(env=self.env,
                     service=self.service,
@@ -180,7 +180,7 @@ class _ProfilerInstance(service.Service):
                     max_nframes=max_nframes,
                 )
 
-        if self.use_pyprof:
+        if self.export_py:
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
@@ -218,8 +218,8 @@ class _ProfilerInstance(service.Service):
             stack.StackCollector(
                 r, tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-                use_libdatadog=self.use_libdatadog,
-                use_pyprof=self.use_pyprof
+                export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog),
+                export_py = attr.ib(type=bool, default=config.export_py),
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
@@ -249,7 +249,7 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters or self.use_libdatadog:
+        if exporters or self.export_libdatadog:
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
@@ -258,8 +258,8 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
-                use_libdatadog=self.use_libdatadog,
-                use_pyprof=self.use_pyprof
+                export_libdatadog=self.export_libdatadog,
+                export_py=self.export_py,
             )
 
     def _collectors_snapshot(self):

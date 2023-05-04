@@ -4,8 +4,8 @@ prof = Profiler(
     env="perf",
     service="collatz_py",
     version="1.12.0rc1",
-    use_libdatadog=True,
-    use_pyprof=True,
+    export_libdatadog=True,
+    export_py=True,
 )
 prof.start()
 

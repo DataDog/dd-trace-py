@@ -65,8 +65,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
-    use_libdatadog = attr.ib(default=True)
-    use_pyprof = attr.ib(default=True)
+    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
+    export_py = attr.ib(type=bool, default=config.export_py)
 
     def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
         wrapt.ObjectProxy.__init__(self, wrapped)
@@ -103,9 +103,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
+                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                if self.use_libdatadog and nframes:
+                if self.export_libdatadog and nframes:
                     thread_native_id = _threading.get_thread_native_id(thread_id)
                     ddup.start_sample(nframes)
                     ddup.push_acquire(end - start, 1)
@@ -119,7 +119,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                       ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                     ddup.flush_sample()
 
-                if self.use_pyprof and nframes:
+                if self.export_py and nframes:
                     event = self.ACQUIRE_EVENT_CLASS(
                         lock_name=self._self_name,
                         frames=frames,
@@ -157,9 +157,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         else:
                             frame = task_frame
 
-                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
+                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                        if self.use_libdatadog and nframes:
+                        if self.export_libdatadog and nframes:
                             thread_native_id = _threading.get_thread_native_id(thread_id)
                             ddup.start_sample(nframes)
                             ddup.push_release(end - start, 1)
@@ -173,7 +173,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                               ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                             ddup.flush_sample()
 
-                        if self.use_pyprof and nframes:
+                        if self.export_py and nframes:
                             event = self.RELEASE_EVENT_CLASS(  # type: ignore[call-arg]
                                 lock_name=self._self_name,
                                 frames=frames,
@@ -218,8 +218,8 @@ class LockCollector(collector.CaptureSamplerCollector):
     tracer = attr.ib(default=None)
 
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
-    use_libdatadog = attr.ib(default=True)
-    use_pyprof = attr.ib(default=True)
+    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
+    export_py = attr.ib(type=bool, default=config.export_py)
 
     @abc.abstractmethod
     def _get_original(self):

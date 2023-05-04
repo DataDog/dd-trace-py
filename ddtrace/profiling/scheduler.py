@@ -21,8 +21,8 @@ class Scheduler(periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
-    use_libdatadog = attr.ib(default=True)
-    use_pyprof = attr.ib(default=True)
+    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
+    export_py = attr.ib(type=bool, default=config.export_py)
     _interval = attr.ib(type=float, default=config.upload_interval)
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
@@ -42,8 +42,7 @@ class Scheduler(periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        if self.use_libdatadog:
-            print("Uploading with libdatadog")
+        if self.export_libdatadog:
             ddup.upload()
 
         if not self.use_pyprof:
