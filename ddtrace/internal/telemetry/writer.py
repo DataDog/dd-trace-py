@@ -72,6 +72,7 @@ class _TelemetryClient:
         # type: (Dict) -> Optional[httplib.HTTPResponse]
         """Sends a telemetry request to the trace agent"""
         resp = None
+        conn = None
         try:
             rb_json = self._encoder.encode(request)
             headers = self.get_headers(request)
@@ -86,12 +87,13 @@ class _TelemetryClient:
         except Exception:
             log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
         return resp
 
     def get_headers(self, request):
         # type: (Dict) -> Dict
-        """Get all telemetry api v1 request headers"""
+        """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
@@ -132,13 +134,13 @@ class TelemetryBase(PeriodicService):
 
         :param Dict payload: stores a formatted telemetry event
         :param str payload_type: The payload_type denotes the type of telmetery request.
-            Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
+            Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
         if not self._disabled and self.enable():
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
-                "api_version": "v1",
+                "api_version": "v2",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
                 "application": get_application(config.service, config.version, config.env),
@@ -393,10 +395,8 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            "dependencies": get_dependencies(),
-            "integrations": self._flush_integrations_queue(),
-            "configurations": [],
-        }
+            "configuration": [],
+        }  # type: Dict[str, List[Any]]
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
@@ -428,6 +428,12 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    def _app_dependencies_loaded_event(self):
+        # type: () -> None
+        """Adds a Telemetry event which sends a list of installed python packages to the agent"""
+        payload = {"dependencies": get_dependencies()}
+        self.add_event(payload, "app-dependencies-loaded")
+
     def periodic(self):
         integrations = self._flush_integrations_queue()
         if integrations:
@@ -454,6 +460,7 @@ class TelemetryWriter(TelemetryBase):
         super(TelemetryBase, self).start(*args, **kwargs)
         # Queue app-started event after the telemetry worker thread is running
         self._app_started_event()
+        self._app_dependencies_loaded_event()
 
     def on_shutdown(self):
         self._app_closing_event()
