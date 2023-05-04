@@ -314,6 +314,9 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: scripts/install
+      # with urllib3 2.0 we are seeing IncompleteRead errors, pinning while investigating root issue.
+      - name: Pin urllib3
+        run: pip install urllib3==1.26.15
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
