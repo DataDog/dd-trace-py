@@ -8,7 +8,7 @@ from ddtrace.internal import _context
 
 from ddtrace import Pin, patch_all
 from ddtrace.ext import SpanTypes
-from tests.utils import DummyTracer, override_global_config
+from tests.utils import override_global_config
 
 
 # JJJ test truncated
@@ -126,6 +126,44 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
 )
 def test_argument_scrubing(cmdline_obj, arguments):
     assert cmdline_obj.arguments == arguments
+
+
+@pytest.mark.parametrize(
+    "cmdline_obj,expected_str,expected_list,truncated",
+    [
+        (
+            SubprocessCmdLine(["ls", "-A" + "loremipsum"* 40, "-B"],
+                              as_list=True),
+            'ls -Aloremipsumloremipsumloremipsumlo "4kB argument truncated by 328 characters"',
+            ["ls", "-Aloremipsumloremipsumloremipsumlo", "4kB argument truncated by 328 characters"],
+            True
+        ),
+        (
+            SubprocessCmdLine("ls -A -B -C", as_list=False),
+            "ls -A -B -C",
+            ["ls", "-A", "-B", "-C"],
+            False
+        )
+    ]
+)
+def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
+    orig_limit = SubprocessCmdLine.TRUNCATE_LIMIT
+    limit = 80
+    try:
+        SubprocessCmdLine.TRUNCATE_LIMIT = limit
+
+        res_str = cmdline_obj.as_string()
+        assert res_str == expected_str
+
+        res_list = cmdline_obj.as_list()[0]
+        assert res_list == expected_list
+
+        assert cmdline_obj.truncated == truncated
+
+        if cmdline_obj.truncated:
+            assert len(res_str) == limit
+    finally:
+        SubprocessCmdLine.TRUNCATE_LIMIT = orig_limit
 
 def test_ossystem(tracer):
     with override_global_config(dict(_appsec_enabled=True)):

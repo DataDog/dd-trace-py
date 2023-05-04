@@ -3,14 +3,13 @@ import re
 import shlex
 import subprocess
 from fnmatch import fnmatch
-from typing import Union
+from typing import Union, Tuple
 
 from ddtrace.internal import _context
 from ddtrace import config
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.compat import PY2
 
 from ddtrace import Pin
 
@@ -22,7 +21,7 @@ log = get_logger(__name__)
 
 """
 JJJ TODO:
-- cmd.exec debe ser un array!
+- add some catching (strings, lists, scrubbed env vars and parameters, et cetera)
 - Truncation
 - flask snapshot tests from views
 - exception handlers so it never fails and always executes the command
@@ -63,6 +62,8 @@ _COMPILED_ENV_VAR_REGEXP = re.compile(r'\b[A-Z_]+=\w+')
 
 
 class SubprocessCmdLine(object):
+    TRUNCATE_LIMIT = 4*1024
+
     ENV_VARS_ALLOWLIST = {
         'LD_PRELOAD',
         'LD_LIBRARY_PATH',
@@ -177,15 +178,33 @@ class SubprocessCmdLine(object):
         self.arguments = new_args
 
 
-    def as_list(self):
-        return self.env_vars + [self.binary] + self.arguments
+    def truncate_string(self, str_):
+        # type: (str) -> str
+        # spaced_added is to account for spaces that would not occupy
+        # space on a list result
+        oversize = len(str_) - self.TRUNCATE_LIMIT
 
-    # def maybe_truncate_string(self, str):
-    #     # type: (str) -> str
+        if oversize <= 0:
+            self.truncated = False
+            return str_
+
+        self.truncated = True
+
+        msg = ' "4kB argument truncated by %d characters"' % oversize
+        return str_[0:-(oversize+len(msg))] + msg
+
+
+    def as_list(self):
+        # type: () -> Tuple[list[str], str]
+
+        total_list = self.env_vars + [self.binary] + self.arguments
+        truncated_str = self.truncate_string(shlex.join(total_list))
+        truncated_list = shlex.split(truncated_str)
+        return truncated_list, truncated_str
 
 
     def as_string(self):
-        return shlex.join(self.as_list())
+        return self.as_list()[1]
 
 
 def scrub_arg(_arg):
