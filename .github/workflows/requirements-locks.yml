@@ -19,9 +19,6 @@ jobs:
         # https://github.com/actions/checkout/issues/766
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Set python interpreters
-        run: pyenv global 3.10.3 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 3.11.0
-
       - name: Install Dependencies
         run: pip install --upgrade pip && pip install riot
 
