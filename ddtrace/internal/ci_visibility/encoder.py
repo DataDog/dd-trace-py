@@ -132,11 +132,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
-
-    def __init__(self, *args):
-        self.boundary = uuid4().hex.encode("utf-8")
-        self.content_type = b"multipart/form-data; boundary=%s" % self.boundary
-        return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
+    boundary = uuid4().hex
+    content_type = "multipart/form-data; boundary=%s" % boundary
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -144,18 +141,18 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_coverage1(self, data):
+    def _build_coverage_attachment(self, data):
         return [
-            b"--%s" % self.boundary,
+            b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
             b"Content-Type: application/msgpack",
             b"",
             data,
         ]
 
-    def _build_event_json(self):
+    def _build_event_json_attachment(self):
         return [
-            b"--%s" % self.boundary,
+            b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
             b"Content-Type: application/json",
             b"",
@@ -163,7 +160,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         ]
 
     def _build_body(self, data):
-        return self._build_coverage1(data) + self._build_event_json() + [b"--%s--" % self.boundary]
+        return (
+            self._build_coverage_attachment(data)
+            + self._build_event_json_attachment()
+            + [b"--%s--" % self.boundary.encode("utf-8")]
+        )
 
     def _build_data(self, traces):
         normalized_covs = [
