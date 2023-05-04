@@ -4,6 +4,7 @@ import threading
 from typing import Any
 from typing import Dict
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
@@ -134,11 +135,9 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
     def __init__(self, *args):
-        return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
-
-    def _set_content_type(self, contents):
-        self.boundary = b"12fcdcfe44b7d11f"  # email.generator._make_boundary(str(contents))
+        self.boundary = uuid4().hex.encode("utf-8")
         self.content_type = b"multipart/form-data; boundary=%s" % self.boundary
+        return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -151,8 +150,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return (
             b"""
 Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n
-Content-Type: application/msgpack\r\n
-\r\n
+Content-Type: application/msgpack\r\n\r\n
 """
             + data
         )
@@ -166,7 +164,6 @@ Content-Type: application/json\r\n\r\n
 """
 
     def _build_body(self, data):
-        self._set_content_type(data)
         contents = []
         contents.append(b"--" + self.boundary + b"\r\n")
         contents.append(self._build_coverage1(data) + b"\r\n")
@@ -188,7 +185,7 @@ Content-Type: application/json\r\n\r\n
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        return self._build_body(self._build_data(traces))
+        return b"".join(self._build_body(self._build_data(traces)))
 
     @staticmethod
     def _convert_span(span, dd_origin):
