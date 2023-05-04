@@ -146,7 +146,7 @@ class ModuleNotFoundException(PatchException):
 
 
 def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, should_patch=True):
-    # type: (str, str, bool, bool) -> Callable[[Any], None]
+    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
