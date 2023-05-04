@@ -872,20 +872,45 @@ def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
     assert_dict_issuperset(get_3.get_metrics(), {"db.row_count": 0})
 
 
-def test_cache_get_rowcount_pandas_dataframe(test_spans):
+class MockDataFrame:
+    def __init__(self, data):
+        self.data = data
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return MockDataFrame([item == other for item in self.data])
+        else:
+            return MockDataFrame([row == other for row in self.data])
+
+    def __bool__(self):
+        raise ValueError("Cannot determine truthiness of comparison result for DataFrame.")
+
+    def __iter__(self):
+        return iter(self.data)
+
+
+def test_cache_get_rowcount_iterable_ambiguous_truthiness(test_spans):
     # get the default cache
-    import pandas as pd
 
     data = {"col1": 1, "col2": 2, "col3": 3}
 
     cache = django.core.cache.caches["default"]
-    cache.set(1, pd.DataFrame(data, index=[0]))
+    cache.set(1, MockDataFrame(data))
     cache.set(2, None)
 
-    # This is the diff with `test_cache_get_rowcount_missing_key`,
-    # we are setting a default value to be returned in case of a cache miss
+    # throw error to verify that mock class has ambigiuous truthiness, django patch will do a similar
+    # set of comparisons when trying to get rowcount
+    with pytest.raises(ValueError):
+        df = MockDataFrame(data)
+        assert df is not None
+        check_result = df == "some_result"
+        if check_result:
+            print("This should never print.")
+
+    # Test to ensure that a DF does not throw a bool error when trying to
+    # determine if the result was valid.
     result = cache.get(1)
-    assert isinstance(result, pd.DataFrame)
+    assert isinstance(result, MockDataFrame)
 
     result = cache.get(2)
     assert result is None
