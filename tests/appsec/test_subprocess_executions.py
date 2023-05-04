@@ -12,7 +12,6 @@ from tests.utils import DummyTracer, override_global_config
 
 
 # JJJ test truncated
-# JJJ test scrub_arg
 # JJJ use some command that can work also on Windoze
 # JJJ test _unpatch
 
@@ -24,8 +23,6 @@ def auto_unpatch():
     except AttributeError:
         # Tests with appsec disabled or that didn't patch
         pass
-
-
 
 
 allowed_envvars_fixture_list = []
@@ -110,6 +107,26 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     assert cmdline_obj.arguments == arguments
 
 
+
+@pytest.mark.parametrize(
+    "cmdline_obj,arguments",
+    [
+        (
+            SubprocessCmdLine(["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value",
+                               "--long2 long2value"], as_list=True, shell=False),
+            ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"]
+        ),
+            (
+            SubprocessCmdLine(["binary", "-a", "-passwd=SCRUB", "-passwd", "SCRUB",
+                               "-d bar", "--apikey=SCRUB", "-efoo", "/auth_tokenSCRUB",
+                               "--secretSCRUB"], as_list=True, shell=False),
+            ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"]
+        )
+    ]
+)
+def test_argument_scrubing(cmdline_obj, arguments):
+    assert cmdline_obj.arguments == arguments
+
 def test_ossystem(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
@@ -125,7 +142,7 @@ def test_ossystem(tracer):
         assert span.get_tag("name") == "command_execution"
         assert span.get_tag("cmd.shell") == 'ls -l /'
         assert span.get_tag("cmd.exit_code") == "0"
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
         assert span.get_tag("resource") == "ls"
 
@@ -154,7 +171,7 @@ def test_ospopen(tracer):
         span = spans[2]
         assert span.get_tag("name") == "command_execution"
         assert span.get_tag("cmd.shell") == "ls -li /"
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("resource") == "ls"
 
@@ -220,7 +237,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
         assert span.get_tag("resource") == arguments[0]
         param_arguments = arguments[1:-1] if "e" in cleaned_name else arguments[1:]
         assert span.get_tag("cmd.exec") == arguments[0] + " " + " ".join(param_arguments)
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
 
 
@@ -239,7 +256,7 @@ def test_subprocess_init_shell_true(tracer):
         assert span.get_tag("name") == "command_execution"
         assert not span.get_tag("cmd.exec")
         assert span.get_tag("cmd.shell") == "ls -li /"
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("resource") == "ls"
 
@@ -269,7 +286,7 @@ def test_subprocess_wait_shell_false(tracer):
             subp.wait()
 
             assert not _context.get_item("subprocess_popen_is_shell", span=span)
-            assert _context.get_item("subprocess_popen_truncated", span=span) == "false"
+            assert not _context.get_item("subprocess_popen_truncated", span=span)
             assert _context.get_item("subprocess_popen_line", span=span) == "ls -li /"
 
 
@@ -299,7 +316,7 @@ def test_subprocess_run(tracer):
         assert span.get_tag("name") == "command_execution"
         assert not span.get_tag("cmd.exec")
         assert span.get_tag("cmd.shell") == "ls -l /"
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("cmd.exit_code") == "0"
         assert span.get_tag("resource") == "ls"
@@ -320,7 +337,7 @@ def test_subprocess_communicate(tracer):
         assert span.get_tag("name") == "command_execution"
         assert not span.get_tag("cmd.exec")
         assert span.get_tag("cmd.shell") == "ls -li /"
-        assert span.get_tag("cmd.truncated") == "false"
+        assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("cmd.exit_code") == "0"
         assert span.get_tag("resource") == "ls"

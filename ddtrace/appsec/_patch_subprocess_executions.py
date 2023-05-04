@@ -1,3 +1,4 @@
+import collections
 import re
 import shlex
 import subprocess
@@ -21,9 +22,8 @@ log = get_logger(__name__)
 
 """
 JJJ TODO:
-- Better argument scrubbing with argparse or similar (must work on windows)
+- cmd.exec debe ser un array!
 - Truncation
-- unpatch
 - flask snapshot tests from views
 - exception handlers so it never fails and always executes the command
 - constants for the tag names
@@ -39,7 +39,7 @@ def _patch():
     import os
     Pin().onto(os)
     trace_utils.wrap(os, "system", traced_ossystem(os))
-    # note: popen* uses subprocess, which we alredy wrap below
+    # note: popen* uses subprocess, which we already wrap below
 
     # all os.spawn* variants eventually use this one:
     trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
@@ -54,15 +54,9 @@ def _patch():
 def _unpatch():
     # type: () -> None
     trace_utils.unwrap(os, "system")
-    # trace_utils.unwrap(os, "popen")
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")
     trace_utils.unwrap(subprocess.Popen, "wait")
-
-    if PY2:
-        trace_utils.unwrap(os, "popen2")
-        trace_utils.unwrap(os, "popen3")
-        trace_utils.unwrap(os, "popen4")
 
 
 _COMPILED_ENV_VAR_REGEXP = re.compile(r'\b[A-Z_]+=\w+')
@@ -91,14 +85,25 @@ class SubprocessCmdLine(object):
         self.env_vars = []
         self.binary = ''
         self.arguments = []
-        self.truncated = "false"
+        self.truncated = False
 
         tokens = shell_args if as_list else shlex.split(shell_args)
 
         # Extract previous environment variables, removing all the ones not
         # in ENV_VARS_ALLOWLIST
+        if shell:
+            self.scrub_env_vars(tokens)
+        else:
+            self.binary = tokens[0]
+            self.arguments = tokens[1:]
+
+        self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
+        self.scrub_arguments()
+
+
+    def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
-            if shell and re.match(_COMPILED_ENV_VAR_REGEXP, token):
+            if re.match(_COMPILED_ENV_VAR_REGEXP, token):
                 var, value = token.split('=')
                 if var in self.ENV_VARS_ALLOWLIST:
                     self.env_vars.append(token)
@@ -109,14 +114,10 @@ class SubprocessCmdLine(object):
                 # Next after vars are the binary and arguments
                 try:
                     self.binary = tokens[idx]
-                    self.arguments = tokens[idx+1:]
+                    self.arguments = tokens[idx + 1:]
                 except IndexError:
                     pass
                 break
-
-        self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
-        self.scrub_arguments()
-
 
     def scrub_arguments(self):
         # if the binary is in the denylist, scrub all arguments
@@ -124,21 +125,64 @@ class SubprocessCmdLine(object):
             self.arguments = ['?' for _ in self.arguments]
             return
 
+        param_prefixes = ('-', '/')
         # Scrub case by case
         new_args = []
-        for arg in self.arguments:
+        deque_args = collections.deque(self.arguments)
+        while deque_args:
+            current = deque_args[0]
             for sensitive in self.SENSITIVE_WORDS_WILDCARDS:
-                if fnmatch(arg.lower(), sensitive):
+                if fnmatch(current, sensitive):
+                    is_sensitive = True
+                    break
+            else:
+                is_sensitive=False
+
+            if not is_sensitive:
+                new_args.append(current)
+                deque_args.popleft()
+                continue
+
+            # sensitive
+            if current[0] not in param_prefixes:
+                # potentially not argument, scrub it anyway if it matches a sensitive word
+                new_args.append("?")
+                deque_args.popleft()
+                continue
+
+            # potential --argument
+            if "=" in current:
+                # contains "=" like in "--password=foo", scrub it just in case
+                new_args.append("?")
+                deque_args.popleft()
+                continue
+
+            try:
+                if deque_args[1][0] in param_prefixes:
+                    # Next is another option scrub only the current one
                     new_args.append("?")
+                    deque_args.popleft()
+                    continue
                 else:
-                    new_args.append(arg)
-                break
+                    # Next is not an option but potentially a value, scrub it instead
+                    new_args.extend([current, "?"])
+                    deque_args.popleft()
+                    deque_args.popleft()
+                    continue
+            except IndexError:
+                # No next argument, scrub this one just in case since it's sensitive
+                new_args.append("?")
+                deque_args.popleft()
 
         self.arguments = new_args
 
 
     def as_list(self):
         return self.env_vars + [self.binary] + self.arguments
+
+    def maybe_truncate_string(self, str):
+        # type: (str) -> str
+
 
     def as_string(self):
         return shlex.join(self.as_list())
@@ -150,22 +194,14 @@ def scrub_arg(_arg):
     return _arg
 
 
-def _scrub_params_maybe_truncate(_params):
-    # type: (list[str]) -> tuple[str, list[str]]
-
-    # JJJ do truncation if needed!
-    truncated = "false"
-
-    return truncated, [scrub_arg(a) for a in _params]
-
-
 @trace_utils.with_traced_module
 def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     with pin.tracer.trace("os.system", span_type=SpanTypes.SYSTEM) as span:
         shellcmd = SubprocessCmdLine(args[0], shell=True)
         span.set_tag_str("name", "command_execution")
         span.set_tag_str("cmd.shell", shellcmd.as_string())
-        span.set_tag_str("cmd.truncated", shellcmd.truncated)
+        if shellcmd.truncated:
+            span.set_tag_str("cmd.truncated", "yes")
         span.set_tag_str("component", "os")
         span.set_tag_str("resource", shellcmd.binary)
         ret = wrapped(*args, **kwargs)
@@ -181,7 +217,8 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
         shellcmd = SubprocessCmdLine(func_args, True, shell=False)
         span.set_tag_str("cmd.exec", shellcmd.as_string())
-        span.set_tag_str("cmd.truncated", shellcmd.truncated)
+        if shellcmd.truncated:
+            span.set_tag_str("cmd.truncated", "true")
         span.set_tag_str("component", "os")
         span.set_tag_str("resource", shellcmd.binary)
 
@@ -202,7 +239,8 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         _context.set_item("subprocess_popen_is_shell", is_shell, span=span)
 
         shellcmd = SubprocessCmdLine(cmd_args_list, True, shell=is_shell)
-        _context.set_item("subprocess_popen_truncated", shellcmd.truncated, span=span)
+        if shellcmd.truncated:
+            _context.set_item("subprocess_popen_truncated", "yes", span=span)
         _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
         _context.set_item("subprocess_popen_binary", shellcmd.binary, span=span)
 
@@ -216,7 +254,9 @@ def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
 
         sh_tag = "cmd.shell" if _context.get_item("subprocess_popen_is_shell", span=span) else "cmd.exec"
         span.set_tag_str(sh_tag, _context.get_item("subprocess_popen_line", span=span))
-        span.set_tag_str("cmd.truncated", _context.get_item("subprocess_popen_truncated", span=span))
+        truncated = _context.get_item("subprocess_popen_truncated", span=span)
+        if truncated:
+            span.set_tag_str("cmd.truncated", "yes")
         span.set_tag_str("component", "subprocess")
         span.set_tag_str("resource", _context.get_item("subprocess_popen_binary", span=span))
         ret = wrapped(*args, **kwargs)
