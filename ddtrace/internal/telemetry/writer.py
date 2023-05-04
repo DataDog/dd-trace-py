@@ -72,6 +72,7 @@ class _TelemetryClient:
         # type: (Dict) -> Optional[httplib.HTTPResponse]
         """Sends a telemetry request to the trace agent"""
         resp = None
+        conn = None
         try:
             rb_json = self._encoder.encode(request)
             headers = self.get_headers(request)
@@ -86,7 +87,8 @@ class _TelemetryClient:
         except Exception:
             log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
         return resp
 
     def get_headers(self, request):
