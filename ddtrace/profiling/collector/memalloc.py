@@ -140,14 +140,12 @@ class MemoryCollector(collector.PeriodicCollector):
         stacks = [((stack, nframes, thread_id), size) for (stack, nframes, thread_id), size in _memalloc.heap() if thread_id not in thread_id_ignore_set]
         if self.use_libdatadog:
             for (stack, nframes, thread_id), size in stacks:
-                ddup.start_sample()
-                ddup.push_heap(self.heap_sample_size)
+                ddup.start_sample(nframes)
+                ddup.push_heap(size)
                 ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+                ddup.push_classinfo(frames[0][3])
                 for frame in stack:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
-                omitted = nframes - len(stack)
-                if omitted > 0:
-                    ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
                 ddup.flush_sample()
 
         if self.use_pyprof:
@@ -174,12 +172,15 @@ class MemoryCollector(collector.PeriodicCollector):
             return
 
         try:
-            events, count, alloc_count = _memalloc.iter_events()
+            events_iter, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
+        # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof and libdatadog
+        # This will be changed if/when we ever return to only a single possible exporter
+        events = list(events_iter)
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
@@ -187,16 +188,13 @@ class MemoryCollector(collector.PeriodicCollector):
             for (stack, nframes, thread_id), size, domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
-            ddup.start_sample()
-            ddup.push_alloc(size * capture_pct, count)
-            ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
-
-            for frame in stack:
-                ddup.push_frame(frame[2], frame[0], 0, frame[1])
-            omitted = nframes - len(stack)
-            if omitted > 0:
-                ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
-            ddup.flush_sample()
+                ddup.start_sample(nframes)
+                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count) # Roundup to help float precision
+                ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+                ddup.push_classinfo(frames[0][3])
+                for frame in stack:
+                    ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                ddup.flush_sample()
 
         if self.use_pyprof:
             return (

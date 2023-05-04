@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 extern "C" {
 #include "datadog/profiling.h"
@@ -20,6 +21,7 @@ namespace Datadog {
 
 // Forward
 class Profile;
+class Uploader;
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
@@ -47,7 +49,9 @@ class Profile;
   X(local_root_span_id,       "local root span id") \
   X(trace_type,               "trace type") \
   X(trace_resource_container, "trace resource container") \
-  X(class_name,               "class name")
+  X(trace_endpoint,           "trace endpoint") \
+  X(class_name,               "class name") \
+  X(lock_name,                "lock name")
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey {
@@ -61,49 +65,87 @@ enum class ExportLabelKey {
 };
 #undef X_ENUM
 
+// This is a wrapper class over a ddog_prof_Exporter object, which is part of
+// libdatadog.  It manages the lifetime and initialization of that object.
+// It is intended to be used only by Uploader
 class DdogProfExporter {
-public:
+private:
+  using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
+  friend class UploaderBuilder;
+  friend class Uploader;
+
   void add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
+  void add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
 
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
-
+  
+public:
   DdogProfExporter(std::string_view env,
                    std::string_view service,
                    std::string_view version,
                    std::string_view runtime,
                    std::string_view runtime_version,
                    std::string_view profiler_version,
-                   std::string_view url);
+                   std::string_view url,
+                   ExporterTagset &user_tags);
   ~DdogProfExporter();
 
   ddog_prof_Exporter *ptr;
 };
 
 class Uploader {
-  std::string env;
-  std::string service;
-  std::string version;
-  std::string url;
-  std::string api_key; // Datadog api key
   bool agentless; // Whether or not to actually use API key/intake
   size_t profile_seq = 0;
-
   std::string runtime_id;
+  std::string url;
+
   std::unique_ptr<DdogProfExporter> ddog_exporter;
 
 public:
-  Uploader(std::string_view _env = "prod",
-           std::string_view _service = "py_libdatadog",
-           std::string_view _version = "",
-           std::string_view runtime = "cython",
-           std::string_view runtime_version = "???",
-           std::string_view profiler_version = "???",
-           std::string_view _url = "http://localhost:8126");
 
+  Uploader(std::string_view _env,
+           std::string_view _service,
+           std::string_view _version,
+           std::string_view _runtime,
+           std::string_view _runtime_version,
+           std::string_view _profiler_version,
+           std::string_view _url,
+           DdogProfExporter::ExporterTagset &user_tags);
   void set_runtime_id(const std::string &id);
   bool upload(const Profile *profile);
 
+};
+
+class UploaderBuilder {
+  std::string env;
+  std::string service;
+  std::string version;
+  std::string runtime;
+  std::string runtime_version;
+  std::string profiler_version;
+  std::string url;
+  DdogProfExporter::ExporterTagset user_tags;
+
+public:
+  UploaderBuilder &set_env(std::string_view env);
+  UploaderBuilder &set_service(std::string_view service);
+  UploaderBuilder &set_version(std::string_view version);
+  UploaderBuilder &set_runtime(std::string_view runtime);
+  UploaderBuilder &set_runtime_version(std::string_view runtime_version);
+  UploaderBuilder &set_profiler_version(std::string_view profiler_version);
+  UploaderBuilder &set_url(std::string_view url);
+  UploaderBuilder &set_tag(std::string_view key, std::string_view val);
+
+  UploaderBuilder(std::string_view _env = "prod",
+                  std::string_view _service = "py_libdatadog",
+                  std::string_view _version = "",
+                  std::string_view _runtime = "cython",
+                  std::string_view _runtime_version = "???",
+                  std::string_view _profiler_version = "???",
+                  std::string_view _url = "http://localhost:8126");
+
+  Uploader *build_ptr();
 };
 
 class Profile {
@@ -120,12 +162,16 @@ public:
   };
 
 private:
-  bool is_valid = false;
-
   unsigned int type_mask;
+  unsigned int max_nframes;
+  unsigned int nframes;
 
+  // Keeps temporary buffer of frames in the stack
   std::vector<ddog_prof_Location> locations;
   std::vector<ddog_prof_Line> lines;
+
+  // Storage for strings
+  std::unordered_set<std::string> strings;
 
   // Storage for labels
   ddog_prof_Label labels[8];
@@ -149,60 +195,59 @@ private:
   } val_idx;
 
   // Helpers
-  void push_label(const ExportLabelKey key, const std::string_view &val);
+  void push_label(const ExportLabelKey key, std::string_view val);
   void push_label(const ExportLabelKey key, int64_t val);
+  void push_frame_impl(
+        std::string_view name,
+        std::string_view filename,
+        uint64_t address,
+        int64_t line
+      );
 
 public:
-  std::unordered_set<std::string> strings;
-
   uint64_t samples = 0;
   ddog_prof_Profile *ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
-  void start_sample();
+  void start_sample(unsigned int nframes);
 
   // Add values
   void push_walltime(int64_t walltime, int64_t count);
   void push_cputime(int64_t cputime, int64_t count);
   void push_acquire(int64_t acquire_time, int64_t count);
   void push_release(int64_t lock_time, int64_t count);
-  void push_alloc(int64_t alloc_size, int64_t count);
-  void push_heap(int64_t heap_size);
+  void push_alloc(uint64_t size, uint64_t count);
+  void push_heap(uint64_t size);
 
   // Adds metadata to sample
+  void push_lock_name(std::string_view lock_name);
   void push_threadinfo(
         int64_t thread_id,
         int64_t thread_native_id,
-        const std::string_view &thread_name
+        std::string_view thread_name
       );
   void push_taskinfo(
         int64_t task_id,
-        const std::string_view &task_name
+        std::string_view task_name
       );
-  void push_spaninfo(
-      int64_t span_id,
-      int64_t local_root_span_id
-      );
-  void push_traceinfo(
-        const std::string_view &trace_type,
-        const std::string_view &trace_resource_container
-      );
+  void push_span_id(int64_t span_id);
+  void push_local_root_span_id(int64_t local_root_span_id);
+  void push_trace_type(std::string_view trace_type);
+  void push_trace_resource_container(std::string_view trace_resource_container);
 
   void push_exceptioninfo(
-        const std::string_view &exception_type,
+        std::string_view exception_type,
         int64_t count
       );
 
-  void push_classinfo(
-        const std::string_view &class_name
-      );
+  void push_class_name(std::string_view class_name);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(
-        const std::string_view &name,      // for ddog_prof_Function
-        const std::string_view &filename,  // for ddog_prof_Function
-        uint64_t address,                  // for ddog_prof_Location
-        int64_t line                       // for ddog_prof_Line
+        std::string_view name,      // for ddog_prof_Function
+        std::string_view filename,  // for ddog_prof_Function
+        uint64_t address,           // for ddog_prof_Location
+        int64_t line                // for ddog_prof_Line
       );
     
 
@@ -216,29 +261,23 @@ public:
   void zero_stats();
 
   void reset();
-  Profile(ProfileType type);
+  Profile(ProfileType type, unsigned int _max_nframes = 64);
   ~Profile();
 };
 
-} // namespace Datadog
+class ProfileBuilder {
+  Profile::ProfileType type_mask;
+  unsigned int max_nframes;
 
-extern "C" {
-  void ddup_uploader_init(const char *_service, const char *_env, const char *_version, const char *_runtime, const char *_runtime_version, const char *_profiler_version);
-  void ddup_start_sample();
-  void ddup_push_walltime(int64_t walltime, int64_t count);
-  void ddup_push_cputime(int64_t cputime, int64_t count);
-  void ddup_push_acquire(int64_t acquire_time, int64_t count);
-  void ddup_push_release(int64_t release_time, int64_t count);
-  void ddup_push_alloc(int64_t alloc_size, int64_t count);
-  void ddup_push_heap(int64_t heap_size);
-  void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name);
-  void ddup_push_taskinfo(int64_t task_id, const char *task_name);
-  void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id);
-  void ddup_push_traceinfo(const char *trace_type, const char *trace_resource_container);
-  void ddup_push_exceptioninfo(const char *exception_type, int64_t count);
-  void ddup_push_classinfo(const char *class_name);
-  void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line);
-  void ddup_flush_sample();
-  void ddup_set_runtime_id(const char *_id);
-  void ddup_upload();
-} // extern "C"
+public:
+  ProfileBuilder &add_type(Profile::ProfileType type);
+  ProfileBuilder &add_type(unsigned int type);
+  ProfileBuilder &set_max_nframes(unsigned int max_nframes);
+
+  ProfileBuilder(Profile::ProfileType _type_mask = Profile::ProfileType::All,
+                 unsigned int _max_nframes = 64);
+
+  Profile *build_ptr();
+};
+
+} // namespace Datadog

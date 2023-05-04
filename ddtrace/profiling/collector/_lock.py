@@ -104,17 +104,20 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                if self.use_libdatadog:
-                    thread_native_id = _threading.get_thread_native_id(thread_id)
-                    ddup.start_sample()
-                    ddup.push_acquire(end - start, 1)
-                    ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                    ddup.push_taskinfo(task_id, task_name)
-
                 frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
 
-                if self.use_libdatadog:
-                    # TODO endpoint profiling
+                if self.use_libdatadog and nframes:
+                    thread_native_id = _threading.get_thread_native_id(thread_id)
+                    ddup.start_sample(nframes)
+                    ddup.push_acquire(end - start, 1)
+                    ddup.push_lock_name(self._self_name)
+                    ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    ddup.push_taskinfo(task_id, task_name)
+                    ddup.push_classname(frames[0][3])
+                    for frame in frames:
+                        ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                    if self._self_tracer is not None:
+                      ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                     ddup.flush_sample()
 
                 if self.use_pyprof and nframes:
@@ -155,16 +158,20 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         else:
                             frame = task_frame
 
-                        if self.use_libdatadog:
-                            thread_native_id = _threading.get_thread_native_id(thread_id)
-                            ddup.start_sample()
-                            ddup.push_release(end - start, 1)
-                            ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                            ddup.push_taskinfo(task_id, task_name)
-
                         frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes, self.use_libdatadog, self.use_pyprof)
 
-                        if self.use_pyprof:
+                        if self.use_libdatadog and nframes:
+                            thread_native_id = _threading.get_thread_native_id(thread_id)
+                            ddup.start_sample(nframes)
+                            ddup.push_release(end - start, 1)
+                            ddup.push_lock_name(self._self_name)
+                            ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                            ddup.push_taskinfo(task_id, task_name)
+                            ddup.push_classname(frames[0][3])
+                            for frame in frames:
+                                ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                            if self._self_tracer is not None:
+                              ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                             ddup.flush_sample()
 
                         if self.use_pyprof and nframes:

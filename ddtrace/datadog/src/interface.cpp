@@ -10,29 +10,68 @@
 #else
 
 #include "exporter.hpp"
+#include "interface.hpp"
 
 #include <iostream>
 #include <thread>
 
-// C interface
+// State
 bool is_initialized = false;
 Datadog::Uploader *g_uploader;
 Datadog::Profile *g_profile;
 Datadog::Profile *g_profile_real[2];
 bool g_prof_flag = true;
 
-void ddup_uploader_init(const char *service, const char *env, const char *version, const char *runtime, const char *runtime_version, const char *profiler_version) {
+// State used only for one-time configuration
+Datadog::UploaderBuilder uploader_builder;
+Datadog::ProfileBuilder profile_builder;
+
+// Configuration
+void ddup_config_env(const char *env) {
+  uploader_builder.set_env(env);
+}
+void ddup_config_service(const char *service) {
+  uploader_builder.set_service(service);
+}
+void ddup_config_version(const char *version) {
+  uploader_builder.set_version(version);
+}
+void ddup_config_runtime(const char *runtime) {
+  uploader_builder.set_runtime(runtime);
+}
+void ddup_config_runtime_version(const char *runtime_version) {
+  uploader_builder.set_runtime_version(runtime_version);
+}
+void ddup_config_profiler_version(const char *profiler_version) {
+  uploader_builder.set_profiler_version(profiler_version);
+}
+void ddup_config_url(const char *url) {
+  uploader_builder.set_url(url);
+}
+void ddup_config_user_tag(const char *key, const char *val) {
+  uploader_builder.set_tag(key, val);
+}
+void ddup_config_sample_type(unsigned int type) {
+  profile_builder.add_type(type);
+}
+void ddup_config_max_nframes(int max_nframes) {
+  if (max_nframes > 0)
+    profile_builder.set_max_nframes(max_nframes);
+}
+
+// Initialization
+void ddup_init() {
   if (!is_initialized) {
-    g_profile_real[0] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
-    g_profile_real[1] = new Datadog::Profile(Datadog::Profile::ProfileType::All);
+    g_profile_real[0] = profile_builder.build_ptr();
+    g_profile_real[1] = profile_builder.build_ptr();
     g_profile = g_profile_real[g_prof_flag];
-    g_uploader = new Datadog::Uploader(env, service, version, runtime, runtime_version, profiler_version);
+    g_uploader = uploader_builder.build_ptr();
     is_initialized = true;
   }
 }
 
-void ddup_start_sample() {
-  g_profile->start_sample();
+void ddup_start_sample(unsigned int nframes) {
+  g_profile->start_sample(nframes);
 }
 
 void ddup_push_walltime(int64_t walltime, int64_t count){
@@ -51,12 +90,18 @@ void ddup_push_release(int64_t release_time, int64_t count) {
   g_profile->push_release(release_time, count);
 }
 
-void ddup_push_alloc(int64_t alloc_size, int64_t count) {
-  g_profile->push_alloc(alloc_size, count);
+void ddup_push_alloc(uint64_t size, uint64_t count) {
+  g_profile->push_alloc(size, count);
 }
 
-void ddup_push_heap(int64_t heap_size) {
-  g_profile->push_heap(heap_size);
+void ddup_push_heap(uint64_t size) {
+  g_profile->push_heap(size);
+}
+
+void ddup_push_lock_name(const char *lock_name) {
+  if (!lock_name)
+    return;
+  g_profile->push_lock_name(lock_name);
 }
 
 void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
@@ -71,37 +116,40 @@ void ddup_push_taskinfo(int64_t task_id, const char *task_name){
   g_profile->push_taskinfo(task_id, task_name);
 }
 
-void ddup_push_spaninfo(int64_t span_id, int64_t local_root_span_id){
-  g_profile->push_spaninfo(span_id, local_root_span_id);
+void ddup_push_span_id(int64_t span_id) {
+  g_profile->push_span_id(span_id);
 }
 
-void ddup_push_traceinfo(const char *trace_type, const char *trace_resource_container){
-  if (!trace_type || !trace_resource_container)
+void ddup_push_local_root_span_id(int64_t local_root_span_id) {
+  g_profile->push_local_root_span_id(local_root_span_id);
+}
+
+void ddup_push_trace_type(const char *trace_type) {
+  if (!trace_type || !*trace_type)
     return;
-  g_profile->push_traceinfo(trace_type, trace_resource_container);
+  g_profile->push_trace_type(trace_type);
+}
+
+void ddup_push_trace_resource_container(const char *trace_resource_container) {
+  if (!trace_resource_container || !*trace_resource_container)
+    return;
+  g_profile->push_trace_resource_container(trace_resource_container);
 }
 
 void ddup_push_exceptioninfo(const char *exception_type, int64_t count) {
   if (!exception_type || !count)
     return;
-  return;
   g_profile->push_exceptioninfo(exception_type, count);
 }
 
-void ddup_push_classinfo(const char *class_name) {
+void ddup_push_class_name(const char *class_name) {
   if (!class_name)
     return;
-  g_profile->push_classinfo(class_name);
-
+  g_profile->push_class_name(class_name);
 }
 
 void ddup_push_frame(const char *name, const char *fname, uint64_t address, int64_t line) {
-  auto insert_or_get = [&](const char *str) -> const std::string & {
-    auto [it, _] = g_profile->strings.insert(str ? str : "");
-    return *it;
-  };
-
-  g_profile->push_frame(insert_or_get(name), insert_or_get(fname), address, line);
+  g_profile->push_frame(name, fname, address, line);
 }
 
 void ddup_flush_sample() {

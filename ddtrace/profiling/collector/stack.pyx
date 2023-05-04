@@ -329,17 +329,14 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 continue
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if use_libdatadog and len(frames) > 0:
-                ddup.start_sample()
+            if use_libdatadog and nframes:
+                ddup.start_sample(nframes)
                 ddup.push_walltime(wall_time, 1)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_taskinfo(task_id, task_name)
-
+                ddup.push_classinfo(frames[0][3])
                 for frame in frames:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
-                omitted = nframes - max_nframes
-                if omitted > 0:
-                    ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
                 ddup.flush_sample()
 
             if use_pyprof and nframes:
@@ -358,17 +355,15 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-        if use_libdatadog and len(frames) > 0:
-            ddup.start_sample()
+        if use_libdatadog and nframes:
+            ddup.start_sample(nframes)
             ddup.push_cputime(cpu_time, 1)
             ddup.push_walltime(wall_time, 1)
             ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-
+            ddup.push_classinfo(frames[0][3])
             for frame in frames:
                 ddup.push_frame(frame[2], frame[0], 0, frame[1])
-            omitted = nframes - max_nframes
-            if omitted > 0:
-                ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
+            ddup.push_span(span, collect_endpoint)
             ddup.flush_sample()
 
         if use_pyprof and nframes:
@@ -392,16 +387,14 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
-            if use_libdatadog and len(frames) > 0:
-                ddup.start_sample()
+            if use_libdatadog and nframes:
+                ddup.start_sample(nframes)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_exceptioninfo(exc_type, 1)
-
+                ddup.push_classinfo(frames[0][3])
                 for frame in frames:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
-                omitted = nframes - max_nframes
-                if omitted > 0:
-                    ddup.push_frame("<%d frame%s omitted>" % (omitted, ("s" if omitted > 1 else "")), "", 0, 0)
+                ddup.push_span(span, collect_endpoint)
                 ddup.flush_sample()
 
             if use_pyprof and nframes:
