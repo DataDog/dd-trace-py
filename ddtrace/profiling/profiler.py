@@ -8,6 +8,7 @@ from typing import Optional
 import attr
 
 import ddtrace
+from ddtrace.datadog import ddup
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -27,7 +28,6 @@ from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 from ddtrace.settings.profiling import config
-from ddtrace.datadog import ddup
 
 from . import _asyncio
 

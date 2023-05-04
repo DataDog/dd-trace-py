@@ -8,6 +8,7 @@ import typing
 import attr
 from six.moves import _thread
 
+from ddtrace.datadog import ddup
 from ddtrace.internal import compat
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -15,7 +16,6 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
-from ddtrace.datadog import ddup
 from ddtrace.vendor import wrapt
 
 

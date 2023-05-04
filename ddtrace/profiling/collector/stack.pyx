@@ -10,6 +10,7 @@ import six
 from ddtrace import _threading as ddtrace_threading
 from ddtrace import context
 from ddtrace import span as ddspan
+from ddtrace.datadog import ddup
 from ddtrace.internal import compat
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
@@ -19,7 +20,6 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
-from ddtrace.datadog import ddup
 
 
 # These are special features that might not be available depending on your Python version and platform

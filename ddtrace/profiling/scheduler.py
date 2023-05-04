@@ -3,12 +3,12 @@ import logging
 
 import attr
 
+from ddtrace.datadog import ddup
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
-from ddtrace.datadog import ddup
 
 
 LOG = logging.getLogger(__name__)

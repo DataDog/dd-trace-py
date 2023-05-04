@@ -12,11 +12,11 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.datadog import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.settings.profiling import config
-from ddtrace.datadog import ddup
 
 
 LOG = logging.getLogger(__name__)
