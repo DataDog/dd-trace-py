@@ -294,7 +294,6 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
-      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
     defaults:
       run:
         working-directory: starlette
@@ -304,14 +303,9 @@ jobs:
           python-version: '3.9'
       - uses: actions/checkout@v3
         with:
-          path: ddtrace
-      - uses: actions/checkout@v3
-        with:
           repository: encode/starlette
           ref: 0.17.1
           path: starlette
-      - name: Install ddtrace
-        run: pip install ../ddtrace
       - name: Install dependencies
         run: scripts/install
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
