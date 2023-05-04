@@ -1,7 +1,7 @@
 from types import CodeType
 from types import FrameType
 
-from ddtrace.datadog import ddup
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 
 

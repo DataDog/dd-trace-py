@@ -47,7 +47,7 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.9.0"
 
-LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog", "libdatadog"))
+LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog"))
 
 LIBDATADOGPROF_VERSION = "v2.1.0"
 
@@ -257,11 +257,11 @@ class LibDatadog_Download(Library_Download):
 
     @staticmethod
     def get_extra_objects():
-        arch = "x86_64"  # TODO for now, but fix before submitting PR
+        arch = "x86_64"
         base_name = "libdatadog_profiling"
         if CURRENT_OS != "Windows":
             base_name += ".a"
-        base_path = os.path.join("ddtrace", "datadog", "libdatadog", arch, "lib", base_name)
+        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
         if CURRENT_OS == "Linux":
             return [base_path]
         return []
@@ -270,8 +270,8 @@ class LibDatadog_Download(Library_Download):
     def get_include_dirs():
         if CURRENT_OS == "Linux":
             return [
-                "ddtrace/datadog/include",
-                "ddtrace/datadog/libdatadog/x86_64/include",
+                "ddtrace/internal/datadog/profiling/include",
+                "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
             ]
         return []
 
@@ -557,11 +557,11 @@ setup(
                 language="c",
             ),
             Extension(
-                "ddtrace.datadog.ddup",
+                "ddtrace.internal.datadog.profiling.ddup",
                 sources=[
-                    "ddtrace/datadog/src/exporter.cpp",
-                    "ddtrace/datadog/src/interface.cpp",
-                    "ddtrace/datadog/ddup.pyx",
+                    "ddtrace/internal/datadog/profiling/src/exporter.cpp",
+                    "ddtrace/internal/datadog/profiling/src/interface.cpp",
+                    "ddtrace/internal/datadog/profiling/ddup.pyx",
                 ],
                 include_dirs=LibDatadog_Download.get_include_dirs(),
                 extra_objects=LibDatadog_Download.get_extra_objects(),

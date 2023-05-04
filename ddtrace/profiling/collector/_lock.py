@@ -8,7 +8,7 @@ import typing
 import attr
 from six.moves import _thread
 
-from ddtrace.datadog import ddup
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal import compat
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector

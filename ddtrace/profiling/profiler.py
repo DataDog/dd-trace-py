@@ -8,7 +8,7 @@ from typing import Optional
 import attr
 
 import ddtrace
-from ddtrace.datadog import ddup
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe

@@ -5,6 +5,7 @@ import typing
 import ddtrace
 from ddtrace.internal import runtime
 
+
 IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
     cdef extern from "exporter.hpp":
         ctypedef enum ProfileType "ProfileType":

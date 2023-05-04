@@ -13,7 +13,7 @@ ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
-ddtrace/datadog/ddup.cpp
+ddtrace/internal/datadog/profiling/ddup.cpp
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
@@ -26,7 +26,7 @@ ddtrace/**/*.html
 # Dynamic binary libraries
 ddtrace/appsec/ddwaf/libddwaf/
 libddwaf*.sha256
-ddtrace/datadog/libdatadog
+ddtrace/internal/datadog/profiling/libdatadog
 
 # Distribution / packaging
 .Python
