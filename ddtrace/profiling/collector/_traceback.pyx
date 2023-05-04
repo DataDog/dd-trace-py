@@ -40,7 +40,6 @@ cpdef traceback_to_frames(traceback, max_nframes):
     tb = traceback
     frames = []
     nframes = 0
-
     while tb is not None:
         if nframes < max_nframes:
             frame = tb.tb_frame
@@ -93,5 +92,4 @@ cpdef pyframe_to_frames(frame, max_nframes):
             frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
         nframes += 1
         frame = frame.f_back
-
     return frames, nframes

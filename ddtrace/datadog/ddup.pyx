@@ -4,7 +4,6 @@ import typing
 
 import ddtrace
 from ddtrace.internal import runtime
-
 from libc.stdint cimport uint64_t, int64_t
 
 IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":

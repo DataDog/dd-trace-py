@@ -26,8 +26,8 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
-from ddtrace.datadog import ddup
 from ddtrace.settings.profiling import config
+from ddtrace.datadog import ddup
 
 from . import _asyncio
 
@@ -172,13 +172,14 @@ class _ProfilerInstance(service.Service):
             endpoint_call_counter_span_processor.enable()
 
         if self.export_libdatadog:
-          max_nframes = int(os.environ.get("DD_PROFILING_MAX_frames", 64))
-          ddup.init(env=self.env,
-                    service=self.service,
-                    version=self.version,
-                    tags=self.tags,
-                    max_nframes=max_nframes,
-                )
+            max_nframes = int(os.environ.get("DD_PROFILING_MAX_frames", 64))
+            ddup.init(
+                env=self.env,
+                service=self.service,
+                version=self.version,
+                tags=self.tags,
+                max_nframes=max_nframes,
+            )
 
         if self.export_py:
             return [
@@ -216,10 +217,11 @@ class _ProfilerInstance(service.Service):
 
         self._collectors = [
             stack.StackCollector(
-                r, tracer=self.tracer,
+                r,
+                tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-                export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog),
-                export_py = attr.ib(type=bool, default=config.export_py),
+                export_libdatadog=attr.ib(type=bool, default=config.export_libdatadog),
+                export_py=attr.ib(type=bool, default=config.export_py),
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]

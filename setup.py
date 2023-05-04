@@ -67,6 +67,7 @@ def verify_checksum_from_file(sha256_filename, filename):
         print("actual filename: %s" % filename)
         sys.exit(1)
 
+
 def verify_checksum_from_hash(expected_checksum, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
@@ -110,7 +111,7 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-class Library_Download():
+class Library_Download:
     name = None
     download_dir = None
     version = None
@@ -190,12 +191,13 @@ class Library_Download():
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             for suffix in suffixes:
-              original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
-              if os.path.exists(original_file):
-                  renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
-                  os.rename(original_file, renamed_file)
+                original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
+                if os.path.exists(original_file):
+                    renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
+                    os.rename(original_file, renamed_file)
 
             os.remove(filename)
+
 
 class LibDDWaf_Download(Library_Download):
     name = "ddwaf"
@@ -222,6 +224,7 @@ class LibDDWaf_Download(Library_Download):
     def run(cls):
         LibDDWaf_Download.download_artifacts()
 
+
 class LibDatadog_Download(Library_Download):
     name = "datadog"
     download_dir = LIBDATADOGPROF_DOWNLOAD_DIR
@@ -229,7 +232,7 @@ class LibDatadog_Download(Library_Download):
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
     expected_checksums = {
         "Linux": {
-            "x86_64" : "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
+            "x86_64": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
         },
     }
     available_releases = {
@@ -254,13 +257,13 @@ class LibDatadog_Download(Library_Download):
 
     @staticmethod
     def get_extra_objects():
-        arch = "x86_64" # TODO for now, but fix before submitting PR
+        arch = "x86_64"  # TODO for now, but fix before submitting PR
         base_name = "libdatadog_profiling"
         if CURRENT_OS != "Windows":
-          base_name += ".a"
+            base_name += ".a"
         base_path = os.path.join("ddtrace", "datadog", "libdatadog", arch, "lib", base_name)
         if CURRENT_OS == "Linux":
-          return [base_path]
+            return [base_path]
         return []
 
     @staticmethod
@@ -283,6 +286,7 @@ class Library_Downloader(BuildPyCommand):
         LibDatadog_Download.run()
         LibDDWaf_Download.run()
         BuildPyCommand.run(self)
+
 
 class CleanLibraries(CleanCommand):
     @staticmethod
@@ -555,14 +559,14 @@ setup(
             Extension(
                 "ddtrace.datadog.ddup",
                 sources=[
-                    "ddtrace/datadog/ddup.pyx",
                     "ddtrace/datadog/src/exporter.cpp",
                     "ddtrace/datadog/src/interface.cpp",
+                    "ddtrace/datadog/ddup.pyx",
                 ],
                 include_dirs=LibDatadog_Download.get_include_dirs(),
                 extra_objects=LibDatadog_Download.get_extra_objects(),
                 extra_compile_args=["-std=c++17"],
-                language='c++',
+                language="c++",
             ),
         ],
         compile_time_env={

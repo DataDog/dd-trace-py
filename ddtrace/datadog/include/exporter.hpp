@@ -2,16 +2,17 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
+
 #pragma once
 
 #include <array>
 #include <chrono>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <memory>
-#include <vector>
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 extern "C" {
 #include "datadog/profiling.h"
@@ -27,42 +28,36 @@ class Uploader;
 // it.  Instead, tags are keyed and populated based on this table, then
 // referenced in `add_tag()`.
 // There are two columns because runtime-id has a dash.
-#define EXPORTER_TAGS(X) \
-  X(language,         "language") \
-  X(env,              "env") \
-  X(service,          "service") \
-  X(version,          "version") \
-  X(runtime_version,  "runtime_version") \
-  X(runtime,          "runtime") \
-  X(runtime_id,       "runtime-id") \
-  X(profiler_version, "profiler_version") \
-  X(profile_seq,      "profile_seq")
+#define EXPORTER_TAGS(X)                                                       \
+  X(language, "language")                                                      \
+  X(env, "env")                                                                \
+  X(service, "service")                                                        \
+  X(version, "version")                                                        \
+  X(runtime_version, "runtime_version")                                        \
+  X(runtime, "runtime")                                                        \
+  X(runtime_id, "runtime-id")                                                  \
+  X(profiler_version, "profiler_version")                                      \
+  X(profile_seq, "profile_seq")
 
-#define EXPORTER_LABELS(X) \
-  X(exception_type,           "exception type") \
-  X(thread_id,                "thread id") \
-  X(thread_native_id,         "thread native id") \
-  X(thread_name,              "thread name") \
-  X(task_id,                  "task id") \
-  X(task_name,                "task name") \
-  X(span_id,                  "span id") \
-  X(local_root_span_id,       "local root span id") \
-  X(trace_type,               "trace type") \
-  X(trace_resource_container, "trace resource container") \
-  X(trace_endpoint,           "trace endpoint") \
-  X(class_name,               "class name") \
-  X(lock_name,                "lock name")
+#define EXPORTER_LABELS(X)                                                     \
+  X(exception_type, "exception type")                                          \
+  X(thread_id, "thread id")                                                    \
+  X(thread_native_id, "thread native id")                                      \
+  X(thread_name, "thread name")                                                \
+  X(task_id, "task id")                                                        \
+  X(task_name, "task name")                                                    \
+  X(span_id, "span id")                                                        \
+  X(local_root_span_id, "local root span id")                                  \
+  X(trace_type, "trace type")                                                  \
+  X(trace_resource_container, "trace resource container")                      \
+  X(trace_endpoint, "trace endpoint")                                          \
+  X(class_name, "class name")                                                  \
+  X(lock_name, "lock name")
 
 #define X_ENUM(a, b) a,
-enum class ExportTagKey {
-  EXPORTER_TAGS(X_ENUM)
-  _Length
-};
+enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
 
-enum class ExportLabelKey {
-  EXPORTER_LABELS(X_ENUM)
-  _Length
-};
+enum class ExportLabelKey { EXPORTER_LABELS(X_ENUM) _Length };
 #undef X_ENUM
 
 // This is a wrapper class over a ddog_prof_Exporter object, which is part of
@@ -74,22 +69,21 @@ private:
   friend class UploaderBuilder;
   friend class Uploader;
 
-  bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
-  bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
+  bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key,
+               std::string_view val);
+  bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
+                      std::string_view val);
 
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
 
   std::string errmsg;
-  
+
 public:
-  DdogProfExporter(std::string_view env,
-                   std::string_view service,
-                   std::string_view version,
-                   std::string_view runtime,
+  DdogProfExporter(std::string_view env, std::string_view service,
+                   std::string_view version, std::string_view runtime,
                    std::string_view runtime_version,
-                   std::string_view profiler_version,
-                   std::string_view url,
+                   std::string_view profiler_version, std::string_view url,
                    ExporterTagset &user_tags);
   ~DdogProfExporter();
 
@@ -107,18 +101,13 @@ class Uploader {
   std::string errmsg;
 
 public:
-
-  Uploader(std::string_view _env,
-           std::string_view _service,
-           std::string_view _version,
-           std::string_view _runtime,
+  Uploader(std::string_view _env, std::string_view _service,
+           std::string_view _version, std::string_view _runtime,
            std::string_view _runtime_version,
-           std::string_view _profiler_version,
-           std::string_view _url,
+           std::string_view _profiler_version, std::string_view _url,
            DdogProfExporter::ExporterTagset &user_tags);
   bool set_runtime_id(const std::string &id);
   bool upload(const Profile *profile);
-
 };
 
 class UploaderBuilder {
@@ -155,13 +144,13 @@ public:
 class Profile {
 public:
   enum ProfileType : unsigned int {
-    CPU         = 1<<0,
-    Wall        = 1<<1,
-    Exception   = 1<<2,
-    LockAcquire = 1<<3,
-    LockRelease = 1<<4,
-    Allocation  = 1<<5,
-    Heap        = 1<<6,
+    CPU = 1 << 0,
+    Wall = 1 << 1,
+    Exception = 1 << 2,
+    LockAcquire = 1 << 3,
+    LockRelease = 1 << 4,
+    Allocation = 1 << 5,
+    Heap = 1 << 6,
     All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap
   };
 
@@ -182,7 +171,7 @@ private:
   // Storage for labels
   ddog_prof_Label labels[8];
   size_t cur_label = 0;
-  
+
   // Storage for values
   std::vector<int64_t> values = {};
   struct {
@@ -203,12 +192,8 @@ private:
   // Helpers
   void push_label(const ExportLabelKey key, std::string_view val);
   void push_label(const ExportLabelKey key, int64_t val);
-  void push_frame_impl(
-        std::string_view name,
-        std::string_view filename,
-        uint64_t address,
-        int64_t line
-      );
+  void push_frame_impl(std::string_view name, std::string_view filename,
+                       uint64_t address, int64_t line);
 
 public:
   uint64_t samples = 0;
@@ -227,8 +212,9 @@ public:
 
   // Adds metadata to sample
   bool push_lock_name(std::string_view lock_name);
-  bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
-  bool push_taskinfo( int64_t task_id, std::string_view task_name);
+  bool push_threadinfo(int64_t thread_id, int64_t thread_native_id,
+                       std::string_view thread_name);
+  bool push_taskinfo(int64_t task_id, std::string_view task_name);
   bool push_span_id(int64_t span_id);
   bool push_local_root_span_id(int64_t local_root_span_id);
   bool push_trace_type(std::string_view trace_type);
@@ -237,13 +223,11 @@ public:
   bool push_class_name(std::string_view class_name);
 
   // Assumes frames are pushed in leaf-order
-  void push_frame(
-        std::string_view name,      // for ddog_prof_Function
-        std::string_view filename,  // for ddog_prof_Function
-        uint64_t address,           // for ddog_prof_Location
-        int64_t line                // for ddog_prof_Line
-      );
-    
+  void push_frame(std::string_view name,     // for ddog_prof_Function
+                  std::string_view filename, // for ddog_prof_Function
+                  uint64_t address,          // for ddog_prof_Location
+                  int64_t line               // for ddog_prof_Line
+  );
 
   // Flushes the current buffer, clearing it
   bool flush_sample();

@@ -18,8 +18,8 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
-from ddtrace.datadog import ddup
 from ddtrace.settings.profiling import config
+from ddtrace.datadog import ddup
 
 
 # These are special features that might not be available depending on your Python version and platform

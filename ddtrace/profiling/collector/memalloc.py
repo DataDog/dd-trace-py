@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import sys
 import threading
 import typing
 
@@ -16,8 +15,8 @@ except ImportError:
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
-from ddtrace.datadog import ddup
 from ddtrace.settings.profiling import config
+from ddtrace.datadog import ddup
 
 
 LOG = logging.getLogger(__name__)
@@ -107,14 +106,20 @@ class MemoryCollector(collector.PeriodicCollector):
         if self.ignore_profiler:
             return
 
-        stacks = [((stack, nframes, thread_id), size) for (stack, nframes, thread_id), size in _memalloc.heap() if thread_id not in thread_id_ignore_set]
+        stacks = [
+            ((stack, nframes, thread_id), size)
+            for (stack, nframes, thread_id), size in _memalloc.heap()
+            if thread_id not in thread_id_ignore_set
+        ]
         if self.export_libdatadog:
-            for (stack, nframes, thread_id), size in stacks:
+            for (frames, nframes, thread_id), size in stacks:
                 ddup.start_sample(nframes)
                 ddup.push_heap(size)
-                ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+                ddup.push_threadinfo(
+                    thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
+                )
                 ddup.push_class_name(frames[0][3])
-                for frame in stack:
+                for frame in frames:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
@@ -125,16 +130,16 @@ class MemoryCollector(collector.PeriodicCollector):
                         thread_id=thread_id,
                         thread_name=_threading.get_thread_name(thread_id),
                         thread_native_id=_threading.get_thread_native_id(thread_id),
-                        frames=stack,
+                        frames=frames,
                         nframes=nframes,
                         size=size,
                         sample_size=self.heap_sample_size,
-                    ) for (stack, nframes, thread_id), size in stacks
+                    )
+                    for (frames, nframes, thread_id), size in stacks
                 ),
             )
 
     def collect(self):
-        # type: (...) -> typing.List[MemoryAllocSampleEvent]
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
         # timestamp in C and then return it via iter_events.
@@ -148,8 +153,8 @@ class MemoryCollector(collector.PeriodicCollector):
             LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof and libdatadog
-        # This will be changed if/when we ever return to only a single possible exporter
+        # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof
+        # and libdatadog. This will be changed if/when we ever return to only a single possible exporter
         events = list(events_iter)
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
@@ -159,8 +164,10 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
-                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count) # Roundup to help float precision
-                ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
+                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count)  # Roundup to help float precision
+                ddup.push_threadinfo(
+                    thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
+                )
                 ddup.push_class_name(frames[0][3])
                 for frame in frames:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])

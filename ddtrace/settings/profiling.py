@@ -148,20 +148,20 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    export_py = En.v(
-        bool,
-        "enabled",
-        default=True,
-        help_type="Boolean",
-        help="Enables collection and export using the classic Python stack",
-    )
-
     export_libdatadog = En.v(
         bool,
         "enabled",
         default=True,
         help_type="Boolean",
         help="Enables collection and export using the native libdatadog stack (Linux-only)",
+    )
+
+    export_py = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Enables collection and export using the classic Python stack",
     )
 
     class Memory(En):

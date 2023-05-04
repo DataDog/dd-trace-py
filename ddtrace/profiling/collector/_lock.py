@@ -14,8 +14,8 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
-from ddtrace.datadog import ddup
 from ddtrace.settings.profiling import config
+from ddtrace.datadog import ddup
 from ddtrace.vendor import wrapt
 
 
@@ -116,7 +116,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     for frame in frames:
                         ddup.push_frame(frame[2], frame[0], 0, frame[1])
                     if self._self_tracer is not None:
-                      ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                        ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                     ddup.flush_sample()
 
                 if self.export_py and nframes:
@@ -162,7 +162,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         if self.export_libdatadog and nframes:
                             thread_native_id = _threading.get_thread_native_id(thread_id)
                             ddup.start_sample(nframes)
-                            ddup.push_release(end - start, 1)
+                            ddup.push_release(end - self._self_acquired_at, 1)
                             ddup.push_lock_name(self._self_name)
                             ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                             ddup.push_taskinfo(task_id, task_name)
@@ -170,7 +170,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             for frame in frames:
                                 ddup.push_frame(frame[2], frame[0], 0, frame[1])
                             if self._self_tracer is not None:
-                              ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                                ddup.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
                             ddup.flush_sample()
 
                         if self.export_py and nframes:

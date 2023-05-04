@@ -9,8 +9,8 @@
 #elif __i386__
 #else
 
-#include "exporter.hpp"
 #include "interface.hpp"
+#include "exporter.hpp"
 
 #include <iostream>
 #include <thread>
@@ -27,9 +27,7 @@ Datadog::UploaderBuilder uploader_builder;
 Datadog::ProfileBuilder profile_builder;
 
 // Configuration
-void ddup_config_env(const char *env) {
-  uploader_builder.set_env(env);
-}
+void ddup_config_env(const char *env) { uploader_builder.set_env(env); }
 void ddup_config_service(const char *service) {
   uploader_builder.set_service(service);
 }
@@ -45,9 +43,7 @@ void ddup_config_runtime_version(const char *runtime_version) {
 void ddup_config_profiler_version(const char *profiler_version) {
   uploader_builder.set_profiler_version(profiler_version);
 }
-void ddup_config_url(const char *url) {
-  uploader_builder.set_url(url);
-}
+void ddup_config_url(const char *url) { uploader_builder.set_url(url); }
 void ddup_config_user_tag(const char *key, const char *val) {
   uploader_builder.set_tag(key, val);
 }
@@ -74,11 +70,11 @@ void ddup_start_sample(unsigned int nframes) {
   g_profile->start_sample(nframes);
 }
 
-void ddup_push_walltime(int64_t walltime, int64_t count){
+void ddup_push_walltime(int64_t walltime, int64_t count) {
   g_profile->push_walltime(walltime, count);
 }
 
-void ddup_push_cputime(int64_t cputime, int64_t count){
+void ddup_push_cputime(int64_t cputime, int64_t count) {
   g_profile->push_cputime(cputime, count);
 }
 
@@ -94,9 +90,7 @@ void ddup_push_alloc(uint64_t size, uint64_t count) {
   g_profile->push_alloc(size, count);
 }
 
-void ddup_push_heap(uint64_t size) {
-  g_profile->push_heap(size);
-}
+void ddup_push_heap(uint64_t size) { g_profile->push_heap(size); }
 
 void ddup_push_lock_name(const char *lock_name) {
   if (!lock_name)
@@ -104,21 +98,20 @@ void ddup_push_lock_name(const char *lock_name) {
   g_profile->push_lock_name(lock_name);
 }
 
-void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name){
+void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
+                          const char *thread_name) {
   if (!thread_name)
     return;
   g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
-void ddup_push_taskinfo(int64_t task_id, const char *task_name){
+void ddup_push_taskinfo(int64_t task_id, const char *task_name) {
   if (!task_name)
     return;
   g_profile->push_taskinfo(task_id, task_name);
 }
 
-void ddup_push_span_id(int64_t span_id) {
-  g_profile->push_span_id(span_id);
-}
+void ddup_push_span_id(int64_t span_id) { g_profile->push_span_id(span_id); }
 
 void ddup_push_local_root_span_id(int64_t local_root_span_id) {
   g_profile->push_local_root_span_id(local_root_span_id);
@@ -148,21 +141,16 @@ void ddup_push_class_name(const char *class_name) {
   g_profile->push_class_name(class_name);
 }
 
-void ddup_push_frame(const char *name, const char *fname, uint64_t address, int64_t line) {
+void ddup_push_frame(const char *name, const char *fname, uint64_t address,
+                     int64_t line) {
   g_profile->push_frame(name, fname, address, line);
 }
 
-void ddup_flush_sample() {
-  g_profile->flush_sample();
-}
+void ddup_flush_sample() { g_profile->flush_sample(); }
 
-void ddup_set_runtime_id(const char *id) {
-  g_uploader->set_runtime_id(id);
-}
+void ddup_set_runtime_id(const char *id) { g_uploader->set_runtime_id(id); }
 
-void ddup_upload_impl(Datadog::Profile *prof) {
-  g_uploader->upload(prof);
-}
+void ddup_upload_impl(Datadog::Profile *prof) { g_uploader->upload(prof); }
 
 void ddup_upload() {
   if (!is_initialized)
