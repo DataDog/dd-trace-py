@@ -160,7 +160,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
             b"Content-Type: application/json",
             b"",
-            b'{"dummy":true}',
+            b'{"dummy":true}\r\n',
+            b"--%s--" % self.boundary,
         ]
 
     def _build_body(self, data):
