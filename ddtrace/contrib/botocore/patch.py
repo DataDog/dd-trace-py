@@ -12,6 +12,7 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import Union
 
 import botocore.client
 import botocore.exceptions

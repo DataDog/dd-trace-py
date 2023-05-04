@@ -16,6 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
     from typing import List
+    from typing import Union
 
 
 log = get_logger(__name__)
@@ -216,7 +217,7 @@ def patch_iast(**patch_modules):
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
-    # type: (bool, str, bool) -> None
+    # type: (bool, str, Union[List[str], bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
