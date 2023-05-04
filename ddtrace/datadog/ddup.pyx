@@ -5,10 +5,6 @@ import typing
 import ddtrace
 from ddtrace.internal import runtime
 
-from libc.stdint cimport int64_t
-from libc.stdint cimport uint64_t
-
-
 IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
     cdef extern from "exporter.hpp":
         ctypedef enum ProfileType "ProfileType":
@@ -21,6 +17,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             Heap        "ProfileType::Heap"
             All         "ProfileType::All"
     cdef extern from "interface.hpp":
+        ctypedef signed int int64_t
+        ctypedef unsigned int uint64_t
         void ddup_config_env(const char *env);
         void ddup_config_service(const char *service);
         void ddup_config_version(const char *version);
