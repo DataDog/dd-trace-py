@@ -968,7 +968,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "elasticsearch8": [latest],
                     },
