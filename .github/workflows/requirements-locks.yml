@@ -20,8 +20,9 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: List available Python versions
-        run: pyenv versions
-        run: pyenv global
+        run: |
+          pyenv versions
+          pyenv global
 
       - name: Install Dependencies
         run: pip install --upgrade pip && pip install riot
