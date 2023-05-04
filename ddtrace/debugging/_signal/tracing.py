@@ -5,6 +5,8 @@ import attr
 import ddtrace
 from ddtrace import Span
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.compat import ExcInfoType
