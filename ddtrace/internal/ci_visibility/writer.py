@@ -45,6 +45,25 @@ class CIVisibilityCoverageClient(WriterClientBase):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
         super(CIVisibilityCoverageClient, self).__init__(encoder)
 
+    def _build_body(self, data):
+        yield "--" + self.encoder.boundary + "\r\n"
+        yield 'Content-Disposition: form-data; name= "coverage1"; filename="coverage1.msgpack"\r\n'
+
+        yield "Content-Type: application/msgpack \r\n"
+        yield "\r\n"
+        yield from data
+        yield "\r\n"
+
+        yield "--" + self.encoder.boundary + "\r\n"
+
+        yield 'Content-Disposition: form-data; name="event"; filename="event.json"\r\n'
+        yield "Content-Type: application/json\r\n\r\n"
+        yield '{"dummy":true}'
+        yield "\r\n"
+
+    def _put(self, data, headers, client):
+        super(CIVisibilityCoverageClient, self)._put(self._build_body(data), headers, client)
+
 
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
