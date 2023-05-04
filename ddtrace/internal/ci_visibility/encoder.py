@@ -1,4 +1,3 @@
-import email.generator
 import json
 import threading
 from typing import Any
@@ -134,9 +133,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
     def __init__(self, *args):
-        self.boundary = email.generator._make_boundary()
-        self.content_type = "multipart/form-data; boundary=%s" % self.boundary
+        self.content_type = "multipart/form-data"
         return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
+
+    def _set_content_type(self, boundary):
+        self.content_type = "multipart/form-data; boundary=%s" % boundary
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]

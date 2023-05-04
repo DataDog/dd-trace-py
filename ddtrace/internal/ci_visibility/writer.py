@@ -1,3 +1,4 @@
+import email.generator
 import os
 from typing import Dict
 from typing import List
@@ -45,20 +46,33 @@ class CIVisibilityCoverageClient(WriterClientBase):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
         super(CIVisibilityCoverageClient, self).__init__(encoder)
 
-    def _build_body(self, data):
-        yield "--" + self.encoder.boundary + "\r\n"
-        yield 'Content-Disposition: form-data; name= "coverage1"; filename="coverage1.msgpack"\r\n'
+    def _set_boundary(self, data):
+        contents = "".join([x for x in self._build_coverage1(data)])
+        self.boundary = email.generator._make_boundary(contents)
+        self.encoder._set_content_type(self.boundary)
 
+    @staticmethod
+    def _build_coverage1(data):
+        yield 'Content-Disposition: form-data; name= "coverage1"; filename="coverage1.msgpack"\r\n'
         yield "Content-Type: application/msgpack \r\n"
         yield "\r\n"
         yield from data
-        yield "\r\n"
 
-        yield "--" + self.encoder.boundary + "\r\n"
-
+    @staticmethod
+    def _build_event_json():
         yield 'Content-Disposition: form-data; name="event"; filename="event.json"\r\n'
         yield "Content-Type: application/json\r\n\r\n"
         yield '{"dummy":true}'
+
+    def _build_body(self, data):
+        self._set_boundary(data)
+        yield "--" + self.boundary + "\r\n"
+        yield from self._build_coverage1()
+        yield "\r\n"
+
+        yield "--" + self.boundary + "\r\n"
+        yield from self._build_event_json()
+
         yield "\r\n"
 
     def _put(self, data, headers, client):
