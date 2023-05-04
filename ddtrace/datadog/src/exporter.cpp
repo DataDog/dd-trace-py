@@ -141,42 +141,49 @@ Uploader::Uploader(std::string_view env,
   ddog_exporter = std::make_unique<DdogProfExporter>(env, service, version, runtime, runtime_version, profiler_version, url, user_tags);
 }
 
-void Uploader::set_runtime_id(const std::string &id) {
+bool Uploader::set_runtime_id(const std::string &id) {
   runtime_id = id;
+  return true;
 }
 
 #define X_STR(a, b) b,
-void DdogProfExporter::add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val) {
+bool DdogProfExporter::add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val) {
   // NB the storage of `val` needs to be guaranteed until the tags are flushed
   constexpr std::array<std::string_view, static_cast<size_t>(ExportTagKey::_Length)> keys = {
     EXPORTER_TAGS(X_STR)
   };
 
+  std::string_view key_sv = keys[static_cast<size_t>(key)];
+
   // Input check
-  if (val.empty())
-    return;
+  if (val.empty()) {
+    errmsg = "tag '" + std::string(key_sv) + "' is invalid";
+    return false;
+  }
 
   // Add
-  std::string_view key_sv = keys[static_cast<size_t>(key)];
   ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-    // TODO consolidate errors
-    std::cout << "Error pushing tag '" << key_sv << "'->'" << val << "'" << std::endl;
-    std::cout << "  err: " << ddog_Error_message(&res.err).ptr << std::endl;
+    std::string ddog_err(ddog_Error_message(&res.err).ptr);
+    errmsg = "tags[" + std::string(key_sv) + "]='" + std::string(val) + " err: '" + ddog_err + "'";
     ddog_Error_drop(&res.err);
   }
+  return true;
 }
 
-void DdogProfExporter::add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val) {
-  if (key.empty() || val.empty())
-    return;
+bool DdogProfExporter::add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val) {
+  if (key.empty() || val.empty()) {
+    errmsg = "tag '" + std::string(key) + "'='" + std::string(val) + "' is invalid";
+    return false;
+  }
   ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-    // TODO consolidate errors
-    std::cout << "Error pushing (unsafe) tag '" << key << "'->'" << val << "'" << std::endl;
-    std::cout << "  err: " << ddog_Error_message(&res.err).ptr << std::endl;
+    std::string ddog_err(ddog_Error_message(&res.err).ptr);
+    errmsg = "tags[" + std::string(key) + "]='" + std::string(val) + " err: '" + ddog_err + "'";
     ddog_Error_drop(&res.err);
+    return false;
   }
+  return true;
 }
 
 bool Uploader::upload(const Profile *profile) {
@@ -185,9 +192,8 @@ bool Uploader::upload(const Profile *profile) {
       nullptr,
       nullptr);
   if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-    // TODO consolidate errors
-    std::cout << "Failure serializing pprof" << std::endl;
-    std::cout << "  err: " << ddog_Error_message(&result.err).ptr << std::endl;
+    std::string ddog_errmsg(ddog_Error_message(&result.err).ptr);
+    errmsg = "Error serializing pprof, err:" + ddog_errmsg;
     ddog_Error_drop(&result.err);
     return false;
   }
@@ -224,9 +230,8 @@ bool Uploader::upload(const Profile *profile) {
       5000);
 
   if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
-    // TODO consolidate errors
-    std::cout << "Could not build request" << std::endl;
-    std::cout << "  " << ddog_Error_message(&build_res.err).ptr << std::endl;
+    std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
+    errmsg = "Error building request, err:" + ddog_err;
     ddog_Error_drop(&build_res.err);
     ddog_prof_EncodedProfile_drop(encoded);
     ddog_Vec_Tag_drop(tags);
@@ -237,10 +242,8 @@ bool Uploader::upload(const Profile *profile) {
   ddog_prof_Exporter_Request *req = build_res.ok;
   ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter->ptr, &req, nullptr);
   if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
-    // TODO consolidate errors
-    std::cout << "Failed to send result to backend" << std::endl;
-    std::cout << "  url: " <<  url << std::endl;
-    std::cout << "  " << ddog_Error_message(&res.err).ptr << std::endl;
+    std::string ddog_err(ddog_Error_message(&res.err).ptr);
+    errmsg = "Failed to upload (url:'" + url + "'), err: " + ddog_err;
     ddog_Error_drop(&res.err);
     ddog_prof_EncodedProfile_drop(encoded);
     ddog_Vec_Tag_drop(tags);
@@ -248,7 +251,6 @@ bool Uploader::upload(const Profile *profile) {
   }
 
   // Cleanup
-  // TODO which of these can be moved closer to point of allocation?
   ddog_prof_Exporter_Request_drop(&req);
   ddog_prof_EncodedProfile_drop(encoded);
   ddog_Vec_Tag_drop(tags);
@@ -282,13 +284,7 @@ Profile *ProfileBuilder::build_ptr() {
 
 Profile::Profile(ProfileType type = ProfileType::All, unsigned int _max_nframes) :
   type_mask{type & ProfileType::All},
-  max_nframes{_max_nframes}
-  {
-
-  // Check for invalid type
-  if (!type_mask)
-    return;
-
+  max_nframes{_max_nframes} {
   // Push an element to the end of the vector, returning the position of insertion
   std::vector<ddog_prof_ValueType> samplers;
   auto get_value_idx= [&samplers](std::string_view value, std::string_view unit) {
@@ -325,10 +321,6 @@ Profile::Profile(ProfileType type = ProfileType::All, unsigned int _max_nframes)
     val_idx.heap_space = get_value_idx("heap-space", "bytes");
   }
 
-  if (!samplers.size()) {
-    // TODO consolidate errors
-    return;
-  }
   values.resize(samplers.size());
   std::fill(values.begin(), values.end(), 0);
 
@@ -351,16 +343,19 @@ Profile::~Profile() {
   ddog_prof_Profile_drop(ddog_profile);
 }
 
-void Profile::reset() {
-  // TODO consolidate errors
-  if (!ddog_prof_Profile_reset(ddog_profile, nullptr))
-    std::cout << "Unable to reset!" << std::endl;
+bool Profile::reset() {
+  if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
+    errmsg = "Unable to reset profile";
+    return false;
+  }
+  return true;
 }
 
-void Profile::start_sample(unsigned int nframes) {
+bool Profile::start_sample(unsigned int nframes) {
   strings.clear();
   clear_buffers();
   this->nframes = nframes;
+  return true;
 }
 
 void Profile::push_frame_impl(
@@ -407,6 +402,8 @@ void Profile::push_frame(
 }
 
 void Profile::push_label(const ExportLabelKey key, std::string_view val) {
+  // libdatadog checks the labels when they get flushed, which slightly de-localizes the error
+  // message.  Roll with it for now.
   constexpr std::array<std::string_view, static_cast<size_t>(ExportLabelKey::_Length)> keys = {
     EXPORTER_LABELS(X_STR)
   };
@@ -454,147 +451,117 @@ bool Profile::flush_sample() {
   };
 
   ddog_prof_Profile_AddResult address = ddog_prof_Profile_add(ddog_profile, sample);
-
   if (address.tag == DDOG_PROF_PROFILE_ADD_RESULT_ERR) {
-    std::cout << ddog_Error_message(&address.err).ptr << std::endl;
+    std::string ddog_errmsg(ddog_Error_message(&address.err).ptr);
+    errmsg = "Could not flush sample: " + errmsg;
     ddog_Error_drop(&address.err);
 
-    std::cout << "Problem flushing sample to profile" << std::endl;
-    for (auto el : values) {
-      std::cout << el << ", ";
-    }
-    std::cout << std::endl;
-    for (auto el : locations) {
-      for (size_t i = 0; i < el.lines.len; ++i) {
-        std::cout << "Pulling location " << i + 1 << " of " << el.lines.len << std::endl;
-        const ddog_prof_Line *ell = &el.lines.ptr[i];
-        std::cout << "  line is " << ell->line << std::endl;
-        if (!ell) {
-          std::cout << "  Location is null" << std::endl;
-        }
-        const char *name = ell->function.name.ptr;
-        if (!name)
-          std::cout << "  name is NULL" << std::endl;
-        else
-          std::cout << "  name: " << std::string(name) << std::endl;
-
-        const char *sname = ell->function.system_name.ptr;
-        if (!sname)
-          std::cout << "  sname is NULL" << std::endl;
-        else
-          std::cout << "  sname: " << std::string() << std::endl;
-
-        const char *filename = ell->function.filename.ptr;
-        if (!filename)
-          std::cout << "  file is NULL" << std::endl;
-        else
-          std::cout << "  file: " << std::string(filename) << std::endl;
-
-        std::cout << "  fline: " << ell->function.start_line << std::endl;
-        std::cout << std::endl;
-      }
-    }
-
-    std::cout << "  labels: " << std::endl;
-    for (size_t i = 0; i < cur_label; i++) {
-      auto &el = labels[i];
-      std::cout << "  key: `" << el.key.ptr << "`" << std::endl;
-      if (el.str.ptr)
-        std::cout << "  val: `" << el.str.ptr << "`" << std::endl;
-      else
-        std::cout << "  num: `" << el.num << "`" << std::endl;
-      std::cout << std::endl;
-    }
     clear_buffers();
-    std::exit(-1);
     return false;
   }
+
   clear_buffers();
   return true;
 }
 
-void Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
+bool Datadog::Profile::push_cputime(int64_t cputime, int64_t count) {
+  // NB all push-type operations return bool for semantic uniformity,
+  // even if they can't error.  This should promote generic code.
   if (type_mask & ProfileType::CPU) {
     values[val_idx.cpu_time] += cputime * count;
     values[val_idx.cpu_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_walltime(int64_t walltime, int64_t count) {
+bool Datadog::Profile::push_walltime(int64_t walltime, int64_t count) {
   if (type_mask & ProfileType::Wall) {
     values[val_idx.wall_time] += walltime * count;
     values[val_idx.wall_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_exceptioninfo(std::string_view exception_type, int64_t count) {
+bool Datadog::Profile::push_exceptioninfo(std::string_view exception_type, int64_t count) {
   if (type_mask & ProfileType::Exception) {
     push_label(ExportLabelKey::exception_type, exception_type);
     values[val_idx.exception_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_acquire(int64_t acquire_time, int64_t count) {
+bool Datadog::Profile::push_acquire(int64_t acquire_time, int64_t count) {
   if (type_mask & ProfileType::LockAcquire) {
     values[val_idx.lock_acquire_time] += acquire_time;
     values[val_idx.lock_acquire_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_release(int64_t release_time, int64_t count) {
+bool Datadog::Profile::push_release(int64_t release_time, int64_t count) {
   if (type_mask & ProfileType::LockRelease) {
     values[val_idx.lock_release_time] += release_time;
     values[val_idx.lock_release_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_alloc(uint64_t size, uint64_t count) {
+bool Datadog::Profile::push_alloc(uint64_t size, uint64_t count) {
   if (type_mask & ProfileType::Allocation) {
     values[val_idx.alloc_space] += size;
     values[val_idx.alloc_count] += count;
   }
+  return true;
 }
 
-void Datadog::Profile::push_heap(uint64_t size) {
+bool Datadog::Profile::push_heap(uint64_t size) {
   if (type_mask & ProfileType::Heap) {
     values[val_idx.heap_space] += size;
   }
+  return true;
 }
 
-void Datadog::Profile::push_lock_name(std::string_view lock_name) {
+bool Datadog::Profile::push_lock_name(std::string_view lock_name) {
   push_label(ExportLabelKey::lock_name, lock_name);
+  return true;
 }
 
-void Datadog::Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name) {
-  // TODO ensure the thread ids do have transparently static storage
+bool Datadog::Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name) {
   push_label(ExportLabelKey::thread_id, thread_id);
   push_label(ExportLabelKey::thread_native_id, thread_native_id);
   push_label(ExportLabelKey::thread_name, thread_name);
+  return true;
 }
 
-void Datadog::Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
+bool Datadog::Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
   push_label(ExportLabelKey::task_id, task_id);
   push_label(ExportLabelKey::task_name, task_name);
+  return true;
 }
 
-void Datadog::Profile::push_span_id(int64_t span_id) {
+bool Datadog::Profile::push_span_id(int64_t span_id) {
   push_label(ExportLabelKey::span_id, span_id);
+  return true;
 }
 
-void Datadog::Profile::push_local_root_span_id(int64_t local_root_span_id) {
+bool Datadog::Profile::push_local_root_span_id(int64_t local_root_span_id) {
   push_label(ExportLabelKey::local_root_span_id, local_root_span_id);
+  return true;
 }
 
-void Datadog::Profile::push_trace_type(std::string_view trace_type) {
+bool Datadog::Profile::push_trace_type(std::string_view trace_type) {
   push_label(ExportLabelKey::trace_type, trace_type);
+  return true;
 }
 
-void Datadog::Profile::push_trace_resource_container(std::string_view trace_resource_container) {
+bool Datadog::Profile::push_trace_resource_container(std::string_view trace_resource_container) {
   push_label(ExportLabelKey::trace_resource_container, trace_resource_container);
+  return true;
 }
 
-void Datadog::Profile::push_class_name(std::string_view class_name) {
+bool Datadog::Profile::push_class_name(std::string_view class_name) {
   push_label(ExportLabelKey::class_name, class_name);
+  return true;
 }
 
 #endif

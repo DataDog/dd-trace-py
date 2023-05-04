@@ -79,6 +79,8 @@ private:
 
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
+
+  std::string errmsg;
   
 public:
   DdogProfExporter(std::string_view env,
@@ -101,6 +103,8 @@ class Uploader {
   std::string url;
 
   std::unique_ptr<DdogProfExporter> ddog_exporter;
+
+  std::string errmsg;
 
 public:
 
@@ -166,6 +170,8 @@ private:
   unsigned int max_nframes;
   unsigned int nframes;
 
+  std::string errmsg;
+
   // Keeps temporary buffer of frames in the stack
   std::vector<ddog_prof_Location> locations;
   std::vector<ddog_prof_Line> lines;
@@ -195,9 +201,9 @@ private:
   } val_idx;
 
   // Helpers
-  bool push_label(const ExportLabelKey key, std::string_view val);
-  bool push_label(const ExportLabelKey key, int64_t val);
-  bool push_frame_impl(
+  void push_label(const ExportLabelKey key, std::string_view val);
+  void push_label(const ExportLabelKey key, int64_t val);
+  void push_frame_impl(
         std::string_view name,
         std::string_view filename,
         uint64_t address,
@@ -231,7 +237,7 @@ public:
   bool push_class_name(std::string_view class_name);
 
   // Assumes frames are pushed in leaf-order
-  bool push_frame(
+  void push_frame(
         std::string_view name,      // for ddog_prof_Function
         std::string_view filename,  // for ddog_prof_Function
         uint64_t address,           // for ddog_prof_Location
@@ -243,12 +249,12 @@ public:
   bool flush_sample();
 
   // Clears temporary things
-  bool clear_buffers();
+  void clear_buffers();
 
   // Zero out stats
   void zero_stats();
 
-  void reset();
+  bool reset();
   Profile(ProfileType type, unsigned int _max_nframes = 64);
   ~Profile();
 };
