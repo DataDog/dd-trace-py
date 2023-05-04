@@ -14,6 +14,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
@@ -29,7 +30,6 @@ from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 
 from . import _asyncio
-from ._asyncio import DdtraceProfilerEventLoopPolicy
 
 
 LOG = logging.getLogger(__name__)
@@ -115,7 +115,6 @@ class _ProfilerInstance(service.Service):
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
-    asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
     _memory_collector_enabled = attr.ib(
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
@@ -215,8 +214,26 @@ class _ProfilerInstance(service.Service):
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
-        if _asyncio.asyncio_available:
-            self._collectors.append(asyncio.AsyncioLockCollector(r, tracer=self.tracer))
+
+        if _asyncio.is_asyncio_available():
+
+            @ModuleWatchdog.after_module_imported("asyncio")
+            def _(_):
+                with self._service_lock:
+                    col = asyncio.AsyncioLockCollector(r, tracer=self.tracer)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
@@ -229,12 +246,6 @@ class _ProfilerInstance(service.Service):
             else:
                 scheduler_class = scheduler.ServerlessScheduler
             self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
-
-        self.set_asyncio_event_loop_policy()
-
-    def set_asyncio_event_loop_policy(self):
-        if self.asyncio_loop_policy_class is not None:
-            _asyncio.set_event_loop_policy(self.asyncio_loop_policy_class())
 
     def _collectors_snapshot(self):
         for c in self._collectors:
