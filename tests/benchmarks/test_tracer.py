@@ -5,7 +5,7 @@ from tests.utils import DummyTracer
 
 @pytest.fixture
 def tracer():
-    tracer = DummyTracer(trace_flush_disabled=True)
+    tracer = DummyTracer()
     return tracer
 
 

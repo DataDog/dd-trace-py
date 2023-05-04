@@ -480,10 +480,13 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         if "api_version" not in kwargs:
             kwargs["api_version"] = "v0.5"
 
-        self._trace_flush_enabled = True
-        if kwargs.get("trace_flush_disabled", False) is True:
-            kwargs.pop("trace_flush_disabled")
-            self._trace_flush_enabled = False
+        self._trace_flush_enabled = False
+
+        # this is expected to be enabled as long as an agent is running and
+        # this instance was created by a DummyTracer
+        if kwargs.get("trace_flush_enabled", False) is True:
+            kwargs.pop("trace_flush_enabled")
+            self._trace_flush_enabled = True
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
@@ -567,14 +570,12 @@ class DummyTracer(Tracer):
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
 
-        # disable flushing tracer if included as argument
-        if kwargs.get("trace_flush_disabled", False) is True:
-            self._trace_flush_enabled = False
-            kwargs.pop("trace_flush_disabled")
-            if not kwargs.get("writer"):
-                kwargs["writer"] = DummyWriter(trace_flush_disabled=True)
-        else:
-            if not kwargs.get("writer"):
+        # check test agent status to see if traces should be emitted for additional testing
+        if not kwargs.get("writer"):
+            trace_flush_enabled = check_test_agent_status()
+            if trace_flush_enabled:
+                kwargs["writer"] = DummyWriter(trace_flush_enabled=True)
+            else:
                 kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 
@@ -1163,3 +1164,20 @@ def git_repo(git_repo_empty):
         shell=True,
     )
     return cwd
+
+
+def check_test_agent_status():
+    agent_url = agent.get_trace_url()
+    try:
+        conn = httplib.HTTPConnection(agent_url)
+        conn.request("GET", "/info")
+        response = conn.getresponse()
+        if response.status == 200:
+            print("Server is running.")
+            return True
+        else:
+            print("Server is not running.")
+            return False
+    except Exception as e:
+        print(f"Failed to retrieve server info. Error: {e}")
+        return False
