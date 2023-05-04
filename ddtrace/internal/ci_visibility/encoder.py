@@ -1,4 +1,4 @@
-import email.generator
+# import email.generator
 import json
 import threading
 from typing import Any
@@ -137,8 +137,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
 
     def _set_content_type(self, contents):
-        self.boundary = email.generator._make_boundary(str(contents))
-        self.content_type = "multipart/form-data; boundary=%s" % self.boundary
+        self.boundary = b"12fcdcfe44b7d11f"  # email.generator._make_boundary(str(contents))
+        self.content_type = b"multipart/form-data; boundary=%s" % self.boundary
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -149,9 +149,9 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     @staticmethod
     def _build_coverage1(data):
         return (
-            """
-Content-Disposition: form-data; name= "coverage1"; filename="coverage1.msgpack"\r\n
-Content-Type: application/msgpack \r\n
+            b"""
+Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n
+Content-Type: application/msgpack\r\n
 \r\n
 """
             + data
@@ -159,7 +159,7 @@ Content-Type: application/msgpack \r\n
 
     @staticmethod
     def _build_event_json():
-        return """
+        return b"""
 Content-Disposition: form-data; name="event"; filename="event.json"\r\n
 Content-Type: application/json\r\n\r\n
 {"dummy":true}
@@ -168,11 +168,11 @@ Content-Type: application/json\r\n\r\n
     def _build_body(self, data):
         self._set_content_type(data)
         contents = []
-        contents.append("--" + self.boundary + "\r\n")
-        contents.append(self._build_coverage1() + "\r\n")
+        contents.append(b"--" + self.boundary + b"\r\n")
+        contents.append(self._build_coverage1(data) + b"\r\n")
 
-        contents.append("--" + self.boundary + "\r\n")
-        contents.append(self._build_event_json() + "\r\n")
+        contents.append(b"--" + self.boundary + b"\r\n")
+        contents.append(self._build_event_json() + b"\r\n")
         return contents
 
     def _build_data(self, traces):
@@ -188,7 +188,7 @@ Content-Type: application/json\r\n\r\n
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        yield from self._build_body(self._build_data(traces))
+        return self._build_body(self._build_data(traces))
 
     @staticmethod
     def _convert_span(span, dd_origin):
