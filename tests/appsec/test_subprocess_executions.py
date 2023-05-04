@@ -11,9 +11,7 @@ from ddtrace.ext import SpanTypes
 from tests.utils import override_global_config
 
 
-# JJJ test truncated
 # JJJ use some command that can work also on Windoze
-# JJJ test _unpatch
 
 @pytest.fixture(autouse=True)
 def auto_unpatch():
@@ -155,7 +153,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
         res_str = cmdline_obj.as_string()
         assert res_str == expected_str
 
-        res_list = cmdline_obj.as_list()[0]
+        res_list = cmdline_obj.as_list()
         assert res_list == expected_list
 
         assert cmdline_obj.truncated == truncated
@@ -183,6 +181,39 @@ def test_ossystem(tracer):
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
         assert span.get_tag("resource") == "ls"
+
+
+def test_unpatch(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        patch_all()
+        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        with tracer.trace("os.system", span_type=SpanTypes.SYSTEM):
+            ret = os.system("ls -l /")
+            assert ret == 0
+
+        spans = tracer.pop()
+        assert spans
+        assert len(spans) > 1
+        span = spans[1]
+        assert span.get_tag("cmd.shell") == 'ls -l /'
+
+    _unpatch()
+    with override_global_config(dict(_appsec_enabled=True)):
+        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        with tracer.trace("os.system_unpatch", span_type=SpanTypes.SYSTEM):
+            ret = os.system("ls -l /")
+            assert ret == 0
+
+        spans = tracer.pop()
+        assert spans
+        assert len(spans) == 1
+        span = spans[0]
+        assert not span.get_tag("cmd.shell")
+        assert not span.get_tag("name")
+        assert not span.get_tag("cmd.shell")
+        assert not span.get_tag("cmd.exit_code")
+        assert not span.get_tag("component")
+        assert not span.get_tag("resource")
 
 
 def test_ossystem_noappsec(tracer):

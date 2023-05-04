@@ -21,11 +21,12 @@ log = get_logger(__name__)
 
 """
 JJJ TODO:
-- add some catching (strings, lists, scrubbed env vars and parameters, et cetera)
-- Truncation
+- add some catching (result for as_string() and as_list(), scrubbed stuff...) 
+- make sure than _unpatch is called at the right time inside the tracer
 - flask snapshot tests from views
 - exception handlers so it never fails and always executes the command
 - constants for the tag names
+- rebase
 """
 
 
@@ -194,7 +195,7 @@ class SubprocessCmdLine(object):
         return str_[0:-(oversize+len(msg))] + msg
 
 
-    def as_list(self):
+    def as_list_and_string(self):
         # type: () -> Tuple[list[str], str]
 
         total_list = self.env_vars + [self.binary] + self.arguments
@@ -203,8 +204,12 @@ class SubprocessCmdLine(object):
         return truncated_list, truncated_str
 
 
+    def as_list(self):
+        return self.as_list_and_string()[0]
+
+
     def as_string(self):
-        return self.as_list()[1]
+        return self.as_list_and_string()[1]
 
 
 def scrub_arg(_arg):
