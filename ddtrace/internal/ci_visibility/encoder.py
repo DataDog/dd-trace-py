@@ -147,30 +147,28 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     @staticmethod
     def _build_coverage1(data):
-        return (
-            b"""
-Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n
-Content-Type: application/msgpack\r\n\r\n
-"""
-            + data
-        )
+        return [
+            b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"\r\n',
+            b"Content-Type: application/msgpack\r\n\r\n",
+            data,
+        ]
 
     @staticmethod
     def _build_event_json():
-        return b"""
-Content-Disposition: form-data; name="event"; filename="event.json"\r\n
-Content-Type: application/json\r\n\r\n
-{"dummy":true}
-"""
+        return [
+            b'Content-Disposition: form-data; name="event"; filename="event.json"\r\n',
+            b"Content-Type: application/json\r\n\r\n",
+            b'{"dummy":true}\r\n',
+        ]
 
     def _build_body(self, data):
-        contents = []
-        contents.append(b"--" + self.boundary + b"\r\n")
-        contents.append(self._build_coverage1(data) + b"\r\n")
-
-        contents.append(b"--" + self.boundary + b"\r\n")
-        contents.append(self._build_event_json() + b"\r\n")
-        return contents
+        return (
+            [b"--%s\r\n" % self.boundary]
+            + self._build_coverage1(data)
+            + [b"\r\n", b"--%s\r\n" % self.boundary]
+            + self._build_event_json()
+            + [b"\r\n"]
+        )
 
     def _build_data(self, traces):
         normalized_covs = [
