@@ -32,6 +32,10 @@ def compile_template(*args):
     return {"template": template, "segments": segments}
 
 
+def ddexpr(json, dsl="test"):
+    return DDExpression(dsl=dsl, callable=dd_compile(json))
+
+
 def create_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("tags", dict())

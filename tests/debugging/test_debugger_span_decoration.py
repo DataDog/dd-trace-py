@@ -1,15 +1,15 @@
 import sys
 
 import ddtrace
-from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
+from ddtrace.debugging._signal.model import EvaluationError
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_decoration_line_probe
+from tests.debugging.utils import ddexpr
 from tests.utils import TracerTestCase
 
 
@@ -43,8 +43,11 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
-                            when=DDExpression(dsl="test", callable=dd_compile(True)),
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "@return"}))],
+                            when=ddexpr(True),
+                            tags=[
+                                SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "@return"})),
+                                SpanDecorationTag(name="test.bad", value=ddexpr({"ref": "notathing"})),
+                            ],
                         )
                     ],
                 )
@@ -57,8 +60,15 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "42"
+            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert (
+                span.get_tag("_dd.test.bad.evaluation_error")
+                == "'Failed to evaluate expression \"test\": \\'notathing\\''"
+            )
 
-    def test_debugger_span_decoration_probe_on_inner_function_active_span_unconditional(self):
+            assert not d.test_queue
+
+    def test_debugger_span_decoration_probe_on_inner_function_active_span_unconditional_and_bad_condition(self):
         with debugger() as d:
             d.add_probes(
                 create_span_decoration_function_probe(
@@ -70,8 +80,17 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     decorations=[
                         SpanDecoration(
                             when=None,
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "@duration"}))],
-                        )
+                            tags=[
+                                SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "@return"})),
+                                SpanDecorationTag(name="test.bad", value=ddexpr({"ref": "notathing"})),
+                            ],
+                        ),
+                        SpanDecoration(
+                            when=ddexpr({"ref": "notathing"}),
+                            tags=[
+                                SpanDecorationTag(name="test.failedcond", value=ddexpr({"ref": "@return"})),
+                            ],
+                        ),
                     ],
                 )
             )
@@ -83,6 +102,17 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert int(span.get_tag("test.tag"))
+            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert (
+                span.get_tag("_dd.test.bad.evaluation_error")
+                == "'Failed to evaluate expression \"test\": \\'notathing\\''"
+            )
+
+            (signal,) = d.test_queue
+            assert signal.errors == [EvaluationError(expr="test", message="Failed to evaluate condition: 'notathing'")]
+
+            ((payload,),) = d.uploader.wait_for_payloads()
+            assert payload["message"] == "Condition evaluation errors for probe span-decoration"
 
     def test_debugger_span_decoration_probe_in_inner_function_active_span(self):
         with debugger() as d:
@@ -94,8 +124,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
-                            when=DDExpression(dsl="test", callable=dd_compile(True)),
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
                         )
                     ],
                 )
@@ -108,6 +138,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
+            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_on_traced_function_active_span(self):
         with debugger() as d:
@@ -120,8 +151,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
-                            when=DDExpression(dsl="test", callable=dd_compile(True)),
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
                         )
                     ],
                 )
@@ -134,6 +165,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
+            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_active_span(self):
         with debugger() as d:
@@ -145,8 +177,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
-                            when=DDExpression(dsl="test", callable=dd_compile(True)),
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile("test.value"))],
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
                         )
                     ],
                 )
@@ -159,6 +191,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
+            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_root_span(self):
         with debugger() as d:
@@ -170,8 +203,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     target_span=SpanDecorationTargetSpan.ROOT,
                     decorations=[
                         SpanDecoration(
-                            when=DDExpression(dsl="test", callable=dd_compile(True)),
-                            tags=[SpanDecorationTag(name="test.tag", value=dd_compile({"ref": "cake"}))],
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "cake"}))],
                         )
                     ],
                 )
@@ -186,6 +219,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert parent is root
             assert parent.get_tag("test.tag") == "🍰"
+            assert parent.get_tag("_dd.test.tag.probe_id") == "span-decoration"
 
             assert child.name == "traceme"
             assert child.get_tag("test.tag") is None
+            assert child.get_tag("_dd.test.tag.probe_id") is None
