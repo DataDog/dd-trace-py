@@ -47,7 +47,9 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.9.0"
 
-LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog"))
+LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(
+    HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
+)
 
 LIBDATADOGPROF_VERSION = "v2.1.0"
 
