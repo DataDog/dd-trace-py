@@ -1,3 +1,4 @@
+import email.generator
 import json
 import threading
 from typing import Any
@@ -133,11 +134,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
 
     def __init__(self, *args):
-        self.content_type = "multipart/form-data"
         return super(CIVisibilityCoverageEncoderV02, self).__init__(*args)
 
-    def _set_content_type(self, boundary):
-        self.content_type = "multipart/form-data; boundary=%s" % boundary
+    def _set_content_type(self, contents):
+        self.boundary = email.generator._make_boundary(str(contents))
+        self.content_type = "multipart/form-data; boundary=%s" % self.boundary
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -145,7 +146,36 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_payload(self, traces):
+    @staticmethod
+    def _build_coverage1(data):
+        return (
+            """
+Content-Disposition: form-data; name= "coverage1"; filename="coverage1.msgpack"\r\n
+Content-Type: application/msgpack \r\n
+\r\n
+"""
+            + data
+        )
+
+    @staticmethod
+    def _build_event_json():
+        return """
+Content-Disposition: form-data; name="event"; filename="event.json"\r\n
+Content-Type: application/json\r\n\r\n
+{"dummy":true}
+"""
+
+    def _build_body(self, data):
+        self._set_content_type(data)
+        contents = []
+        contents.append("--" + self.boundary + "\r\n")
+        contents.append(self._build_coverage1() + "\r\n")
+
+        contents.append("--" + self.boundary + "\r\n")
+        contents.append(self._build_event_json() + "\r\n")
+        return contents
+
+    def _build_data(self, traces):
         normalized_covs = [
             CIVisibilityCoverageEncoderV02._convert_span(span, "")
             for trace in traces
@@ -156,6 +186,9 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             return
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
+
+    def _build_payload(self, traces):
+        yield from self._build_body(self._build_data(traces))
 
     @staticmethod
     def _convert_span(span, dd_origin):
