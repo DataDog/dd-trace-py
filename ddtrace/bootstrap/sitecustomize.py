@@ -123,6 +123,7 @@ def cleanup_loaded_modules():
     KEEP_MODULES = frozenset(
         [
             "atexit",
+            "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
             "asyncio",
             "concurrent",
@@ -133,7 +134,7 @@ def cleanup_loaded_modules():
         ]
     )
     if PY2:
-        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
+        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs", "copy_reg"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
