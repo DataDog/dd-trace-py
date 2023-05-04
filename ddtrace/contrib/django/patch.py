@@ -44,6 +44,7 @@ from ddtrace.vendor import wrapt
 
 from . import utils
 from .. import trace_utils
+from ...appsec._constants import BLOCKED
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
@@ -402,7 +403,7 @@ def _set_block_tags(request, request_headers, span):
 def _block_request_callable(request, request_headers, span):
     # This is used by user-id blocking to block responses. It could be called
     # at any point so it's a callable stored in the ASM context.
-    _context.set_item("http.request.blocked", True, span=span)
+    _context.set_item(BLOCKED, True, span=span)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -459,7 +460,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             try:
                 if config._appsec_enabled:
                     # [IP Blocking]
-                    if _context.get_item("http.request.blocked", span=span):
+                    if _context.get_item(BLOCKED, span=span):
                         response = blocked_response()
                         return response
 
@@ -491,13 +492,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     log.debug("Django WAF call for Suspicious Request Blocking on request")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on request]
-                    if _context.get_item("http.request.blocked", span=span):
+                    if _context.get_item(BLOCKED, span=span):
                         response = blocked_response()
                         return response
                 response = func(*args, **kwargs)
                 if config._appsec_enabled:
                     # [Blocking by client code]
-                    if _context.get_item("http.request.blocked", span=span):
+                    if _context.get_item(BLOCKED, span=span):
                         response = blocked_response()
                         return response
                 return response
@@ -505,11 +506,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 # DEV: Always set these tags, this is where `span.resource` is set
                 utils._after_request_tags(pin, span, request, response)
                 # if not blocked yet, try blocking rules on response
-                if config._appsec_enabled and not _context.get_item("http.request.blocked", span=span):
+                if config._appsec_enabled and not _context.get_item(BLOCKED, span=span):
                     log.debug("Django WAF call for Suspicious Request Blocking on response")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on response]
-                    if _context.get_item("http.request.blocked", span=span):
+                    if _context.get_item(BLOCKED, span=span):
                         response = blocked_response()
                         return response
 

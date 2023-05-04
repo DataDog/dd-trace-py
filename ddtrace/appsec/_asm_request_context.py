@@ -2,6 +2,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace.appsec._constants import BLOCKED
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
@@ -77,7 +78,7 @@ def is_blocked():  # type: () -> bool
         env = _ASM.get()
         if not env.active or env.span is None:
             return False
-        return _context.get_item("http.request.blocked", span=env.span)
+        return _context.get_item(BLOCKED, span=env.span)
     except BaseException:
         return False
 

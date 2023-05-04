@@ -13,6 +13,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 
 from .. import trace_utils
+from ...appsec._constants import BLOCKED
 from ...internal import _context
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
@@ -80,7 +81,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and _context.get_item("http.request.blocked", span=span)
+    return span and config._appsec_enabled and _context.get_item(BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):
