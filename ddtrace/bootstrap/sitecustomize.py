@@ -2,13 +2,11 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import sys
-
-
-LOADED_MODULES = frozenset(sys.modules.keys())
+from ddtrace import LOADED_MODULES  # isort:skip
 
 import logging  # noqa
 import os  # noqa
+import sys
 from typing import Any  # noqa
 from typing import Dict  # noqa
 import warnings  # noqa
@@ -17,6 +15,7 @@ from ddtrace import config  # noqa
 from ddtrace.debugging._config import config as debugger_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
@@ -121,9 +120,21 @@ def cleanup_loaded_modules():
     # uses a copy of that module that is distinct from the copy that user code
     # gets when it does `import threading`. The same applies to every module
     # not in `KEEP_MODULES`.
-    KEEP_MODULES = frozenset(["atexit", "ddtrace", "asyncio", "concurrent", "typing", "logging", "attr"])
+    KEEP_MODULES = frozenset(
+        [
+            "atexit",
+            "copyreg",  # pickling issues for tracebacks with gevent
+            "ddtrace",
+            "asyncio",
+            "concurrent",
+            "typing",
+            "logging",
+            "attr",
+            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
+        ]
+    )
     if PY2:
-        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs"])
+        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs", "copy_reg"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
@@ -150,6 +161,14 @@ def cleanup_loaded_modules():
         for m in list(sys.modules):
             if m == u or m.startswith(u + "."):
                 drop(m)
+
+    # Because we are not unloading it, the logging module requires a reference
+    # to the newly imported threading module to allow it to retrieve the correct
+    # thread object information, like the thread name. We register a post-import
+    # hook on the threading module to perform this update.
+    @ModuleWatchdog.after_module_imported("threading")
+    def _(threading):
+        logging.threading = threading
 
 
 try:
@@ -179,7 +198,6 @@ try:
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
             from ddtrace.appsec.iast._taint_tracking import setup
-            from ddtrace.internal.module import ModuleWatchdog
 
             setup(bytes.join, bytearray.join)
 

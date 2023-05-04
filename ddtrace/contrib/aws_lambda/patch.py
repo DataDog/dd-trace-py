@@ -11,8 +11,27 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
+from ._cold_start import is_cold_start
+from ._cold_start import set_cold_start
 
-log = get_logger(__name__)
+
+class DDLambdaLogger:
+    """Uses `DDLogger` to log only on cold start invocations."""
+
+    def __init__(self):
+        self.logger = get_logger(__name__)
+        self.is_cold_start = is_cold_start()
+
+    def exception(self, msg, *args, exc_info=True, **kwargs):
+        if self.is_cold_start:
+            self.logger.error(msg, *args, exc_info=exc_info, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        if self.is_cold_start:
+            self.logger.warning(msg, *args, **kwargs)
+
+
+log = DDLambdaLogger()
 
 
 class TimeoutChannel:
@@ -117,6 +136,7 @@ class DatadogInstrumentation(object):
             self.context = get_argument_value(args, kwargs, 2, "context")
 
     def _before(self, args, kwargs):
+        set_cold_start()
         self._set_context(args, kwargs)
         self.timeoutChannel = TimeoutChannel(self.context)
 
@@ -221,7 +241,8 @@ def patch():
         # which might cause a circular dependency. Skipping.
         return
     except Exception:
-        log.exception("Error patching AWS Lambda")
+        log.exception("Error patching handler. Timeout spans will not be generated.")
+
         return
 
 
@@ -241,5 +262,6 @@ def unpatch():
     except AttributeError:
         return
     except Exception:
-        log.exception("Error unpatching AWS Lambda")
+        log.exception("Error unpatching handler.")
+
         return

@@ -1,4 +1,5 @@
 import functools
+from itertools import chain
 import json
 import logging
 import os
@@ -638,12 +639,8 @@ class Tracer(object):
         else:
             context = Context()
 
-        if parent:
-            trace_id = parent.trace_id  # type: Optional[int]
-            parent_id = parent.span_id  # type: Optional[int]
-        else:
-            trace_id = context.trace_id
-            parent_id = context.span_id
+        trace_id = context.trace_id
+        parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -754,7 +751,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in self._span_processors:
+            for p in chain(self._span_processors, SpanProcessor.__processors__):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
 
@@ -772,7 +769,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in self._span_processors:
+            for p in chain(self._span_processors, SpanProcessor.__processors__):
                 p.on_span_finish(span)
 
         if log.isEnabledFor(logging.DEBUG):
@@ -1008,7 +1005,7 @@ class Tracer(object):
             # Thread safety: Ensures tracer is shutdown synchronously
             span_processors = self._span_processors
             self._span_processors = []
-            for processor in span_processors:
+            for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 

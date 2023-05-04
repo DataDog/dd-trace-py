@@ -7,7 +7,6 @@ import tarfile
 import glob
 
 from setuptools import setup, find_packages, Extension
-from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
@@ -46,7 +45,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.8.2"
+LIBDDWAF_VERSION = "1.9.0"
 
 LIBDATADOGPROF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "datadog", "libdatadog"))
 
@@ -105,33 +104,6 @@ def load_module_from_project_file(mod_name, fname):
         import imp
 
         return imp.load_source(mod_name, fpath)
-
-
-class Tox(TestCommand):
-
-    user_options = [("tox-args=", "a", "Arguments to pass to tox")]
-
-    def initialize_options(self):
-        TestCommand.initialize_options(self)
-        self.tox_args = None
-
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
-
-    def run_tests(self):
-        # import here, cause outside the eggs aren't loaded
-        import tox
-        import shlex
-
-        args = self.tox_args
-        if args:
-            args = shlex.split(self.tox_args)
-
-        LibDDWaf_Download.download_artifacts()
-        errno = tox.cmdline(args=args)
-        sys.exit(errno)
 
 
 def is_64_bit_python():
@@ -479,7 +451,8 @@ setup(
         "attrs>=20; python_version>'2.7'",
         "attrs>=20,<22; python_version=='2.7'",
         "contextlib2<1.0; python_version=='2.7'",
-        "cattrs",
+        "cattrs<1.1; python_version<='3.6'",
+        "cattrs; python_version>='3.7'",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
@@ -497,10 +470,8 @@ setup(
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
     },
-    # plugin tox
-    tests_require=["tox", "flake8"],
+    tests_require=["flake8"],
     cmdclass={
-        "test": Tox,
         "build_ext": BuildExtCommand,
         "build_py": Library_Downloader,
         "clean": CleanLibraries,

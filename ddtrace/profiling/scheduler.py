@@ -5,10 +5,10 @@ import attr
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.datadog import ddup
+from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class Scheduler(periodic.PeriodicService):
     before_flush = attr.ib(default=None, eq=False)
     use_libdatadog = attr.ib(default=True)
     use_pyprof = attr.ib(default=True)
-    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
+    _interval = attr.ib(type=float, default=config.upload_interval)
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
 

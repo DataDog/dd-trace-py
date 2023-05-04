@@ -7,7 +7,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal.telemetry import telemetry_writer
+from .internal.telemetry import telemetry_lifecycle_writer
 from .internal.utils import formats
 from .settings import _config as config
 
@@ -85,6 +85,7 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
+    "openai": True,
 }
 
 
@@ -111,7 +112,10 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch7",
         "opensearchpy",
     ),
-    "psycopg": ("psycopg2",),
+    "psycopg": (
+        "psycopg",
+        "psycopg2",
+    ),
     "snowflake": ("snowflake.connector",),
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
@@ -150,13 +154,13 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except ImportError:
+        except Exception:
             if raise_errors:
                 raise
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+            telemetry_lifecycle_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 
@@ -230,7 +234,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+            when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors))
 
         # manually add module to patched modules
         with _LOCK:

@@ -59,7 +59,7 @@ class _TelemetryClient:
         self._endpoint = endpoint
         self._encoder = JSONEncoderV2()
         self._headers = {
-            "Content-type": "application/json",
+            "Content-Type": "application/json",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
@@ -96,9 +96,6 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
-        headers["DD-Agent-Hostname"] = request["host"]["hostname"]
-        if config.env:
-            headers["DD-Agent-Env"] = config.env
         return headers
 
 
@@ -117,10 +114,7 @@ class TelemetryBase(PeriodicService):
     def __init__(self, interval):
         # type: (float) -> None
         super(TelemetryBase, self).__init__(interval=interval)
-
-        # _enabled is None at startup, and is only set to true or false
-        # after the config has been processed
-        self._enabled = None  # type: Optional[bool]
+        self._disabled = False
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
@@ -140,7 +134,7 @@ class TelemetryBase(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
-        if self._enabled:
+        if not self._disabled and self.enable():
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
@@ -155,27 +149,27 @@ class TelemetryBase(PeriodicService):
             self._events_queue.append(event)
 
     def enable(self):
-        # type: () -> None
+        # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if self.status == ServiceStatus.RUNNING:
-            return
+        if config._telemetry_enabled:
+            if self.status == ServiceStatus.RUNNING:
+                return True
 
-        self._enabled = True
-        self.start()
-
-        atexit.register(self.stop)
+            self.start()
+            atexit.register(self.stop)
+            return True
+        return False
 
     def disable(self):
         # type: () -> None
         """
         Disable the telemetry collection service and drop the existing integrations and events
-        Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
+        Once disabled, telemetry collection can not be re-enabled.
         """
-        with self._lock:
-            self._enabled = False
+        self._disabled = True
         self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
@@ -202,6 +196,11 @@ class TelemetryBase(PeriodicService):
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self.reset_queues()
+        if self.status == ServiceStatus.STOPPED:
+            return
+
+        atexit.unregister(self.stop)
+        self.stop()
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
@@ -223,20 +222,29 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         self._namespace = MetricNamespace()
         self._logs = []  # type: List[Dict[str, Any]]
 
+    def enable(self):
+        # type: () -> bool
+        """
+        Enable the telemetry metrics collection service. If the service has already been
+        activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
+        service.
+        """
+        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable()
+
     def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
-        if self._enabled:
+        if self.enable():
             data = {
                 "message": message,
                 "level": level,
                 "tracer_time": int(time.time()),
             }
             if tags:
-                data["tags"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+                data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
             self._logs.append(data)
@@ -274,7 +282,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         """
         Queues metric
         """
-        if self._enabled:
+        if self.enable():
             with self._lock:
                 self._namespace._add_metric(
                     metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
@@ -297,15 +305,23 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type () -> List[Metric]
         """Returns a list of all generated metrics and clears the namespace's list"""
         with self._lock:
-            namespace_metrics = self._namespace.get()
-            self._namespace._flush()
+            try:
+                namespace_metrics = self._namespace.get()
+            except Exception:
+                log.debug("Unexpected error in Telemetry Metrics", exc_info=True)
+            finally:
+                self._namespace._flush()
         return namespace_metrics
 
     def _flush_log_metrics(self):
         # type () -> List[Metric]
         with self._lock:
-            log_metrics = self._logs.copy()
-            self._logs = []
+            try:
+                log_metrics = list(self._logs)
+            except Exception:
+                log.debug("Unexpected error in Logs Metrics", exc_info=True)
+            finally:
+                self._logs = []
         return log_metrics
 
     def _generate_metrics_event(self, namespace_metrics):
@@ -359,17 +375,16 @@ class TelemetryWriter(TelemetryBase):
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if self._enabled is None or self._enabled:
-            # Integrations can be patched before the telemetry writer is enabled.
-            integration = {
-                "name": integration_name,
-                "version": "",
-                "enabled": True,
-                "auto_enabled": auto_enabled,
-                "compatible": True,
-                "error": "",
-            }
-            self._integrations_queue.append(integration)
+        # Integrations can be patched before the telemetry writer is enabled.
+        integration = {
+            "name": integration_name,
+            "version": "",
+            "enabled": True,
+            "auto_enabled": auto_enabled,
+            "compatible": True,
+            "error": "",
+        }
+        self._integrations_queue.append(integration)
 
     def _app_started_event(self):
         # type: () -> None
@@ -434,10 +449,11 @@ class TelemetryWriter(TelemetryBase):
             self._integrations_queue = []
         return integrations
 
-    def _start_service(self, *args, **kwargs):
+    def start(self, *args, **kwargs):
         # type: (...) -> None
+        super(TelemetryBase, self).start(*args, **kwargs)
+        # Queue app-started event after the telemetry worker thread is running
         self._app_started_event()
-        return super(TelemetryBase, self)._start_service(*args, **kwargs)
 
     def on_shutdown(self):
         self._app_closing_event()

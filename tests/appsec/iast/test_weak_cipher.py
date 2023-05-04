@@ -11,7 +11,7 @@ from tests.appsec.iast.fixtures.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.weak_algorithms import cryptography_algorithm
 
 
-FIXTURES_PATH = "/tests/appsec/iast/fixtures/weak_algorithms.py"
+FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
 
 
 @pytest.mark.parametrize(
