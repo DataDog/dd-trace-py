@@ -74,8 +74,8 @@ private:
   friend class UploaderBuilder;
   friend class Uploader;
 
-  void add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
-  void add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
+  bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val);
+  bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val);
 
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
@@ -112,7 +112,7 @@ public:
            std::string_view _profiler_version,
            std::string_view _url,
            DdogProfExporter::ExporterTagset &user_tags);
-  void set_runtime_id(const std::string &id);
+  bool set_runtime_id(const std::string &id);
   bool upload(const Profile *profile);
 
 };
@@ -195,9 +195,9 @@ private:
   } val_idx;
 
   // Helpers
-  void push_label(const ExportLabelKey key, std::string_view val);
-  void push_label(const ExportLabelKey key, int64_t val);
-  void push_frame_impl(
+  bool push_label(const ExportLabelKey key, std::string_view val);
+  bool push_label(const ExportLabelKey key, int64_t val);
+  bool push_frame_impl(
         std::string_view name,
         std::string_view filename,
         uint64_t address,
@@ -209,41 +209,29 @@ public:
   ddog_prof_Profile *ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
-  void start_sample(unsigned int nframes);
+  bool start_sample(unsigned int nframes);
 
   // Add values
-  void push_walltime(int64_t walltime, int64_t count);
-  void push_cputime(int64_t cputime, int64_t count);
-  void push_acquire(int64_t acquire_time, int64_t count);
-  void push_release(int64_t lock_time, int64_t count);
-  void push_alloc(uint64_t size, uint64_t count);
-  void push_heap(uint64_t size);
+  bool push_walltime(int64_t walltime, int64_t count);
+  bool push_cputime(int64_t cputime, int64_t count);
+  bool push_acquire(int64_t acquire_time, int64_t count);
+  bool push_release(int64_t lock_time, int64_t count);
+  bool push_alloc(uint64_t size, uint64_t count);
+  bool push_heap(uint64_t size);
 
   // Adds metadata to sample
-  void push_lock_name(std::string_view lock_name);
-  void push_threadinfo(
-        int64_t thread_id,
-        int64_t thread_native_id,
-        std::string_view thread_name
-      );
-  void push_taskinfo(
-        int64_t task_id,
-        std::string_view task_name
-      );
-  void push_span_id(int64_t span_id);
-  void push_local_root_span_id(int64_t local_root_span_id);
-  void push_trace_type(std::string_view trace_type);
-  void push_trace_resource_container(std::string_view trace_resource_container);
-
-  void push_exceptioninfo(
-        std::string_view exception_type,
-        int64_t count
-      );
-
-  void push_class_name(std::string_view class_name);
+  bool push_lock_name(std::string_view lock_name);
+  bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
+  bool push_taskinfo( int64_t task_id, std::string_view task_name);
+  bool push_span_id(int64_t span_id);
+  bool push_local_root_span_id(int64_t local_root_span_id);
+  bool push_trace_type(std::string_view trace_type);
+  bool push_trace_resource_container(std::string_view trace_resource_container);
+  bool push_exceptioninfo(std::string_view exception_type, int64_t count);
+  bool push_class_name(std::string_view class_name);
 
   // Assumes frames are pushed in leaf-order
-  void push_frame(
+  bool push_frame(
         std::string_view name,      // for ddog_prof_Function
         std::string_view filename,  // for ddog_prof_Function
         uint64_t address,           // for ddog_prof_Location
@@ -255,7 +243,7 @@ public:
   bool flush_sample();
 
   // Clears temporary things
-  void clear_buffers();
+  bool clear_buffers();
 
   // Zero out stats
   void zero_stats();

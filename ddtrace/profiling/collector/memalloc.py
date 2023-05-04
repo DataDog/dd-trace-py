@@ -113,7 +113,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 ddup.start_sample(nframes)
                 ddup.push_heap(size)
                 ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
-                ddup.push_classinfo(frames[0][3])
+                ddup.push_class_name(frames[0][3])
                 for frame in stack:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
@@ -155,14 +155,14 @@ class MemoryCollector(collector.PeriodicCollector):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         if self.export_libdatadog:
-            for (stack, nframes, thread_id), size, domain in events:
+            for (frames, nframes, thread_id), size, domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
                 ddup.push_alloc(((size + 0.51) * alloc_count) / count, count) # Roundup to help float precision
                 ddup.push_threadinfo(thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id))
-                ddup.push_classinfo(frames[0][3])
-                for frame in stack:
+                ddup.push_class_name(frames[0][3])
+                for frame in frames:
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
@@ -173,13 +173,13 @@ class MemoryCollector(collector.PeriodicCollector):
                         thread_id=thread_id,
                         thread_name=_threading.get_thread_name(thread_id),
                         thread_native_id=_threading.get_thread_native_id(thread_id),
-                        frames=stack,
+                        frames=frames,
                         nframes=nframes,
                         size=size,
                         capture_pct=capture_pct,
                         nevents=alloc_count,
                     )
-                    for (stack, nframes, thread_id), size, domain in events
+                    for (frames, nframes, thread_id), size, domain in events
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
