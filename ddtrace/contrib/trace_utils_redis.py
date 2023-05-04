@@ -3,18 +3,17 @@ Some utils used by the dogtrace redis integration
 """
 from contextlib import contextmanager
 
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
-
-from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
-from ...ext import SpanTypes
-from ...ext import db
-from ...ext import net
-from ...ext import redis as redisx
-from ...internal.utils.formats import stringify_cache_args
+from ddtrace.internal.utils.formats import stringify_cache_args
 
 
 format_command_args = stringify_cache_args
@@ -46,7 +45,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag_str(COMPONENT, config_integration.integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
-        query = stringify_cache_args(args)
+        query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
         span.resource = query
         span.set_tag_str(redisx.RAWCMD, query)
         if pin.tags:

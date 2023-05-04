@@ -1,9 +1,13 @@
 #!/bin/bash
 
-message=${1:-"Unexpected files changed or added"}
+message=${1:-"Files were changed or added."}
+changed_files="$(git diff)"
+new_files="$(git ls-files -o --exclude-standard)"
 
-if [[ "$(git diff --exit-code)" || ! -z "$(git ls-files -o --exclude-standard)" ]]
+if [[ "$(git diff --exit-code)" || -n $new_files ]]
 then
+    echo "${changed_files}"
+    echo "${new_files}"
     echo "${message}"
     exit 1
 fi

@@ -639,12 +639,8 @@ class Tracer(object):
         else:
             context = Context()
 
-        if parent:
-            trace_id = parent.trace_id  # type: Optional[int]
-            parent_id = parent.span_id  # type: Optional[int]
-        else:
-            trace_id = context.trace_id
-            parent_id = context.span_id
+        trace_id = context.trace_id
+        parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name

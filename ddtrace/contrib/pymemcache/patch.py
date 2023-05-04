@@ -2,6 +2,7 @@ import pymemcache
 import pymemcache.client.hash
 
 from ddtrace.ext import memcached as memcachedx
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.pin import Pin
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
@@ -28,7 +29,8 @@ def patch():
         pymemcache.client.hash.HashClient.client_class = WrappedClient
 
     # Create a global pin with default configuration for our pymemcache clients
-    Pin(service=memcachedx.SERVICE).onto(pymemcache)
+    service = schematize_service_name(memcachedx.SERVICE)
+    Pin(service=service).onto(pymemcache)
 
 
 def unpatch():
