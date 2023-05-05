@@ -39,10 +39,9 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
-
-def is_glibc_linux_x86_64():
-    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[1]
-
+def _is_glibc_linux_x86_64():
+    # type: () -> bool
+    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]
 
 class ProfilingConfig(En):
     __prefix__ = "dd.profiling"
@@ -155,32 +154,6 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    export_py = En.v(
-        bool,
-        "enabled",
-        default=True,
-        help_type="Boolean",
-        help="Enables collection and export using the classic Python stack",
-    )
-
-    # libdatadog is only supported on x86-linux; fully disable on anything else
-    if is_glibc_linux_x86_64():
-        export_libdatadog = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Enables collection and export using the native libdatadog stack (Linux-only)",
-        )
-    else:
-        export_libdatadog = En.v(
-            bool,
-            "this option is unsupported on this platform",
-            default=False,
-            help_type="Boolean",
-            help="Enables collection and export using the native libdatadog stack (Linux-only)",
-        )
-
     class Memory(En):
         __item__ = __prefix__ = "memory"
 
@@ -219,6 +192,26 @@ class ProfilingConfig(En):
             help="",
         )
         sample_size = En.d(int, _derive_default_heap_sample_size)
+
+    class Export(En):
+        __item__ = __prefix__ = "export"
+
+        _libdd_enabled = En.v(
+            bool,
+            "libdd_enabled",
+            default=False,
+            help_type="Boolean",
+            help="Enables collection and export using the native libdatadog stack (Linux-only)",
+        )
+        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
+
+        py_enabled = En.v(
+            bool,
+            "py_enabled",
+            default=True,
+            help_type="Boolean",
+            help="Enables collection and export using the classic Python stack",
+        )
 
 
 config = ProfilingConfig()

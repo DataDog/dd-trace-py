@@ -293,7 +293,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, export_py, export_libdatadog):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, export_libdd_enabled, export_py_enabled):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
     thread_id_ignore_list = {
         thread_id
@@ -330,7 +330,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 continue
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if export_libdatadog and nframes:
+            if export_libdd_enabled and nframes:
                 ddup.start_sample(nframes)
                 ddup.push_walltime(wall_time, 1)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -340,7 +340,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
-            if export_py and nframes:
+            if export_py_enabled and nframes:
                 stack_events.append(
                     stack_event.StackSampleEvent(
                         thread_id=thread_id,
@@ -356,7 +356,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-        if export_libdatadog and nframes:
+        if export_libdd_enabled and nframes:
             ddup.start_sample(nframes)
             ddup.push_cputime(cpu_time, 1)
             ddup.push_walltime(wall_time, 1)
@@ -367,7 +367,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             ddup.push_span(span, collect_endpoint)
             ddup.flush_sample()
 
-        if export_py and nframes:
+        if export_py_enabled and nframes:
             event = stack_event.StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
@@ -388,7 +388,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
-            if export_libdatadog and nframes:
+            if export_libdd_enabled and nframes:
                 ddup.start_sample(nframes)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_exceptioninfo(exc_type, 1)
@@ -398,7 +398,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 ddup.push_span(span, collect_endpoint)
                 ddup.flush_sample()
 
-            if export_py and nframes:
+            if export_py_enabled and nframes:
                 exc_event = stack_event.StackExceptionSampleEvent(
                     thread_id=thread_id,
                     thread_name=thread_name,
@@ -475,8 +475,8 @@ class StackCollector(collector.PeriodicCollector):
     ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
     endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
-    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
-    export_py = attr.ib(type=bool, default=config.export_py)
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    export_py_enabled= attr.ib(type=bool, default=config.export.py_enabled)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
@@ -524,8 +524,8 @@ class StackCollector(collector.PeriodicCollector):
             wall_time,
             self._thread_span_links,
             self.endpoint_collection_enabled,
-            self.export_py,
-            self.export_libdatadog,
+            self.export_libdd_enabled,
+            self.export_py_enabled,
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now

@@ -102,7 +102,7 @@ class Profiler(object):
 
 # to be removed when libdatadog is supported on all needed platforms
 def is_glibc_linux_x86_64():
-    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[1]
+    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]
 
 
 @attr.s
@@ -119,8 +119,8 @@ class _ProfilerInstance(service.Service):
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
-    export_py = attr.ib(type=bool, default=config.export_py)
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
@@ -178,7 +178,7 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        if self.export_libdatadog:
+        if self.export_libdd_enabled:
             ddup.init(
                 env=self.env,
                 service=self.service,
@@ -187,7 +187,7 @@ class _ProfilerInstance(service.Service):
                 max_nframes=config.max_frames,
             )
 
-        if self.export_py:
+        if self.export_py_enabled:
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
@@ -222,17 +222,17 @@ class _ProfilerInstance(service.Service):
         )
 
         # enforce architecture compatibility
-        if self.export_libdatadog and not is_glibc_linux_x86_64():
-            self.export_libdatadog = False
-            LOG.error("Support for libdatadog-profiling is not available on your platform.")
+        if self.export_libdd_enabled and not is_glibc_linux_x86_64():
+            self.export_libdd_enabled = False
+            LOG.error("libdatadog is not a supported exporter on your system.")
 
         self._collectors = [
             stack.StackCollector(
                 r,
                 tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-                export_libdatadog=self.export_libdatadog,
-                export_py=self.export_py,
+                export_libdd_enabled=self.export_libdd_enabled,
+                export_py_enabled=self.export_py_enabled,
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
@@ -262,7 +262,7 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters or self.export_libdatadog:
+        if exporters or self.export_libdd_enabled:
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
@@ -271,8 +271,8 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
-                export_libdatadog=self.export_libdatadog,
-                export_py=self.export_py,
+                export_libdd_enabled=self.export_libdd_enabled,
+                export_py_enabled=self.export_py_enabled,
             )
 
     def _collectors_snapshot(self):

@@ -170,7 +170,6 @@ class Library_Download:
                 raise e
 
             # Verify checksum of downloaded file
-            print("Checking checksum")
             if cls.expected_checksums is None:
                 sha256_address = download_address + ".sha256"
                 sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")

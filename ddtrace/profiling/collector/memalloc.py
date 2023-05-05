@@ -62,8 +62,8 @@ class MemoryCollector(collector.PeriodicCollector):
     max_nframe = attr.ib(default=config.max_frames, type=int)
     heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
     ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
-    export_libdatadog = attr.ib(type=bool, default=config.export_libdatadog)
-    export_py = attr.ib(type=bool, default=config.export_py)
+    export_libdd_enabled= attr.ib(type=bool, default=config.export.libdd_enabled)
+    export_py_enabled= attr.ib(type=bool, default=config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
@@ -111,7 +111,7 @@ class MemoryCollector(collector.PeriodicCollector):
             for (stack, nframes, thread_id), size in _memalloc.heap()
             if thread_id not in thread_id_ignore_set
         ]
-        if self.export_libdatadog:
+        if self.export_libdd_enabled:
             for (frames, nframes, thread_id), size in stacks:
                 ddup.start_sample(nframes)
                 ddup.push_heap(size)
@@ -123,7 +123,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
-        if self.export_py:
+        if self.export_py_enabled:
             return (
                 tuple(
                     MemoryHeapSampleEvent(
@@ -159,7 +159,7 @@ class MemoryCollector(collector.PeriodicCollector):
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
-        if self.export_libdatadog:
+        if self.export_libdd_enabled:
             for (frames, nframes, thread_id), size, domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
@@ -173,7 +173,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
-        if self.export_py:
+        if self.export_py_enabled:
             return (
                 tuple(
                     MemoryAllocSampleEvent(
