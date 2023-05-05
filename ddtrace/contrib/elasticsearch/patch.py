@@ -21,7 +21,7 @@ from ...pin import Pin
 from .quantize import quantize
 
 
-log = logging.Logger(__name__)
+log = get_logger(__name__)
 
 config._add(
     "elasticsearch",
