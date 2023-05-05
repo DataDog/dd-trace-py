@@ -55,7 +55,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_set_runtime_id(const char *_id);
         void ddup_upload();
 
-    cpdef init(env: str = "prod", service: str = "myservice", version: str = "custom", tags: typing.Dict[str,str] = None, max_nframes: int = 64):
+    cpdef init(
+            env: Optional[str] = "prod",
+            service: str = None,
+            version: Optional[str] = "",
+            tags: Optional[typing.Dict[str,str]],
+            max_nframes: Optional[int]) -> None:
       if version is not None:
         version += ".libdatadog"
       ddup_config_env(str.encode(env))
@@ -70,31 +75,31 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
               ddup_config_user_tag(key, val)
       ddup_init()
 
-    def start_sample(unsigned int nframes):
+    def start_sample(nframes: int) -> None:
       ddup_start_sample(nframes)
 
-    def push_cputime(value, count):
+    def push_cputime(value: int, count: int) -> None:
       ddup_push_cputime(value, count)
 
-    def push_walltime(value, count):
+    def push_walltime(value: int, count: int) -> None:
       ddup_push_walltime(value, count)
 
-    def push_acquire(value, count):
+    def push_acquire(value: int, count: int) -> None:
       ddup_push_acquire(value, count)
 
-    def push_release(value, count):
+    def push_release(value: int, count: int) -> None:
       ddup_push_release(value, count)
 
-    cpdef push_alloc(unsigned long value, unsigned long count):
+    cpdef push_alloc(value: int, count: int) -> None:
       ddup_push_alloc(value, count)
 
-    cpdef push_heap(unsigned long value):
+    cpdef push_heap(value: int) -> None:
       ddup_push_heap(value)
 
-    def push_lock_name(str lock_name):
+    def push_lock_name(lock_name: str) -> None:
       ddup_push_lock_name(str.encode(lock_name));
 
-    def push_frame(name, filename, address, line):
+    def push_frame(name: str, filename: str, address: int, line: int) -> None:
       if name is None and filename is None:
         ddup_push_frame(name, filename, address, line)
       elif filename is None:
@@ -104,7 +109,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
       else:
         ddup_push_frame(str.encode(name), str.encode(filename), address, line)
 
-    def push_threadinfo(thread_id, thread_native_id, thread_name):
+    def push_threadinfo(thread_id: int, thread_native_id: int, thread_name: Optional[str]) -> None:
       if thread_id is None:
         thread_id = 0
       if thread_native_id is None:
@@ -115,7 +120,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
       else:
         ddup_push_threadinfo(thread_id, thread_native_id, str.encode(thread_name))
 
-    def push_taskinfo(task_id, task_name):
+    def push_taskinfo(task_id: int, task_name: str) -> None:
       if task_id is None:
         task_id = 0
 
@@ -124,25 +129,16 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
       else:
         ddup_push_taskinfo(task_id, str.encode(task_name))
 
-    def push_exceptioninfo(exc_type: type, count):
+    def push_exceptioninfo(exc_type: type, count: int) -> None:
       if exc_type is not None:
         exc_name = exc_type.__module__ + "." + exc_type.__name__
         ddup_push_exceptioninfo(str.encode(exc_name), count)
 
-    def push_class_name(str class_name):
+    def push_class_name(class_name: str) -> None:
       if class_name is not None:
         ddup_push_class_name(str.encode(class_name))
 
-    def push_span_id(int span_id):
-      ddup_push_span_id(span_id)
-
-    def push_local_root_span_id(int local_root_span_id):
-      ddup_push_local_root_span_id(local_root_span_id)
-
-    def push_span(
-        span,  # type: typing.Optional[ddtrace.span.Span]
-        endpoint_collection_enabled,  # type: bool
-    ):
+    def push_span(span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
       if span:
         ddup_push_span_id(span.span_id)
         if span._local_root is not None:
@@ -151,10 +147,10 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
           if endpoint_collection_enabled:
             ddup_push_trace_resource_container(span._local_root._resource)
 
-    def flush_sample():
+    def flush_sample() -> None:
       ddup_flush_sample()
 
-    def upload():
+    def upload() -> None:
       cdef bytes runtime_id = str.encode(runtime.get_runtime_id())
       ddup_set_runtime_id(runtime_id)
       ddup_upload()

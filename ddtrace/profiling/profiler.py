@@ -172,13 +172,12 @@ class _ProfilerInstance(service.Service):
             endpoint_call_counter_span_processor.enable()
 
         if self.export_libdatadog:
-            max_nframes = int(os.environ.get("DD_PROFILING_MAX_frames", 64))
             ddup.init(
                 env=self.env,
                 service=self.service,
                 version=self.version,
                 tags=self.tags,
-                max_nframes=max_nframes,
+                max_nframes=config.max_frames,
             )
 
         if self.export_py:

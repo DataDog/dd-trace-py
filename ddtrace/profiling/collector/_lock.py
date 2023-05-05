@@ -174,7 +174,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             ddup.flush_sample()
 
                         if self.export_py and nframes:
-                            event = self.RELEASE_EVENT_CLASS(  # type: ignore[call-arg]
+                            event = self.RELEASE_EVENT_CLASS(
                                 lock_name=self._self_name,
                                 frames=frames,
                                 nframes=nframes,
