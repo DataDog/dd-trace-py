@@ -1,5 +1,5 @@
 from importlib import import_module
-import logging
+from ddtrace.internal.logger import get_logger
 
 from ddtrace import config
 from ddtrace._tracing import _limits
