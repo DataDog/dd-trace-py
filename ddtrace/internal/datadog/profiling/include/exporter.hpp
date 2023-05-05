@@ -60,57 +60,32 @@ enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
 enum class ExportLabelKey { EXPORTER_LABELS(X_ENUM) _Length };
 #undef X_ENUM
 
-// This is a wrapper class over a ddog_prof_Exporter object, which is part of
-// libdatadog.  It manages the lifetime and initialization of that object.
-// It is intended to be used only by Uploader
-class DdogProfExporter {
-private:
-  using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
-  friend class UploaderBuilder;
-  friend class Uploader;
-
-  bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key,
-               std::string_view val);
-  bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
-                      std::string_view val);
-
-  static constexpr std::string_view language = "python";
-  static constexpr std::string_view family = "python";
-
-  std::string errmsg;
-
-public:
-  DdogProfExporter(std::string_view env, std::string_view service,
-                   std::string_view version, std::string_view runtime,
-                   std::string_view runtime_version,
-                   std::string_view profiler_version, std::string_view url,
-                   ExporterTagset &user_tags);
-  ~DdogProfExporter();
-
-  ddog_prof_Exporter *ptr;
+struct DdogProfExporterDeleter {
+  void operator()(ddog_prof_Exporter *ptr) const;
 };
 
 class Uploader {
   bool agentless; // Whether or not to actually use API key/intake
   size_t profile_seq = 0;
   std::string runtime_id;
+  std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
   std::string url;
-
-  std::unique_ptr<DdogProfExporter> ddog_exporter;
 
   std::string errmsg;
 
 public:
-  Uploader(std::string_view _env, std::string_view _service,
-           std::string_view _version, std::string_view _runtime,
-           std::string_view _runtime_version,
-           std::string_view _profiler_version, std::string_view _url,
-           DdogProfExporter::ExporterTagset &user_tags);
+  Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);
   bool set_runtime_id(const std::string &id);
   bool upload(const Profile *profile);
 };
 
 class UploaderBuilder {
+  using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
+
+  // Internal/queryable state
+  std::string errmsg;
+
+  // Building parameters
   std::string env;
   std::string service;
   std::string version;
@@ -118,7 +93,10 @@ class UploaderBuilder {
   std::string runtime_version;
   std::string profiler_version;
   std::string url;
-  DdogProfExporter::ExporterTagset user_tags;
+  ExporterTagset user_tags;
+
+  static constexpr std::string_view language = "python";
+  static constexpr std::string_view family = "python";
 
 public:
   UploaderBuilder &set_env(std::string_view env);
@@ -162,14 +140,17 @@ private:
   std::string errmsg;
 
   // Keeps temporary buffer of frames in the stack
-  std::vector<ddog_prof_Location> locations;
-  std::vector<ddog_prof_Line> lines;
+  // 512 is the max depth allowed by the backend, plus it is limited
+  // by user configuration
+  std::array<ddog_prof_Location, 1024> locations;
+  std::array<ddog_prof_Line, 1024> lines;
+  size_t cur_frame;
 
   // Storage for strings
   std::unordered_set<std::string> strings;
 
   // Storage for labels
-  ddog_prof_Label labels[8];
+  std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels;
   size_t cur_label = 0;
 
   // Storage for values
@@ -190,8 +171,8 @@ private:
   } val_idx;
 
   // Helpers
-  void push_label(const ExportLabelKey key, std::string_view val);
-  void push_label(const ExportLabelKey key, int64_t val);
+  bool push_label(const ExportLabelKey key, std::string_view val);
+  bool push_label(const ExportLabelKey key, int64_t val);
   void push_frame_impl(std::string_view name, std::string_view filename,
                        uint64_t address, int64_t line);
 
@@ -239,21 +220,18 @@ public:
   void zero_stats();
 
   bool reset();
-  Profile(ProfileType type, unsigned int _max_nframes = 64);
+  Profile(ProfileType type, unsigned int _max_nframes);
   ~Profile();
 };
 
 class ProfileBuilder {
-  Profile::ProfileType type_mask;
-  unsigned int max_nframes;
+  Profile::ProfileType type_mask = Profile::ProfileType::All;
+  unsigned int max_nframes = 64;
 
 public:
   ProfileBuilder &add_type(Profile::ProfileType type);
   ProfileBuilder &add_type(unsigned int type);
   ProfileBuilder &set_max_nframes(unsigned int max_nframes);
-
-  ProfileBuilder(Profile::ProfileType _type_mask = Profile::ProfileType::All,
-                 unsigned int _max_nframes = 64);
 
   Profile *build_ptr();
 };

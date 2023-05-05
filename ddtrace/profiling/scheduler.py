@@ -45,7 +45,48 @@ class Scheduler(periodic.PeriodicService):
         if self.export_libdatadog:
             ddup.upload()
 
-        if not self.use_pyprof:
+        if not self.export_libdatadog:
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+            print("Why not libdatadog")
+        else:
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+            print("Using libdatadog")
+        if not self.export_py:
             # If we're not using the Python profiler, then stop now
             return
 
