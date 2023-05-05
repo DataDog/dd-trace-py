@@ -3,19 +3,23 @@ import subprocess
 
 import pytest
 
-from ddtrace.appsec._patch_subprocess_executions import _unpatch, SubprocessCmdLine
-from ddtrace.internal import _context
-
-from ddtrace import Pin, patch_all
+from ddtrace import Pin
+from ddtrace import patch_all
+from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
+from ddtrace.appsec._patch_subprocess_executions import _unpatch
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
 from tests.utils import override_global_config
 
 
 # JJJ use some command that can work also on Windoze
 
+
 @pytest.fixture(autouse=True)
 def auto_unpatch():
+    SubprocessCmdLine._clear_cache()
     yield
+    SubprocessCmdLine._clear_cache()
     try:
         _unpatch()
     except AttributeError:
@@ -26,22 +30,24 @@ def auto_unpatch():
 allowed_envvars_fixture_list = []
 for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     allowed_envvars_fixture_list.extend(
-    [
-        (
-            SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
-            ["%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
-            ["%s=bar"% allowed, "BAR=?"],
-            "ls",
-            ["-li", "/", "OTHER=any"]
-        ),
-        (
-            SubprocessCmdLine(["FOO=bar", "%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
-            ["FOO=?", "%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
-            ["FOO=?", "%s=bar" % allowed, "BAR=?"],
-            "ls",
-            ["-li", "/", "OTHER=any"]
-        ),
-    ]
+        [
+            (
+                SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
+                ["%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+                ["%s=bar" % allowed, "BAR=?"],
+                "ls",
+                ["-li", "/", "OTHER=any"],
+            ),
+            (
+                SubprocessCmdLine(
+                    ["FOO=bar", "%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True
+                ),
+                ["FOO=?", "%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+                ["FOO=?", "%s=bar" % allowed, "BAR=?"],
+                "ls",
+                ["-li", "/", "OTHER=any"],
+            ),
+        ]
     )
 
 
@@ -49,27 +55,28 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-                SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/"], True, shell=True),
-                ["FOO=?", "BAR=?", "ls", "-li", "/"],
-                ["FOO=?", "BAR=?"],
-                "ls",
-                ["-li", "/"]
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/"], True, shell=True),
+            ["FOO=?", "BAR=?", "ls", "-li", "/"],
+            ["FOO=?", "BAR=?"],
+            "ls",
+            ["-li", "/"],
         ),
         (
-                SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
-                ["FOO=?", "BAR=?", "ls", "-li", "/dir with spaces", "OTHER=any"],
-                ["FOO=?", "BAR=?"],
-                "ls",
-                ["-li", "/dir with spaces", "OTHER=any"]
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
+            ["FOO=?", "BAR=?", "ls", "-li", "/dir with spaces", "OTHER=any"],
+            ["FOO=?", "BAR=?"],
+            "ls",
+            ["-li", "/dir with spaces", "OTHER=any"],
         ),
         (
-                SubprocessCmdLine(["FOO=bar", "lower=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
-                ["FOO=?", "lower=baz", "ls", "-li", "/", "OTHER=any"],
-                ["FOO=?"],
-                "lower=baz",
-                ["ls", "-li", "/", "OTHER=any"]
+            SubprocessCmdLine(["FOO=bar", "lower=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
+            ["FOO=?", "lower=baz", "ls", "-li", "/", "OTHER=any"],
+            ["FOO=?"],
+            "lower=baz",
+            ["ls", "-li", "/", "OTHER=any"],
         ),
-    ] + allowed_envvars_fixture_list
+    ]
+    + allowed_envvars_fixture_list,
 )
 def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.as_list() == full_list
@@ -90,37 +97,46 @@ for denied in SubprocessCmdLine.BINARIES_DENYLIST:
         ]
     )
 
+
 @pytest.mark.parametrize(
-    "cmdline_obj,full_list,arguments",
-    [
-        (
-            SubprocessCmdLine(["ls", "-li", "/"], True),
-            ["ls", "-li", "/"],
-            ["-li", "/"]
-        )
-    ]
+    "cmdline_obj,full_list,arguments", [(SubprocessCmdLine(["ls", "-li", "/"], True), ["ls", "-li", "/"], ["-li", "/"])]
 )
 def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     assert cmdline_obj.as_list() == full_list
     assert cmdline_obj.arguments == arguments
 
 
-
 @pytest.mark.parametrize(
     "cmdline_obj,arguments",
     [
         (
-            SubprocessCmdLine(["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value",
-                               "--long2 long2value"], as_list=True, shell=False),
-            ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"]
+            SubprocessCmdLine(
+                ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
+                as_list=True,
+                shell=False,
+            ),
+            ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
         ),
-            (
-            SubprocessCmdLine(["binary", "-a", "-passwd=SCRUB", "-passwd", "SCRUB",
-                               "-d bar", "--apikey=SCRUB", "-efoo", "/auth_tokenSCRUB",
-                               "--secretSCRUB"], as_list=True, shell=False),
-            ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"]
-        )
-    ]
+        (
+            SubprocessCmdLine(
+                [
+                    "binary",
+                    "-a",
+                    "-passwd=SCRUB",
+                    "-passwd",
+                    "SCRUB",
+                    "-d bar",
+                    "--apikey=SCRUB",
+                    "-efoo",
+                    "/auth_tokenSCRUB",
+                    "--secretSCRUB",
+                ],
+                as_list=True,
+                shell=False,
+            ),
+            ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
+        ),
+    ],
 )
 def test_argument_scrubing(cmdline_obj, arguments):
     assert cmdline_obj.arguments == arguments
@@ -130,19 +146,13 @@ def test_argument_scrubing(cmdline_obj, arguments):
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-            SubprocessCmdLine(["ls", "-A" + "loremipsum"* 40, "-B"],
-                              as_list=True),
+            SubprocessCmdLine(["ls", "-A" + "loremipsum" * 40, "-B"], as_list=True),
             'ls -Aloremipsumloremipsumloremipsumlo "4kB argument truncated by 328 characters"',
             ["ls", "-Aloremipsumloremipsumloremipsumlo", "4kB argument truncated by 328 characters"],
-            True
+            True,
         ),
-        (
-            SubprocessCmdLine("ls -A -B -C", as_list=False),
-            "ls -A -B -C",
-            ["ls", "-A", "-B", "-C"],
-            False
-        )
-    ]
+        (SubprocessCmdLine("ls -A -B -C", as_list=False), "ls -A -B -C", ["ls", "-A", "-B", "-C"], False),
+    ],
 )
 def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
     orig_limit = SubprocessCmdLine.TRUNCATE_LIMIT
@@ -163,6 +173,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
     finally:
         SubprocessCmdLine.TRUNCATE_LIMIT = orig_limit
 
+
 def test_ossystem(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
@@ -176,7 +187,7 @@ def test_ossystem(tracer):
         assert len(spans) > 1
         span = spans[1]
         assert span.get_tag("name") == "command_execution"
-        assert span.get_tag("cmd.shell") == 'ls -l /'
+        assert span.get_tag("cmd.shell") == "ls -l /"
         assert span.get_tag("cmd.exit_code") == "0"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
@@ -195,7 +206,7 @@ def test_unpatch(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[1]
-        assert span.get_tag("cmd.shell") == 'ls -l /'
+        assert span.get_tag("cmd.shell") == "ls -l /"
 
     _unpatch()
     with override_global_config(dict(_appsec_enabled=True)):
@@ -219,9 +230,9 @@ def test_unpatch(tracer):
 def test_ossystem_noappsec(tracer):
     with override_global_config(dict(_appsec_enabled=False)):
         patch_all()
-        assert not hasattr(os.system, '__wrapped__')
-        assert not hasattr(os._spawnvef, '__wrapped__')
-        assert not hasattr(subprocess.Popen.__init__, '__wrapped__')
+        assert not hasattr(os.system, "__wrapped__")
+        assert not hasattr(os._spawnvef, "__wrapped__")
+        assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
 
 
 def test_ospopen(tracer):
@@ -249,6 +260,8 @@ def test_ospopen(tracer):
 
 _PARAMS = ["/usr/bin/ls", "-l", "/"]
 _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
+
+
 @pytest.mark.parametrize(
     "function,mode,arguments",
     [
@@ -280,7 +293,6 @@ def test_osspawn_variants(tracer, function, mode, arguments):
             cleaned_name = function.__name__.split("_")[-1]
         else:
             cleaned_name = function.__name__
-
 
         with tracer.trace("os.spawn", span_type=SpanTypes.SYSTEM):
             if "spawnv" in cleaned_name:
@@ -315,7 +327,7 @@ def test_subprocess_init_shell_true(tracer):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
-            subp = subprocess.Popen(["ls", "-li", "/"], shell = True)
+            subp = subprocess.Popen(["ls", "-li", "/"], shell=True)
             subp.wait()
 
         spans = tracer.pop()
@@ -335,7 +347,7 @@ def test_subprocess_init_shell_false(tracer):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
-            subp = subprocess.Popen(["ls", "-li", "/"], shell = False)
+            subp = subprocess.Popen(["ls", "-li", "/"], shell=False)
             subp.wait()
 
         spans = tracer.pop()
@@ -347,7 +359,7 @@ def test_subprocess_init_shell_false(tracer):
 
 
 def test_subprocess_wait_shell_false(tracer):
-    args = ['ls', '-li', '/']
+    args = ["ls", "-li", "/"]
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
@@ -411,3 +423,44 @@ def test_subprocess_communicate(tracer):
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("cmd.exit_code") == "0"
         assert span.get_tag("resource") == "ls"
+
+
+def test_cache_hit():
+    cmd1 = SubprocessCmdLine("ls -foo -bar", shell=False)
+    cmd2 = SubprocessCmdLine("ls -foo -bar", shell=False)
+    cmd3 = SubprocessCmdLine("ls -foo -bar", shell=True)
+    cmd4 = SubprocessCmdLine("ls -foo -bar", shell=True)
+    cmd5 = SubprocessCmdLine("ls -foo -baz", shell=False)
+    assert id(cmd1._cache_entry) == id(cmd2._cache_entry)
+    assert id(cmd1._cache_entry) != id(cmd3._cache_entry)
+    assert id(cmd3._cache_entry) == id(cmd4._cache_entry)
+    assert id(cmd1._cache_entry) != id(cmd5._cache_entry)
+
+
+def test_cache_maxsize():
+    orig_cache_maxsize = SubprocessCmdLine._CACHE_MAXSIZE
+    try:
+        assert len(SubprocessCmdLine._CACHE) == 0
+        SubprocessCmdLine._CACHE_MAXSIZE = 2
+        cmd1 = SubprocessCmdLine("ls -foo -bar")  # first entry
+        cmd2 = SubprocessCmdLine("ls -foo -bar")  # first entry
+        assert len(SubprocessCmdLine._CACHE) == 1
+        assert len(SubprocessCmdLine._CACHE_DEQUE) == 1
+        assert id(cmd1._cache_entry) == id(cmd2._cache_entry)
+
+        cmd3 = SubprocessCmdLine("other -foo -bar")  # second entry
+        assert len(SubprocessCmdLine._CACHE) == 2
+        assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
+
+        cmd4 = SubprocessCmdLine("another -bar -foo")  # third entry, should remove first
+        assert len(SubprocessCmdLine._CACHE) == 2
+        assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
+
+        cmd5 = SubprocessCmdLine("ls -foo -bar")  # fourth entry since first was removed, removed second
+        assert len(SubprocessCmdLine._CACHE) == 2
+        assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
+        assert id(cmd1._cache_entry) != id(cmd5._cache_entry)
+    finally:
+        SubprocessCmdLine._CACHE_MAXSIZE = orig_cache_maxsize
+
+

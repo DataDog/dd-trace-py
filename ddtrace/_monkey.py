@@ -218,6 +218,7 @@ def patch_subprocess_executions():
         return
 
     from .appsec._patch_subprocess_executions import _patch
+
     _patch()
 
 

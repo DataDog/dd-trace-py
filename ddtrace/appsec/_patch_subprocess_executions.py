@@ -1,34 +1,37 @@
 import collections
+from fnmatch import fnmatch
+import os
 import re
 import shlex
 import subprocess
-from fnmatch import fnmatch
-from typing import Union, Tuple
+from threading import RLock
+from typing import List
+from typing import Tuple
+from typing import Union
 
-from ddtrace.internal import _context
-from ddtrace import config
-
-from ddtrace.ext import SpanTypes
-from ddtrace.internal.logger import get_logger
+import attr
 
 from ddtrace import Pin
-
+from ddtrace import config
 from ddtrace.contrib import trace_utils
-import os
+from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
+from ddtrace.internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
 
 """
 JJJ TODO:
-- add some catching (result for as_string() and as_list(), scrubbed stuff...) 
 - make sure than _unpatch is called at the right time inside the tracer
 - flask snapshot tests from views
+- python2 testing
+- mypy
 - exception handlers so it never fails and always executes the command
 - constants for the tag names
 - rebase
 """
-
 
 
 def _patch():
@@ -37,6 +40,7 @@ def _patch():
         return
 
     import os
+
     Pin().onto(os)
     trace_utils.wrap(os, "system", traced_ossystem(os))
     # note: popen* uses subprocess, which we already wrap below
@@ -59,33 +63,91 @@ def _unpatch():
     trace_utils.unwrap(subprocess.Popen, "wait")
 
 
-_COMPILED_ENV_VAR_REGEXP = re.compile(r'\b[A-Z_]+=\w+')
+_COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
+
+
+@attr.s(eq=False)
+class SubprocessCmdLineCacheEntry(object):
+    binary = attr.ib(type=str, default=None)
+    arguments = attr.ib(type=List, default=None)
+    truncated = attr.ib(type=bool, default=False)
+    env_vars = attr.ib(type=List, default=None)
+    as_list = attr.ib(type=List, default=None)
+    as_string = attr.ib(type=str, default=None)
 
 
 class SubprocessCmdLine(object):
-    TRUNCATE_LIMIT = 4*1024
+    # This catches the computed values into a SubprocessCmdLineCacheEntry object
+    _CACHE = {}
+    _CACHE_DEQUE = collections.deque()
+    _CACHE_MAXSIZE = 32
+    _CACHE_LOCK = RLock()
 
-    ENV_VARS_ALLOWLIST = {
-        'LD_PRELOAD',
-        'LD_LIBRARY_PATH',
-        'PATH'
-    }
+    @classmethod
+    def _add_new_cache_entry(cls, key, env_vars, binary, arguments, truncated):
+        if key in cls._CACHE:
+            return
+
+        cache_entry = SubprocessCmdLineCacheEntry()
+        cache_entry.binary = binary
+        cache_entry.arguments = arguments
+        cache_entry.truncated = truncated
+        cache_entry.env_vars = env_vars
+
+        with cls._CACHE_LOCK:
+            if len(cls._CACHE_DEQUE) >= cls._CACHE_MAXSIZE:
+                # If the cache is full, remove the oldest entry
+                last_cache_key = cls._CACHE_DEQUE[-1]
+                del cls._CACHE[last_cache_key]
+                cls._CACHE_DEQUE.pop()
+
+            cls._CACHE[key] = cache_entry
+            cls._CACHE_DEQUE.appendleft(key)
+
+        return cache_entry
+
+    @classmethod
+    def _clear_cache(cls):
+        with cls._CACHE_LOCK:
+            cls._CACHE_DEQUE.clear()
+            cls._CACHE.clear()
+
+
+    TRUNCATE_LIMIT = 4 * 1024
+
+    ENV_VARS_ALLOWLIST = {"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH"}
 
     BINARIES_DENYLIST = {
-        'md5',
+        "md5",
     }
 
     SENSITIVE_WORDS_WILDCARDS = (
-        "*password*", "*passwd*", "*mysql_pwd*",
-        "*access_token*", "*auth_token*",
-        "*api_key*", "*apikey*",
-        "*secret*", "*credentials*", "stripetoken"
+        "*password*",
+        "*passwd*",
+        "*mysql_pwd*",
+        "*access_token*",
+        "*auth_token*",
+        "*api_key*",
+        "*apikey*",
+        "*secret*",
+        "*credentials*",
+        "stripetoken",
     )
 
     def __init__(self, shell_args, as_list=False, shell=False):
         # type: (Union[str, list], bool, bool) -> None
+
+        cache_key = str(shell_args) + str(shell)
+        self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
+        if self._cache_entry:
+            self.env_vars = self._cache_entry.env_vars
+            self.binary = self._cache_entry.binary
+            self.arguments = self._cache_entry.arguments
+            self.truncated = self._cache_entry.truncated
+            return
+
         self.env_vars = []
-        self.binary = ''
+        self.binary = ""
         self.arguments = []
         self.truncated = False
 
@@ -102,11 +164,16 @@ class SubprocessCmdLine(object):
         self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
         self.scrub_arguments()
 
+        # Create a new cache entry to store the computed values except as_list
+        # and as_string that are computed and stored lazily
+        self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
+            cache_key, self.env_vars, self.binary, self.arguments, self.truncated
+        )
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
             if re.match(_COMPILED_ENV_VAR_REGEXP, token):
-                var, value = token.split('=')
+                var, value = token.split("=")
                 if var in self.ENV_VARS_ALLOWLIST:
                     self.env_vars.append(token)
                 else:
@@ -116,7 +183,7 @@ class SubprocessCmdLine(object):
                 # Next after vars are the binary and arguments
                 try:
                     self.binary = tokens[idx]
-                    self.arguments = tokens[idx + 1:]
+                    self.arguments = tokens[idx + 1 :]
                 except IndexError:
                     pass
                 break
@@ -124,10 +191,10 @@ class SubprocessCmdLine(object):
     def scrub_arguments(self):
         # if the binary is in the denylist, scrub all arguments
         if self.binary.lower() in self.BINARIES_DENYLIST:
-            self.arguments = ['?' for _ in self.arguments]
+            self.arguments = ["?" for _ in self.arguments]
             return
 
-        param_prefixes = ('-', '/')
+        param_prefixes = ("-", "/")
         # Scrub case by case
         new_args = []
         deque_args = collections.deque(self.arguments)
@@ -138,7 +205,7 @@ class SubprocessCmdLine(object):
                     is_sensitive = True
                     break
             else:
-                is_sensitive=False
+                is_sensitive = False
 
             if not is_sensitive:
                 new_args.append(current)
@@ -178,7 +245,6 @@ class SubprocessCmdLine(object):
 
         self.arguments = new_args
 
-
     def truncate_string(self, str_):
         # type: (str) -> str
         # spaced_added is to account for spaces that would not occupy
@@ -192,10 +258,9 @@ class SubprocessCmdLine(object):
         self.truncated = True
 
         msg = ' "4kB argument truncated by %d characters"' % oversize
-        return str_[0:-(oversize+len(msg))] + msg
+        return str_[0 : -(oversize + len(msg))] + msg
 
-
-    def as_list_and_string(self):
+    def _as_list_and_string(self):
         # type: () -> Tuple[list[str], str]
 
         total_list = self.env_vars + [self.binary] + self.arguments
@@ -203,19 +268,23 @@ class SubprocessCmdLine(object):
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
-
     def as_list(self):
-        return self.as_list_and_string()[0]
+        if self._cache_entry.as_list is not None:
+            return self._cache_entry.as_list
 
+        list_res, str_res = self._as_list_and_string()
+        self._cache_entry.as_list = list_res
+        self._cache_entry.as_string = str_res
+        return list_res
 
     def as_string(self):
-        return self.as_list_and_string()[1]
+        if self._cache_entry.as_string is not None:
+            return self._cache_entry.as_string
 
-
-def scrub_arg(_arg):
-    # type: (str) -> str
-    # JJJ better scrubbing
-    return _arg
+        list_res, str_res = self._as_list_and_string()
+        self._cache_entry.as_list = list_res
+        self._cache_entry.as_string = str_res
+        return str_res
 
 
 @trace_utils.with_traced_module
@@ -294,4 +363,3 @@ def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         ret = wrapped(*args, **kwargs)
         span.set_tag_str("cmd.exit_code", str(ret))
         return ret
-

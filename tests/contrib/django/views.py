@@ -196,5 +196,6 @@ def identify(request):
 
 def ossystem(request):
     import os
+
     ret = os.system("ls")
     return HttpResponse(str(ret), status=200)

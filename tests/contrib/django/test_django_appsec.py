@@ -5,9 +5,11 @@ import os
 
 import mock
 import pytest
-from ddtrace.contrib import trace_utils
 
-from ddtrace import config, _monkey, Pin, patch_all
+from ddtrace import Pin
+from ddtrace import _monkey
+from ddtrace import config
+from ddtrace import patch_all
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
@@ -15,7 +17,9 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._patch_subprocess_executions import _patch
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.ext import http, SpanTypes
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
@@ -829,6 +833,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 # XXX move out of test_django_appsec!
 
+
 def test_django_subexec_system(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         tracer._appsec_enabled = config._appsec_enabled
@@ -836,6 +841,7 @@ def test_django_subexec_system(client, test_spans, tracer):
         tracer.configure(api_version="v0.4")
         _monkey.patch_all()
         import os
+
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -854,6 +860,7 @@ def test_django_subexec_system(client, test_spans, tracer):
 def test_XXX():
     with override_global_config(dict(_appsec_enabled=True)):
         import os
+
         patch_all()
 
         ret = os.system("ls")
