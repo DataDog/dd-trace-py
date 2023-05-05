@@ -1,5 +1,3 @@
-import elasticsearch
-
 from ddtrace.contrib.elasticsearch.patch import patch
 from tests.utils import TracerTestCase
 
