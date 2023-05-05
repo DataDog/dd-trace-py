@@ -102,20 +102,30 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
 
 @attr.s
 class LogSignal(Signal):
+    """A signal that also emits a log message.
+
+    Some signals might require sending a log message along with the base signal
+    data. For example, all the collected errors from expression evaluations
+    (e.g. conditions) might need to be reported.
+    """
+
     @property
     @abc.abstractmethod
     def message(self):
         # type () -> Optional[str]
+        """The log message to emit."""
         pass
 
     @abc.abstractmethod
     def has_message(self):
         # type () -> bool
+        """Whether the signal has a log message to emit."""
         pass
 
     @property
     def data(self):
         # type () -> Dict[str, Any]
+        """Extra data to include in the snapshot portion of the log message."""
         return {}
 
     def _probe_details(self):
