@@ -7,6 +7,7 @@ from ddtrace import Pin
 from ddtrace import patch_all
 from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
 from ddtrace.appsec._patch_subprocess_executions import _unpatch
+from ddtrace.internal.compat import PY2, PY3
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from tests.utils import override_global_config
@@ -235,7 +236,8 @@ def test_ossystem_noappsec(tracer):
         assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
 
 
-def test_ospopen(tracer):
+@pytest.mark.skipif(PY2, reason="Python3 specific test (pins into subprocess)")
+def test_py3ospopen(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
@@ -254,6 +256,29 @@ def test_ospopen(tracer):
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("resource") == "ls"
+
+
+@pytest.mark.skipif(PY3, reason="Python2 specific tests")
+def test_py2ospopen(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        patch_all()
+        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        for func in [os.popen, os.popen2, os.popen3]:
+            with tracer.trace("os.popen", span_type=SpanTypes.SYSTEM):
+                res = func("ls -li %s" % func.__name__)
+                assert res
+                readpipe = res[0] if isinstance(res, tuple) else res
+                readpipe.close()
+
+            spans = tracer.pop()
+            assert spans
+            assert len(spans) > 1
+            span = spans[1]
+            assert span.get_tag("name") == "command_execution"
+            assert span.get_tag("cmd.exec") == str(["ls", "-li", func.__name__])
+            assert not span.get_tag("cmd.truncated")
+            assert span.get_tag("component") == "os"
+            assert span.get_tag("resource") == "ls"
 
 
 # JJJ only linux!
@@ -383,6 +408,7 @@ def test_subprocess_wait_shell_true(tracer):
             assert _context.get_item("subprocess_popen_is_shell", span=span)
 
 
+@pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
 def test_subprocess_run(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
@@ -443,24 +469,22 @@ def test_cache_maxsize():
         assert len(SubprocessCmdLine._CACHE) == 0
         SubprocessCmdLine._CACHE_MAXSIZE = 2
         cmd1 = SubprocessCmdLine("ls -foo -bar")  # first entry
-        cmd2 = SubprocessCmdLine("ls -foo -bar")  # first entry
+        cmd1_catched = SubprocessCmdLine("ls -foo -bar")  # first entry
         assert len(SubprocessCmdLine._CACHE) == 1
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 1
-        assert id(cmd1._cache_entry) == id(cmd2._cache_entry)
+        assert id(cmd1._cache_entry) == id(cmd1_catched._cache_entry)
 
-        cmd3 = SubprocessCmdLine("other -foo -bar")  # second entry
+        SubprocessCmdLine("other -foo -bar")  # second entry
         assert len(SubprocessCmdLine._CACHE) == 2
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
 
-        cmd4 = SubprocessCmdLine("another -bar -foo")  # third entry, should remove first
+        SubprocessCmdLine("another -bar -foo")  # third entry, should remove first
         assert len(SubprocessCmdLine._CACHE) == 2
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
 
-        cmd5 = SubprocessCmdLine("ls -foo -bar")  # fourth entry since first was removed, removed second
+        cmd1_new = SubprocessCmdLine("ls -foo -bar")  # fourth entry since first was removed, removed second
         assert len(SubprocessCmdLine._CACHE) == 2
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
-        assert id(cmd1._cache_entry) != id(cmd5._cache_entry)
+        assert id(cmd1._cache_entry) != id(cmd1_new._cache_entry)
     finally:
         SubprocessCmdLine._CACHE_MAXSIZE = orig_cache_maxsize
-
-

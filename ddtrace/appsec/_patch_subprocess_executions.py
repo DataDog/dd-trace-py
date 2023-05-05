@@ -16,6 +16,7 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
+from ddtrace.internal.compat import shjoin, PY2
 from ddtrace.internal.logger import get_logger
 
 
@@ -43,10 +44,17 @@ def _patch():
 
     Pin().onto(os)
     trace_utils.wrap(os, "system", traced_ossystem(os))
-    # note: popen* uses subprocess, which we already wrap below
 
     # all os.spawn* variants eventually use this one:
     trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
+
+    if PY2:
+        # note: popen* uses subprocess in Python3, which we already wrap below, but not in
+        # Python2
+        trace_utils.wrap(os, "popen", traced_py2popen(os))
+        trace_utils.wrap(os, "popen2", traced_py2popen(os))
+        trace_utils.wrap(os, "popen3", traced_py2popen(os))
+        trace_utils.wrap(os, "popen4", traced_py2popen(os))
 
     Pin().onto(subprocess)
     # We store the parameters on __init__ in the context and set the tags on wait
@@ -61,9 +69,6 @@ def _unpatch():
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")
     trace_utils.unwrap(subprocess.Popen, "wait")
-
-
-_COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
 
 @attr.s(eq=False)
@@ -112,7 +117,6 @@ class SubprocessCmdLine(object):
             cls._CACHE_DEQUE.clear()
             cls._CACHE.clear()
 
-
     TRUNCATE_LIMIT = 4 * 1024
 
     ENV_VARS_ALLOWLIST = {"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH"}
@@ -133,6 +137,7 @@ class SubprocessCmdLine(object):
         "*credentials*",
         "stripetoken",
     )
+    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
     def __init__(self, shell_args, as_list=False, shell=False):
         # type: (Union[str, list], bool, bool) -> None
@@ -172,7 +177,7 @@ class SubprocessCmdLine(object):
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
-            if re.match(_COMPILED_ENV_VAR_REGEXP, token):
+            if re.match(self._COMPILED_ENV_VAR_REGEXP, token):
                 var, value = token.split("=")
                 if var in self.ENV_VARS_ALLOWLIST:
                     self.env_vars.append(token)
@@ -264,7 +269,7 @@ class SubprocessCmdLine(object):
         # type: () -> Tuple[list[str], str]
 
         total_list = self.env_vars + [self.binary] + self.arguments
-        truncated_str = self.truncate_string(shlex.join(total_list))
+        truncated_str = self.truncate_string(shjoin(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
@@ -308,7 +313,7 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
         span.set_tag_str("name", "command_execution")
         mode, file, func_args, _, _ = args
 
-        shellcmd = SubprocessCmdLine(func_args, True, shell=False)
+        shellcmd = SubprocessCmdLine(func_args, as_list=True, shell=False)
         span.set_tag("cmd.exec", shellcmd.as_list())
         if shellcmd.truncated:
             span.set_tag_str("cmd.truncated", "true")
@@ -321,6 +326,23 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
             return ret
 
         return wrapped(*args, **kwargs)
+
+
+@trace_utils.with_traced_module
+def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
+    with pin.tracer.trace("os.popen", span_type=SpanTypes.SYSTEM) as span:
+        span.set_tag_str("name", "command_execution")
+        command = args[0]
+
+        subcmd = SubprocessCmdLine(command, as_list=False, shell=False)
+        span.set_tag("cmd.exec", subcmd.as_list())
+        if subcmd.truncated:
+            span.set_tag_str("cmd.truncated", "true")
+        span.set_tag_str("component", "os")
+        span.set_tag_str("resource", subcmd.binary)
+
+        return wrapped(*args, **kwargs)
+
 
 
 @trace_utils.with_traced_module

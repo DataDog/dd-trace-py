@@ -365,3 +365,28 @@ def ip_is_global(ip):
         return parsed_ip.is_global
 
     return not (parsed_ip.is_loopback or parsed_ip.is_private)
+
+try:
+    from shlex import quote as shquote
+except ImportError:
+    import re
+
+    _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
+
+    def shquote(s):
+        """Return a shell-escaped version of the string *s*."""
+        if not s:
+            return "''"
+        if _find_unsafe(s) is None:
+            return s
+
+        # use single quotes, and put single quotes into double quotes
+        # the string $'b is then quoted as '$'"'"'b'
+        return "'" + s.replace("'", "'\"'\"'") + "'"
+
+try:
+    from shlex import join as shjoin
+except ImportError:
+    def shjoin(args):
+        """Return a shell-escaped string from *args*."""
+        return " ".join(shquote(arg) for arg in args)
