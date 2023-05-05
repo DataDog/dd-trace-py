@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    gevent: Fix a bug that caused traceback objects to fail to pickle when using gevent.
