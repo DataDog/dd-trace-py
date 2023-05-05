@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiler: Fixed a bug that caused segmentation faults in applications that
+    use protobuf as a runtime dependency.
