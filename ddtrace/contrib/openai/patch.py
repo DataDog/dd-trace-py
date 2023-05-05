@@ -4,6 +4,7 @@ import sys
 import time
 from typing import AsyncGenerator
 from typing import Generator
+from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -20,6 +21,10 @@ from .. import trace_utils
 from ...pin import Pin
 from ..trace_utils import set_flattened_tags
 from ._logging import V2LogWriter
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 
 log = get_logger(__name__)
@@ -69,6 +74,29 @@ class _OpenAIIntegration:
     def start_log_writer(self):
         self._log_writer.start()
 
+    @property
+    def _user_api_key(self):
+        # type: () -> str
+        """Get a representation of the user API key for tagging."""
+        # Match the API key representation that OpenAI uses in their UI.
+        return "sk-...%s" % self._openai.api_key[-4:]
+
+    def set_base_span_tags(self, span):
+        # type: (Span) -> None
+        span.set_tag_str(COMPONENT, self._config.integration_name)
+        span.set_tag_str("openai.user.api_key", self._user_api_key)
+
+        # Do these dynamically as openai users can set these at any point
+        # not necessarily before patch() time.
+        # organization_id is only returned by a few endpoints, grab it when we can.
+        for attr in ("api_base", "api_version", "organization_id"):
+            v = getattr(self._openai, attr, None)
+            if v is not None:
+                if attr == "organization_id":
+                    span.set_tag_str("openai.organization.id", v or "")
+                else:
+                    span.set_tag_str(attr, v)
+
     def trace(self, pin, endpoint, model):
         """Start an OpenAI span.
 
@@ -82,17 +110,9 @@ class _OpenAIIntegration:
         span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag_str(COMPONENT, self._config.integration_name)
-        # Do these dynamically as openai users can set these at any point
-        # not necessarily before patch() time.
-        # organization_id is only returned by a few endpoints, grab it when we can.
-        for attr in ("api_base", "api_version", "organization_id"):
-            v = getattr(self._openai, attr, None)
-            if v is not None:
-                if attr == "organization_id":
-                    span.set_tag_str("openai.organization.id", v or "")
-                else:
-                    span.set_tag_str(attr, v)
+
+        self.set_base_span_tags(span)
+
         span.set_tag_str("openai.endpoint", endpoint)
         if model:
             span.set_tag_str("openai.model", model)
@@ -101,12 +121,16 @@ class _OpenAIIntegration:
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        tags = "env:%s,version:%s,openai.endpoint:%s,openai.model:%s,openai.organization.name:%s" % (
-            (config.env or ""),
-            (config.version or ""),
-            (span.get_tag("openai.endpoint") or ""),
-            (span.get_tag("openai.model") or ""),
-            (span.get_tag("openai.organization.name") or ""),
+        tags = (
+            "env:%s,version:%s,openai.endpoint:%s,openai.model:%s,openai.organization.name:%s,openai.user.api_key:%s"
+            % (
+                (config.env or ""),
+                (config.version or ""),
+                (span.get_tag("openai.endpoint") or ""),
+                (span.get_tag("openai.model") or ""),
+                (span.get_tag("openai.organization.name") or ""),
+                (span.get_tag("openai.user.api_key") or ""),
+            )
         )
 
         log = {
@@ -133,6 +157,7 @@ class _OpenAIIntegration:
             "openai.endpoint:%s" % (span.get_tag("openai.endpoint") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
+            "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
@@ -286,8 +311,10 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
             if error is None:
                 return e.value
     finally:
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        # Streamed responses will be finished when the generator exits.
+        if not kwargs.get("stream"):
+            span.finish()
+            integration.metric(span, "dist", "request.duration", span.duration_ns)
 
 
 def _patched_endpoint(openai, integration, patch_hook):
@@ -392,23 +419,21 @@ class _BaseCompletionHook(_EndpointHook):
         """
 
         def shared_gen():
-            stream_span = pin.tracer.start_span("openai.stream", child_of=span, activate=True)
             try:
                 num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
                 num_completion_tokens = yield
 
-                stream_span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
+                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
                 total_tokens = num_prompt_tokens + num_completion_tokens
-                stream_span.set_metric("openai.response.usage.total_tokens", total_tokens)
+                span.set_metric("openai.response.usage.total_tokens", total_tokens)
+                integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
                 integration.metric(
                     span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
                 )
                 integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
             finally:
-                stream_span.finish()
-                # ``span`` could be flushed by this point. This is a best effort to attach the metric
-                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-                span.set_metric("openai.response.usage.total_tokens", total_tokens)
+                span.finish()
+                integration.metric(span, "dist", "request.duration", span.duration_ns)
 
         # A chunk corresponds to a token:
         #  https://community.openai.com/t/how-to-get-total-tokens-from-a-stream-of-completioncreaterequests/110700
@@ -490,7 +515,6 @@ class _CompletionHook(_BaseCompletionHook):
                 for p in prompt:
                     num_prompt_tokens += _est_tokens(p)
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-            integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
 
         self._record_request(span, kwargs)
 
@@ -551,17 +575,15 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if "stream" in kwargs and kwargs["stream"]:
             # streamed responses do not have a usage field, so we have to
             # estimate the number of tokens returned.
-            num_message_tokens = 0
+            est_num_message_tokens = 0
             for m in messages:
-                num_message_tokens += _est_tokens(m.get("content", ""))
-            span.set_metric("openai.response.usage.prompt_tokens", num_message_tokens)
-            integration.metric(span, "dist", "tokens.prompt", num_message_tokens, tags=["openai.estimated:true"])
+                est_num_message_tokens += _est_tokens(m.get("content", ""))
+            span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
 
         self._record_request(span, kwargs)
 
         resp, error = yield
 
-        choices = []
         if resp and not kwargs.get("stream"):
             choices = resp.get("choices", [])
             for choice in choices:
@@ -621,7 +643,7 @@ class _EmbeddingHook(_EndpointHook):
 def _patched_convert(openai, integration):
     def patched_convert(func, args, kwargs):
         """Patch convert captures header information in the openai response"""
-        pin = Pin._find(openai, args[0])
+        pin = Pin.get_from(openai)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
@@ -629,41 +651,41 @@ def _patched_convert(openai, integration):
         if not span:
             return func(*args, **kwargs)
 
-        for val in args:
-            if not isinstance(val, openai.openai_response.OpenAIResponse):
-                continue
+        val = args[0]
+        if not isinstance(val, openai.openai_response.OpenAIResponse):
+            return func(*args, **kwargs)
 
-            # This function is called for each chunk in the stream.
-            # To prevent needlessly setting the same tags for each chunk, short-circuit here.
-            if span.get_tag("openai.organization.name") is not None:
-                continue
+        # This function is called for each chunk in the stream.
+        # To prevent needlessly setting the same tags for each chunk, short-circuit here.
+        if span.get_tag("openai.organization.name") is not None:
+            return func(*args, **kwargs)
 
-            val = val._headers
-            if val.get("openai-organization"):
-                org_name = val.get("openai-organization")
-                span.set_tag("openai.organization.name", org_name)
+        val = val._headers
+        if val.get("openai-organization"):
+            org_name = val.get("openai-organization")
+            span.set_tag("openai.organization.name", org_name)
 
-            # Gauge total rate limit
-            if val.get("x-ratelimit-limit-requests"):
-                v = val.get("x-ratelimit-limit-requests")
-                if v is not None:
-                    integration.metric(span, "gauge", "ratelimit.requests", v)
-            if val.get("x-ratelimit-limit-tokens"):
-                v = val.get("x-ratelimit-limit-tokens")
-                if v is not None:
-                    integration.metric(span, "gauge", "ratelimit.tokens", v)
+        # Gauge total rate limit
+        if val.get("x-ratelimit-limit-requests"):
+            v = val.get("x-ratelimit-limit-requests")
+            if v is not None:
+                integration.metric(span, "gauge", "ratelimit.requests", v)
+        if val.get("x-ratelimit-limit-tokens"):
+            v = val.get("x-ratelimit-limit-tokens")
+            if v is not None:
+                integration.metric(span, "gauge", "ratelimit.tokens", v)
 
-            # Gauge and set span info for remaining requests and tokens
-            if val.get("x-ratelimit-remaining-requests"):
-                v = val.get("x-ratelimit-remaining-requests")
-                if v is not None:
-                    integration.metric(span, "gauge", "ratelimit.remaining.requests", v)
-                    span.set_tag("openai.organization.ratelimit.requests.remaining", v)
-            if val.get("x-ratelimit-remaining-tokens"):
-                v = val.get("x-ratelimit-remaining-tokens")
-                if v is not None:
-                    integration.metric(span, "gauge", "ratelimit.remaining.tokens", v)
-                    span.set_tag("openai.organization.ratelimit.tokens.remaining", v)
+        # Gauge and set span info for remaining requests and tokens
+        if val.get("x-ratelimit-remaining-requests"):
+            v = val.get("x-ratelimit-remaining-requests")
+            if v is not None:
+                integration.metric(span, "gauge", "ratelimit.remaining.requests", v)
+                span.set_tag("openai.organization.ratelimit.requests.remaining", v)
+        if val.get("x-ratelimit-remaining-tokens"):
+            v = val.get("x-ratelimit-remaining-tokens")
+            if v is not None:
+                integration.metric(span, "gauge", "ratelimit.remaining.tokens", v)
+                span.set_tag("openai.organization.ratelimit.tokens.remaining", v)
         return func(*args, **kwargs)
 
     return patched_convert
