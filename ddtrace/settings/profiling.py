@@ -1,3 +1,5 @@
+import sys
+import os
 import math
 import typing as t
 
@@ -35,6 +37,13 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     max_samples = 2 ** 16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
+
+def is_glibc_linux_x86_64():
+    return (
+        sys.platform.startswith('linux') and
+        platform.machine() == 'x86_64' and
+        'glibc' in platform.libc_ver()[1]
+    )
 
 
 class ProfilingConfig(En):
@@ -148,13 +157,6 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    export_libdatadog = En.v(
-        bool,
-        "enabled",
-        default=True,
-        help_type="Boolean",
-        help="Enables collection and export using the native libdatadog stack (Linux-only)",
-    )
 
     export_py = En.v(
         bool,
@@ -163,6 +165,24 @@ class ProfilingConfig(En):
         help_type="Boolean",
         help="Enables collection and export using the classic Python stack",
     )
+
+    # libdatadog is only supported on x86-linux; fully disable on anything else
+    if is_glibc_linux_x86_64():
+        export_libdatadog = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Enables collection and export using the native libdatadog stack (Linux-only)",
+        )
+    else:
+        export_libdatadog = En.v(
+            bool,
+            "this option is unsupported on this platform",
+            default=False,
+            help_type="Boolean",
+            help="Enables collection and export using the native libdatadog stack (Linux-only)",
+        )
 
     class Memory(En):
         __item__ = __prefix__ = "memory"

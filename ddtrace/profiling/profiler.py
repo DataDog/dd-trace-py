@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
+import sys
 import typing
 from typing import List
 from typing import Optional
@@ -97,6 +98,13 @@ class Profiler(object):
         # type: (...) -> typing.Any
         return getattr(self._profiler, key)
 
+# to be removed when libdatadog is supported on all needed platforms
+def is_glibc_linux_x86_64():
+    return (
+        sys.platform.startswith('linux') and
+        platform.machine() == 'x86_64' and
+        'glibc' in platform.libc_ver()[1]
+    )
 
 @attr.s
 class _ProfilerInstance(service.Service):
@@ -131,6 +139,11 @@ class _ProfilerInstance(service.Service):
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+
+    # enforce architecture compatibility
+    if export_libdatadog and not is_glibc_linux_x86_64():
+        export_libdatadog = False
+        LOG.warning("libdatadog support was requested on an unsupported platform")
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
