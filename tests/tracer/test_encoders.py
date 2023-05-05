@@ -589,6 +589,11 @@ def test_list_string_table():
     assert list(t) == ["", "foobar", "foobaz"]
 
 
+@contextlib.contextmanager
+def _value():
+    yield "value"
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -602,6 +607,8 @@ def test_list_string_table():
         {"duration_ns": "duration_time"},
         {"span_type": 100},
         {"_meta": {"num": 100}},
+        # Validating behavior with a context manager is a customer regression
+        {"_meta": {"key": _value()}},
         {"_metrics": {"key": "value"}},
     ],
 )
@@ -611,24 +618,6 @@ def test_encoding_invalid_data(data):
     span = Span(name="test")
     for key, value in data.items():
         setattr(span, key, value)
-
-    trace = [span]
-    with pytest.raises(TypeError):
-        encoder.put(trace)
-
-    assert encoder.encode() is None
-
-
-@pytest.mark.parametrize("encoder", [MsgpackEncoderV03(1 << 20, 1 << 20), MsgpackEncoderV05(1 << 20, 1 << 20)])
-def test_span_encode_exception(encoder):
-    @contextlib.contextmanager
-    def manager():
-        yield "value"
-
-    span = Span(name="test")
-
-    # Validating behavior with a context manager is a customer regression
-    span._meta["key"] = manager()  # noqa
 
     trace = [span]
     with pytest.raises(RuntimeError) as e:
