@@ -160,6 +160,15 @@ def extract_branch(cwd=None):
     return branch
 
 
+def extract_tag(cwd=None):
+    # type: (Optional[str]) -> str
+    """Extract git tag from the git repository in the current directory or one specified by ``cwd``."""
+    try:
+        return _git_subprocess_cmd("describe --exact-match HEAD", cwd=cwd)
+    except ValueError:
+        return ""
+
+
 def extract_commit_sha(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
@@ -183,6 +192,9 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
         tags[BRANCH] = extract_branch(cwd=cwd)
         tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
+        git_tag = extract_tag(cwd=cwd)
+        if git_tag:
+            tags[TAG] = git_tag
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
