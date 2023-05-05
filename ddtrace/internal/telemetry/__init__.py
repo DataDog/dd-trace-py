@@ -30,9 +30,9 @@ def _excepthook(tp, value, traceback):
     telemetry_lifecycle_writer.add_error(1, str(value), filename, lineno)
 
     if not telemetry_lifecycle_writer.started and telemetry_lifecycle_writer.enable(start_worker_thread=False):
-        # Enabling the telemetry writer here causes deadlocks in gunicorn
-        # As a workaround we avoid starting the telemetry worker thread then
-        # manually queue and send events.
+        # Starting/stopping the telemetry worker thread in a sys.excepthook causes deadlocks in gunicorn.
+        # Here we avoid starting the telemetry worker thread by manually queuing and sending
+        # app-started and app-closed events.
         telemetry_lifecycle_writer._app_started_event()
         telemetry_lifecycle_writer.on_shutdown()
         telemetry_lifecycle_writer.disable()
