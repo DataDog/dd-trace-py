@@ -23,26 +23,16 @@ inline ddog_CharSlice to_slice(std::string_view str) {
   return {.ptr = str.data(), .len = str.size()};
 }
 
-UploaderBuilder::UploaderBuilder(
-    std::string_view _env, std::string_view _service, std::string_view _version,
-    std::string_view _runtime, std::string_view _runtime_version,
-    std::string_view _profiler_version, std::string_view _url)
-    : env{_env}, service{_service}, version{_version}, runtime{_runtime},
-      runtime_version{_runtime_version},
-      profiler_version{_profiler_version}, url{_url} {}
-
 UploaderBuilder &UploaderBuilder::set_env(std::string_view env) {
   // Don't over-write the default with garbage
-  if (env.empty())
-    return *this;
-  this->env = env;
+  if (!env.empty())
+    this->env = env;
   return *this;
 }
 UploaderBuilder &UploaderBuilder::set_service(std::string_view service) {
   // Don't over-write the default with garbage
-  if (service.empty())
-    return *this;
-  this->service = service;
+  if (!service.empty())
+    this->service = service;
   return *this;
 }
 UploaderBuilder &UploaderBuilder::set_version(std::string_view version) {
@@ -93,6 +83,7 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
   // Input check
   if (val.empty()) {
     errmsg = "tag '" + std::string(key_sv) + "' is invalid";
+    std::cout << errmsg << std::endl;
     return false;
   }
 
@@ -113,6 +104,7 @@ bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
   if (key.empty() || val.empty()) {
     errmsg =
         "tag '" + std::string(key) + "'='" + std::string(val) + "' is invalid";
+    std::cout << errmsg << std::endl;
     return false;
   }
   ddog_Vec_Tag_PushResult res =
@@ -122,6 +114,7 @@ bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
     errmsg = "tags[" + std::string(key) + "]='" + std::string(val) + " err: '" +
              ddog_err + "'";
     ddog_Error_drop(&res.err);
+    std::cout << errmsg << std::endl;
     return false;
   }
   return true;
@@ -130,17 +123,20 @@ bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
 Uploader *UploaderBuilder::build_ptr() {
   // Setup the ddog_Exporter
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-  add_tag(tags, ExportTagKey::language, language, errmsg);
-  add_tag(tags, ExportTagKey::env, env, errmsg);
-  add_tag(tags, ExportTagKey::service, service, errmsg);
-  add_tag(tags, ExportTagKey::version, version, errmsg);
-  add_tag(tags, ExportTagKey::runtime, runtime, errmsg);
-  add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg);
-  add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg);
+  if (!add_tag(tags, ExportTagKey::language, language, errmsg) ||
+      !add_tag(tags, ExportTagKey::env, env, errmsg) ||
+      !add_tag(tags, ExportTagKey::service, service, errmsg) ||
+      !add_tag(tags, ExportTagKey::version, version, errmsg) ||
+      !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
+      !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
+      !add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg)) {
+    return false;
+  }
 
   // Add the unsafe tags, if any
   for (const auto &kv : user_tags)
-    add_tag_unsafe(tags, kv.first, kv.second, errmsg);
+    if (!add_tag_unsafe(tags, kv.first, kv.second, errmsg))
+      return fals;
 
   ddog_prof_Exporter_NewResult new_exporter = ddog_prof_Exporter_new(
       to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family),
@@ -151,9 +147,8 @@ Uploader *UploaderBuilder::build_ptr() {
   if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
     ddog_exporter = new_exporter.ok;
   } else {
-    // TODO consolidate errors
-    std::cout << "ERROR INITIALIZING LIBDATADOG EXPORTER" << std::endl;
     ddog_Error_drop(&new_exporter.err);
+    errmsg = "Could not initialize exporter";
     return nullptr;
   }
 
@@ -175,6 +170,7 @@ bool Uploader::upload(const Profile *profile) {
     std::string ddog_errmsg(ddog_Error_message(&result.err).ptr);
     errmsg = "Error serializing pprof, err:" + ddog_errmsg;
     ddog_Error_drop(&result.err);
+    std::cout << errmsg << std::endl;
     return false;
   }
 
@@ -213,6 +209,7 @@ bool Uploader::upload(const Profile *profile) {
     ddog_Error_drop(&build_res.err);
     ddog_prof_EncodedProfile_drop(encoded);
     ddog_Vec_Tag_drop(tags);
+    std::cout << errmsg << std::endl;
     return false;
   }
 
@@ -226,6 +223,7 @@ bool Uploader::upload(const Profile *profile) {
     ddog_Error_drop(&res.err);
     ddog_prof_EncodedProfile_drop(encoded);
     ddog_Vec_Tag_drop(tags);
+    std::cout << errmsg << std::endl;
     return false;
   }
 
@@ -318,6 +316,7 @@ Profile::~Profile() { ddog_prof_Profile_drop(ddog_profile); }
 bool Profile::reset() {
   if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
     errmsg = "Unable to reset profile";
+    std::cout << errmsg << std::endl;
     return false;
   }
   return true;
@@ -382,13 +381,17 @@ bool Profile::push_label(const ExportLabelKey key, std::string_view val) {
   constexpr std::array<std::string_view,
                        static_cast<size_t>(ExportLabelKey::_Length)>
       keys = {EXPORTER_LABELS(X_STR)};
-  if (cur_label >= labels.size())
+  if (cur_label >= labels.size()) {
+    std::cout << "Bad push_label" << std::endl;
     return false;
+  }
 
   std::string_view key_sv = keys[static_cast<size_t>(key)];
   auto [it, _] = strings.insert(std::string{val});
-  if (it == strings.end())
+  if (it == strings.end()) {
+    std::cout << "Bad push_label" << std::endl;
     return false;
+  }
 
   // Label may not persist, so it needs to be saved
   labels[cur_label].key = to_slice(key_sv);
@@ -401,8 +404,10 @@ bool Profile::push_label(const ExportLabelKey key, int64_t val) {
   constexpr std::array<std::string_view,
                        static_cast<size_t>(ExportLabelKey::_Length)>
       keys = {EXPORTER_LABELS(X_STR)};
-  if (cur_label >= labels.size())
+  if (cur_label >= labels.size()) {
+    std::cout << "Bad push_label" << std::endl;
     return false;
+  }
 
   std::string_view key_sv = keys[static_cast<size_t>(key)];
   labels[cur_label].key = to_slice(key_sv);
@@ -456,18 +461,20 @@ bool Profile::push_cputime(int64_t cputime, int64_t count) {
   if (type_mask & ProfileType::CPU) {
     values[val_idx.cpu_time] += cputime * count;
     values[val_idx.cpu_count] += count;
-    return false;
+    return true;
   }
-  return true;
+ std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_walltime(int64_t walltime, int64_t count) {
   if (type_mask & ProfileType::Wall) {
     values[val_idx.wall_time] += walltime * count;
     values[val_idx.wall_count] += count;
-    return false;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_exceptioninfo(std::string_view exception_type,
@@ -475,44 +482,50 @@ bool Profile::push_exceptioninfo(std::string_view exception_type,
   if (type_mask & ProfileType::Exception) {
     push_label(ExportLabelKey::exception_type, exception_type);
     values[val_idx.exception_count] += count;
-    return false;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_acquire(int64_t acquire_time, int64_t count) {
   if (type_mask & ProfileType::LockAcquire) {
     values[val_idx.lock_acquire_time] += acquire_time;
     values[val_idx.lock_acquire_count] += count;
-    return false;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_release(int64_t release_time, int64_t count) {
   if (type_mask & ProfileType::LockRelease) {
     values[val_idx.lock_release_time] += release_time;
     values[val_idx.lock_release_count] += count;
-    return false;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_alloc(uint64_t size, uint64_t count) {
   if (type_mask & ProfileType::Allocation) {
     values[val_idx.alloc_space] += size;
     values[val_idx.alloc_count] += count;
-    return false;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_heap(uint64_t size) {
   if (type_mask & ProfileType::Heap) {
     values[val_idx.heap_space] += size;
-    return false;
+    std::cout << "bad push" << std::endl;
+    return true;
   }
-  return true;
+  std::cout << "bad push" << std::endl;
+  return false;
 }
 
 bool Profile::push_lock_name(std::string_view lock_name) {
@@ -523,8 +536,9 @@ bool Profile::push_lock_name(std::string_view lock_name) {
 bool Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                               std::string_view thread_name) {
   if (!push_label(ExportLabelKey::thread_id, thread_id) ||
-      push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
-      push_label(ExportLabelKey::thread_name, thread_name)) {
+      !push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
+      !push_label(ExportLabelKey::thread_name, thread_name)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -532,7 +546,8 @@ bool Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id,
 
 bool Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
   if (!push_label(ExportLabelKey::task_id, task_id) ||
-      push_label(ExportLabelKey::task_name, task_name)) {
+      !push_label(ExportLabelKey::task_name, task_name)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -540,6 +555,7 @@ bool Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
 
 bool Profile::push_span_id(int64_t span_id) {
   if (!push_label(ExportLabelKey::span_id, span_id)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -547,6 +563,7 @@ bool Profile::push_span_id(int64_t span_id) {
 
 bool Profile::push_local_root_span_id(int64_t local_root_span_id) {
   if (!push_label(ExportLabelKey::local_root_span_id, local_root_span_id)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -554,6 +571,7 @@ bool Profile::push_local_root_span_id(int64_t local_root_span_id) {
 
 bool Profile::push_trace_type(std::string_view trace_type) {
   if (!push_label(ExportLabelKey::trace_type, trace_type)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -563,6 +581,7 @@ bool Profile::push_trace_resource_container(
     std::string_view trace_resource_container) {
   if (!push_label(ExportLabelKey::trace_resource_container,
                   trace_resource_container)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;
@@ -570,6 +589,7 @@ bool Profile::push_trace_resource_container(
 
 bool Profile::push_class_name(std::string_view class_name) {
   if (!push_label(ExportLabelKey::class_name, class_name)) {
+    std::cout << "bad push" << std::endl;
     return false;
   }
   return true;

@@ -86,13 +86,14 @@ class UploaderBuilder {
   std::string errmsg;
 
   // Building parameters
-  std::string env;
-  std::string service;
-  std::string version;
-  std::string runtime;
-  std::string runtime_version;
-  std::string profiler_version;
-  std::string url;
+  // TODO remove these defaults before making this available to customers
+  std::string env = "prod";
+  std::string service = "myservice";
+  std::string version = "";
+  std::string runtime = "cython";
+  std::string runtime_version = "";
+  std::string profiler_version = "";
+  std::string url = "http://localhost:8126";
   ExporterTagset user_tags;
 
   static constexpr std::string_view language = "python";
@@ -107,14 +108,6 @@ public:
   UploaderBuilder &set_profiler_version(std::string_view profiler_version);
   UploaderBuilder &set_url(std::string_view url);
   UploaderBuilder &set_tag(std::string_view key, std::string_view val);
-
-  UploaderBuilder(std::string_view _env = "prod",
-                  std::string_view _service = "py_libdatadog",
-                  std::string_view _version = "",
-                  std::string_view _runtime = "cython",
-                  std::string_view _runtime_version = "???",
-                  std::string_view _profiler_version = "???",
-                  std::string_view _url = "http://localhost:8126");
 
   Uploader *build_ptr();
 };

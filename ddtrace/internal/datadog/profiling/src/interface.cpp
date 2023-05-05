@@ -33,11 +33,12 @@ void ddup_config_env(const char *env) {
   uploader_builder.set_env(env);
 }
 void ddup_config_service(const char *service) {
-  if (!service || !*service)
-    uploader_builder.set_service(service);
+  if (!service)
+    return;
+  uploader_builder.set_service(service);
 }
 void ddup_config_version(const char *version) {
-  if (!version || !*version)
+  if (!version)
     return;
   uploader_builder.set_version(version);
 }
