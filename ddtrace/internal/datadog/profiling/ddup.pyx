@@ -1,9 +1,11 @@
 import os
 import platform
 import typing
+from typing import Optional
 
 import ddtrace
 from ddtrace.internal import runtime
+from ddtrace.span import Span
 
 
 IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
@@ -55,12 +57,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_set_runtime_id(const char *_id);
         void ddup_upload();
 
-    cpdef init(
-            env: Optional[str] = "prod",
-            service: str = None,
-            version: Optional[str] = "",
+    cpdef void init(
+            service: str,
+            env: Optional[str],
+            version: Optional[str],
             tags: Optional[typing.Dict[str,str]],
-            max_nframes: Optional[int]) -> None:
+            max_nframes: Optional[int]):
       if version is not None:
         version += ".libdatadog"
       ddup_config_env(str.encode(env))
@@ -90,10 +92,10 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
     def push_release(value: int, count: int) -> None:
       ddup_push_release(value, count)
 
-    cpdef push_alloc(value: int, count: int) -> None:
+    def push_alloc(value: int, count: int) -> None:
       ddup_push_alloc(value, count)
 
-    cpdef push_heap(value: int) -> None:
+    def push_heap(value: int) -> None:
       ddup_push_heap(value)
 
     def push_lock_name(lock_name: str) -> None:
