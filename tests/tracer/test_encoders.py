@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import contextlib
 import json
 import random
 import string
@@ -615,6 +616,25 @@ def test_encoding_invalid_data(data):
     with pytest.raises(TypeError):
         encoder.put(trace)
 
+    assert encoder.encode() is None
+
+
+@pytest.mark.parametrize("encoder", [MsgpackEncoderV03(1 << 20, 1 << 20), MsgpackEncoderV05(1 << 20, 1 << 20)])
+def test_span_encode_exception(encoder):
+    @contextlib.contextmanager
+    def manager():
+        yield "value"
+
+    span = Span(name="test")
+
+    # Validating behavior with a context manager is a customer regression
+    span._meta["key"] = manager()  # noqa
+
+    trace = [span]
+    with pytest.raises(RuntimeError) as e:
+        encoder.put(trace)
+
+    assert e.match(r"failed to pack span: <Span\(id="), e
     assert encoder.encode() is None
 
 
