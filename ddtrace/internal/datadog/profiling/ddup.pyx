@@ -57,12 +57,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_set_runtime_id(const char *_id);
         void ddup_upload();
 
-    cpdef void init(
+    def init(
             service: str,
             env: Optional[str],
             version: Optional[str],
             tags: Optional[typing.Dict[str,str]],
-            max_nframes: Optional[int]):
+            max_nframes: Optional[int]) -> None:
       if version is not None:
         version += ".libdatadog"
       ddup_config_env(str.encode(env))
