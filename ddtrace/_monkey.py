@@ -162,7 +162,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
             telemetry_lifecycle_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
         else:
             imported_module.patch()
-            telemetry_lifecycle_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, "")
+            telemetry_lifecycle_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
 
     return on_import
 
