@@ -146,7 +146,7 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, should_patch=True):
+def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
@@ -162,7 +162,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, shou
         else:
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
-                imported_module.patch_submodules(should_patch)
+                imported_module.patch_submodules(patch_indicator)
             telemetry_lifecycle_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
@@ -225,8 +225,8 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
-    contribs = {c: should_patch for c, should_patch in patch_modules.items() if should_patch}
-    for contrib, should_patch in contribs.items():
+    contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
+    for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
             if raise_errors:
@@ -237,7 +237,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors, should_patch=should_patch))
+            when_imported(module)(_on_import_factory(contrib, raise_errors=raise_errors, patch_indicator=patch_indicator))
 
         # manually add module to patched modules
         with _LOCK:
