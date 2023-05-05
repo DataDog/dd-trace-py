@@ -16,6 +16,7 @@ from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...internal.compat import urlencode
 from ...internal.schema import schematize_service_name
+from ...internal.utils.version import parse_version
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
@@ -49,7 +50,10 @@ def _es_modules():
 
 
 def get_version(elasticsearch):
-    return getattr(elasticsearch, "__version__", "0.0.0")
+    version = getattr(elasticsearch, "__version__", (0, 0, 0))
+    if isinstance(version, str):
+        version = parse_version(version)
+    return version
 
 
 # NB: We are patching the default elasticsearch.transport module
