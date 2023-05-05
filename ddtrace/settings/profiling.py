@@ -202,7 +202,7 @@ class ProfilingConfig(En):
             "libdd_enabled",
             default=False,
             help_type="Boolean",
-            help="Enables collection and export using the native libdatadog stack (Linux-only)",
+            help="Enables collection and export using the experimental exporter"
         )
         libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
 
@@ -211,7 +211,7 @@ class ProfilingConfig(En):
             "py_enabled",
             default=True,
             help_type="Boolean",
-            help="Enables collection and export using the classic Python stack",
+            help="Enables collection and export using the classic Python exporter",
         )
 
 
