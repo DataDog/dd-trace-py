@@ -889,6 +889,7 @@ class MockDataFrame:
         return iter(self.data)
 
 
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 def test_cache_get_rowcount_iterable_ambiguous_truthiness(test_spans):
     # get the default cache
 
