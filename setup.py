@@ -166,7 +166,7 @@ class Library_Download:
             try:
                 filename, http_response = urlretrieve(download_address, archive_name)
             except HTTPError as e:
-                print("No archive found for dynamic library " + cls.name + ": " + archive_dir)
+                print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
                 raise e
 
             # Verify checksum of downloaded file
@@ -179,7 +179,6 @@ class Library_Download:
                 expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
                 verify_checksum_from_hash(expected_checksum, filename)
 
-            print("Opening tarball")
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
