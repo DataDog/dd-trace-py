@@ -335,6 +335,9 @@ void Profile::push_frame_impl(std::string_view name, std::string_view filename,
 
   // Ensure strings are stored.
   // Slightly wasteful since it requires allocating another string.
+  // This can be refactored to avoid the extra allocation in favor of an extra
+  // hash if the insertion (slow, infrequent) path is hit.  Idea courtesy
+  // of @sjanel via @r1viollet
   auto insert_or_get = [&](std::string_view sv) -> std::string_view {
     std::string str(sv);
     auto [it, _] = strings.insert(std::move(str));
@@ -367,7 +370,8 @@ void Profile::push_frame_impl(std::string_view name, std::string_view filename,
 void Profile::push_frame(std::string_view name, std::string_view filename,
                          uint64_t address, int64_t line) {
 
-  push_frame_impl(name, filename, address, line);
+  if (cur_frame <= max_nframes)
+    push_frame_impl(name, filename, address, line);
 }
 
 bool Profile::push_label(const ExportLabelKey key, std::string_view val) {
