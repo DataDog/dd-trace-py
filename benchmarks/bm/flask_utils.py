@@ -32,7 +32,7 @@ def server(scenario, custom_post_response):
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
         "DD_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "DD_IAST_ENABLED": str(scenario.iast_enabled),
-        "_DD_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
+        "DD_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
     }
     # copy over current environ
     env.update(os.environ)
