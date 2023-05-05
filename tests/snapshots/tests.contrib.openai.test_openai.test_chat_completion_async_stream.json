@@ -15,13 +15,14 @@
       "language": "python",
       "openai.endpoint": "chat.completions",
       "openai.model": "gpt-3.5-turbo",
-      "openai.organization.name": "user-f23xvdxbrssd56y1ghcjdcue",
-      "openai.organization.ratelimit.requests.remaining": "2",
-      "openai.request.messages.0.content": "Who won the world series in 2020?",
+      "openai.organization.name": "datadog-4",
+      "openai.organization.ratelimit.requests.remaining": "3499",
+      "openai.organization.ratelimit.tokens.remaining": "89971",
+      "openai.request.messages.0.content": "Who is the captain of the toronto maple leafs?",
       "openai.request.messages.0.role": "user",
       "openai.request.stream": "True",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "8154bd1813ea422fa959cacf3fdfa1bc"
+      "runtime-id": "c3d12e5c2db84163adebb341d1f6dfa0"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -29,11 +30,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.usage.completion_tokens": 15,
-      "openai.response.usage.prompt_tokens": 8,
-      "openai.response.usage.total_tokens": 23,
-      "process_id": 14806
+      "openai.response.usage.completion_tokens": 39,
+      "openai.response.usage.prompt_tokens": 10,
+      "openai.response.usage.total_tokens": 49,
+      "process_id": 54107
     },
-    "duration": 3112000,
-    "start": 1683148556666996000
+    "duration": 10299000,
+    "start": 1683166822191748000
   }]]
