@@ -62,8 +62,8 @@ class MemoryCollector(collector.PeriodicCollector):
     max_nframe = attr.ib(default=config.max_frames, type=int)
     heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
     ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
-    export_libdd_enabled= attr.ib(type=bool, default=config.export.libdd_enabled)
-    export_py_enabled= attr.ib(type=bool, default=config.export.py_enabled)
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
