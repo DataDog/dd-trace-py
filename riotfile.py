@@ -2498,6 +2498,7 @@ venv = Venv(
             pkgs={
                 "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
                 "vcrpy": "==4.2.1",
+                "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "packaging": latest,
                 "pytest-asyncio": latest,
             },
