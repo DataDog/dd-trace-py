@@ -130,13 +130,13 @@ Uploader *UploaderBuilder::build_ptr() {
       !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
       !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
       !add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg)) {
-    return false;
+    return nullptr;
   }
 
   // Add the unsafe tags, if any
   for (const auto &kv : user_tags)
     if (!add_tag_unsafe(tags, kv.first, kv.second, errmsg))
-      return fals;
+      return nullptr;
 
   ddog_prof_Exporter_NewResult new_exporter = ddog_prof_Exporter_new(
       to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family),
@@ -147,8 +147,9 @@ Uploader *UploaderBuilder::build_ptr() {
   if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
     ddog_exporter = new_exporter.ok;
   } else {
+    std::string ddog_err(ddog_Error_message(&new_exporter.err).ptr);
+    errmsg = "Could not initialize exporter, err: " + ddog_err;
     ddog_Error_drop(&new_exporter.err);
-    errmsg = "Could not initialize exporter";
     return nullptr;
   }
 

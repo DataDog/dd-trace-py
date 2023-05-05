@@ -1,6 +1,7 @@
-import sys
-import os
 import math
+import os
+import platform
+import sys
 import typing as t
 
 from envier import En
@@ -38,12 +39,9 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
+
 def is_glibc_linux_x86_64():
-    return (
-        sys.platform.startswith('linux') and
-        platform.machine() == 'x86_64' and
-        'glibc' in platform.libc_ver()[1]
-    )
+    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[1]
 
 
 class ProfilingConfig(En):
@@ -156,7 +154,6 @@ class ProfilingConfig(En):
         help_type="Mapping",
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
-
 
     export_py = En.v(
         bool,
