@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ...internal import atexit
@@ -120,6 +121,7 @@ class TelemetryBase(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self.started = False
         forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
@@ -150,20 +152,26 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def enable(self):
-        # type: () -> bool
+    def enable(self, start_worker_thread=True):
+        # type: (bool) -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if config._telemetry_enabled:
-            if self.status == ServiceStatus.RUNNING:
-                return True
+        if not config._telemetry_enabled:
+            return False
 
+        if self.status == ServiceStatus.RUNNING:
+            return True
+
+        self.started = True
+
+        if start_worker_thread:
             self.start()
             atexit.register(self.stop)
             return True
-        return False
+        self.status = ServiceStatus.RUNNING
+        return True
 
     def disable(self):
         # type: () -> None
@@ -173,12 +181,16 @@ class TelemetryBase(PeriodicService):
         """
         self._disabled = True
         self.reset_queues()
-        if self.status == ServiceStatus.STOPPED:
-            return
 
-        atexit.unregister(self.stop)
+        if self.is_periodic:
+            atexit.unregister(self.stop)
+            self.stop()
+        else:
+            self.status = ServiceStatus.STOPPED
 
-        self.stop()
+    @property
+    def is_periodic(self):
+        return self.status is ServiceStatus.RUNNING and self._worker
 
     def reset_queues(self):
         # type: () -> None
@@ -224,14 +236,14 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         self._namespace = MetricNamespace()
         self._logs = []  # type: List[Dict[str, Any]]
 
-    def enable(self):
-        # type: () -> bool
+    def enable(self, start_worker_thread=True):
+        # type: (bool) -> bool
         """
         Enable the telemetry metrics collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
         service.
         """
-        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable()
+        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
 
     def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
@@ -368,9 +380,13 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
+        # Currently telemetry only supports reporting a single error.
+        # If we'd like to report multiple errors in the future
+        # we could hack it in by xor-ing error codes and concatenating strings
+        self._error = (0, "")  # type: Tuple[int, str]
 
-    def add_integration(self, integration_name, auto_enabled):
-        # type: (str, bool) -> None
+    def add_integration(self, integration_name, enabled, auto_enabled, error_msg):
+        # type: (str, bool, bool, str) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -381,12 +397,23 @@ class TelemetryWriter(TelemetryBase):
         integration = {
             "name": integration_name,
             "version": "",
-            "enabled": True,
+            "enabled": enabled,
             "auto_enabled": auto_enabled,
-            "compatible": True,
-            "error": "",
+            "compatible": error_msg == "",
+            "error": error_msg,  # the integration error only takes a message, no code
         }
+        # Reset the error after it has been reported.
+        self._error = (0, "")
         self._integrations_queue.append(integration)
+
+    def add_error(self, code, msg, filename, line_number):
+        # type: (int, str, Optional[str], Optional[int]) -> None
+        """Add an error to be submitted with an event.
+        Note that this overwrites any previously set errors.
+        """
+        if filename and line_number is not None:
+            msg = "%s:%s: %s" % (filename, line_number, msg)
+        self._error = (code, msg)
 
     def _app_started_event(self):
         # type: () -> None
@@ -396,7 +423,13 @@ class TelemetryWriter(TelemetryBase):
             return
         payload = {
             "configuration": [],
-        }  # type: Dict[str, List[Any]]
+            "error": {
+                "code": self._error[0],
+                "message": self._error[1],
+            },
+        }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
+        # Reset the error after it has been reported.
+        self._error = (0, "")
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
