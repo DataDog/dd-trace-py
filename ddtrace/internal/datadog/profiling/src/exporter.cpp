@@ -81,7 +81,8 @@ void DdogProfExporterDeleter::operator()(ddog_prof_Exporter *ptr) const {
 }
 
 #define X_STR(a, b) b,
-bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val, std::string &errmsg) {
+bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
+             std::string &errmsg) {
   // NB the storage of `val` needs to be guaranteed until the tags are flushed
   constexpr std::array<std::string_view,
                        static_cast<size_t>(ExportTagKey::_Length)>
@@ -107,7 +108,8 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val, s
   return true;
 }
 
-bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key, std::string_view val, std::string &errmsg) {
+bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
+                    std::string_view val, std::string &errmsg) {
   if (key.empty() || val.empty()) {
     errmsg =
         "tag '" + std::string(key) + "'='" + std::string(val) + "' is invalid";
@@ -145,7 +147,7 @@ Uploader *UploaderBuilder::build_ptr() {
       &tags, ddog_Endpoint_agent(to_slice(url)));
   ddog_Vec_Tag_drop(tags);
 
-  ddog_prof_Exporter *ddog_exporter = nullptr; 
+  ddog_prof_Exporter *ddog_exporter = nullptr;
   if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
     ddog_exporter = new_exporter.ok;
   } else {
@@ -159,8 +161,7 @@ Uploader *UploaderBuilder::build_ptr() {
 }
 
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter *_ddog_exporter)
-    : ddog_exporter{_ddog_exporter}, url{_url}
-  {}
+    : ddog_exporter{_ddog_exporter}, url{_url} {}
 
 bool Uploader::set_runtime_id(const std::string &id) {
   runtime_id = id;
@@ -196,7 +197,8 @@ bool Uploader::upload(const Profile *profile) {
 
   // If we have any custom tags, set them now
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-  add_tag(tags, ExportTagKey::profile_seq, std::to_string(profile_seq++), errmsg);
+  add_tag(tags, ExportTagKey::profile_seq, std::to_string(profile_seq++),
+          errmsg);
   add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
   // Build the request object
@@ -347,21 +349,21 @@ void Profile::push_frame_impl(std::string_view name, std::string_view filename,
   filename = insert_or_get(filename);
 
   lines[cur_frame] = {
-    .function =
-      {
-        .name = to_slice(name),
-        .system_name = {},
-        .filename = to_slice(filename),
-        .start_line = 0,
-      },
-    .line = line,
+      .function =
+          {
+              .name = to_slice(name),
+              .system_name = {},
+              .filename = to_slice(filename),
+              .start_line = 0,
+          },
+      .line = line,
   };
 
   locations[cur_frame] = {
-    {},
-    address,
-    {&lines[cur_frame], 1},
-    false,
+      {},
+      address,
+      {&lines[cur_frame], 1},
+      false,
   };
 
   ++cur_frame;
@@ -469,7 +471,7 @@ bool Profile::push_walltime(int64_t walltime, int64_t count) {
 }
 
 bool Profile::push_exceptioninfo(std::string_view exception_type,
-                                          int64_t count) {
+                                 int64_t count) {
   if (type_mask & ProfileType::Exception) {
     push_label(ExportLabelKey::exception_type, exception_type);
     values[val_idx.exception_count] += count;
@@ -518,21 +520,19 @@ bool Profile::push_lock_name(std::string_view lock_name) {
   return true;
 }
 
-bool Profile::push_threadinfo(int64_t thread_id,
-                                       int64_t thread_native_id,
-                                       std::string_view thread_name) {
+bool Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id,
+                              std::string_view thread_name) {
   if (!push_label(ExportLabelKey::thread_id, thread_id) ||
-       push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
-       push_label(ExportLabelKey::thread_name, thread_name)) {
+      push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
+      push_label(ExportLabelKey::thread_name, thread_name)) {
     return false;
   }
   return true;
 }
 
-bool Profile::push_taskinfo(int64_t task_id,
-                                     std::string_view task_name) {
+bool Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
   if (!push_label(ExportLabelKey::task_id, task_id) ||
-       push_label(ExportLabelKey::task_name, task_name)) {
+      push_label(ExportLabelKey::task_name, task_name)) {
     return false;
   }
   return true;
@@ -562,7 +562,7 @@ bool Profile::push_trace_type(std::string_view trace_type) {
 bool Profile::push_trace_resource_container(
     std::string_view trace_resource_container) {
   if (!push_label(ExportLabelKey::trace_resource_container,
-             trace_resource_container)) {
+                  trace_resource_container)) {
     return false;
   }
   return true;

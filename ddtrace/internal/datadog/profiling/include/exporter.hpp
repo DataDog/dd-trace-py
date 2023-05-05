@@ -150,7 +150,8 @@ private:
   std::unordered_set<std::string> strings;
 
   // Storage for labels
-  std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels;
+  std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)>
+      labels;
   size_t cur_label = 0;
 
   // Storage for values
