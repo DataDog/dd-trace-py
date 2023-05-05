@@ -585,7 +585,7 @@ jobs:
     parallelism: 2
     steps:
       - run_test:
-          pattern: 'django$'
+          pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
 

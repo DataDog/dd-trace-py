@@ -9,9 +9,17 @@ class TestDjangoPatch(PatchTestCase.Base):
     __unpatch_func__ = None
 
     def assert_module_patched(self, django):
+        import django.apps.registry
+
         self.assert_wrapped(django.apps.registry.Apps.populate)
+
+        import django.core.handlers.base
+
         self.assert_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_wrapped(django.core.handlers.base.BaseHandler.get_response)
+
+        import django.template.base
+
         self.assert_wrapped(django.template.base.Template.render)
         if django.VERSION >= (2, 0, 0):
             self.assert_wrapped(django.urls.path)
@@ -19,7 +27,7 @@ class TestDjangoPatch(PatchTestCase.Base):
         self.assert_wrapped(django.views.generic.base.View.as_view)
 
     def assert_not_module_patched(self, django):
-        self.assert_not_wrapped(django.apps.registry.Apps.populate)
+        self.assertFalse(hasattr(django, "app"))
         import django.core.handlers.base
 
         self.assert_not_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
