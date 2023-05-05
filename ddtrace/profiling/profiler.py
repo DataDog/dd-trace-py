@@ -139,11 +139,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
 
-    # enforce architecture compatibility
-    if export_libdatadog and not is_glibc_linux_x86_64():
-        export_libdatadog = False
-        LOG.warning("libdatadog support was requested on an unsupported platform")
-
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
@@ -226,13 +221,18 @@ class _ProfilerInstance(service.Service):
             default_max_events=config.max_events,
         )
 
+        # enforce architecture compatibility
+        if self.export_libdatadog and not is_glibc_linux_x86_64():
+            self.export_libdatadog = False
+            LOG.error("Support for libdatadog-profiling is not available on your platform.")
+
         self._collectors = [
             stack.StackCollector(
                 r,
                 tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-                export_libdatadog=attr.ib(type=bool, default=config.export_libdatadog),
-                export_py=attr.ib(type=bool, default=config.export_py),
+                export_libdatadog=self.export_libdatadog,
+                export_py=self.export_py,
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
