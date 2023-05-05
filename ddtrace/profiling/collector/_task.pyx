@@ -78,15 +78,13 @@ cpdef get_task(thread_id):
     task_name = None
     frame = None
 
-    policy = _asyncio.get_event_loop_policy()
-    if isinstance(policy, _asyncio.DdtraceProfilerEventLoopPolicy):
-        loop = policy._ddtrace_get_loop(thread_id)
-        if loop is not None:
-            task = _asyncio.current_task(loop)
-            if task is not None:
-                task_id = id(task)
-                task_name = _asyncio._task_get_name(task)
-                frame = _asyncio_task_get_frame(task)
+    loop = _asyncio.get_event_loop_for_thread(thread_id)
+    if loop is not None:
+        task = _asyncio.current_task(loop)
+        if task is not None:
+            task_id = id(task)
+            task_name = _asyncio._task_get_name(task)
+            frame = _asyncio_task_get_frame(task)
 
     # gevent greenlet support:
     # - we only support tracing tasks in the greenlets run in the MainThread.
@@ -129,15 +127,13 @@ cpdef list_tasks(thread_id):
                 ]
             )
 
-    policy = _asyncio.get_event_loop_policy()
-    if isinstance(policy, _asyncio.DdtraceProfilerEventLoopPolicy):
-        loop = policy._ddtrace_get_loop(thread_id)
-        if loop is not None:
-            tasks.extend([
-                (id(task),
-                 _asyncio._task_get_name(task),
-                 _asyncio_task_get_frame(task))
-                for task in _asyncio.all_tasks(loop)
-            ])
+    loop = _asyncio.get_event_loop_for_thread(thread_id)
+    if loop is not None:
+        tasks.extend([
+            (id(task),
+                _asyncio._task_get_name(task),
+                _asyncio_task_get_frame(task))
+            for task in _asyncio.all_tasks(loop)
+        ])
 
     return tasks

@@ -129,8 +129,8 @@ def parse_tags_str(tags_str):
     return dict(tag_list)
 
 
-def stringify_cache_args(args):
-    # type: (List[Any]) -> Text
+def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_LEN):
+    # type: (List[Any], int, int) -> Text
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
@@ -145,11 +145,11 @@ def stringify_cache_args(args):
             else:
                 cmd = stringify(arg)
 
-            if len(cmd) > VALUE_MAX_LEN:
-                cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
+            if len(cmd) > value_max_len:
+                cmd = cmd[:value_max_len] + VALUE_TOO_LONG_MARK
 
-            if length + len(cmd) > CMD_MAX_LEN:
-                prefix = cmd[: CMD_MAX_LEN - length]
+            if length + len(cmd) > cmd_max_len:
+                prefix = cmd[: cmd_max_len - length]
                 out.append("%s%s" % (prefix, VALUE_TOO_LONG_MARK))
                 break
 
