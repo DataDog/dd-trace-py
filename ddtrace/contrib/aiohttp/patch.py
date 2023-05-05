@@ -13,6 +13,7 @@ from ddtrace.vendor import wrapt
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
+from ...internal.schema import schematize_url_operation
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import ext_service
@@ -71,7 +72,9 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     headers = kwargs.get("headers") or {}
 
     with pin.tracer.trace(
-        "aiohttp.request", span_type=SpanTypes.HTTP, service=ext_service(pin, config.aiohttp_client)
+        schematize_url_operation("aiohttp.request", protocol="http", direction="outbound"),
+        span_type=SpanTypes.HTTP,
+        service=ext_service(pin, config.aiohttp_client),
     ) as span:
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)
