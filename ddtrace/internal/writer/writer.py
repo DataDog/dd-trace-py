@@ -26,7 +26,6 @@ from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.serverless import in_gcp_function
 from ...internal.telemetry import telemetry_lifecycle_writer
-from ...internal.telemetry import telemetry_metrics_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
@@ -647,7 +646,6 @@ class AgentWriter(HTTPWriter):
         super(AgentWriter, self).start()
         try:
             telemetry_lifecycle_writer.enable()
-            telemetry_metrics_writer.enable()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
