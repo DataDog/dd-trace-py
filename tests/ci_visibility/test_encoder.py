@@ -105,7 +105,7 @@ def test_encode_traces_civisibility_v2_coverage():
     encoder = CIVisibilityCoverageEncoderV02(0, 0)
     for trace in traces:
         encoder.put(trace)
-    payload = encoder.encode()
+    payload = encoder._build_data(traces)
     assert isinstance(payload, msgpack_type)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -123,6 +123,23 @@ def test_encode_traces_civisibility_v2_coverage():
         ],
     }
     assert expected_cov == received_covs[0]
+
+    complete_payload = encoder.encode()
+    assert isinstance(complete_payload, bytes)
+    payload_per_line = complete_payload.split(b"\r\n")
+    assert len(payload_per_line) == 11
+    assert payload_per_line[0].startswith(b"--")
+    boundary = payload_per_line[0][2:]
+    assert payload_per_line[1] == b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"'
+    assert payload_per_line[2] == b"Content-Type: application/msgpack"
+    assert payload_per_line[3] == b""
+    assert payload_per_line[4] == payload
+    assert payload_per_line[5] == payload_per_line[0]
+    assert payload_per_line[6] == b'Content-Disposition: form-data; name="event"; filename="event.json"'
+    assert payload_per_line[7] == b"Content-Type: application/json"
+    assert payload_per_line[8] == b""
+    assert payload_per_line[9] == b'{"dummy":true}'
+    assert payload_per_line[10] == b"--%s--" % boundary
 
 
 @contextlib.contextmanager
