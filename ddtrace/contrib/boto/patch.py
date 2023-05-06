@@ -120,6 +120,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 
@@ -185,6 +186,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 
