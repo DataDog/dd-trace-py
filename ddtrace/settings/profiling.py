@@ -202,7 +202,7 @@ class ProfilingConfig(En):
             "libdd_enabled",
             default=False,
             help_type="Boolean",
-            help="Enables collection and export using the experimental exporter"
+            help="Enables collection and export using the experimental exporter",
         )
         libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
 
