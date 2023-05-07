@@ -55,23 +55,22 @@ jobs:
   django-testsuite-3_1:
     strategy:
       matrix:
-        expl_profiler: [0, 1]
-        expl_coverage: [0 ,1]
-        exclude:
-          - expl_profiler: 1
-            expl_coverage: 1
-          - expl_profiler: 0
+        include:
+          - suffix: DI profiler
+            expl_profiler: 1
             expl_coverage: 0
-          # Temporarily disabling line coverage to investigate cause of hangs
-          - expl_profiler: 0
+          - suffix: DI coverage
+            expl_profiler: 0
             expl_coverage: 1
     runs-on: ubuntu-20.04
+    name: Django 3.1 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
+      DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
