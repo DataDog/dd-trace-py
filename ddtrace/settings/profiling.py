@@ -204,6 +204,8 @@ class ProfilingConfig(En):
             help_type="Boolean",
             help="Enables collection and export using the experimental exporter",
         )
+
+        # For now, only allow libdd to be enabled if the user asks for it
         libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
 
         py_enabled = En.v(

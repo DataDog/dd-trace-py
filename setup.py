@@ -279,12 +279,14 @@ class LibDatadog_Download(Library_Download):
     def run(cls):
         LibDatadog_Download.download_artifacts()
 
+
 class Library_Downloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
         LibDatadog_Download.run()
         LibDDWaf_Download.run()
         BuildPyCommand.run(self)
+
 
 class CleanLibraries(CleanCommand):
     @staticmethod
@@ -296,14 +298,16 @@ class CleanLibraries(CleanCommand):
         CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
 
+
 class ExtensionWithPrereqs(Extension):
     def __init__(self, *args, **kwargs):
-        self.pre_build_func = kwargs.pop('satisfy_prereqs', None)
+        self.pre_build_func = kwargs.pop("satisfy_prereqs", None)
         Extension.__init__(self, *args, **kwargs)
+
 
 class CustomBuildExtCommand(BuildExtCommand):
     def build_extension(self, ext):
-        if hasattr(ext, 'pre_build_func') and callable(ext.pre_build_func):
+        if hasattr(ext, "pre_build_func") and callable(ext.pre_build_func):
             ext.pre_build_func()
         BuildExtCommand.build_extension(self, ext)
 
@@ -576,7 +580,7 @@ setup(
                 extra_objects=LibDatadog_Download.get_extra_objects(),
                 extra_compile_args=["-std=c++17"],
                 language="c++",
-                get_prereqs=lambda : LibDatadog_Download.run(),
+                get_prereqs=lambda: LibDatadog_Download.run(),
             ),
         ],
         compile_time_env={
