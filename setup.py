@@ -307,7 +307,7 @@ class ExtensionWithPrereqs(Extension):
 
 class CustomBuildExtCommand(BuildExtCommand):
     def build_extension(self, ext):
-        if hasattr(ext, "pre_build_func") and callable(ext.pre_build_func):
+        if hasattr(ext, "satisfy_prereqs") and callable(ext.pre_build_func):
             ext.pre_build_func()
         BuildExtCommand.build_extension(self, ext)
 
