@@ -130,9 +130,7 @@ def get_rev_list_excluding_commits(commit_shas, cwd=None):
     exclusions = ["^%s" % sha for sha in commit_shas]
     command.extend(exclusions)
     commits = _git_subprocess_cmd(command, cwd=cwd)
-    if not commits:
-        return []
-    return commits.split("\n")
+    return commits
 
 
 def extract_repository_url(cwd=None):
@@ -229,11 +227,9 @@ def extract_user_git_metadata(env=None):
 
 @contextlib.contextmanager
 def build_git_packfiles(revisions, cwd=None):
-    # type: (Union[str, list[str]], Optional[str]) -> Generator
+    # type: (str, Optional[str]) -> Generator
     basename = str(random.randint(1, 1000000))
     with TemporaryDirectory() as tempdir:
         prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
-        _git_subprocess_cmd(
-            "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=" ".join(revisions)
-        )
+        _git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions)
         yield prefix
