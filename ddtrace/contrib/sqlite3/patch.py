@@ -10,8 +10,8 @@ from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
 from ...ext import db
-from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 

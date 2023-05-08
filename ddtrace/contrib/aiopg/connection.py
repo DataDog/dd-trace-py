@@ -13,8 +13,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt

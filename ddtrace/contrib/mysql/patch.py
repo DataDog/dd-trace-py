@@ -9,8 +9,8 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 
 

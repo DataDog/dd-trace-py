@@ -219,6 +219,7 @@ class MongoEngineCore(object):
         assert len(spans) == 1
         assert spans[0].name == "mongodb.query"
 
+
 class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
 

@@ -12,8 +12,8 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.logger import get_logger
-from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap

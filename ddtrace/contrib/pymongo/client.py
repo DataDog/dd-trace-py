@@ -22,8 +22,8 @@ from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.compat import iteritems
 from ...internal.logger import get_logger
-from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from .parse import parse_msg
 from .parse import parse_query
