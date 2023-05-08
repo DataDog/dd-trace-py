@@ -23,6 +23,7 @@ from ...ext import net as netx
 from ...internal.compat import iteritems
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_storage_operation
 from ...internal.utils import get_argument_value
 from .parse import parse_msg
 from .parse import parse_query
@@ -116,7 +117,11 @@ class TracedServer(ObjectProxy):
         if not cmd or not pin or not pin.enabled():
             return None
 
-        span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+        span = pin.tracer.trace(
+            schematize_storage_operation("pymongo.cmd", database_provider="mongodb"),
+            span_type=SpanTypes.MONGODB,
+            service=pin.service,
+        )
 
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
 
@@ -250,7 +255,11 @@ class TracedSocket(ObjectProxy):
 
     def __trace(self, cmd):
         pin = ddtrace.Pin.get_from(self)
-        s = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+        s = pin.tracer.trace(
+            schematize_storage_operation("pymongo.cmd", database_provider="mongodb"),
+            span_type=SpanTypes.MONGODB,
+            service=pin.service,
+        )
 
         s.set_tag_str(COMPONENT, config.pymongo.integration_name)
         s.set_tag_str(db.SYSTEM, mongox.SERVICE)
