@@ -3,17 +3,16 @@
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
 
-// High-level skip for invalid architectures
-#ifndef __linux__
-#elif __aarch64__
-#elif __i386__
-#else
-
 #include "interface.hpp"
 #include "exporter.hpp"
 
+#include <csignal>
+#include <cstdlib>
+#include <cxxabi.h>
+#include <execinfo.h>
 #include <iostream>
 #include <thread>
+#include <unistd.h>
 
 // State
 bool is_initialized = false;
@@ -63,9 +62,47 @@ void ddup_config_max_nframes(int max_nframes) {
     profile_builder.set_max_nframes(max_nframes);
 }
 
-// Initialization
+inline static void print_backtrace() {
+  constexpr int max_frames = 128;
+  void *frames[max_frames];
+  int num_frames = backtrace(frames, max_frames);
+  char **symbols = backtrace_symbols(frames, num_frames);
+
+  std::cerr << "Backtrace:\n";
+  for (int i = 0; i < num_frames; ++i) {
+    std::string symbol(symbols[i]);
+    std::size_t start = symbol.find_first_of('_');
+    std::size_t end = symbol.find_first_of(' ', start);
+
+    if (start != std::string::npos && end != std::string::npos) {
+      std::string mangled_name = symbol.substr(start, end - start);
+      int status = -1;
+      char *demangled_name =
+          abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
+      if (status == 0) {
+        symbol.replace(start, end - start, demangled_name);
+        free(demangled_name);
+      }
+    }
+    std::cerr << symbol << std::endl;
+  }
+  std::cerr << std::endl;
+
+  free(symbols);
+}
+static void sigsegv_handler(int sig, siginfo_t *si, void *uc) {
+  (void)uc;
+  print_backtrace();
+  exit(-1);
+}
 void ddup_init() {
   if (!is_initialized) {
+    // Install segfault handler
+    struct sigaction sigaction_handlers = {};
+    sigaction_handlers.sa_sigaction = sigsegv_handler;
+    sigaction_handlers.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &(sigaction_handlers), NULL);
+
     g_profile_real[0] = profile_builder.build_ptr();
     g_profile_real[1] = profile_builder.build_ptr();
     g_profile = g_profile_real[g_prof_flag];
@@ -168,5 +205,3 @@ void ddup_upload() {
   g_profile = g_profile_real[g_prof_flag];
   g_profile->reset();
 }
-
-#endif
