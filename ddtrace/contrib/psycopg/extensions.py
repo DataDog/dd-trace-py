@@ -5,6 +5,7 @@ import functools
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
