@@ -376,8 +376,6 @@ def ip_is_global(ip):
     return not (parsed_ip.is_loopback or parsed_ip.is_private)
 
 
-<<<<<<< HEAD
-=======
 try:
     from shlex import quote as shquote
 except ImportError:
