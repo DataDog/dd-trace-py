@@ -129,7 +129,9 @@ def get_rev_list_excluding_commits(commit_shas, cwd=None):
     exclusions = ["^%s" % sha for sha in commit_shas]
     command.extend(exclusions)
     commits = _git_subprocess_cmd(command, cwd=cwd)
-    return commits
+    if not commits:
+        return []
+    return commits.split("\n")
 
 
 def extract_repository_url(cwd=None):
