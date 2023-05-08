@@ -26,8 +26,7 @@ log = get_logger(__name__)
 """
 JJJ TODO:
 - make sure than _unpatch is called at the right time inside the tracer
-- flask snapshot tests from views
-- python2 testing
+- test snapshots with Python2
 - mypy
 - exception handlers so it never fails and always executes the command
 - constants for the tag names
@@ -294,14 +293,13 @@ class SubprocessCmdLine(object):
 
 @trace_utils.with_traced_module
 def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
-    with pin.tracer.trace("os.system", span_type=SpanTypes.SYSTEM) as span:
-        shellcmd = SubprocessCmdLine(args[0], shell=True)
-        span.set_tag_str("name", "command_execution")
+    shellcmd = SubprocessCmdLine(args[0], shell=True)
+
+    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag_str("cmd.shell", shellcmd.as_string())
         if shellcmd.truncated:
             span.set_tag_str("cmd.truncated", "yes")
         span.set_tag_str("component", "os")
-        span.set_tag_str("resource", shellcmd.binary)
         ret = wrapped(*args, **kwargs)
         span.set_tag_str("cmd.exit_code", str(ret))
     return ret
@@ -309,16 +307,14 @@ def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
-    with pin.tracer.trace("os.spawn", span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag_str("name", "command_execution")
-        mode, file, func_args, _, _ = args
+    mode, file, func_args, _, _ = args
+    shellcmd = SubprocessCmdLine(func_args, as_list=True, shell=False)
 
-        shellcmd = SubprocessCmdLine(func_args, as_list=True, shell=False)
+    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag("cmd.exec", shellcmd.as_list())
         if shellcmd.truncated:
             span.set_tag_str("cmd.truncated", "true")
         span.set_tag_str("component", "os")
-        span.set_tag_str("resource", shellcmd.binary)
 
         if mode == os.P_WAIT:
             ret = wrapped(*args, **kwargs)
@@ -330,16 +326,14 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
-    with pin.tracer.trace("os.popen", span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag_str("name", "command_execution")
-        command = args[0]
+    command = args[0]
+    subcmd = SubprocessCmdLine(command, as_list=False, shell=False)
 
-        subcmd = SubprocessCmdLine(command, as_list=False, shell=False)
+    with pin.tracer.trace("command_execution", resource=subcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag("cmd.exec", subcmd.as_list())
         if subcmd.truncated:
             span.set_tag_str("cmd.truncated", "true")
         span.set_tag_str("component", "os")
-        span.set_tag_str("resource", subcmd.binary)
 
         return wrapped(*args, **kwargs)
 
@@ -347,13 +341,14 @@ def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    with pin.tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM) as span:
-        cmd_args = args[0] if len(args) else kwargs["args"]
-        cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-        is_shell = kwargs.get("shell", False)
+    cmd_args = args[0] if len(args) else kwargs["args"]
+    cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
+    is_shell = kwargs.get("shell", False)
+    shellcmd = SubprocessCmdLine(cmd_args_list, True, shell=is_shell)
+
+    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         _context.set_item("subprocess_popen_is_shell", is_shell, span=span)
 
-        shellcmd = SubprocessCmdLine(cmd_args_list, True, shell=is_shell)
         if shellcmd.truncated:
             _context.set_item("subprocess_popen_truncated", "yes", span=span)
 
@@ -361,7 +356,6 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
         else:
             _context.set_item("subprocess_popen_line", shellcmd.as_list(), span=span)
-
         _context.set_item("subprocess_popen_binary", shellcmd.binary, span=span)
 
         wrapped(*args, **kwargs)
@@ -369,9 +363,9 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
-    with pin.tracer.trace("subprocess.Popen.wait", span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag_str("name", "command_execution")
+    binary = _context.get_item("subprocess_popen_binary")
 
+    with pin.tracer.trace("command_execution", resource=binary, span_type=SpanTypes.SYSTEM) as span:
         if _context.get_item("subprocess_popen_is_shell", span=span):
             span.set_tag_str("cmd.shell", _context.get_item("subprocess_popen_line", span=span))
         else:
@@ -381,7 +375,6 @@ def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         if truncated:
             span.set_tag_str("cmd.truncated", "yes")
         span.set_tag_str("component", "subprocess")
-        span.set_tag_str("resource", _context.get_item("subprocess_popen_binary", span=span))
         ret = wrapped(*args, **kwargs)
         span.set_tag_str("cmd.exit_code", str(ret))
         return ret

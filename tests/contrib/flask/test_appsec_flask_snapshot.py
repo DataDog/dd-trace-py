@@ -212,3 +212,98 @@ def test_flask_userblock_match_403_json(flask_client):
 def test_flask_userblock_match_200_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _ALLOWED_USER)
     assert resp.status_code == 200
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_processexec_ossystem(flask_client):
+    resp = flask_client.get("/executions/ossystem")
+    assert resp.status_code == 200
+    assert resp.text == "0"
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_processexec_osspawn(flask_client):
+    resp = flask_client.get("/executions/osspawn")
+    assert resp.status_code == 200
+    assert resp.text == "0"
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_processexec_subprocesscommunicateshell(flask_client):
+    resp = flask_client.get("/executions/subcommunicateshell")
+    assert resp.status_code == 200
+    assert resp.text == "0"
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta._dd.appsec.waf.duration",
+        "meta._dd.appsec.waf.duration_ext",
+        "meta.flask.version",
+        "meta.http.request.headers.accept-encoding",
+        "meta.http.request.headers.user-agent",
+        "http.response.headers.content-length",
+        "http.response.headers.content-type",
+        "meta.http.useragent",
+        "meta.error.stack",
+        "metrics._dd.appsec.event_rules.loaded",
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
+def test_flask_processexec_subprocesscommunicatenoshell(flask_client):
+    resp = flask_client.get("/executions/subcommunicatenoshell")
+    assert resp.status_code == 200
+    assert resp.text == "0"

@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -11,9 +12,6 @@ from ddtrace.internal.compat import PY2, PY3
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from tests.utils import override_global_config
-
-
-# JJJ use some command that can work also on Windoze
 
 
 @pytest.fixture(autouse=True)
@@ -33,19 +31,19 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     allowed_envvars_fixture_list.extend(
         [
             (
-                SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
-                ["%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+                SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True),
+                ["%s=bar" % allowed, "BAR=?", "dir", "-li", "/", "OTHER=any"],
                 ["%s=bar" % allowed, "BAR=?"],
-                "ls",
+                "dir",
                 ["-li", "/", "OTHER=any"],
             ),
             (
                 SubprocessCmdLine(
-                    ["FOO=bar", "%s=bar" % allowed, "BAR=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True
+                    ["FOO=bar", "%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True
                 ),
-                ["FOO=?", "%s=bar" % allowed, "BAR=?", "ls", "-li", "/", "OTHER=any"],
+                ["FOO=?", "%s=bar" % allowed, "BAR=?", "dir", "-li", "/", "OTHER=any"],
                 ["FOO=?", "%s=bar" % allowed, "BAR=?"],
-                "ls",
+                "dir",
                 ["-li", "/", "OTHER=any"],
             ),
         ]
@@ -56,25 +54,25 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/"], True, shell=True),
-            ["FOO=?", "BAR=?", "ls", "-li", "/"],
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], True, shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/"],
             ["FOO=?", "BAR=?"],
-            "ls",
+            "dir",
             ["-li", "/"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "ls", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
-            ["FOO=?", "BAR=?", "ls", "-li", "/dir with spaces", "OTHER=any"],
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
             ["FOO=?", "BAR=?"],
-            "ls",
+            "dir",
             ["-li", "/dir with spaces", "OTHER=any"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "lower=baz", "ls", "-li", "/", "OTHER=any"], True, shell=True),
-            ["FOO=?", "lower=baz", "ls", "-li", "/", "OTHER=any"],
+            SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True),
+            ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
             ["FOO=?"],
             "lower=baz",
-            ["ls", "-li", "/", "OTHER=any"],
+            ["dir", "-li", "/", "OTHER=any"],
         ),
     ]
     + allowed_envvars_fixture_list,
@@ -100,7 +98,7 @@ for denied in SubprocessCmdLine.BINARIES_DENYLIST:
 
 
 @pytest.mark.parametrize(
-    "cmdline_obj,full_list,arguments", [(SubprocessCmdLine(["ls", "-li", "/"], True), ["ls", "-li", "/"], ["-li", "/"])]
+    "cmdline_obj,full_list,arguments", [(SubprocessCmdLine(["dir", "-li", "/"], True), ["dir", "-li", "/"], ["-li", "/"])]
 )
 def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     assert cmdline_obj.as_list() == full_list
@@ -147,12 +145,12 @@ def test_argument_scrubing(cmdline_obj, arguments):
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-            SubprocessCmdLine(["ls", "-A" + "loremipsum" * 40, "-B"], as_list=True),
-            'ls -Aloremipsumloremipsumloremipsumlo "4kB argument truncated by 328 characters"',
-            ["ls", "-Aloremipsumloremipsumloremipsumlo", "4kB argument truncated by 328 characters"],
+            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"], as_list=True),
+            'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
+            ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
             True,
         ),
-        (SubprocessCmdLine("ls -A -B -C", as_list=False), "ls -A -B -C", ["ls", "-A", "-B", "-C"], False),
+        (SubprocessCmdLine("dir -A -B -C", as_list=False), "dir -A -B -C", ["dir", "-A", "-B", "-C"], False),
     ],
 )
 def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
@@ -179,41 +177,41 @@ def test_ossystem(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
-        with tracer.trace("os.system", span_type=SpanTypes.SYSTEM):
-            ret = os.system("ls -l /")
+        with tracer.trace("ossystem_test"):
+            ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
         assert spans
         assert len(spans) > 1
         span = spans[1]
-        assert span.get_tag("name") == "command_execution"
-        assert span.get_tag("cmd.shell") == "ls -l /"
+        assert span.name == "command_execution"
+        assert span.resource == "dir"
+        assert span.get_tag("cmd.shell") == "dir -l /"
         assert span.get_tag("cmd.exit_code") == "0"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "os"
-        assert span.get_tag("resource") == "ls"
 
 
 def test_unpatch(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
-        with tracer.trace("os.system", span_type=SpanTypes.SYSTEM):
-            ret = os.system("ls -l /")
+        with tracer.trace("os.system"):
+            ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
         assert spans
         assert len(spans) > 1
         span = spans[1]
-        assert span.get_tag("cmd.shell") == "ls -l /"
+        assert span.get_tag("cmd.shell") == "dir -l /"
 
     _unpatch()
     with override_global_config(dict(_appsec_enabled=True)):
         Pin.get_from(os).clone(tracer=tracer).onto(os)
-        with tracer.trace("os.system_unpatch", span_type=SpanTypes.SYSTEM):
-            ret = os.system("ls -l /")
+        with tracer.trace("os.system_unpatch"):
+            ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
@@ -221,11 +219,9 @@ def test_unpatch(tracer):
         assert len(spans) == 1
         span = spans[0]
         assert not span.get_tag("cmd.shell")
-        assert not span.get_tag("name")
         assert not span.get_tag("cmd.shell")
         assert not span.get_tag("cmd.exit_code")
         assert not span.get_tag("component")
-        assert not span.get_tag("resource")
 
 
 def test_ossystem_noappsec(tracer):
@@ -241,8 +237,8 @@ def test_py3ospopen(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
-        with tracer.trace("os.popen", span_type=SpanTypes.SYSTEM):
-            pipe = os.popen("ls -li /")
+        with tracer.trace("os.popen"):
+            pipe = os.popen("dir -li /")
             content = pipe.read()
             assert content
             pipe.close()
@@ -251,11 +247,11 @@ def test_py3ospopen(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.get_tag("name") == "command_execution"
-        assert span.get_tag("cmd.shell") == "ls -li /"
+        assert span.name == "command_execution"
+        assert span.resource == "dir"
+        assert span.get_tag("cmd.shell") == "dir -li /"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
-        assert span.get_tag("resource") == "ls"
 
 
 @pytest.mark.skipif(PY3, reason="Python2 specific tests")
@@ -264,8 +260,8 @@ def test_py2ospopen(tracer):
         patch_all()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         for func in [os.popen, os.popen2, os.popen3]:
-            with tracer.trace("os.popen", span_type=SpanTypes.SYSTEM):
-                res = func("ls -li %s" % func.__name__)
+            with tracer.trace("os.popen"):
+                res = func("dir -li %s" % func.__name__)
                 assert res
                 readpipe = res[0] if isinstance(res, tuple) else res
                 readpipe.close()
@@ -274,19 +270,18 @@ def test_py2ospopen(tracer):
             assert spans
             assert len(spans) > 1
             span = spans[1]
-            assert span.get_tag("name") == "command_execution"
-            assert span.get_tag("cmd.exec") == str(["ls", "-li", func.__name__])
+            assert span.name == "command_execution"
+            assert span.resource == "dir"
+            assert span.get_tag("cmd.exec") == str(["dir", "-li", func.__name__])
             assert not span.get_tag("cmd.truncated")
             assert span.get_tag("component") == "os"
-            assert span.get_tag("resource") == "ls"
 
-
-# JJJ only linux!
 
 _PARAMS = ["/usr/bin/ls", "-l", "/"]
 _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 @pytest.mark.parametrize(
     "function,mode,arguments",
     [
@@ -339,8 +334,8 @@ def test_osspawn_variants(tracer, function, mode, arguments):
         if mode == os.P_WAIT:
             assert span.get_tag("cmd.exit_code") == str(ret)
 
-        assert span.get_tag("name") == "command_execution"
-        assert span.get_tag("resource") == arguments[0]
+        assert span.name == "command_execution"
+        assert span.resource == arguments[0]
         param_arguments = arguments[1:-1] if "e" in cleaned_name else arguments[1:]
         assert span.get_tag("cmd.exec") == str([arguments[0]] + param_arguments)
         assert not span.get_tag("cmd.truncated")
@@ -352,19 +347,19 @@ def test_subprocess_init_shell_true(tracer):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
-            subp = subprocess.Popen(["ls", "-li", "/"], shell=True)
+            subp = subprocess.Popen(["dir", "-li", "/"], shell=True)
             subp.wait()
 
         spans = tracer.pop()
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.get_tag("name") == "command_execution"
+        assert span.name == "command_execution"
+        assert span.resource == "dir"
         assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "ls -li /"
+        assert span.get_tag("cmd.shell") == "dir -li /"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
-        assert span.get_tag("resource") == "ls"
 
 
 def test_subprocess_init_shell_false(tracer):
@@ -372,7 +367,7 @@ def test_subprocess_init_shell_false(tracer):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
-            subp = subprocess.Popen(["ls", "-li", "/"], shell=False)
+            subp = subprocess.Popen(["dir", "-li", "/"], shell=False)
             subp.wait()
 
         spans = tracer.pop()
@@ -380,11 +375,11 @@ def test_subprocess_init_shell_false(tracer):
         assert len(spans) > 1
         span = spans[2]
         assert not span.get_tag("cmd.shell")
-        assert span.get_tag("cmd.exec") == "['ls', '-li', '/']"
+        assert span.get_tag("cmd.exec") == "['dir', '-li', '/']"
 
 
 def test_subprocess_wait_shell_false(tracer):
-    args = ["ls", "-li", "/"]
+    args = ["dir", "-li", "/"]
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
@@ -402,7 +397,7 @@ def test_subprocess_wait_shell_true(tracer):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM) as span:
-            subp = subprocess.Popen(args=["ls", "-li", "/"], shell=True)
+            subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
 
             assert _context.get_item("subprocess_popen_is_shell", span=span)
@@ -413,50 +408,52 @@ def test_subprocess_run(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
-        with tracer.trace("subprocess.Popen.wait", span_type=SpanTypes.SYSTEM):
-            result = subprocess.run(["ls", "-l", "/"], shell=True)
+        with tracer.trace("subprocess.Popen.wait"):
+            result = subprocess.run(["dir", "-l", "/"], shell=True)
             assert result.returncode == 0
 
         spans = tracer.pop()
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.get_tag("name") == "command_execution"
+        assert span.name == "command_execution"
+        assert span.resource == "dir"
         assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "ls -l /"
+        assert span.get_tag("cmd.shell") == "dir -l /"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("cmd.exit_code") == "0"
-        assert span.get_tag("resource") == "ls"
 
 
 def test_subprocess_communicate(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
-        with tracer.trace("subprocess.Popen.wait", span_type=SpanTypes.SYSTEM):
-            subp = subprocess.Popen(args=["ls", "-li", "/"], shell=True)
+        with tracer.trace("subprocess.Popen.wait"):
+            subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.communicate()
+            subp.wait()
+            assert subp.returncode == 0
 
         spans = tracer.pop()
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.get_tag("name") == "command_execution"
+        assert span.name == "command_execution"
+        assert span.resource == "dir"
         assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "ls -li /"
+        assert span.get_tag("cmd.shell") == "dir -li /"
         assert not span.get_tag("cmd.truncated")
         assert span.get_tag("component") == "subprocess"
         assert span.get_tag("cmd.exit_code") == "0"
-        assert span.get_tag("resource") == "ls"
 
 
 def test_cache_hit():
-    cmd1 = SubprocessCmdLine("ls -foo -bar", shell=False)
-    cmd2 = SubprocessCmdLine("ls -foo -bar", shell=False)
-    cmd3 = SubprocessCmdLine("ls -foo -bar", shell=True)
-    cmd4 = SubprocessCmdLine("ls -foo -bar", shell=True)
-    cmd5 = SubprocessCmdLine("ls -foo -baz", shell=False)
+    cmd1 = SubprocessCmdLine("dir -foo -bar", shell=False)
+    cmd2 = SubprocessCmdLine("dir -foo -bar", shell=False)
+    cmd3 = SubprocessCmdLine("dir -foo -bar", shell=True)
+    cmd4 = SubprocessCmdLine("dir -foo -bar", shell=True)
+    cmd5 = SubprocessCmdLine("dir -foo -baz", shell=False)
     assert id(cmd1._cache_entry) == id(cmd2._cache_entry)
     assert id(cmd1._cache_entry) != id(cmd3._cache_entry)
     assert id(cmd3._cache_entry) == id(cmd4._cache_entry)
@@ -468,8 +465,8 @@ def test_cache_maxsize():
     try:
         assert len(SubprocessCmdLine._CACHE) == 0
         SubprocessCmdLine._CACHE_MAXSIZE = 2
-        cmd1 = SubprocessCmdLine("ls -foo -bar")  # first entry
-        cmd1_catched = SubprocessCmdLine("ls -foo -bar")  # first entry
+        cmd1 = SubprocessCmdLine("dir -foo -bar")  # first entry
+        cmd1_catched = SubprocessCmdLine("dir -foo -bar")  # first entry
         assert len(SubprocessCmdLine._CACHE) == 1
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 1
         assert id(cmd1._cache_entry) == id(cmd1_catched._cache_entry)
@@ -482,7 +479,7 @@ def test_cache_maxsize():
         assert len(SubprocessCmdLine._CACHE) == 2
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
 
-        cmd1_new = SubprocessCmdLine("ls -foo -bar")  # fourth entry since first was removed, removed second
+        cmd1_new = SubprocessCmdLine("dir -foo -bar")  # fourth entry since first was removed, removed second
         assert len(SubprocessCmdLine._CACHE) == 2
         assert len(SubprocessCmdLine._CACHE_DEQUE) == 2
         assert id(cmd1._cache_entry) != id(cmd1_new._cache_entry)
