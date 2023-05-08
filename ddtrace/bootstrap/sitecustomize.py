@@ -159,7 +159,7 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if debugger_config.enabled:
+    if debugger_config.enabled or debugger_config.exception_debugging:
         from ddtrace.debugging import DynamicInstrumentation
 
         DynamicInstrumentation.enable()

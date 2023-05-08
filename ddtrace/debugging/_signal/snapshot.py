@@ -30,13 +30,14 @@ from ddtrace.internal.utils.time import HourGlass
 
 
 CAPTURE_TIME_BUDGET = 0.2  # seconds
+DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
 def _capture_context(
     arguments,  # type: List[Tuple[str, Any]]
     _locals,  # type: List[Tuple[str, Any]]
     throwable,  # type: ExcInfoType
-    limits=CaptureLimits(),  # type: CaptureLimits
+    limits=DEFAULT_CAPTURE_LIMITS,  # type: CaptureLimits
 ):
     # type: (...) -> Dict[str, Any]
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
@@ -61,7 +62,7 @@ def _capture_context(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), CaptureLimits())
+_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
 
 
 def format_captured_value(value):
