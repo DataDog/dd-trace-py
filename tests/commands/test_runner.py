@@ -273,23 +273,33 @@ class DdtraceRunTest(BaseTestCase):
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default
-    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT)
+    out = subprocess.check_output(
+        ["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT
+    )
     assert out.strip() == b"NO PROFILER"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
-    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT)
+    out = subprocess.check_output(
+        ["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT
+    )
     assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
-    out = subprocess.check_output(["ddtrace-run", "--profiling", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT)
+    out = subprocess.check_output(
+        ["ddtrace-run", "--profiling", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT
+    )
     assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
-    out = subprocess.check_output(["ddtrace-run", "-p", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT)
+    out = subprocess.check_output(
+        ["ddtrace-run", "-p", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT
+    )
     assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
-    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT)
+    out = subprocess.check_output(
+        ["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"], stderr=subprocess.STDOUT
+    )
     assert out.strip() == b"NO PROFILER"
 
 
