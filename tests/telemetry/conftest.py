@@ -21,15 +21,14 @@ from tests.utils import request_token
 @pytest.fixture
 def telemetry_lifecycle_writer():
     telemetry_lifecycle_writer = TelemetryWriter()
-    telemetry_lifecycle_writer.start = lambda *args, **kwargs: None
-    telemetry_lifecycle_writer.stop = lambda *args, **kwargs: None
+    telemetry_lifecycle_writer.enable(start_worker_thread=False)
     yield telemetry_lifecycle_writer
 
 
 @pytest.fixture
 def telemetry_metrics_writer():
     telemetry_metrics_writer = TelemetryLogsMetricsWriter()
-
+    telemetry_metrics_writer.enable(start_worker_thread=False)
     return telemetry_metrics_writer
 
 

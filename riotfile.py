@@ -964,6 +964,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="elasticsearch8-patch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "elasticsearch8": [latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="elasticsearch-opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
@@ -2486,6 +2498,7 @@ venv = Venv(
             pkgs={
                 "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
                 "vcrpy": "==4.2.1",
+                "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "packaging": latest,
                 "pytest-asyncio": latest,
             },

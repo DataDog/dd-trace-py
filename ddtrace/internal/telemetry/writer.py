@@ -120,6 +120,7 @@ class TelemetryBase(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self.started = False
         forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
@@ -150,20 +151,26 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def enable(self):
-        # type: () -> bool
+    def enable(self, start_worker_thread=True):
+        # type: (bool) -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if config._telemetry_enabled:
-            if self.status == ServiceStatus.RUNNING:
-                return True
+        if not config._telemetry_enabled:
+            return False
 
+        if self.status == ServiceStatus.RUNNING:
+            return True
+
+        self.started = True
+
+        if start_worker_thread:
             self.start()
             atexit.register(self.stop)
             return True
-        return False
+        self.status = ServiceStatus.RUNNING
+        return True
 
     def disable(self):
         # type: () -> None
@@ -173,12 +180,21 @@ class TelemetryBase(PeriodicService):
         """
         self._disabled = True
         self.reset_queues()
-        if self.status == ServiceStatus.STOPPED:
-            return
 
-        atexit.unregister(self.stop)
+        if self.is_periodic:
+            atexit.unregister(self.stop)
+            self.stop()
+        else:
+            self.status = ServiceStatus.STOPPED
 
-        self.stop()
+    @property
+    def is_periodic(self):
+        # type: () -> bool
+        """
+        Returns true if the the telemetry writer is running and was enabled using
+        telemetry_writer.enable(start_worker_thread=True)
+        """
+        return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
     def reset_queues(self):
         # type: () -> None
@@ -224,14 +240,14 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         self._namespace = MetricNamespace()
         self._logs = []  # type: List[Dict[str, Any]]
 
-    def enable(self):
-        # type: () -> bool
+    def enable(self, start_worker_thread=True):
+        # type: (bool) -> bool
         """
         Enable the telemetry metrics collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
         service.
         """
-        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable()
+        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
 
     def add_log(self, level, message, stack_trace="", tags={}):
         # type: (str, str, str, MetricTagType) -> None
