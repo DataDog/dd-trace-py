@@ -76,7 +76,7 @@ def is_ref_a_tag(ref):
 
 
 def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
-    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
+    # type: (Union[str, list[str]], Optional[str], Optional[str]) -> str
     """Helper for invoking the git CLI binary."""
     if isinstance(cmd, six.string_types):
         git_cmd = cmd.split(" ")
