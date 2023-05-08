@@ -11,6 +11,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_url_operation
 
 from .. import trace_utils
 from ...internal import _context
@@ -133,10 +134,12 @@ class TraceMiddleware:
             ip = ""
 
         resource = " ".join((scope["method"], scope["path"]))
+        operation_name = self.integration_config.get("request_span_name", "asgi.request")
+        operation_name = schematize_url_operation(operation_name, direction="inbound", protocol="http")
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(
-                name=self.integration_config.get("request_span_name", "asgi.request"),
+                name=operation_name,
                 service=trace_utils.int_service(None, self.integration_config),
                 resource=resource,
                 span_type=SpanTypes.WEB,
