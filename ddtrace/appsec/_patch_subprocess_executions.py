@@ -147,7 +147,7 @@ class SubprocessCmdLine(object):
         else:
             tokens = cast(List[str], shell_args)
 
-        # Extract previous environment variables, removing all the ones not
+        # Extract previous environment variables, scrubbing all the ones not
         # in ENV_VARS_ALLOWLIST
         if shell:
             self.scrub_env_vars(tokens)
