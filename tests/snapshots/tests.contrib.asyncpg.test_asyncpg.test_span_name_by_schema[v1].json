@@ -1,7 +1,7 @@
 [[
   {
     "name": "postgres.query",
-    "service": "postgres",
+    "service": "unnamed-python-service",
     "resource": "postgres.query",
     "trace_id": 0,
     "span_id": 1,
@@ -33,7 +33,7 @@
 [
   {
     "name": "postgres.query",
-    "service": "postgres",
+    "service": "unnamed-python-service",
     "resource": "SELECT 1",
     "trace_id": 1,
     "span_id": 1,
