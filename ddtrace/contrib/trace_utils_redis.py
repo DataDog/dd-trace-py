@@ -17,7 +17,6 @@ from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.schema import schematize_cache_operation
 
 
-
 format_command_args = stringify_cache_args
 
 
