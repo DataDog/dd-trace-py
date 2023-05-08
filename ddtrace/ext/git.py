@@ -83,7 +83,9 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     else:
         git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
-    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
+    process = subprocess.Popen(
+        git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd, encoding="utf-8"
+    )
     stdout, stderr = process.communicate(input=std_in)
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()

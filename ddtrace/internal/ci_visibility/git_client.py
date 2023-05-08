@@ -89,7 +89,7 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _do_request(cls, base_url, endpoint, payload, serializer, headers=None):
         # type: (str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
-        url = "{}/repository{}".format(base_url, endpoint)
+        url = "{}/api/v2/git/repository{}".format(base_url, endpoint)
         _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
         if headers is not None:
             _headers.update(headers)
