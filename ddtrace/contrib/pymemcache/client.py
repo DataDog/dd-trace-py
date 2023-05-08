@@ -147,7 +147,7 @@ class WrappedClient(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with p.tracer.trace(
-            schematize_cache_operation(memcachedx.CMD),
+            schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
             service=p.service,
             resource=method_name,
             span_type=SpanTypes.CACHE,
