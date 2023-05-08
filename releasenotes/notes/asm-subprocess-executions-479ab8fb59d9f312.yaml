@@ -1,0 +1,12 @@
+---
+prelude: >
+  Application Security Management (ASM) has added support for tracing subprocess executions.
+
+features:
+  - |
+    ASM: add support for tracing subprocess executions (like `os.system`, `os.spawn`, `subprocess.Popen` and others) and adding
+      information to a span names `command_execution` with the new type `system`. Currently we add the `cmd.exec` or `cmd.shell` tags
+      to store the full command line (`cmd.shell` will be used when the command is run under a shell like with `os.system` or `Popen` 
+      with `shell=True`), `cmd.exit_code` to hold the return code when available, `component` which will hold the Python module used
+      and the span `resource` will hold the binary used. This feature requires ASM to be activated using the `DD_APPSEC_ENABLED=True`
+      configuration environment variable.
