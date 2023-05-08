@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from http.cookies import SimpleCookie
 import json
 import logging
 
@@ -40,6 +39,8 @@ def _aux_appsec_get_root_span(
     headers=None,
     cookies={},
 ):
+    # Python 3+ only
+    from http.cookies import SimpleCookie
     tracer._appsec_enabled = config._appsec_enabled
     tracer._iast_enabled = config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
