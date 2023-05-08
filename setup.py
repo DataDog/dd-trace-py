@@ -301,14 +301,14 @@ class CleanLibraries(CleanCommand):
 
 class ExtensionWithPrereqs(Extension):
     def __init__(self, *args, **kwargs):
-        self.pre_build_func = kwargs.pop("satisfy_prereqs", None)
+        self.get_prereqs = kwargs.pop("get_prereqs", None)
         Extension.__init__(self, *args, **kwargs)
 
 
 class CustomBuildExtCommand(BuildExtCommand):
     def build_extension(self, ext):
-        if hasattr(ext, "satisfy_prereqs") and callable(ext.pre_build_func):
-            ext.pre_build_func()
+        if hasattr(ext, "get_prereqs") and callable(ext.get_prereqs):
+            ext.get_prereqs()
         BuildExtCommand.build_extension(self, ext)
 
 
@@ -418,6 +418,22 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
 else:
     ext_modules = []
 
+if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+    ext_modules.append(
+        ExtensionWithPrereqs(
+            "ddtrace.internal.datadog.profiling.ddup",
+            sources=[
+                "ddtrace/internal/datadog/profiling/src/exporter.cpp",
+                "ddtrace/internal/datadog/profiling/src/interface.cpp",
+                "ddtrace/internal/datadog/profiling/ddup.pyx",
+            ],
+            include_dirs=LibDatadog_Download.get_include_dirs(),
+            extra_objects=LibDatadog_Download.get_extra_objects(),
+            extra_compile_args=["-std=c++17"],
+            language="c++",
+            get_prereqs=lambda: LibDatadog_Download.run(),
+        )
+    )
 
 bytecode = [
     "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
@@ -568,19 +584,6 @@ setup(
                 "ddtrace.profiling._build",
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
-            ),
-            ExtensionWithPrereqs(
-                "ddtrace.internal.datadog.profiling.ddup",
-                sources=[
-                    "ddtrace/internal/datadog/profiling/src/exporter.cpp",
-                    "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                    "ddtrace/internal/datadog/profiling/ddup.pyx",
-                ],
-                include_dirs=LibDatadog_Download.get_include_dirs(),
-                extra_objects=LibDatadog_Download.get_extra_objects(),
-                extra_compile_args=["-std=c++17"],
-                language="c++",
-                get_prereqs=lambda: LibDatadog_Download.run(),
             ),
         ],
         compile_time_env={
