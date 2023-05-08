@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import List
+from typing import List  # noqa
 
 import attr
 import pkg_resources
@@ -1175,5 +1175,5 @@ def check_test_agent_status():
             return True
         else:
             return False
-    except Exception as e:
+    except Exception:
         return False
