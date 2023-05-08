@@ -45,6 +45,8 @@ from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda
+from .internal.serverless import in_gcp_function
+from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
@@ -212,6 +214,9 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
+
+        maybe_start_serverless_mini_agent()
+
         self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
@@ -1033,6 +1038,8 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
+        elif in_gcp_function():
+            return False
         else:
             return in_aws_lambda()
 
@@ -1042,13 +1049,15 @@ class Tracer(object):
         """Returns, if an `AgentWriter` is to be used, whether it should be run
          in synchronous mode by default.
 
-        There is only one case in which this is desirable:
+        There are only two cases in which this is desirable:
 
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
+        - Google Cloud Functions have a mini-agent spun up by the tracer.
+          Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return in_aws_lambda() and has_aws_lambda_agent_extension()
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function()
 
     @staticmethod
     def _is_span_internal(span):
