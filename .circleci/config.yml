@@ -147,7 +147,7 @@ commands:
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
               << parameters.snapshot >>
@@ -166,7 +166,7 @@ commands:
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - save_pip_cache
       - when:
           condition:
@@ -425,7 +425,7 @@ jobs:
           command: |
             # Sort the hashes to ensure a consistent ordering/division between each node
             riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
-            ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   integration_testagent:
     <<: *machine_executor
@@ -585,7 +585,7 @@ jobs:
     parallelism: 2
     steps:
       - run_test:
-          pattern: 'django$'
+          pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
 
@@ -663,7 +663,7 @@ jobs:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
-            ./scripts/check-diff "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   httplib:
     <<: *machine_executor

@@ -23,7 +23,8 @@
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
       "openai.response.object": "text_completion",
-      "runtime-id": "35c3f07dcc184e90ae7a1f033948388e"
+      "openai.user.api_key": "sk-...eal>",
+      "runtime-id": "e7e8e1729b2748a6811fe03920383ea8"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,8 +33,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.choices.num": 1,
-      "process_id": 92964
+      "process_id": 14817
     },
-    "duration": 8388000,
-    "start": 1682542462368434000
+    "duration": 7521000,
+    "start": 1683148557799162000
   }]]

@@ -5,6 +5,7 @@ from typing import List
 from typing import Text
 from typing import Union
 
+import django
 from django.utils.functional import SimpleLazyObject
 import six
 import xmltodict
@@ -37,9 +38,12 @@ except ImportError:
 
 log = get_logger(__name__)
 
-# Set on patch, when django is imported
-Resolver404 = None
-DJANGO22 = None
+if django.VERSION < (1, 10, 0):
+    Resolver404 = django.core.urlresolvers.Resolver404
+else:
+    Resolver404 = django.urls.exceptions.Resolver404
+
+DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
