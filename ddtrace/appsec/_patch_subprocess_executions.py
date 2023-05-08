@@ -64,6 +64,12 @@ def _unpatch():
     trace_utils.unwrap(subprocess.Popen, "__init__")
     trace_utils.unwrap(subprocess.Popen, "wait")
 
+    if PY2:
+        trace_utils.unwrap(os, "popen")
+        trace_utils.unwrap(os, "popen2")
+        trace_utils.unwrap(os, "popen3")
+        trace_utils.unwrap(os, "popen4")
+
 
 @attr.s(eq=False)
 class SubprocessCmdLineCacheEntry(object):
