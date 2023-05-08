@@ -232,5 +232,5 @@ class AlgoliasearchTest(TracerTestCase):
         self.reset()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].name == "algoliasearch.search.request", f"{spans[0].name}"
+        assert spans[0].name == "algoliasearch.search.request"
         unpatch()
