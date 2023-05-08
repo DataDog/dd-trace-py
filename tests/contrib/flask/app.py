@@ -83,7 +83,7 @@ if sys.platform == "linux":
         return str(ret), 200
 
 @app.route("/executions/subcommunicateshell")
-def run_ossystem():
+def run_subcommunicateshell():
     subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
     subp.communicate()
     ret = subp.returncode
@@ -91,8 +91,8 @@ def run_ossystem():
 
 
 @app.route("/executions/subcommunicatenoshell")
-def run_ossystem():
-    subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
+def run_subcommunicatenoshell():
+    subp = subprocess.Popen(args=["dir", "-li", "/"], shell=False)
     subp.communicate()
     ret = subp.returncode
     return str(ret), 200
