@@ -49,6 +49,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("region"), "us-west-2")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -64,6 +65,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "POST")
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("region"), "us-west-2")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.ec2")
@@ -159,12 +161,14 @@ class BotoTest(TracerTestCase):
         span = self._test_s3_client()
         # DEV: Not currently supported
         self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+        self.assertIsNone(span.get_tag("bucketname"))
 
     @mock_s3
     def test_s3_client_no_params(self):
         with self.override_config("boto", dict(tag_no_params=True)):
             span = self._test_s3_client()
             self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+            self.assertIsNone(span.get_tag("bucketname"))
 
     @mock_s3
     def test_s3_client_all_params(self):
@@ -178,6 +182,7 @@ class BotoTest(TracerTestCase):
         with self.override_config("boto", dict(tag_no_params=True, tag_all_params=True)):
             span = self._test_s3_client()
             self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
+            self.assertIsNone(span.get_tag("bucketname"))
             self.assertIsNone(span.get_tag("path"))
 
     @mock_s3
@@ -256,6 +261,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "GET")
         self.assertEqual(span.get_tag("aws.region"), "us-east-2")
+        self.assertEqual(span.get_tag("region"), "us-east-2")
         self.assertEqual(span.get_tag("aws.operation"), "list_functions")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
@@ -274,6 +280,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         assert_is_measured(span)
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("region"), "us-west-2")
         self.assertEqual(span.get_tag("aws.operation"), "GetFederationToken")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
@@ -300,6 +307,7 @@ class BotoTest(TracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("region"), "us-west-2")
         self.assertEqual(span.get_tag("component"), "boto")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
@@ -330,6 +338,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("region"), "us-west-2")
 
         with ot_tracer.start_active_span("ot_span"):
             ec2.run_instances(21)
@@ -346,6 +355,7 @@ class BotoTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
         self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(dd_span.get_tag("region"), "us-west-2")
         self.assertEqual(dd_span.get_tag("component"), "boto")
         self.assertEqual(dd_span.get_tag("span.kind"), "client")
         self.assertEqual(dd_span.service, "test-boto-tracing.ec2")
