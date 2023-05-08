@@ -173,14 +173,14 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
 
         assert config.service == "mysvc"
 
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "mysvc"
+        assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
@@ -188,7 +188,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         v1: When a service isn't specified, we should end up with
             the default span service name
         """
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
@@ -216,10 +216,10 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         """
-        v1: When a service isn't specified, we should end up with
+        v0: When a service isn't specified, we should end up with
             the default span service name
         """
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
@@ -234,7 +234,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         v1: When a service isn't specified, we should end up with
             the default span service name
         """
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
