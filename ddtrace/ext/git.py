@@ -7,6 +7,7 @@ import os
 import random
 import re
 import subprocess
+import sys
 from typing import Dict
 from typing import Generator
 from typing import MutableMapping
@@ -84,9 +85,16 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     else:
         git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
-    process = subprocess.Popen(
-        git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd, encoding="utf-8"
-    )
+
+    if sys.version_info < (3, 6, 0):
+        process = subprocess.Popen(
+            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd
+        )
+    else:
+        process = subprocess.Popen(
+            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd, encoding="utf-8"
+        )
+
     stdout, stderr = process.communicate(input=std_in)
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()
