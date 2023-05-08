@@ -479,13 +479,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             kwargs["agent_url"] = agent.get_trace_url()
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
-        self._trace_flush_enabled = False
-
-        # this is expected to be enabled as long as an agent is running and
-        # this instance was created by a DummyTracer
-        if kwargs.get("trace_flush_enabled", False) is True:
-            kwargs.pop("trace_flush_enabled")
-            self._trace_flush_enabled = True
+        # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
+        self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
@@ -569,13 +564,10 @@ class DummyTracer(Tracer):
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
 
-        # check test agent status to see if traces should be emitted for additional testing
         if not kwargs.get("writer"):
-            trace_flush_enabled = check_test_agent_status()
-            if trace_flush_enabled:
-                kwargs["writer"] = DummyWriter(trace_flush_enabled=True)
-            else:
-                kwargs["writer"] = DummyWriter()
+            # if no writer is present, check if test agent is running to determine if we
+            # should emit traces.
+            kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
