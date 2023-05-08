@@ -63,6 +63,8 @@ class CIVisibilityGitClient(object):
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(base_url, repo_url, latest_commits, serializer, _response)
+        if backend_commits is None:
+            return
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
@@ -83,8 +85,10 @@ class CIVisibilityGitClient(object):
         # type: (str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         response = _response or cls.retry_request(base_url, "/search_commits", payload, serializer)
-        result = serializer.search_commits_decode(response.body)
-        return result
+        if response and hasattr(response, "body"):
+            result = serializer.search_commits_decode(response.body)
+            return result
+        return None
 
     @classmethod
     def _do_request(cls, base_url, endpoint, payload, serializer, headers=None):
