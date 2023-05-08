@@ -5,18 +5,20 @@ import re
 import shlex
 import subprocess
 from threading import RLock
-from typing import List
+from typing import List, Dict, Deque, cast
 from typing import Tuple
 from typing import Union
 
 import attr
+import six
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
-from ddtrace.internal.compat import shjoin, PY2
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
 
 
@@ -25,11 +27,10 @@ log = get_logger(__name__)
 
 """
 JJJ TODO:
-- make sure than _unpatch is called at the right time inside the tracer
-- test snapshots with Python2
 - mypy
 - exception handlers so it never fails and always executes the command
 - constants for the tag names
+- make sure than _unpatch is called at the right time inside the tracer
 - rebase
 """
 
@@ -82,8 +83,8 @@ class SubprocessCmdLineCacheEntry(object):
 
 class SubprocessCmdLine(object):
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE = {}
-    _CACHE_DEQUE = collections.deque()
+    _CACHE = {}  # type: Dict[str, SubprocessCmdLineCacheEntry]
+    _CACHE_DEQUE = collections.deque()  # type: Deque[str]
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -138,8 +139,8 @@ class SubprocessCmdLine(object):
     )
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args, as_list=False, shell=False):
-        # type: (Union[str, list], bool, bool) -> None
+    def __init__(self, shell_args, shell=False):
+        # type: (Union[str, List[str]], bool) -> None
 
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
@@ -155,7 +156,10 @@ class SubprocessCmdLine(object):
         self.arguments = []
         self.truncated = False
 
-        tokens = shell_args if as_list else shlex.split(shell_args)
+        if isinstance(shell_args, six.string_types):
+            tokens = shlex.split(shell_args)
+        else:
+            tokens = cast(List[str], shell_args)
 
         # Extract previous environment variables, removing all the ones not
         # in ENV_VARS_ALLOWLIST
@@ -293,88 +297,104 @@ class SubprocessCmdLine(object):
 
 @trace_utils.with_traced_module
 def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
-    shellcmd = SubprocessCmdLine(args[0], shell=True)
+    try:
+        shellcmd = SubprocessCmdLine(args[0], shell=True)
 
-    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag_str("cmd.shell", shellcmd.as_string())
-        if shellcmd.truncated:
-            span.set_tag_str("cmd.truncated", "yes")
-        span.set_tag_str("component", "os")
-        ret = wrapped(*args, **kwargs)
-        span.set_tag_str("cmd.exit_code", str(ret))
-    return ret
+        with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+            span.set_tag_str("cmd.shell", shellcmd.as_string())
+            if shellcmd.truncated:
+                span.set_tag_str("cmd.truncated", "yes")
+            span.set_tag_str("component", "os")
+            ret = wrapped(*args, **kwargs)
+            span.set_tag_str("cmd.exit_code", str(ret))
+        return ret
+    except:  # noqa
+        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
-    mode, file, func_args, _, _ = args
-    shellcmd = SubprocessCmdLine(func_args, as_list=True, shell=False)
+    try:
+        mode, file, func_args, _, _ = args
+        shellcmd = SubprocessCmdLine(func_args, shell=False)
 
-    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag("cmd.exec", shellcmd.as_list())
-        if shellcmd.truncated:
-            span.set_tag_str("cmd.truncated", "true")
-        span.set_tag_str("component", "os")
+        with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+            span.set_tag("cmd.exec", shellcmd.as_list())
+            if shellcmd.truncated:
+                span.set_tag_str("cmd.truncated", "true")
+            span.set_tag_str("component", "os")
 
-        if mode == os.P_WAIT:
-            ret = wrapped(*args, **kwargs)
-            span.set_tag_str("cmd.exit_code", str(ret))
-            return ret
+            if mode == os.P_WAIT:
+                ret = wrapped(*args, **kwargs)
+                span.set_tag_str("cmd.exit_code", str(ret))
+                return ret
+    except:  # noqa
+        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
-        return wrapped(*args, **kwargs)
+    return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
-    command = args[0]
-    subcmd = SubprocessCmdLine(command, as_list=False, shell=False)
+    try:
+        command = args[0]
+        subcmd = SubprocessCmdLine(command, shell=False)
 
-    with pin.tracer.trace("command_execution", resource=subcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-        span.set_tag("cmd.exec", subcmd.as_list())
-        if subcmd.truncated:
-            span.set_tag_str("cmd.truncated", "true")
-        span.set_tag_str("component", "os")
+        with pin.tracer.trace("command_execution", resource=subcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+            span.set_tag("cmd.exec", subcmd.as_list())
+            if subcmd.truncated:
+                span.set_tag_str("cmd.truncated", "true")
+            span.set_tag_str("component", "os")
+    except:  # noqa
+        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
-        return wrapped(*args, **kwargs)
-
+    return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    cmd_args = args[0] if len(args) else kwargs["args"]
-    cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-    is_shell = kwargs.get("shell", False)
-    shellcmd = SubprocessCmdLine(cmd_args_list, True, shell=is_shell)
+    try:
+        cmd_args = args[0] if len(args) else kwargs["args"]
+        cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
+        is_shell = kwargs.get("shell", False)
+        shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)
 
-    with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-        _context.set_item("subprocess_popen_is_shell", is_shell, span=span)
+        with pin.tracer.trace("command_execution", resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+            _context.set_item("subprocess_popen_is_shell", is_shell, span=span)
 
-        if shellcmd.truncated:
-            _context.set_item("subprocess_popen_truncated", "yes", span=span)
+            if shellcmd.truncated:
+                _context.set_item("subprocess_popen_truncated", "yes", span=span)
 
-        if is_shell:
-            _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
-        else:
-            _context.set_item("subprocess_popen_line", shellcmd.as_list(), span=span)
-        _context.set_item("subprocess_popen_binary", shellcmd.binary, span=span)
+            if is_shell:
+                _context.set_item("subprocess_popen_line", shellcmd.as_string(), span=span)
+            else:
+                _context.set_item("subprocess_popen_line", shellcmd.as_list(), span=span)
+            _context.set_item("subprocess_popen_binary", shellcmd.binary, span=span)
+    except:  # noqa
+        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
-        wrapped(*args, **kwargs)
+    return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
-    binary = _context.get_item("subprocess_popen_binary")
+    try:
+        binary = _context.get_item("subprocess_popen_binary")
 
-    with pin.tracer.trace("command_execution", resource=binary, span_type=SpanTypes.SYSTEM) as span:
-        if _context.get_item("subprocess_popen_is_shell", span=span):
-            span.set_tag_str("cmd.shell", _context.get_item("subprocess_popen_line", span=span))
-        else:
-            span.set_tag("cmd.exec", _context.get_item("subprocess_popen_line", span=span))
+        with pin.tracer.trace("command_execution", resource=binary, span_type=SpanTypes.SYSTEM) as span:
+            if _context.get_item("subprocess_popen_is_shell", span=span):
+                span.set_tag_str("cmd.shell", _context.get_item("subprocess_popen_line", span=span))
+            else:
+                span.set_tag("cmd.exec", _context.get_item("subprocess_popen_line", span=span))
 
-        truncated = _context.get_item("subprocess_popen_truncated", span=span)
-        if truncated:
-            span.set_tag_str("cmd.truncated", "yes")
-        span.set_tag_str("component", "subprocess")
-        ret = wrapped(*args, **kwargs)
-        span.set_tag_str("cmd.exit_code", str(ret))
-        return ret
+            truncated = _context.get_item("subprocess_popen_truncated", span=span)
+            if truncated:
+                span.set_tag_str("cmd.truncated", "yes")
+            span.set_tag_str("component", "subprocess")
+            ret = wrapped(*args, **kwargs)
+            span.set_tag_str("cmd.exit_code", str(ret))
+            return ret
+    except:  # noqa
+        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        return wrapped(*args, **kwargs)

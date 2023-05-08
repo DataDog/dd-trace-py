@@ -76,11 +76,13 @@ def run_ossystem():
 
 
 if sys.platform == "linux":
+
     @app.route("/executions/osspawn")
     def run_osspawn():
         args = ["/usr/bin/ls", "-l", "/"]
         ret = os.spawnl(os.P_WAIT, args[0], *args)
         return str(ret), 200
+
 
 @app.route("/executions/subcommunicateshell")
 def run_subcommunicateshell():

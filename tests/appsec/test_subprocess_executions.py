@@ -8,9 +8,10 @@ from ddtrace import Pin
 from ddtrace import patch_all
 from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
 from ddtrace.appsec._patch_subprocess_executions import _unpatch
-from ddtrace.internal.compat import PY2, PY3
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 from tests.utils import override_global_config
 
 
@@ -31,7 +32,7 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     allowed_envvars_fixture_list.extend(
         [
             (
-                SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True),
+                SubprocessCmdLine(["%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
                 ["%s=bar" % allowed, "BAR=?", "dir", "-li", "/", "OTHER=any"],
                 ["%s=bar" % allowed, "BAR=?"],
                 "dir",
@@ -39,7 +40,7 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
             ),
             (
                 SubprocessCmdLine(
-                    ["FOO=bar", "%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True
+                    ["FOO=bar", "%s=bar" % allowed, "BAR=baz", "dir", "-li", "/", "OTHER=any"], shell=True
                 ),
                 ["FOO=?", "%s=bar" % allowed, "BAR=?", "dir", "-li", "/", "OTHER=any"],
                 ["FOO=?", "%s=bar" % allowed, "BAR=?"],
@@ -54,21 +55,21 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], True, shell=True),
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], shell=True),
             ["FOO=?", "BAR=?", "dir", "-li", "/"],
             ["FOO=?", "BAR=?"],
             "dir",
             ["-li", "/"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], True, shell=True),
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], shell=True),
             ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
             ["FOO=?", "BAR=?"],
             "dir",
             ["-li", "/dir with spaces", "OTHER=any"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], True, shell=True),
+            SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
             ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
             ["FOO=?"],
             "lower=baz",
@@ -89,7 +90,7 @@ for denied in SubprocessCmdLine.BINARIES_DENYLIST:
     denied_binaries_fixture_list.extend(
         [
             (
-                SubprocessCmdLine([denied, "-foo", "bar", "baz"], True),
+                SubprocessCmdLine([denied, "-foo", "bar", "baz"]),
                 [denied, "?", "?", "?"],
                 ["?", "?", "?"],
             )
@@ -98,7 +99,8 @@ for denied in SubprocessCmdLine.BINARIES_DENYLIST:
 
 
 @pytest.mark.parametrize(
-    "cmdline_obj,full_list,arguments", [(SubprocessCmdLine(["dir", "-li", "/"], True), ["dir", "-li", "/"], ["-li", "/"])]
+    "cmdline_obj,full_list,arguments",
+    [(SubprocessCmdLine(["dir", "-li", "/"]), ["dir", "-li", "/"], ["-li", "/"])],
 )
 def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     assert cmdline_obj.as_list() == full_list
@@ -111,7 +113,6 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
         (
             SubprocessCmdLine(
                 ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
-                as_list=True,
                 shell=False,
             ),
             ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
@@ -130,7 +131,6 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
                     "/auth_tokenSCRUB",
                     "--secretSCRUB",
                 ],
-                as_list=True,
                 shell=False,
             ),
             ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
@@ -145,12 +145,12 @@ def test_argument_scrubing(cmdline_obj, arguments):
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"], as_list=True),
+            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
             'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
             ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
             True,
         ),
-        (SubprocessCmdLine("dir -A -B -C", as_list=False), "dir -A -B -C", ["dir", "-A", "-B", "-C"], False),
+        (SubprocessCmdLine("dir -A -B -C"), "dir -A -B -C", ["dir", "-A", "-B", "-C"], False),
     ],
 )
 def test_truncation(cmdline_obj, expected_str, expected_list, truncated):

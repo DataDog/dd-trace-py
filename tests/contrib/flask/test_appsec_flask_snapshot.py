@@ -285,6 +285,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
     assert resp.status_code == 200
     assert resp.text == "0"
 
+
 @pytest.mark.snapshot(
     ignores=[
         "meta._dd.appsec.waf.duration",
