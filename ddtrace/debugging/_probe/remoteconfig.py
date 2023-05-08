@@ -27,7 +27,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryMetadataJson
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
@@ -317,7 +317,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 class ProbeRCAdapter(PubSub):
     __publisher_class__ = RemoteConfigPublisher
     __subscriber_class__ = DebuggerRemoteConfigSubscriber
-    __shared_data = ConnectorSharedMemoryMetadataJson()
+    __shared_data = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)

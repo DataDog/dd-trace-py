@@ -220,8 +220,22 @@ def test_load_new_configurations_dispatch_applied_configs(
 
         remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
-        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"test": "data"}]},
+                "shared_data_counter": 1,
+            },
+            None,
+        )
+        mock_appsec_1click_activation.assert_called_with(
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"test": "data"}]},
+                "shared_data_counter": 1,
+            },
+            None,
+        )
 
 
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
@@ -259,8 +273,12 @@ def test_load_new_configurations_empty_config(
 
         remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
-        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {"metadata": {}, "config": {"asm": {"enabled": True}, "data": []}, "shared_data_counter": 2}, None
+        )
+        mock_appsec_1click_activation.assert_called_with(
+            {"metadata": {}, "config": {"asm": {"enabled": True}, "data": []}, "shared_data_counter": 2}, None
+        )
 
 
 @mock.patch("ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation")
@@ -305,8 +323,12 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     remoteconfig_poller._poll_data()
 
     mock_preprocess_results_appsec_1click_activation.assert_called_with({}, ANY)
-    mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": False}}, None)
-    mock_appsec_rules_data.assert_called_with({"asm": {"enabled": False}}, None)
+    mock_appsec_1click_activation.assert_called_with(
+        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": 3}, None
+    )
+    mock_appsec_rules_data.assert_called_with(
+        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": 3}, None
+    )
     mock_appsec_1click_activation.reset_mock()
     mock_appsec_rules_data.reset_mock()
 
@@ -316,8 +338,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     #     continue
     remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
     remoteconfig_poller._poll_data()
-    mock_appsec_rules_data.assert_called_with({"asm": {"enabled": False}}, None)
-    mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": False}}, None)
+    mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": False}}, None)
+    mock_appsec_1click_activation.assert_not_called()  # ({"asm": {"enabled": False}}, None)
 
 
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(remote_config_worker):
@@ -402,8 +424,22 @@ def test_load_multiple_targets_file_same_product(
 
         remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"data": [{"a": 1}, {"b": 2}], "asm": {"enabled": True}}, None)
-        mock_appsec_1click_activation.assert_called_with({"data": [{"a": 1}, {"b": 2}], "asm": {"enabled": True}}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]},
+                "shared_data_counter": 4,
+            },
+            None,
+        )
+        mock_appsec_1click_activation.assert_called_with(
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]},
+                "shared_data_counter": 4,
+            },
+            None,
+        )
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -481,14 +517,16 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
+        mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
         mock_appsec_rules_data.reset_mock()
 
         remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
 
         remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}]}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {"metadata": {}, "config": {"asm": {"enabled": True}, "data": [{"a": 1}]}, "shared_data_counter": 5}, None
+        )
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -563,14 +601,14 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data()
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}, {"b": 2}]})
+        mock_update_rules.assert_not_called()  # ({"exclusions": [{"a": 1}, {"b": 2}]})
         mock_update_rules.reset_mock()
 
         remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
 
         remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
+        mock_update_rules.assert_not_called()  # ({"exclusions": [{"a": 1}]})
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -629,14 +667,14 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
         remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data(tracer)
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
+        mock_update_rules.assert_not_called()  # ({"exclusions": [{"a": 1}]})
         mock_update_rules.reset_mock()
 
         remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
 
         remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
         remoteconfig_poller._poll_data(tracer)
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
+        mock_update_rules.assert_not_called()  # ({"exclusions": [{"a": 1}]})
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -692,14 +730,14 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
         remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data(tracer)
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
+        mock_update_rules.assert_not_called()  # ({"exclusions": [{"a": 1}]})
         mock_update_rules.reset_mock()
 
         remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
 
         remoteconfig_poller._client._load_new_configurations({}, second_config, payload=second_payload)
         remoteconfig_poller._poll_data(tracer)
-        mock_update_rules.assert_called_with({"exclusions": []})
+        mock_update_rules.assert_not_called()  # ({"exclusions": []})
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -770,7 +808,12 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._applied_configs = {}
         remoteconfig_poller._poll_data()
         mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True}, "data": [{"a": 1}], "data2": [{"b": 2}]}, None
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"a": 1}], "data2": [{"b": 2}]},
+                "shared_data_counter": 9,
+            },
+            None,
         )
         mock_appsec_rules_data.reset_mock()
 
@@ -784,7 +827,14 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
 
         remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}], "data2": []}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {
+                "metadata": {},
+                "config": {"asm": {"enabled": True}, "data": [{"a": 1}], "data2": []},
+                "shared_data_counter": 10,
+            },
+            None,
+        )
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):

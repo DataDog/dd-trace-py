@@ -62,19 +62,25 @@ remoteconfig_poller.register("DI_1_PRODUCT", di_callback)
 remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 """
+from typing import TYPE_CHECKING
+
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._connectors import ConnectorBase
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Optional
+
+    from ddtrace import Tracer
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 
 log = get_logger(__name__)
 
 
 class PubSub(object):
-    __publisher_class__ = RemoteConfigPublisherBase
-    __subscriber_class__ = RemoteConfigSubscriber
-    __shared_data = None  # type: ConnectorBase
+    _shared_data = None  # type: PublisherSubscriberConnector
     _publisher = None  # type: RemoteConfigPublisherBase
     _subscriber = None  # type: RemoteConfigSubscriber
 
@@ -85,13 +91,16 @@ class PubSub(object):
         self._subscriber.force_restart()
 
     def _poll_data(self, test_tracer=None):
+        # type: (Optional[Tracer]) -> None
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
     def stop(self):
         self._subscriber.stop()
 
     def publish(self, config_content=None, config_metadata=None):
+        # type: (Any, Optional[Any], Optional[Any]) -> None
         self._publisher.dispatch(config_content, config_metadata, self)
 
     def append(self, config_content, target):
+        # type: (Optional[Any], str) -> None
         self._publisher.append(target, config_content)

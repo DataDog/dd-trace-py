@@ -10,7 +10,7 @@ import mock
 import pytest
 
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.remoteconfig._connectors import ConnectorSharedMemoryJson
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
@@ -28,7 +28,7 @@ from tests.utils import override_env
 class RCMockPubSub(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisherMergeFirst
-    __shared_data = ConnectorSharedMemoryJson()
+    __shared_data = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)

@@ -14,26 +14,28 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
     from typing import Optional
 
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._pubsub import PubSub
+
+    PreprocessFunc = Callable[[Dict[str, Any], Optional[PubSub]], Any]
 
 log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
-    _preprocess_results_func = None  # type: Optional[Callable[[Any, Optional[PubSub]], Any]]
+    _preprocess_results_func = None  # type: Optional[PreprocessFunc]
 
-    def __init__(self, data_connector, preprocess_results):
+    def __init__(self, data_connector, preprocess_func=None):
+        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
         self._data_connector = data_connector
-        self._preprocess_results_func = preprocess_results
+        self._preprocess_results_func = preprocess_func
 
     def dispatch(self, config, metadata=None, pubsub_instance=None):
         # type: (Any, Optional[Any], Optional[Any]) -> None
         raise NotImplementedError
 
     def append(self, target, config_content):
-        raise NotImplementedError
-
-    def __call__(self, pubsub_instance, target, config_content):
+        # type: (str, Optional[Any]) -> None
         raise NotImplementedError
 
 
@@ -42,8 +44,9 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     shared it to all process.
     """
 
-    def __init__(self, data_connector, preprocess_results):
-        super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_results)
+    def __init__(self, data_connector, preprocess_func=None):
+        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+        super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
 
     def dispatch(self, config, metadata=None, pubsub_instance=None):
         # type: (Any, Optional[Any], Optional[Any]) -> None
@@ -64,9 +67,10 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
     payloads and send it to the subscriber
     """
 
-    def __init__(self, data_connector, preprocess_results):
-        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_results)
-        self._configs = {}
+    def __init__(self, data_connector, preprocess_func):
+        # type: (PublisherSubscriberConnector, PreprocessFunc) -> None
+        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_func)
+        self._configs = {}  # type: Dict[str, Any]
 
     def append(self, target, config):
         # type: (str, Optional[Any]) -> None
@@ -89,8 +93,8 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
         # type: (Any, Optional[Any], Optional[Any]) -> None
         config_result = {}  # type: Dict[str, Any]
         try:
-            for target, config in self._configs.items():
-                for key, value in config.items():
+            for target, config_item in self._configs.items():
+                for key, value in config_item.items():
                     if isinstance(value, list):
                         config_result[key] = config_result.get(key, []) + value
                     elif isinstance(value, dict):
@@ -101,6 +105,6 @@ class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
             if self._preprocess_results_func:
                 result = self._preprocess_results_func(result, pubsub_instance)
             log.debug("[%s][P: %s] PublisherAfterMerge publish %s", os.getpid(), os.getppid(), str(result)[:100])
-            self._data_connector.write("", result)
+            self._data_connector.write({}, result)
         except Exception:
-            log.debug("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)
+            log.error("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)
