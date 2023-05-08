@@ -31,6 +31,7 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.vendor.wrapt import when_imported
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -260,7 +261,27 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    # IAST
+    def if_iast_taint_cookies(wrapped, instance, args, kwargs):
+        if _is_iast_enabled():
+            if not instance and args[0].slot_name == "_cache_cookies":
+                from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+                res = LazyTaintDict(
+                    wrapped(*args, **kwargs),
+                    origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
+                    override_pyobject_tainted=True,
+                )
+                return res
+
+        return wrapped(*args, **kwargs)
+
+    when_imported("werkzeug.utils")(
+        lambda m: _w(
+            m,
+            "cached_property.__get__",
+            if_iast_taint_cookies,
+        )
+    )
     _w(
         "werkzeug.datastructures",
         "Headers.items",
@@ -333,7 +354,6 @@ def patch():
 
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
-
     # flask static file helpers
     _w("flask", "send_file", simple_tracer("flask.send_file"))
 
