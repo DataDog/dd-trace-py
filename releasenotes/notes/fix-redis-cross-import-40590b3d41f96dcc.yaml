@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    redis: Resolves an issue where the aioredis/aredis/yaaredis integrations cross-imported a helper method from the 
+    redis integration, which triggered redis patching before the redis integration was fully loaded.

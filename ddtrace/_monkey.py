@@ -7,7 +7,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal.telemetry import telemetry_writer
+from .internal.telemetry import telemetry_lifecycle_writer
 from .internal.utils import formats
 from .settings import _config as config
 
@@ -85,6 +85,7 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
+    "openai": True,
 }
 
 
@@ -159,7 +160,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+            telemetry_lifecycle_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 

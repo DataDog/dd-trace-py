@@ -77,6 +77,7 @@ services:
       depends_on:
         - zookeeper
     rediscluster:
+        platform: linux/amd64
         image: grokzen/redis-cluster:6.2.0
         environment:
             - IP=0.0.0.0
@@ -165,7 +166,7 @@ services:
           - ddagent:/tmp/ddagent
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
-          - ./.ddriot:/root/project/.riot
+          - ./.riot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

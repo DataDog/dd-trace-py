@@ -1,3 +1,8 @@
+import sys
+
+
+LOADED_MODULES = frozenset(sys.modules.keys())
+
 from ddtrace.internal.module import ModuleWatchdog
 
 

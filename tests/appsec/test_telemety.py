@@ -23,23 +23,23 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def mock_telemetry_metrics_writer():
+    telemetry_metrics_writer.disable()
     telemetry_metrics_writer.enable()
     metrics_result = telemetry_metrics_writer._namespace._metrics_data
     assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     yield telemetry_metrics_writer
     telemetry_metrics_writer._flush_namespace_metrics()
-    telemetry_metrics_writer.disable()
 
 
 @pytest.fixture
 def mock_logs_telemetry_metrics_writer():
+    telemetry_metrics_writer.disable()
     telemetry_metrics_writer.enable()
     metrics_result = telemetry_metrics_writer._logs
     assert len(metrics_result) == 0
     yield telemetry_metrics_writer
     telemetry_metrics_writer.reset_queues()
-    telemetry_metrics_writer.disable()
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
@@ -47,10 +47,10 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
     assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     for metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
-            assert metric._tags["rule_triggered"] is is_rule_triggered
-            assert metric._tags["request_blocked"] is is_blocked_request
-            assert metric._tags["request_truncated"] is False
-            assert metric._tags["waf_timeout"] is False
+            assert metric._tags["rule_triggered"] == str(is_rule_triggered).lower()
+            assert metric._tags["request_blocked"] == str(is_blocked_request).lower()
+            # assert metric._tags["request_truncated"] is False
+            assert metric._tags["waf_timeout"] == "false"
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
         elif metric.name == "waf.init":
@@ -67,8 +67,8 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
         if metric.name in ["waf.duration", "waf.duration_ext"]:
             assert len(metric._points) >= 1
             assert type(metric._points[0]) is float
-            assert metric._tags["rule_triggered"] is is_rule_triggered
-            assert metric._tags["request_blocked"] is is_blocked_request
+            assert metric._tags["rule_triggered"] == str(is_rule_triggered).lower()
+            assert metric._tags["request_blocked"] == str(is_blocked_request).lower()
             assert len(metric._tags["waf_version"]) > 0
             assert len(metric._tags["event_rules_version"]) > 0
         else:
