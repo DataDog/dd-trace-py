@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from http.cookies import SimpleCookie
 import json
 import logging
 
@@ -37,11 +38,13 @@ def _aux_appsec_get_root_span(
     url="/",
     content_type="text/plain",
     headers=None,
+    cookies={},
 ):
     tracer._appsec_enabled = config._appsec_enabled
     tracer._iast_enabled = config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
+    client.cookies = SimpleCookie(cookies)
     if payload is None:
         if headers:
             response = client.get(url, **headers)
@@ -49,7 +52,7 @@ def _aux_appsec_get_root_span(
             response = client.get(url)
     else:
         if headers:
-            response = client.post(url, payload, content_type=content_type, **headers)
+            response = client.post(url, payload, content_type=content_type, cookies=cookies, **headers)
         else:
             response = client.post(url, payload, content_type=content_type)
     return test_spans.spans[0], response
@@ -1012,3 +1015,123 @@ def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, 
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_cookie_name/",
+            cookies={"master": "test/1.2.3"},
+        )
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
+        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+        assert loaded["vulnerabilities"][0]["hash"] == 829515415
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 158
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_cookie_name/",
+            cookies={"master": "test/1.2.3"},
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_cookie_value/",
+            cookies={"master": "master"},
+        )
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
+        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+        assert loaded["vulnerabilities"][0]["hash"] == 681086532
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 167
+        assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/django/django_app/appsec_urls.py"
+
+        assert response.status_code == 200
+        assert response.content == b"master"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
+        setup(bytes.join, bytearray.join)
+        clear_taint_mapping()
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_cookie_value/",
+            cookies={"master": "master"},
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b"master"

@@ -151,6 +151,24 @@ def magic_header_key(request):
     return res
 
 
+def sqli_http_request_cookie_name(request):
+    key = [x for x in request.COOKIES.keys() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
+
+    return HttpResponse(request.COOKIES["master"], status=200)
+
+
+def sqli_http_request_cookie_value(request):
+    value = [x for x in request.COOKIES.values() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+
+    return HttpResponse(request.COOKIES["master"], status=200)
+
+
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
     handler("body/$", body_view, name="body_view"),
@@ -161,6 +179,8 @@ urlpatterns = [
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
     handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
+    handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
+    handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
     path(
         "sqli_http_path_parameter/<str:q_http_path_parameter>/",
         sqli_http_path_parameter,
