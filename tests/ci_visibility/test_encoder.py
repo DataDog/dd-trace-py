@@ -9,6 +9,8 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
@@ -94,6 +96,8 @@ def test_encode_traces_civisibility_v2_coverage():
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
     coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span.set_tag(SUITE_ID, "12345")
+    coverage_span.set_tag(SESSION_ID, "67890")
     traces = [
         [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
     ]
@@ -101,7 +105,7 @@ def test_encode_traces_civisibility_v2_coverage():
     encoder = CIVisibilityCoverageEncoderV02(0, 0)
     for trace in traces:
         encoder.put(trace)
-    payload = encoder.encode()
+    payload = encoder._build_data(traces)
     assert isinstance(payload, msgpack_type)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -109,18 +113,33 @@ def test_encode_traces_civisibility_v2_coverage():
     received_covs = decoded[b"coverages"]
     assert len(received_covs) == 1
 
-    all_spans = [span for trace in traces for span in trace]
-    for given_span, received_cov in zip(all_spans, received_covs):
-        expected_cov = {
-            b"test_session_id": 1,
-            b"test_suite_id": 1,
-            b"span_id": given_span.span_id,
-            b"files": [
-                {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
-                for file in coverage_data["files"]
-            ],
-        }
-        assert expected_cov == received_cov
+    expected_cov = {
+        b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
+        b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"span_id": coverage_span.span_id,
+        b"files": [
+            {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
+            for file in coverage_data["files"]
+        ],
+    }
+    assert expected_cov == received_covs[0]
+
+    complete_payload = encoder.encode()
+    assert isinstance(complete_payload, bytes)
+    payload_per_line = complete_payload.split(b"\r\n")
+    assert len(payload_per_line) == 11
+    assert payload_per_line[0].startswith(b"--")
+    boundary = payload_per_line[0][2:]
+    assert payload_per_line[1] == b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"'
+    assert payload_per_line[2] == b"Content-Type: application/msgpack"
+    assert payload_per_line[3] == b""
+    assert payload_per_line[4] == payload
+    assert payload_per_line[5] == payload_per_line[0]
+    assert payload_per_line[6] == b'Content-Disposition: form-data; name="event"; filename="event.json"'
+    assert payload_per_line[7] == b"Content-Type: application/json"
+    assert payload_per_line[8] == b""
+    assert payload_per_line[9] == b'{"dummy":true}'
+    assert payload_per_line[10] == b"--%s--" % boundary
 
 
 @contextlib.contextmanager

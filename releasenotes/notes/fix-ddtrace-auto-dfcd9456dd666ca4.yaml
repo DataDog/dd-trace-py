@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    bootstrap: fixed an issue with the behavior of ``ddtrace.auto`` that could
+    have caused incompatibilities with frameworks such as ``gevent`` when used
+    as a programmatic alternative to the ``ddtrace-run`` command.
