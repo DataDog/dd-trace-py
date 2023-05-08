@@ -780,7 +780,7 @@ def test_trace_with_128bit_trace_ids():
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer(trace_flush_disabled=True)
+    tracer = DummyTracer()
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child1"):

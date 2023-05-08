@@ -477,8 +477,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
             kwargs["agent_url"] = agent.get_trace_url()
-        if "api_version" not in kwargs:
-            kwargs["api_version"] = "v0.5"
+        kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         self._trace_flush_enabled = False
 
@@ -1173,11 +1172,8 @@ def check_test_agent_status():
         conn.request("GET", "/info")
         response = conn.getresponse()
         if response.status == 200:
-            print("Server is running.")
             return True
         else:
-            print("Server is not running.")
             return False
     except Exception as e:
-        print(f"Failed to retrieve server info. Error: {e}")
         return False
