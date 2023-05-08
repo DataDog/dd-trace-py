@@ -501,7 +501,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def pop(self):
         spans = DummyWriterMixin.pop(self)
         if self._trace_flush_enabled:
-            AgentWriter.flush_queue(self)
+            flush_test_tracer_spans(self)
         return spans
 
 
@@ -542,21 +542,22 @@ class DummyTracer(Tracer):
         # type: () -> List[List[Span]]
         spans = self._writer.spans
         if self._trace_flush_enabled:
-            self._writer.flush_queue()
+            flush_test_tracer_spans(self._writer)
         return spans
 
     def pop(self):
         # type: () -> List[Span]
         spans = self._writer.pop()
         if self._trace_flush_enabled:
-            self._writer.flush_queue()
+            flush_test_tracer_spans(self._writer)
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
         traces = self._writer.pop_traces()
         if self._trace_flush_enabled:
-            self._writer.flush_queue()
+            print("flush")
+            flush_test_tracer_spans(self._writer)
         return traces
 
     def configure(self, *args, **kwargs):
@@ -1160,7 +1161,8 @@ def git_repo(git_repo_empty):
 def check_test_agent_status():
     agent_url = agent.get_trace_url()
     try:
-        conn = httplib.HTTPConnection(agent_url)
+        parsed = parse.urlparse(agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/info")
         response = conn.getresponse()
         if response.status == 200:
@@ -1169,3 +1171,17 @@ def check_test_agent_status():
             return False
     except Exception:
         return False
+
+
+def flush_test_tracer_spans(writer):
+    client = writer._clients[0]
+    n_traces = len(client.encoder)
+    print(n_traces)
+    print("flush")
+    encoded_traces = client.encoder.encode()
+    if encoded_traces is None:
+        return
+    headers = writer._get_finalized_headers(n_traces, client)
+    response = writer._put(encoded_traces, headers, client)
+
+    assert response.status == 200, response.body
