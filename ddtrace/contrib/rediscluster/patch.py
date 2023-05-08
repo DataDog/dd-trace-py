@@ -17,7 +17,6 @@ from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.schema import schematize_cache_operation
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
