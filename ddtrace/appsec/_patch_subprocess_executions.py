@@ -57,20 +57,6 @@ def _patch():
     trace_utils.wrap(subprocess, "Popen.wait", traced_subprocess_wait(subprocess))
 
 
-def _unpatch():
-    # type: () -> None
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
-
-    if PY2:
-        trace_utils.unwrap(os, "popen")
-        trace_utils.unwrap(os, "popen2")
-        trace_utils.unwrap(os, "popen3")
-        trace_utils.unwrap(os, "popen4")
-
-
 @attr.s(eq=False)
 class SubprocessCmdLineCacheEntry(object):
     binary = attr.ib(type=str, default=None)
@@ -293,6 +279,22 @@ class SubprocessCmdLine(object):
         self._cache_entry.as_list = list_res
         self._cache_entry.as_string = str_res
         return str_res
+
+
+def _unpatch():
+    # type: () -> None
+    trace_utils.unwrap(os, "system")
+    trace_utils.unwrap(os, "_spawnvef")
+    trace_utils.unwrap(subprocess.Popen, "__init__")
+    trace_utils.unwrap(subprocess.Popen, "wait")
+
+    if PY2:
+        trace_utils.unwrap(os, "popen")
+        trace_utils.unwrap(os, "popen2")
+        trace_utils.unwrap(os, "popen3")
+        trace_utils.unwrap(os, "popen4")
+
+    SubprocessCmdLine._clear_cache()
 
 
 @trace_utils.with_traced_module
