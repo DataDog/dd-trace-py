@@ -54,7 +54,7 @@ def _aux_appsec_get_root_span(
             response = client.get(url)
     else:
         if headers:
-            response = client.post(url, payload, content_type=content_type, cookies=cookies, **headers)
+            response = client.post(url, payload, content_type=content_type, **headers)
         else:
             response = client.post(url, payload, content_type=content_type)
     return test_spans.spans[0], response
