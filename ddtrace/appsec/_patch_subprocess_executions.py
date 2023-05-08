@@ -241,8 +241,6 @@ class SubprocessCmdLine(object):
 
     def truncate_string(self, str_):
         # type: (str) -> str
-        # spaced_added is to account for spaces that would not occupy
-        # space on a list result
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
         if oversize <= 0:
