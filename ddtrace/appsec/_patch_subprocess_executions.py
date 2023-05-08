@@ -26,14 +26,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-"""
-JJJ TODO:
-- Changelog
-- make sure than _unpatch is called at the right time inside the tracer
-- rebase
-"""
-
-
 def _patch():
     # type: () -> None
     if not config._appsec_enabled:
