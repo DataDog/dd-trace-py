@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import patch_all
+from ddtrace.appsec._constants import COMMANDS
 from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
 from ddtrace.appsec._patch_subprocess_executions import _unpatch
 from ddtrace.ext import SpanTypes
@@ -185,12 +186,12 @@ def test_ossystem(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[1]
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag("cmd.shell") == "dir -l /"
-        assert span.get_tag("cmd.exit_code") == "0"
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "os"
+        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
+        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
 def test_unpatch(tracer):
@@ -205,7 +206,7 @@ def test_unpatch(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[1]
-        assert span.get_tag("cmd.shell") == "dir -l /"
+        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
 
     _unpatch()
     with override_global_config(dict(_appsec_enabled=True)):
@@ -218,10 +219,10 @@ def test_unpatch(tracer):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        assert not span.get_tag("cmd.shell")
-        assert not span.get_tag("cmd.shell")
-        assert not span.get_tag("cmd.exit_code")
-        assert not span.get_tag("component")
+        assert not span.get_tag(COMMANDS.EXEC)
+        assert not span.get_tag(COMMANDS.SHELL)
+        assert not span.get_tag(COMMANDS.EXIT_CODE)
+        assert not span.get_tag(COMMANDS.COMPONENT)
 
 
 def test_ossystem_noappsec(tracer):
@@ -247,11 +248,11 @@ def test_py3ospopen(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag("cmd.shell") == "dir -li /"
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "subprocess"
+        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
 
 
 @pytest.mark.skipif(PY3, reason="Python2 specific tests")
@@ -270,11 +271,11 @@ def test_py2ospopen(tracer):
             assert spans
             assert len(spans) > 1
             span = spans[1]
-            assert span.name == "command_execution"
+            assert span.name == COMMANDS.SPAN_NAME
             assert span.resource == "dir"
-            assert span.get_tag("cmd.exec") == str(["dir", "-li", func.__name__])
-            assert not span.get_tag("cmd.truncated")
-            assert span.get_tag("component") == "os"
+            assert span.get_tag(COMMANDS.EXEC) == str(["dir", "-li", func.__name__])
+            assert not span.get_tag(COMMANDS.TRUNCATED)
+            assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
 _PARAMS = ["/usr/bin/ls", "-l", "/"]
@@ -332,14 +333,14 @@ def test_osspawn_variants(tracer, function, mode, arguments):
         # assert len(spans) > 1
         span = spans[1]
         if mode == os.P_WAIT:
-            assert span.get_tag("cmd.exit_code") == str(ret)
+            assert span.get_tag(COMMANDS.EXIT_CODE) == str(ret)
 
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == arguments[0]
         param_arguments = arguments[1:-1] if "e" in cleaned_name else arguments[1:]
-        assert span.get_tag("cmd.exec") == str([arguments[0]] + param_arguments)
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "os"
+        assert span.get_tag(COMMANDS.EXEC) == str([arguments[0]] + param_arguments)
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
 def test_subprocess_init_shell_true(tracer):
@@ -354,12 +355,12 @@ def test_subprocess_init_shell_true(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "dir -li /"
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "subprocess"
+        assert not span.get_tag(COMMANDS.EXEC)
+        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
 
 
 def test_subprocess_init_shell_false(tracer):
@@ -374,8 +375,8 @@ def test_subprocess_init_shell_false(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert not span.get_tag("cmd.shell")
-        assert span.get_tag("cmd.exec") == "['dir', '-li', '/']"
+        assert not span.get_tag(COMMANDS.SHELL)
+        assert span.get_tag(COMMANDS.EXEC) == "['dir', '-li', '/']"
 
 
 def test_subprocess_wait_shell_false(tracer):
@@ -387,9 +388,9 @@ def test_subprocess_wait_shell_false(tracer):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
 
-            assert not _context.get_item("subprocess_popen_is_shell", span=span)
-            assert not _context.get_item("subprocess_popen_truncated", span=span)
-            assert _context.get_item("subprocess_popen_line", span=span) == args
+            assert not _context.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span)
+            assert not _context.get_item(COMMANDS.CTX_SUBP_TRUNCATED, span=span)
+            assert _context.get_item(COMMANDS.CTX_SUBP_LINE, span=span) == args
 
 
 def test_subprocess_wait_shell_true(tracer):
@@ -400,7 +401,7 @@ def test_subprocess_wait_shell_true(tracer):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
 
-            assert _context.get_item("subprocess_popen_is_shell", span=span)
+            assert _context.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span)
 
 
 @pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
@@ -416,13 +417,13 @@ def test_subprocess_run(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "dir -l /"
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "subprocess"
-        assert span.get_tag("cmd.exit_code") == "0"
+        assert not span.get_tag(COMMANDS.EXEC)
+        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
 
 
 def test_subprocess_communicate(tracer):
@@ -439,13 +440,13 @@ def test_subprocess_communicate(tracer):
         assert spans
         assert len(spans) > 1
         span = spans[2]
-        assert span.name == "command_execution"
+        assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert not span.get_tag("cmd.exec")
-        assert span.get_tag("cmd.shell") == "dir -li /"
-        assert not span.get_tag("cmd.truncated")
-        assert span.get_tag("component") == "subprocess"
-        assert span.get_tag("cmd.exit_code") == "0"
+        assert not span.get_tag(COMMANDS.EXEC)
+        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
 
 
 def test_cache_hit():
