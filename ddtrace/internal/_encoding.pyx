@@ -246,7 +246,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
-        if len(string) > self.max_size:
+        if len(string) + self.pk.length > self.max_size:
             string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
                 len(string), self.max_size
             )
