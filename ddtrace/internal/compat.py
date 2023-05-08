@@ -399,11 +399,11 @@ except ImportError:
 try:
     from shlex import join as shjoin
 except ImportError:
+
     def shjoin(args):  # type: ignore[misc]
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
-
 
 
 # https://stackoverflow.com/a/19299884
@@ -509,8 +509,8 @@ except ImportError:
 try:
     from shlex import join as shjoin
 except ImportError:
+
     def shjoin(args):  # type: ignore[misc]
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
-

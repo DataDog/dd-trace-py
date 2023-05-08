@@ -5,9 +5,12 @@ import re
 import shlex
 import subprocess
 from threading import RLock
-from typing import List, Dict, Deque, cast
+from typing import Deque
+from typing import Dict
+from typing import List
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import attr
 import six
