@@ -15,6 +15,16 @@ skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build
 skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py"]
 line_length = 120
 
+[tool.cython-lint]
+max-line-length = 120
+exclude = '''
+(
+  .venv*
+  | \.riot
+  | ddtrace/profiling/
+)
+'''
+
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
@@ -31,7 +41,7 @@ exclude = '''
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/vendor/
   | \.eggs
@@ -69,8 +79,10 @@ exclude-modules = '''
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # protobuf file fails to import
-  | ddtrace.profiling.exporter.pprof_pre312_pb2
-  | ddtrace.profiling.exporter.pprof_pre319_pb2
+  | ddtrace.profiling.exporter.pprof_3_pb2
+  | ddtrace.profiling.exporter.pprof_312_pb2
+  | ddtrace.profiling.exporter.pprof_319_pb2
+  | ddtrace.profiling.exporter.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
   | ddtrace.appsec.ddwaf.ddwaf_types

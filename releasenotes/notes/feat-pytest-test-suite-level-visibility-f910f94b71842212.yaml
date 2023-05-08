@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    pytest: This introduces test suite and module level visibility for the pytest integration. Pytest test traces will
+    now include test session, test module, test suite, and test spans, which correlate to pytest session, pytest package,
+    pytest module, and pytest test functions respectively.

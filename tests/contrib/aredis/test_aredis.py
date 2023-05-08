@@ -54,6 +54,31 @@ async def test_long_command(snapshot_context):
         await r.mget(*range(1000))
 
 
+@pytest.mark.skip(reason="No traces sent to the test agent")
+@pytest.mark.subprocess(env=dict(DD_AREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
+@pytest.mark.snapshot
+def test_cmd_max_length_env():
+    import asyncio
+
+    import aredis
+
+    from tests.contrib.config import REDIS_CONFIG
+
+    async def main():
+        r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
+        await r.get("here-is-a-long-key")
+
+    asyncio.run(main())
+
+
+@pytest.mark.asyncio
+async def test_cmd_max_length(snapshot_context):
+    with override_config("aredis", dict(cmd_max_length=7)):
+        with snapshot_context():
+            r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
+            await r.get("here-is-a-long-key")
+
+
 @pytest.mark.asyncio
 async def test_basics(snapshot_context):
     with snapshot_context():

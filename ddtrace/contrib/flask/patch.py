@@ -8,7 +8,9 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 import xmltodict
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -49,6 +51,7 @@ from .helpers import simple_tracer
 from .helpers import with_instance_pin
 from .wrappers import wrap_function
 from .wrappers import wrap_signal
+from .wrappers import wrap_view
 
 
 try:
@@ -114,9 +117,9 @@ def taint_request_init(wrapped, instance, args, kwargs):
 
             taint_pyobject(
                 instance.query_string,
-                Input_info("http.request.querystring", instance.query_string, "http.request.querystring"),
+                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
             )
-            taint_pyobject(instance.path, Input_info("http.request.path", instance.path, "http.request.path"))
+            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -244,9 +247,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
             peer_ip=request.remote_addr,
         )
-        if config._appsec_enabled:
-            log.debug("Flask WAF call for Suspicious Request Blocking on request")
-            _asm_request_context.call_waf_callback()
 
 
 def patch():
@@ -263,25 +263,30 @@ def patch():
     # IAST
     _w(
         "werkzeug.datastructures",
+        "Headers.items",
+        functools.partial(if_iast_taint_yield_tuple_for, (IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),
+    )
+    _w(
+        "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.header"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_HEADER),
     )
     _w(
         "werkzeug.datastructures",
         "ImmutableMultiDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
     )
     _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
     _w(
         "werkzeug.wrappers.request",
         "Request.get_data",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.body"),
+        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_BODY),
     )
     if flask_version < (2, 0, 0):
         _w(
             "werkzeug._internal",
             "_DictAccessorProperty.__get__",
-            functools.partial(if_iast_taint_returned_object_for, "http.request.querystring"),
+            functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_QUERYSTRING),
         )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
@@ -302,11 +307,13 @@ def patch():
     # flask.app.Flask traced hook decorators
     flask_hooks = [
         "before_request",
-        "before_first_request",
         "after_request",
         "teardown_request",
         "teardown_appcontext",
     ]
+    if flask_version < (2, 3, 0):
+        flask_hooks.append("before_first_request")
+
     for hook in flask_hooks:
         _w("flask", "Flask.{}".format(hook), traced_flask_hook)
     _w("flask", "after_this_request", traced_flask_hook)
@@ -342,12 +349,14 @@ def patch():
     bp_hooks = [
         "after_app_request",
         "after_request",
-        "before_app_first_request",
         "before_app_request",
         "before_request",
         "teardown_request",
         "teardown_app_request",
     ]
+    if flask_version < (2, 3, 0):
+        bp_hooks.append("before_app_first_request")
+
     for hook in bp_hooks:
         _w("flask", "Blueprint.{}".format(hook), traced_flask_hook)
 
@@ -406,7 +415,6 @@ def unpatch():
         "Flask.send_static_file",
         # Flask Hooks
         "Flask.before_request",
-        "Flask.before_first_request",
         "Flask.after_request",
         "Flask.teardown_request",
         "Flask.teardown_appcontext",
@@ -416,7 +424,6 @@ def unpatch():
         # Blueprint Hooks
         "Blueprint.after_app_request",
         "Blueprint.after_request",
-        "Blueprint.before_app_first_request",
         "Blueprint.before_app_request",
         "Blueprint.before_request",
         "Blueprint.teardown_request",
@@ -455,6 +462,11 @@ def unpatch():
     # These were removed in 2.2.0
     if flask_version < (2, 2, 0):
         props.append("Flask.try_trigger_before_first_request_functions")
+
+    # These were removed in 2.3.0
+    if flask_version < (2, 3, 0):
+        props.append("Flask.before_first_request")
+        props.append("Blueprint.before_app_first_request")
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
@@ -524,7 +536,7 @@ def traced_add_url_rule(wrapped, instance, args, kwargs):
         if view_func:
             # TODO: `if hasattr(view_func, 'view_class')` then this was generated from a `flask.views.View`
             #   should we do something special with these views? Change the name/resource? Add tags?
-            view_func = wrap_function(instance, view_func, name=endpoint, resource=rule)
+            view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
         return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
 

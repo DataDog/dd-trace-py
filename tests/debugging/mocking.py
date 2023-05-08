@@ -4,12 +4,12 @@ from contextlib import contextmanager
 import json
 from typing import Any
 
-from ddtrace.debugging._capture.collector import CapturedEventCollector
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
@@ -53,26 +53,26 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         self.queue = []
 
 
-class TestSnapshotCollector(CapturedEventCollector):
+class TestSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
-        super(TestSnapshotCollector, self).__init__(*args, **kwargs)
+        super(TestSignalCollector, self).__init__(*args, **kwargs)
         self.test_queue = []
-        self.event_state_counter = Counter()
+        self.signal_state_counter = Counter()
 
-    def push(self, event):
-        self.event_state_counter[event.state] += 1
-        super(TestSnapshotCollector, self).push(event)
+    def push(self, signal):
+        self.signal_state_counter.update({signal.state: 1})
+        super(TestSignalCollector, self).push(signal)
 
     def _enqueue(self, snapshot):
         self.test_queue.append(snapshot)
-        return super(TestSnapshotCollector, self)._enqueue(snapshot)
+        return super(TestSignalCollector, self)._enqueue(snapshot)
 
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
     __uploader__ = MockLogsIntakeUploaderV1
-    __collector__ = TestSnapshotCollector
+    __collector__ = TestSignalCollector
 
     def add_probes(self, *probes):
         # type: (Probe) -> None
@@ -91,8 +91,8 @@ class TestDebugger(Debugger):
         return self._collector.test_queue
 
     @property
-    def event_state_counter(self):
-        return self._collector.event_state_counter
+    def signal_state_counter(self):
+        return self._collector.signal_state_counter
 
     @property
     def uploader(self):
