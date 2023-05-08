@@ -40,9 +40,9 @@ line-height: normal; color: #646464; font-family: sans-serif; font-weight: 400}a
 <footer> <p>Security provided by
 <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/"
 target="_blank">Datadog</a></p></footer></body></html>"""
-APPSEC_BLOCKED_RESPONSE_JSON = """
-{"errors": [{"title": "You've been blocked", "detail": "Sorry, you cannot access this page.
-Please contact the customer service team. Security provided by Datadog."}]}
-"""
+APPSEC_BLOCKED_RESPONSE_JSON = (
+    '{"errors": [{"title": "You\'ve been blocked", "detail": "Sorry, you cannot access '
+    'this page. Please contact the customer service team. Security provided by Datadog."}]}'
+)
 
 MESSAGING_SYSTEM = "messaging.system"
