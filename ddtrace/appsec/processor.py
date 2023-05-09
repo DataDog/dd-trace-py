@@ -379,23 +379,23 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if span.span_type != SpanTypes.WEB:
-            return
-
-        # Force to set respond headers at the end
-        headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
-        if headers_req:
-            _set_headers(span, headers_req, kind="response")
-
-        # this call is only necessary for tests or frameworks that are not using blocking
-        if span.get_tag(APPSEC.JSON) is None:
-            log.debug("metrics waf call")
-            _asm_request_context.call_waf_callback()
-
-        self._ddwaf._at_request_end()
-
-        # release asm context if it was created by the span
         asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
-        if asm_context is not None:
-            asm_context.__exit__(None, None, None)  # type: ignore
-            del span.context._meta["ASM_CONTEXT_%d" % id(span)]
+        try:
+            if span.span_type != SpanTypes.WEB:
+                return
+            # Force to set respond headers at the end
+            headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+            if headers_req:
+                _set_headers(span, headers_req, kind="response")
+
+            # this call is only necessary for tests or frameworks that are not using blocking
+            if span.get_tag(APPSEC.JSON) is None:
+                log.debug("metrics waf call")
+                _asm_request_context.call_waf_callback()
+
+            self._ddwaf._at_request_end()
+        finally:
+            # release asm context if it was created by the span
+            if asm_context is not None:
+                asm_context.__exit__(None, None, None)  # type: ignore
+                del span.context._meta["ASM_CONTEXT_%d" % id(span)]
