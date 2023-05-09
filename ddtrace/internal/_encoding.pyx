@@ -477,9 +477,14 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
         for span in trace:
-            ret = self.pack_span(span, dd_origin)
+            try:
+                ret = self.pack_span(span, dd_origin)
+            except Exception as e:
+                raise RuntimeError("failed to pack span: {!r}. Exception: {}".format(span, e))
+
+            # No exception was raised, but we got an error code from msgpack
             if ret != 0:
-                raise RuntimeError("Couldn't pack span")
+                raise RuntimeError("couldn't pack span: {!r}".format(span))
 
         return ret
 
