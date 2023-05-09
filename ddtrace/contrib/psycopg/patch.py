@@ -46,7 +46,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("postgres"),
         _dbapi_span_name_prefix="postgres",
-        _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgres"),
+        _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
         _patched_functions=dict(),
         trace_fetch_methods=asbool(

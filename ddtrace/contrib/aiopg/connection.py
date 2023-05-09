@@ -29,7 +29,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
-        self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgres")
+        self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):

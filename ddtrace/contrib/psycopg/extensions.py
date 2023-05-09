@@ -32,7 +32,7 @@ def get_psycopg2_extensions(psycopg_module):
                 return psycopg_module.extensions.cursor.execute(self, query, vars)
 
             with self._datadog_tracer.trace(
-                schematize_database_operation("postgres.query", database_provider="postgres"),
+                schematize_database_operation("postgres.query", database_provider="postgresql"),
                 service=self._datadog_service,
                 span_type=SpanTypes.SQL,
             ) as s:

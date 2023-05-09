@@ -450,7 +450,7 @@ class PsycopgCore(TracerTestCase):
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
-        assert spans[0].name == "postgres.query"
+        assert spans[0].name == "postgresql.query"
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
     def test_contextmanager_connection(self):

@@ -240,7 +240,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v0(self):
+    def test_unspecified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The aiopg integration should use it.
@@ -280,7 +280,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].name == "postgres.query"
+        assert spans[0].name == "postgresql.query"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

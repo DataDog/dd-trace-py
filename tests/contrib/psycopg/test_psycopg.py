@@ -434,7 +434,7 @@ class PsycopgCore(TracerTestCase):
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
-        assert spans[0].name == "postgres.query"
+        assert spans[0].name == "postgresql.query"
 
     def test_contextmanager_connection(self):
         service = "fo"
