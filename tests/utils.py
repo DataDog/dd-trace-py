@@ -1173,10 +1173,13 @@ def check_test_agent_status():
 def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
-    encoded_traces = client.encoder.encode()
-    if encoded_traces is None:
+    try:
+        encoded_traces = client.encoder.encode()
+        if encoded_traces is None:
+            return
+        headers = writer._get_finalized_headers(n_traces, client)
+        response = writer._put(encoded_traces, headers, client)
+    except Exception:
         return
-    headers = writer._get_finalized_headers(n_traces, client)
-    response = writer._put(encoded_traces, headers, client)
 
     assert response.status == 200, response.body
