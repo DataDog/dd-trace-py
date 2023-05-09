@@ -548,15 +548,12 @@ class DummyTracer(Tracer):
     def pop(self):
         # type: () -> List[Span]
         spans = self._writer.pop()
-        if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._writer)
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
         traces = self._writer.pop_traces()
         if self._trace_flush_enabled:
-            print("flush")
             flush_test_tracer_spans(self._writer)
         return traces
 
@@ -1176,8 +1173,6 @@ def check_test_agent_status():
 def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
-    print(n_traces)
-    print("flush")
     encoded_traces = client.encoder.encode()
     if encoded_traces is None:
         return
