@@ -28,36 +28,44 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-# JJJ: wire _unpatch
-# JJJ: check if gevent patched the modules
 
 def _patch():
-    # type: () -> None
+    patched = []
+    # type: () -> List[str]
     if not config._appsec_enabled:
-        return
+        return patched
 
     import os
+    if not getattr(os, "_datadog_patch", False):
+        Pin().onto(os)
+        trace_utils.wrap(os, "system", traced_ossystem(os))
+        trace_utils.wrap(os, "fork", traced_fork(os))
 
-    Pin().onto(os)
-    trace_utils.wrap(os, "system", traced_ossystem(os))
-    trace_utils.wrap(os, "fork", traced_fork(os))
+        # all os.spawn* variants eventually use this one:
+        trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
 
-    # all os.spawn* variants eventually use this one:
-    trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
+        if PY2:
+            # note: popen* uses subprocess in Python3, which we already wrap below, but not in
+            # Python2
+            trace_utils.wrap(os, "popen", traced_py2popen(os))
+            trace_utils.wrap(os, "popen2", traced_py2popen(os))
+            trace_utils.wrap(os, "popen3", traced_py2popen(os))
+            trace_utils.wrap(os, "popen4", traced_py2popen(os))
+        patched.append("os")
 
-    if PY2:
-        # note: popen* uses subprocess in Python3, which we already wrap below, but not in
-        # Python2
-        trace_utils.wrap(os, "popen", traced_py2popen(os))
-        trace_utils.wrap(os, "popen2", traced_py2popen(os))
-        trace_utils.wrap(os, "popen3", traced_py2popen(os))
-        trace_utils.wrap(os, "popen4", traced_py2popen(os))
 
-    Pin().onto(subprocess)
-    # We store the parameters on __init__ in the context and set the tags on wait
-    # (where all the Popen objects eventually arrive, unless killed before it)
-    trace_utils.wrap(subprocess, "Popen.__init__", traced_subprocess_init(subprocess))
-    trace_utils.wrap(subprocess, "Popen.wait", traced_subprocess_wait(subprocess))
+    if not getattr(subprocess, "_datadog_patch", False):
+        Pin().onto(subprocess)
+        # We store the parameters on __init__ in the context and set the tags on wait
+        # (where all the Popen objects eventually arrive, unless killed before it)
+        trace_utils.wrap(subprocess, "Popen.__init__", traced_subprocess_init(subprocess))
+        trace_utils.wrap(subprocess, "Popen.wait", traced_subprocess_wait(subprocess))
+
+        setattr(os, "_datadog_patch", True)
+        setattr(subprocess, "_datadog_patch", True)
+        patched.append("subprocess")
+
+    return patched
 
 
 @attr.s(eq=False)
@@ -296,6 +304,9 @@ def _unpatch():
         trace_utils.unwrap(os, "popen4")
 
     SubprocessCmdLine._clear_cache()
+    
+    setattr(os, "_datadog_patch", False)
+    setattr(subprocess, "_datadog_patch", False)
 
 
 @trace_utils.with_traced_module

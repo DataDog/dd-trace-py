@@ -1,3 +1,4 @@
+
 import os
 import subprocess
 import sys
@@ -244,6 +245,9 @@ def test_unpatch(tracer):
         assert not span.get_tag(COMMANDS.SHELL)
         assert not span.get_tag(COMMANDS.EXIT_CODE)
         assert not span.get_tag(COMMANDS.COMPONENT)
+
+    assert not getattr(os, "_datadog_patch", False)
+    assert not getattr(subprocess, "_datadog_patch", False)
 
 
 def test_ossystem_noappsec(tracer):
