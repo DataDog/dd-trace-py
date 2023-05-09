@@ -33,6 +33,8 @@ from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
@@ -49,7 +51,7 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        _default_service="django",
+        _default_service=schematize_service_name("django"),
         cache_service_name=os.getenv("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
         database_service_name_prefix=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
         database_service_name=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
@@ -452,7 +454,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         headers_case_sensitive=django.VERSION < (2, 2),
     ):
         with pin.tracer.trace(
-            "django.request",
+            schematize_url_operation("django.request", protocol="http", direction="inbound"),
             resource=utils.REQUEST_DEFAULT_RESOURCE,
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
@@ -657,7 +659,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
-        span.name = "django.request"
+        span.name = schematize_url_operation("django.request", protocol="http", direction="inbound")
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
