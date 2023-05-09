@@ -1186,8 +1186,8 @@ def flush_test_tracer_spans(writer):
 
 
 def add_dd_env_variables_to_headers(headers):
-    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith('DD_')}
+    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith("DD_")}
     if dd_env_vars:
-        dd_env_vars_string = ','.join(f'{key}={value}' for key, value in dd_env_vars.items())
-        headers['X-Datadog-Trace-Env-Variables'] = dd_env_vars_string
+        dd_env_vars_string = ",".join(f"{key}={value}" for key, value in dd_env_vars.items())
+        headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
     return headers
