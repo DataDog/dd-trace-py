@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import contextlib
 import json
 import random
 import string
@@ -588,6 +589,11 @@ def test_list_string_table():
     assert list(t) == ["", "foobar", "foobaz"]
 
 
+@contextlib.contextmanager
+def _value():
+    yield "value"
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -601,6 +607,8 @@ def test_list_string_table():
         {"duration_ns": "duration_time"},
         {"span_type": 100},
         {"_meta": {"num": 100}},
+        # Validating behavior with a context manager is a customer regression
+        {"_meta": {"key": _value()}},
         {"_metrics": {"key": "value"}},
     ],
 )
@@ -612,9 +620,10 @@ def test_encoding_invalid_data(data):
         setattr(span, key, value)
 
     trace = [span]
-    with pytest.raises(TypeError):
+    with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
+    assert e.match(r"failed to pack span: <Span\(id="), e
     assert encoder.encode() is None
 
 
