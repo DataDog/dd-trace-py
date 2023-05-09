@@ -318,14 +318,15 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
-        if _CIVisibility.test_skipping_enabled:
 
-            if _CIVisibility.should_skip(
-                item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
-            ):
-                pytest.skip("Skipped by Datadog Intelligent Test Runner")
-                yield
-                return
+    if _CIVisibility.test_skipping_enabled:
+
+        if _CIVisibility.should_skip(
+            item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+        ):
+            item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
+            yield
+            return
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,

@@ -1289,3 +1289,27 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.BRANCH)
         assert test_span.get_tag(git.COMMIT_SHA)
         assert test_span.get_tag(git.REPOSITORY_URL)
+
+    def test_pytest_skipped_by_itr(self):
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_work():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled", return_value=True
+        ) as tse, mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
+            return_value=[
+                "test_will_work",
+            ],
+        ) as gtts, mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        assert len(spans) == 0
+        pytest_skip.assert_called_once_with("Skipped by Datadog Intelligent Test Runner")
