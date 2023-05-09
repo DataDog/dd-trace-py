@@ -14,6 +14,7 @@ from ddtrace.internal.utils.formats import asbool
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
     from typing import Optional
 
     from ddtrace import Tracer
@@ -145,7 +146,7 @@ def parse_form_params(body):
 
 
 def parse_form_multipart(body):
-    # type: (unicode) -> dict[unicode, unicode|list[unicode]]
+    # type: (unicode) -> dict[unicode, Any]
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
