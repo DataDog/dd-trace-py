@@ -4,7 +4,6 @@ import sys
 
 import grpc
 from grpc import aio
-import packaging.version
 import pytest
 
 from ddtrace import Pin
@@ -16,6 +15,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
+import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
@@ -464,7 +464,7 @@ async def test_unary_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
@@ -551,7 +551,7 @@ async def test_server_streaming_exception(server_info, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert server_span.error == 1
     # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-    if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+    if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
         assert server_span.get_tag(ERROR_MSG) == "abort_details"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     else:
@@ -691,7 +691,7 @@ async def test_client_streaming_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
@@ -797,7 +797,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:

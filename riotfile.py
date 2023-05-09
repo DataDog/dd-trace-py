@@ -368,15 +368,15 @@ venv = Venv(
                 "gevent": latest,
             },
             venvs=[
-                Venv(pys="2.7", pkgs={"packaging": ["==17.1", latest]}),
+                Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", latest]},
+                    pkgs={"pytest-asyncio": latest},
                 ),
                 # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
                 Venv(
                     pys=select_pys(min_version="3.7"),
-                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", "==22.0", latest]},
+                    pkgs={"pytest-asyncio": latest},
                 ),
             ],
         ),
@@ -480,7 +480,6 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
-                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -1082,7 +1081,6 @@ venv = Venv(
                             latest,
                         ],
                         "importlib_metadata": "<=6.0",
-                        "packaging": ">=17.1",
                     },
                 ),
                 Venv(
@@ -1109,7 +1107,6 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
-                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(
@@ -2499,7 +2496,6 @@ venv = Venv(
                 "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
-                "packaging": latest,
                 "pytest-asyncio": latest,
             },
         ),
