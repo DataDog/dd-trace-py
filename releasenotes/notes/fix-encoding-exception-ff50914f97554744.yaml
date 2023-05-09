@@ -1,0 +1,3 @@
+fixes:
+  - |
+    tracing: Fixes a cryptic encoding exception message when a span tag is not a string.
