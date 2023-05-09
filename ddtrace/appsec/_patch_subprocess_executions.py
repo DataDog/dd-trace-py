@@ -36,6 +36,7 @@ def _patch():
         return patched
 
     import os
+
     if not getattr(os, "_datadog_patch", False):
         Pin().onto(os)
         trace_utils.wrap(os, "system", traced_ossystem(os))
@@ -52,7 +53,6 @@ def _patch():
             trace_utils.wrap(os, "popen3", traced_py2popen(os))
             trace_utils.wrap(os, "popen4", traced_py2popen(os))
         patched.append("os")
-
 
     if not getattr(subprocess, "_datadog_patch", False):
         Pin().onto(subprocess)
@@ -304,7 +304,7 @@ def _unpatch():
         trace_utils.unwrap(os, "popen4")
 
     SubprocessCmdLine._clear_cache()
-    
+
     setattr(os, "_datadog_patch", False)
     setattr(subprocess, "_datadog_patch", False)
 
@@ -323,7 +323,9 @@ def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
     except:  # noqa
-        log.debug("Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug(
+            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+        )
         return wrapped(*args, **kwargs)
 
 
@@ -338,7 +340,9 @@ def traced_fork(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
     except:  # noqa
-        log.debug("Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug(
+            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+        )
         return wrapped(*args, **kwargs)
 
 
@@ -359,7 +363,9 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
                 return ret
     except:  # noqa
-        log.debug("Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug(
+            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+        )
 
     return wrapped(*args, **kwargs)
 
@@ -376,7 +382,9 @@ def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.TRUNCATED, "true")
             span.set_tag_str(COMMANDS.COMPONENT, "os")
     except:  # noqa
-        log.debug("Could not trace subprocess execution for os.popen*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug(
+            "Could not trace subprocess execution for os.popen*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+        )
 
     return wrapped(*args, **kwargs)
 
