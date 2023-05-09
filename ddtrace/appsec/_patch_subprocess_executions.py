@@ -30,8 +30,8 @@ log = get_logger(__name__)
 
 
 def _patch():
-    patched = []
     # type: () -> List[str]
+    patched = []  # type: List[str]
     if not config._appsec_enabled:
         return patched
 
