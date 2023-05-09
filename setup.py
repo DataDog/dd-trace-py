@@ -299,19 +299,6 @@ class CleanLibraries(CleanCommand):
         CleanCommand.run(self)
 
 
-class ExtensionWithPrereqs(Extension):
-    def __init__(self, *args, **kwargs):
-        self.get_prereqs = kwargs.pop("get_prereqs", None)
-        Extension.__init__(self, *args, **kwargs)
-
-
-class CustomBuildExtCommand(BuildExtCommand):
-    def build_extension(self, ext):
-        if hasattr(ext, "get_prereqs") and callable(ext.get_prereqs):
-            ext.get_prereqs()
-        BuildExtCommand.build_extension(self, ext)
-
-
 long_description = """
 # dd-trace-py
 
@@ -418,9 +405,11 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
 else:
     ext_modules = []
 
-if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
-    ext_modules.append(
-        ExtensionWithPrereqs(
+def get_ddup_ext():
+    ddup_ext = []
+    if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+        LibDatadog_Download.run()
+        ddup_ext.extend(cythonize([Cython.Distutils.Extension(
             "ddtrace.internal.datadog.profiling.ddup",
             sources=[
                 "ddtrace/internal/datadog/profiling/src/exporter.cpp",
@@ -431,9 +420,16 @@ if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glib
             extra_objects=LibDatadog_Download.get_extra_objects(),
             extra_compile_args=["-std=c++17"],
             language="c++",
-            get_prereqs=lambda: LibDatadog_Download.run(),
-        )
-    )
+        )],
+        compile_time_env={
+            "PY_MAJOR_VERSION": sys.version_info.major,
+            "PY_MINOR_VERSION": sys.version_info.minor,
+            "PY_MICRO_VERSION": sys.version_info.micro,
+        },
+        force=True,
+        annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        ))
+    return ddup_ext
 
 bytecode = [
     "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
@@ -505,7 +501,7 @@ setup(
     },
     tests_require=["flake8"],
     cmdclass={
-        "build_ext": CustomBuildExtCommand,
+        "build_ext": BuildExtCommand,
         "build_py": Library_Downloader,
         "clean": CleanLibraries,
     },
@@ -595,5 +591,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil"),
+    + get_exts_for("psutil")
+    + get_ddup_ext(),
 )
