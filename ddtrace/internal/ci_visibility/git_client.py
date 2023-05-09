@@ -18,6 +18,7 @@ from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import GIT_API_BASE_PATH
 
 
 log = get_logger(__name__)
@@ -38,7 +39,7 @@ class CIVisibilityGitClient(object):
         # type: (str, str, str) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
-        self._base_url = "https://api.{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+        self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
         self._response = RESPONSE
 
     def start(self, cwd=None):
