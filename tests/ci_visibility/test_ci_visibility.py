@@ -194,7 +194,7 @@ def test_git_client_get_filtered_revisions(git_repo):
 
 def test_git_client_build_packfiles(git_repo):
     found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -217,7 +217,7 @@ def test_git_client_build_packfiles(git_repo):
 def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     remote_url = "git@github.com:test-repo-url.git"
-    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient.retry_request") as rr:
             CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serializer, None, cwd=git_repo)
             assert rr.call_count == 1
