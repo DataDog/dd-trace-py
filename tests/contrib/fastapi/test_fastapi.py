@@ -340,7 +340,7 @@ def test_invalid_path(client, tracer, test_spans):
     assert request_span.get_tag("span.kind") == "server"
 
 
-@snapshot()
+@snapshot(ignores=["meta.error.stack"])
 def test_500_error_raised(snapshot_client):
     with pytest.raises(RuntimeError):
         snapshot_client.get("/500")
