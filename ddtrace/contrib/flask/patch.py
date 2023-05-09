@@ -263,7 +263,12 @@ def patch():
 
     def if_iast_taint_cookies(wrapped, instance, args, kwargs):
         if _is_iast_enabled():
-            if not instance and args[0].slot_name == "_cache_cookies":
+            # Werkzeug <= 1.0.1 uses args[0].__name__
+            # Werkzeug > 1.0.1 has an attribute slot_name to check this value
+            if not instance and (
+                (hasattr(args[0], "slot_name") and args[0].slot_name == "_cache_cookies")
+                or args[0].__name__ == "cookies"
+            ):
                 from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
                 res = LazyTaintDict(
@@ -282,6 +287,7 @@ def patch():
             if_iast_taint_cookies,
         )
     )
+
     _w(
         "werkzeug.datastructures",
         "Headers.items",
