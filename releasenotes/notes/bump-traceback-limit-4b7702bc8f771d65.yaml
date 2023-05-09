@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    span: Increases the maximum number of stackframes in ``error.stack`` tags from 20 to 30
+    span: Increases the traceback limit in ``error.stack`` tags from 20 to 30
