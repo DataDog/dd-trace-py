@@ -1178,8 +1178,16 @@ def flush_test_tracer_spans(writer):
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, headers, client)
+        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client)
     except Exception:
         return
 
     assert response.status == 200, response.body
+
+
+def add_dd_env_variables_to_headers(headers):
+    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith('DD_')}
+    if dd_env_vars:
+        dd_env_vars_string = ','.join(f'{key}={value}' for key, value in dd_env_vars.items())
+        headers['X-Datadog-Trace-Env-Variables'] = dd_env_vars_string
+    return headers
