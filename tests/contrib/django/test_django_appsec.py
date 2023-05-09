@@ -39,14 +39,12 @@ def _aux_appsec_get_root_span(
     headers=None,
     cookies={},
 ):
-    # Python 3+ only
-    from http.cookies import SimpleCookie
-
     tracer._appsec_enabled = config._appsec_enabled
     tracer._iast_enabled = config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
-    client.cookies = SimpleCookie(cookies)
+    # Set cookies
+    client.cookies.load(cookies)
     if payload is None:
         if headers:
             response = client.get(url, **headers)
