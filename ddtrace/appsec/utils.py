@@ -164,7 +164,7 @@ def parse_form_multipart(body):
                 res = json.loads(msg.get_payload())
             elif content_type in ("application/xml", "text/xml"):
                 res = xmltodict.parse(msg.get_payload())
-            elif content_type in ("text/plain"):
+            elif content_type in ("text/plain", None):
                 res = msg.get_payload()
             else:
                 res = ""
