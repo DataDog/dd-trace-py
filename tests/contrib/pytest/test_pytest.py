@@ -1306,7 +1306,7 @@ class PytestTestCase(TracerTestCase):
             return_value=[
                 "test_will_work",
             ],
-        ) as gtts, mock.patch("pytest.skip") as pytest_skip:
+        ), mock.patch("pytest.skip") as pytest_skip:
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
@@ -1332,7 +1332,7 @@ class PytestTestCase(TracerTestCase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
             return_value=[],
-        ) as gtts, mock.patch("pytest.skip") as pytest_skip:
+        ), mock.patch("pytest.skip") as pytest_skip:
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
@@ -1348,4 +1348,3 @@ class PytestTestCase(TracerTestCase):
         assert test_failed_test_span.name == "pytest.test"
         assert test_failed_test_span.get_tag("test.status") == "fail"
         assert test_failed_test_span.get_tag("test.name") == "test_not_ok"
-
