@@ -65,8 +65,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
+    export_libdd_enabled = attr.ib(type=bool, default=attr.Factory(lambda: config.export.libdd_enabled))
+    export_py_enabled = attr.ib(type=bool, default=attr.Factory(lambda: config.export.py_enabled))
 
     def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
         wrapt.ObjectProxy.__init__(self, wrapped)

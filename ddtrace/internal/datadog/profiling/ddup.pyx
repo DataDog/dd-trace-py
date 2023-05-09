@@ -62,11 +62,21 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             version: Optional[str],
             tags: Optional[typing.Dict[str, str]],
             max_nframes: Optional[int]) -> None:
+
+        if service is not None:
+            ddup_config_service(str.encode(service))
+        else:
+            ddup_config_service(str.encode("myservice"))
+
+        if env is not None:
+            ddup_config_env(str.encode(env))
+        else:
+            ddup_config_env(str.encode("prod"))
+
         if version is not None:
-            version += ".libdatadog"
-        ddup_config_env(str.encode(env))
-        ddup_config_service(str.encode(service))
-        ddup_config_version(str.encode(version))
+            ddup_config_version(str.encode(version))
+
+        # Inherited
         ddup_config_runtime(str.encode(platform.python_implementation()))
         ddup_config_runtime_version(str.encode(platform.python_version()))
         ddup_config_profiler_version(str.encode(ddtrace.__version__))

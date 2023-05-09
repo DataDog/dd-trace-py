@@ -524,8 +524,8 @@ class StackCollector(collector.PeriodicCollector):
             wall_time,
             self._thread_span_links,
             self.endpoint_collection_enabled,
-            self.export_libdd_enabled,
-            self.export_py_enabled,
+            export_libdd_enabled=self.export_libdd_enabled,
+            export_py_enabled=self.export_py_enabled,
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now
