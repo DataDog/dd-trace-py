@@ -446,7 +446,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=20):
+    def set_traceback(self, limit=30):
         # type: (int) -> None
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, set the span to the current python stack.
@@ -474,7 +474,7 @@ class Span(object):
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)

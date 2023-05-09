@@ -8,6 +8,7 @@ from typing import Tuple
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
@@ -207,6 +208,10 @@ class Config(object):
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+
+        if self.service is None and in_gcp_function():
+            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -229,7 +234,7 @@ class Config(object):
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
 
-        self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
+        self._telemetry_metrics_enabled = asbool(os.getenv("DD_TELEMETRY_METRICS_ENABLED", default=True))
 
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
 
@@ -264,7 +269,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
         )
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
