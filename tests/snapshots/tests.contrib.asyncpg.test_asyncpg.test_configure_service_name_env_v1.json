@@ -1,8 +1,8 @@
 [[
   {
-    "name": "postgres.query",
+    "name": "postgres.connect",
     "service": "global-service-name",
-    "resource": "postgres.query",
+    "resource": "postgres.connect",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -32,7 +32,7 @@
   }],
 [
   {
-    "name": "postgres.query",
+    "name": "postgres.connect",
     "service": "global-service-name",
     "resource": "SELECT 1",
     "trace_id": 1,

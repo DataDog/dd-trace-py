@@ -82,9 +82,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     connect() is instrumented and patched to return a connection proxy.
     """
     with pin.tracer.trace(
-        schematize_database_operation("postgres.connect", database_provider="postgresql"),
-        span_type=SpanTypes.SQL,
-        service=ext_service(pin, config.asyncpg),
+        "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)
