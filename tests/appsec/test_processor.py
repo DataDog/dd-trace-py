@@ -656,14 +656,18 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
 
 def test_asm_context_meta(tracer_appsec):
     tracer = tracer_appsec
+    appsec_processor = tracer._appsec_processor
 
-    # For a web type span, a context manager is added, but then removed
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        assert span.context._meta["ASM_CONTEXT_%d" % (id(span),)]
-    assert span.context._meta.get("ASM_CONTEXT_%d" % (id(span),)) is None
+    # Ensure we have a processor and there are no span request contexts being tracked
+    assert appsec_processor
+    assert not appsec_processor._span_contexts
 
-    # Regression test, if the span type changes after being created, we always removed
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        span.span_type = SpanTypes.HTTP
-        assert span.context._meta["ASM_CONTEXT_%d" % (id(span),)]
-    assert span.context._meta.get("ASM_CONTEXT_%d" % (id(span),)) is None
+    with tracer.trace("span", span_type=SpanTypes.WEB) as span:
+        assert span in appsec_processor._span_contexts
+
+    # Ensure we manually cleanup on span finish
+    assert span not in appsec_processor._span_contexts
+
+    # We do not track request context for non-web spans
+    with tracer.trace("span") as span:
+        assert span not in appsec_processor._span_contexts

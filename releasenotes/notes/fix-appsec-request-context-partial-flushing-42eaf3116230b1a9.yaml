@@ -1,0 +1,3 @@
+fixes:
+  - |
+    appsec: Fixes an encoding error from a trace that is partial flushed while an AppSec request context is active.

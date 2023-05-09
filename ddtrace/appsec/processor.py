@@ -5,6 +5,7 @@ import os.path
 import traceback
 from typing import Set
 from typing import TYPE_CHECKING
+from weakref import WeakKeyDictionary
 
 import attr
 from six import ensure_binary
@@ -43,6 +44,7 @@ except ImportError:
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import ContextManager
     from typing import Dict
     from typing import List
     from typing import Tuple
@@ -144,6 +146,11 @@ class AppSecSpanProcessor(SpanProcessor):
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
 
+    # DEV: Use a WeakKeyDictionary so if the Span is GC'd then this dict will get pruned for us and not leak memory
+    _span_contexts = attr.ib(
+        type=WeakKeyDictionary, factory=WeakKeyDictionary
+    )  # type: WeakKeyDictionary[Span, ContextManager]
+
     @property
     def enabled(self):
         return self._ddwaf is not None
@@ -220,7 +227,7 @@ class AppSecSpanProcessor(SpanProcessor):
         else:
             new_asm_context = _asm_request_context.asm_request_context_manager()
             new_asm_context.__enter__()
-            span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
+            self._span_contexts[span] = new_asm_context
             _asm_request_context.register(span)
 
         ctx = self._ddwaf._at_request_start()
@@ -376,7 +383,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
+        asm_context = self._span_contexts.get(span)
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
@@ -393,5 +400,5 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             if asm_context is not None:
-                asm_context.__exit__(None, None, None)  # type: ignore
-                del span.context._meta["ASM_CONTEXT_%d" % id(span)]
+                asm_context.__exit__(None, None, None)
+                del self._span_contexts[span]
