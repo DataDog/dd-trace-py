@@ -138,36 +138,6 @@ class MemoryCollector(collector.PeriodicCollector):
             )
 
     def collect(self):
-        try:
-            events, count, alloc_count = _memalloc.iter_events()
-        except RuntimeError:
-            # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
-            return tuple()
-
-        capture_pct = 100 * count / alloc_count
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
-        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
-        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
-        # timestamp in C and then return it via iter_events.
-        return (
-            tuple(
-                MemoryAllocSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=_threading.get_thread_name(thread_id),
-                    thread_native_id=_threading.get_thread_native_id(thread_id),
-                    frames=stack,
-                    nframes=nframes,
-                    size=size,
-                    capture_pct=capture_pct,
-                    nevents=alloc_count,
-                )
-                for (stack, nframes, thread_id), size, domain in events
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-            ),
-        )
-
-    def collect(self):
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
         # timestamp in C and then return it via iter_events.
