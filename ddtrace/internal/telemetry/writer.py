@@ -390,7 +390,7 @@ class TelemetryWriter(TelemetryBase):
         # we could hack it in by xor-ing error codes and concatenating strings
         self._error = (0, "")  # type: Tuple[int, str]
 
-    def add_integration(self, integration_name, enabled, auto_enabled, error_msg):
+    def add_integration(self, integration_name, patched, auto_patched, error_msg):
         # type: (str, bool, bool, str) -> None
         """
         Creates and queues the names and settings of a patched module
@@ -402,8 +402,8 @@ class TelemetryWriter(TelemetryBase):
         integration = {
             "name": integration_name,
             "version": "",
-            "enabled": enabled,
-            "auto_enabled": auto_enabled,
+            "enabled": patched,
+            "auto_enabled": auto_patched,
             "compatible": error_msg == "",
             "error": error_msg,  # the integration error only takes a message, no code
         }

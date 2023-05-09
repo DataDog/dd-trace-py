@@ -240,7 +240,6 @@ del sqlite3.connect
 from ddtrace import patch, tracer
 patch(raise_errors=False, sqlite3=True)
 tracer.trace("test").finish()
-tracer.flush()
 """
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
