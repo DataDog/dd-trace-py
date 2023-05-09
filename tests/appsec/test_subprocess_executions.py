@@ -194,6 +194,27 @@ def test_ossystem(tracer):
         assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
+def test_fork(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        patch_all()
+        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        with tracer.trace("ossystem_test"):
+            pid = os.fork()
+            if pid == 0:
+                return
+
+        spans = tracer.pop()
+        assert spans
+        assert len(spans) > 1
+        span = spans[1]
+        assert span.name == COMMANDS.SPAN_NAME
+        assert span.resource == "fork"
+        assert span.get_tag(COMMANDS.COMPONENT) == "os"
+        assert span.get_tag(COMMANDS.EXEC) == str(["os.fork"])
+        assert not span.get_tag(COMMANDS.TRUNCATED)
+
+
 def test_unpatch(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         patch_all()

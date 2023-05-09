@@ -199,7 +199,11 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     patch_iast(**IAST_PATCH)
-    patch_subprocess_executions()
+    if config._appsec_enabled:
+        patch_appsec_subprocess_executions()
+        with _LOCK:
+            _PATCHED_MODULES.add("os")
+            _PATCHED_MODULES.add("subprocess")
 
 
 def patch_iast(**patch_modules):
@@ -217,10 +221,7 @@ def patch_iast(**patch_modules):
             )
 
 
-def patch_subprocess_executions():
-    if not config._appsec_enabled:
-        return
-
+def patch_appsec_subprocess_executions():
     from .appsec._patch_subprocess_executions import _patch
 
     _patch()

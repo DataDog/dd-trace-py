@@ -28,6 +28,8 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+# JJJ: wire _unpatch
+# JJJ: check if gevent patched the modules
 
 def _patch():
     # type: () -> None
@@ -38,6 +40,7 @@ def _patch():
 
     Pin().onto(os)
     trace_utils.wrap(os, "system", traced_ossystem(os))
+    trace_utils.wrap(os, "fork", traced_fork(os))
 
     # all os.spawn* variants eventually use this one:
     trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
@@ -309,7 +312,22 @@ def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
     except:  # noqa
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        return wrapped(*args, **kwargs)
+
+
+@trace_utils.with_traced_module
+def traced_fork(module, pin, wrapped, instance, args, kwargs):
+    try:
+        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
+            span.set_tag(COMMANDS.EXEC, ["os.fork"])
+            span.set_tag_str(COMMANDS.COMPONENT, "os")
+            ret = wrapped(*args, **kwargs)
+            if ret != 0:  # not the child
+                span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+        return ret
+    except:  # noqa
+        log.debug("Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
         return wrapped(*args, **kwargs)
 
 
@@ -330,7 +348,7 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
                 return ret
     except:  # noqa
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
     return wrapped(*args, **kwargs)
 
@@ -347,7 +365,7 @@ def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.TRUNCATED, "true")
             span.set_tag_str(COMMANDS.COMPONENT, "os")
     except:  # noqa
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution for os.popen*: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
     return wrapped(*args, **kwargs)
 
@@ -372,7 +390,7 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
                 _context.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list(), span=span)
             _context.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary, span=span)
     except:  # noqa
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
     return wrapped(*args, **kwargs)
 
