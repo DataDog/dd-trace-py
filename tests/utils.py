@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import List  # noqa
+from typing import List
 
 import attr
 import pkg_resources
