@@ -1,6 +1,10 @@
+import os
 import platform
+import sys
 import typing
 from typing import Optional
+
+import __main__
 
 import ddtrace
 from ddtrace.internal import runtime
@@ -63,10 +67,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             tags: Optional[typing.Dict[str, str]],
             max_nframes: Optional[int]) -> None:
 
-        if service is not None:
-            ddup_config_service(str.encode(service))
-        else:
-            ddup_config_service(str.encode("myservice"))
+        if not service:
+            if hasattr(__main__, "__file"):
+                service = os.path.basename(__main__.__file__)
+            else:
+                service = os.path.basename(sys.argv[0])
+        ddup_config_service(str.encode(service))
 
         if env is not None:
             ddup_config_env(str.encode(env))

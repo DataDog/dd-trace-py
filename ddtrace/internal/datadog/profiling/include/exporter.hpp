@@ -75,7 +75,7 @@ class Uploader {
 
 public:
   Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);
-  bool set_runtime_id(const std::string &id);
+  bool set_runtime_id(std::string_view id);
   bool upload(const Profile *profile);
 };
 
