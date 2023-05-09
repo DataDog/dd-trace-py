@@ -1,3 +1,4 @@
+import random
 from time import sleep
 from uuid import uuid4
 
@@ -109,7 +110,7 @@ def test_poller_env_version(env, version, expected, mock_config):
         adapter = ProbeRCAdapter("", callback)
         remoteconfig_poller.register("TEST", adapter)
 
-        adapter.publish({}, config_metadata())
+        adapter.publish({"test": random.randint(0, 11111111)}, config_metadata())
         remoteconfig_poller._poll_data()
 
         assert set(_.probe_id for _ in probes) == expected
@@ -157,7 +158,7 @@ def test_poller_events(mock_config):
     try:
         adapter = ProbeRCAdapter("", callback)
         remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 2}, metadata)
         remoteconfig_poller._poll_data()
         mock_config.remove_probes("probe1", "probe2")
         mock_config.add_probes(
@@ -178,12 +179,12 @@ def test_poller_events(mock_config):
                 ),
             ]
         )
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 3}, metadata)
         remoteconfig_poller._poll_data()
 
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 4}, metadata)
         remoteconfig_poller._poll_data()
         sleep(0.5)
         assert events == {
@@ -408,7 +409,7 @@ def test_modified_probe_events(mock_config):
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter)
         sleep(0.5)
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 5}, metadata)
         remoteconfig_poller._poll_data()
 
         mock_config.add_probes(
@@ -422,11 +423,11 @@ def test_modified_probe_events(mock_config):
                 )
             ]
         )
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 6}, metadata)
         remoteconfig_poller._poll_data()
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter.publish({}, metadata)
+        adapter.publish({"test": 7}, metadata)
         remoteconfig_poller._poll_data()
 
         assert events == [

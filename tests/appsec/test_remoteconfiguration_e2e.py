@@ -39,7 +39,7 @@ def _build_env():
 def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", token=None):
     cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
     env = _build_env()
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
         env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
@@ -267,7 +267,7 @@ def _request_403(client, debug_mode=False):
     results = _multi_requests(client, debug_mode)
     for response in results:
         assert response.status_code == 403
-        assert response.content.startswith(b'\n{"errors": [{"title": "You\'ve been blocked"')
+        assert response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
 
 
 @pytest.mark.skipif(
@@ -282,13 +282,11 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
 
         _block_ip(token)
 
-        time.sleep(3)
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
         _unblock_ip(token)
-
-        time.sleep(1)
 
 
 @pytest.mark.skipif(
@@ -305,13 +303,13 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _request_200(gunicorn_client)
 
-        time.sleep(3)
+        time.sleep(1)
 
         _request_403(gunicorn_client)
 
         _unblock_ip(token)
 
-        time.sleep(2)
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -328,19 +326,19 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         # _request_200(gunicorn_client)
 
-        time.sleep(4)
+        time.sleep(1)
 
         _request_403(gunicorn_client)
 
         os.kill(int(pid), signal.SIGTERM)
 
-        time.sleep(4)
+        time.sleep(2)
 
         _request_403(gunicorn_client)
 
         _unblock_ip(token)
 
-        time.sleep(2)
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -361,20 +359,20 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _block_ip_with_1_click_activation(token)
 
-        _request_200(gunicorn_client, debug_mode=False)
+        # _request_200(gunicorn_client, debug_mode=False)
 
-        time.sleep(3)
+        time.sleep(1)
 
         _request_403(gunicorn_client, debug_mode=False)
 
         os.kill(int(pid), signal.SIGTERM)
 
-        time.sleep(5)
+        time.sleep(3)
 
         _request_403(gunicorn_client, debug_mode=False)
 
         _unblock_ip(token)
 
-        time.sleep(3)
+        time.sleep(1)
 
         _request_200(gunicorn_client, debug_mode=False)

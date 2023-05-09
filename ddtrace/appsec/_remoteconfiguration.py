@@ -89,8 +89,9 @@ def _add_rules_to_list(features, feature, message, ruleset):
 
 def _appsec_callback(features, test_tracer=None):
     # type: (Mapping[str, Any], Optional[Tracer]) -> None
-    _appsec_1click_activation(features, test_tracer)
-    _appsec_rules_data(features, test_tracer)
+    config = features.get("config", {})
+    _appsec_1click_activation(config, test_tracer)
+    _appsec_rules_data(config, test_tracer)
 
 
 def _appsec_rules_data(features, test_tracer):
