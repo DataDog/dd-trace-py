@@ -198,8 +198,10 @@ void ddup_set_runtime_id(const char *id) { g_uploader->set_runtime_id(id); }
 void ddup_upload_impl(Datadog::Profile *prof) { g_uploader->upload(prof); }
 
 void ddup_upload() {
-  if (!is_initialized)
+  if (!is_initialized) {
+    // Rationalize return for interface
     std::cout << "WHOA NOT INITIALIZED" << std::endl;
+  }
   new std::thread(ddup_upload_impl, g_profile); // set it and forget it
   g_prof_flag ^= true;
   g_profile = g_profile_real[g_prof_flag];
