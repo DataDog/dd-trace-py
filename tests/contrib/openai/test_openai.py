@@ -55,6 +55,18 @@ def api_key_in_env():
 
 
 @pytest.fixture
+def request_api_key(api_key_in_env, openai_api_key):
+    """
+    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
+    to make sure the env var will be used.
+    """
+    if api_key_in_env:
+        return None
+    return openai_api_key
+
+
+@pytest.fixture
 def openai_api_key():
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
@@ -207,11 +219,10 @@ def test_patching(openai):
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_completion(api_key_in_env, openai_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
         resp = openai.Completion.create(
-            api_key=api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
         )
 
     assert resp["object"] == "text_completion"
@@ -283,12 +294,11 @@ def test_completion(api_key_in_env, openai_api_key, openai, openai_vcr, mock_met
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acompletion(
-    api_key_in_env, openai_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
     with openai_vcr.use_cassette("completion_async.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
         resp = await openai.Completion.acreate(
-            api_key=api_key,
+            api_key=request_api_key,
             model="curie",
             prompt="As Descartes said, I think, therefore",
             temperature=0.8,
@@ -477,14 +487,13 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_chat_completion(api_key_in_env, openai_api_key, openai, openai_vcr, snapshot_tracer):
+def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
         openai.ChatCompletion.create(
-            api_key=api_key,
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -511,13 +520,12 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_achat_completion(api_key_in_env, openai_api_key, openai, openai_vcr, snapshot_tracer):
+async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
         await openai.ChatCompletion.acreate(
-            api_key=api_key,
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -532,23 +540,21 @@ async def test_achat_completion(api_key_in_env, openai_api_key, openai, openai_v
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_embedding(api_key_in_env, openai_api_key, openai, openai_vcr, snapshot_tracer):
+def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
-        openai.Embedding.create(api_key=api_key, input="hello world", model="text-embedding-ada-002")
+        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_aembedding(api_key_in_env, openai_api_key, openai, openai_vcr, snapshot_tracer):
+async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_async.yaml"):
-        api_key = None if api_key_in_env else openai_api_key
-        await openai.Embedding.acreate(api_key=api_key, input="hello world", model="text-embedding-ada-002")
+        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
