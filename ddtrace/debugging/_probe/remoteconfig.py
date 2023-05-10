@@ -258,6 +258,8 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     events that can be handled easily by the debugger.
     """
 
+    _status_timestamp = time.time()
+
     def __init__(self, data_connector, callback, name):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
         self._configs = {}  # type: Dict[str, Dict[str, Probe]]
@@ -266,17 +268,11 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     def _exec_callback(self, data, test_tracer=None):
         log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
         if data:
-            print("_exec_callback!!")
-            print(data)
             metadata = data["metadata"]
             rc_config = data["config"]
             # DEV: We emit a status update event here to avoid having to spawn a
             # separate thread for this.
             log.debug("Dynamic Instrumentation Updated")
-            print("self._status_timestamp")
-            print(self._status_timestamp)
-            print("time.time()")
-            print(time.time())
             if time.time() > self._status_timestamp:
                 log.debug("Dynamic Instrumentation,Emitting probe status log messages")
                 probes = [probe for config in self._configs.values() for probe in config.values()]

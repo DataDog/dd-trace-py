@@ -3,6 +3,7 @@ import os.path
 import sys
 from threading import Thread
 from time import sleep
+from time import time
 
 import mock
 from mock.mock import call
@@ -634,9 +635,9 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.2")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.4")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.2
+    remoteconfig_poller._interval = 0.4
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -646,6 +647,7 @@ def test_probe_status_logging(monkeypatch):
         import uuid
 
         for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
@@ -674,24 +676,21 @@ def test_probe_status_logging(monkeypatch):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
             sleep(0.2)
-            print("llega1!!")
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
             sleep(0.6)
-            print("llega2!!")
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
             sleep(0.6)
-            print("llega3!!")
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
 def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.4")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.1
+    remoteconfig_poller._interval = 0.4
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -701,6 +700,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
         import uuid
 
         for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
@@ -740,15 +740,13 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
                 ]
 
             sleep(0.2)
-            print("llega1!!")
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
 
             queue[:] = []
 
-            sleep(0.6)
-            print("llega2!!")
+            sleep(0.5)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
