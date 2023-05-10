@@ -703,7 +703,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
     RemoteConfigClient.request = request
     sleep(0.5)
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.4) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,
