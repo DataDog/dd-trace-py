@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
-      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"on_match\":[\"block\"],\"tags\":{\"category\":\"blocking\",\"type\":\"ip_addresses\"}},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}]}]}",
+      "_dd.appsec.json": "{\"triggers\":\"[{\\\"rule\\\":{\\\"id\\\":\\\"blk-001-001\\\",\\\"name\\\":\\\"Block IP addresses\\\",\\\"on_match\\\":[\\\"block\\\"],\\\"tags\\\":{\\\"category\\\":\\\"blocking\\\",\\\"type\\\":\\\"ip_addresses\\\"}},\\\"rule_matches\\\":[{\\\"operator\\\":\\\"ip_match\\\",\\\"operator_value\\\":\\\"\\\",\\\"parameters\\\":[{\\\"address\\\":\\\"http.client_ip\\\",\\\"key_path\\\":[],\\\"value\\\":\\\"8.8.4.4\\\",\\\"highlight\\\":[\\\"8.8.4.4\\\"]}]}]}]\"}",
       "_dd.appsec.waf.version": "1.10.0",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
@@ -32,7 +32,7 @@
       "http.version": "1.1",
       "language": "python",
       "network.client.ip": "8.8.4.4",
-      "runtime-id": "30c3b636278f49cf8439eff6e2afe59d",
+      "runtime-id": "10293c2bba794878acd7728e3de78aba",
       "span.kind": "server"
     },
     "metrics": {
@@ -40,13 +40,13 @@
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 15.667,
-      "_dd.appsec.waf.duration_ext": 34.809112548828125,
+      "_dd.appsec.waf.duration": 20.667,
+      "_dd.appsec.waf.duration_ext": 40.29273986816406,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 66453
+      "process_id": 86107
     },
-    "duration": 528000,
-    "start": 1683726604676294000
+    "duration": 531000,
+    "start": 1683730247607227000
   }]]

@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
-      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"on_match\":[\"block\"],\"tags\":{\"category\":\"blocking\",\"type\":\"ip_addresses\"}},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}]}]}",
+      "_dd.appsec.json": "{\"triggers\":\"[{\\\"rule\\\":{\\\"id\\\":\\\"blk-001-001\\\",\\\"name\\\":\\\"Block IP addresses\\\",\\\"on_match\\\":[\\\"block\\\"],\\\"tags\\\":{\\\"category\\\":\\\"blocking\\\",\\\"type\\\":\\\"ip_addresses\\\"}},\\\"rule_matches\\\":[{\\\"operator\\\":\\\"ip_match\\\",\\\"operator_value\\\":\\\"\\\",\\\"parameters\\\":[{\\\"address\\\":\\\"http.client_ip\\\",\\\"key_path\\\":[],\\\"value\\\":\\\"8.8.4.4\\\",\\\"highlight\\\":[\\\"8.8.4.4\\\"]}]}]}]\"}",
       "_dd.appsec.waf.version": "1.10.0",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
@@ -30,22 +30,22 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "942d715752dd41acb0b0eeb3e8183973"
+      "runtime-id": "6735dbf836664648997b6883fab0d970"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 26.542,
-      "_dd.appsec.waf.duration_ext": 56.98204040527344,
+      "_dd.appsec.waf.duration": 23.0,
+      "_dd.appsec.waf.duration_ext": 46.01478576660156,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 49174
+      "process_id": 81863
     },
-    "duration": 787000,
-    "start": 1683722378008325000
+    "duration": 705000,
+    "start": 1683729864428964000
   },
      {
        "name": "flask.response",
@@ -59,6 +59,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 183000,
-       "start": 1683722378008773000
+       "duration": 162000,
+       "start": 1683729864429376000
      }]]
