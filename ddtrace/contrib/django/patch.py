@@ -284,15 +284,23 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     s._ignore_exception(exc)
 
             # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
-            if _is_iast_enabled() and kwargs and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
-                try:
-                    from ddtrace.appsec.iast._input_info import Input_info
-                    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+            if _is_iast_enabled() and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
+                from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-                    for k, v in kwargs.items():
-                        kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
-                except Exception:
-                    log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+                if not isinstance(args[0].COOKIES, LazyTaintDict):
+                    args[0].COOKIES = LazyTaintDict(
+                        args[0].COOKIES, origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE)
+                    )
+
+                if kwargs:
+                    try:
+                        from ddtrace.appsec.iast._input_info import Input_info
+                        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                        for k, v in kwargs.items():
+                            kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                    except Exception:
+                        log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 
             return func(*args, **kwargs)
 
