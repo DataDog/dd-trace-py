@@ -302,7 +302,7 @@ def test_py2ospopen(tracer):
             assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
-_PARAMS = ["/usr/bin/ls", "-l", "/"]
+_PARAMS = ["/bin/ls", "-l", "/"]
 _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 
 
