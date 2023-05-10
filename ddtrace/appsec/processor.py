@@ -347,7 +347,8 @@ class AppSecSpanProcessor(SpanProcessor):
             if waf_results and waf_results.data:
                 span.set_tag_str(
                     APPSEC.JSON,
-                    '{"triggers":%s}' % (json.dumps(json.loads(waf_results.data), sort_keys=True, indent=2),),
+                    '{"triggers":%s}'
+                    % (json.dumps(json.loads(waf_results.data), sort_keys=True, indent=2, separators=(",", ": ")),),
                 )
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
