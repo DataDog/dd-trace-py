@@ -33,6 +33,7 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
@@ -1949,3 +1950,14 @@ def test_ctx_api():
         _context.get_item("appsec.key")
     with pytest.raises(ValueError):
         _context.get_items(["appsec.key"])
+
+
+def test_installed_excepthook():
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    telemetry.uninstall_excepthook()
+    assert sys.excepthook is not telemetry._excepthook
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    # Reset exception hooks
+    telemetry.uninstall_excepthook()
