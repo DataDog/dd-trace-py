@@ -190,3 +190,30 @@ asyncio.run(test())""",
     )
     assert status == 0, err
     assert out == err == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+@pytest.mark.parametrize("version", ["v0", "v1"])
+async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
+    """
+    When a user specifies a service for the app
+        The aiomysql integration should not use it.
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import asyncio
+import aiomysql
+from ddtrace import config
+from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
+async def test():
+    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
+    await (await conn.cursor()).execute("select 'dba4x4'")
+    conn.close()
+asyncio.run(test())""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == err == b""

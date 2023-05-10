@@ -6,6 +6,7 @@ from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.rediscluster.patch import patch
 from ddtrace.contrib.rediscluster.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -141,10 +142,10 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The rediscluster integration should not use it.
         """
         # Ensure that the service name was configured
@@ -161,6 +162,41 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The rediscluster integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        r = _get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc", span.service
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        """
+        v1: When a service isn't specified, we should end up with
+            the default span service name
+        """
+        r = _get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
     def test_env_user_specified_rediscluster_service(self):
         self.r.get("cheese")
@@ -176,6 +212,36 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.service == "myrediscluster"
 
         self.reset()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        v0: When a service isn't specified, we should end up with
+            the default span service name
+        """
+        r = _get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "redis.command"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        v1: When a service isn't specified, we should end up with
+            the default span service name
+        """
+        r = _get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "redis.command"
 
 
 @pytest.mark.snapshot

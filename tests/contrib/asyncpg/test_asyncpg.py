@@ -294,6 +294,38 @@ else:
     assert err == b""
 
 
+@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.parametrize("version", ("v0", "v1"))
+def test_span_name_by_schema(ddtrace_run_python_code_in_subprocess, version):
+    code = """
+import asyncio
+import sys
+import asyncpg
+from tests.contrib.config import POSTGRES_CONFIG
+
+async def test():
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+    )
+    await conn.execute("SELECT 1")
+    await conn.close()
+
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
+
+
 def test_patch_unpatch_asyncpg():
     assert iswrapped(asyncpg.connect)
     assert iswrapped(asyncpg.protocol.Protocol.execute)
