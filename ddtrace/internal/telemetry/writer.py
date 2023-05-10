@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ...internal import atexit
@@ -384,9 +385,13 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
+        # Currently telemetry only supports reporting a single error.
+        # If we'd like to report multiple errors in the future
+        # we could hack it in by xor-ing error codes and concatenating strings
+        self._error = (0, "")  # type: Tuple[int, str]
 
-    def add_integration(self, integration_name, auto_enabled):
-        # type: (str, bool) -> None
+    def add_integration(self, integration_name, patched, auto_patched, error_msg):
+        # type: (str, bool, bool, str) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -397,12 +402,23 @@ class TelemetryWriter(TelemetryBase):
         integration = {
             "name": integration_name,
             "version": "",
-            "enabled": True,
-            "auto_enabled": auto_enabled,
-            "compatible": True,
-            "error": "",
+            "enabled": patched,
+            "auto_enabled": auto_patched,
+            "compatible": error_msg == "",
+            "error": error_msg,  # the integration error only takes a message, no code
         }
+        # Reset the error after it has been reported.
+        self._error = (0, "")
         self._integrations_queue.append(integration)
+
+    def add_error(self, code, msg, filename, line_number):
+        # type: (int, str, Optional[str], Optional[int]) -> None
+        """Add an error to be submitted with an event.
+        Note that this overwrites any previously set errors.
+        """
+        if filename and line_number is not None:
+            msg = "%s:%s: %s" % (filename, line_number, msg)
+        self._error = (code, msg)
 
     def _app_started_event(self):
         # type: () -> None
@@ -412,7 +428,13 @@ class TelemetryWriter(TelemetryBase):
             return
         payload = {
             "configuration": [],
-        }  # type: Dict[str, List[Any]]
+            "error": {
+                "code": self._error[0],
+                "message": self._error[1],
+            },
+        }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
+        # Reset the error after it has been reported.
+        self._error = (0, "")
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
