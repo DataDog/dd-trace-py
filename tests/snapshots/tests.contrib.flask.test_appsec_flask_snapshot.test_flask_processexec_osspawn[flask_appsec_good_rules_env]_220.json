@@ -136,7 +136,6 @@
                    "error": 0,
                    "meta": {
                      "cmd.exec": "['os.fork']",
-                     "cmd.exit_code": "2288483",
                      "component": "os"
                    },
                    "duration": 832894,
