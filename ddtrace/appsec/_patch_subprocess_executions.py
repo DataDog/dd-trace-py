@@ -336,8 +336,6 @@ def traced_fork(module, pin, wrapped, instance, args, kwargs):
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
             span.set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
-            if ret != 0:  # not the child
-                span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
     except:  # noqa
         log.debug(
