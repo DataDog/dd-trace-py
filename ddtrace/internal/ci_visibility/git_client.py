@@ -26,6 +26,9 @@ log = get_logger(__name__)
 # this exists only for the purpose of mocking in tests
 RESPONSE = None
 
+# we're only interested in uploading .pack files
+PACK_EXTENSION = ".pack"
+
 
 class CIVisibilityGitClient(object):
     RETRY_ATTEMPTS = 5
@@ -121,7 +124,7 @@ class CIVisibilityGitClient(object):
         directory = "/".join(parts[:-1])
         rand = parts[-1]
         for filename in os.listdir(directory):
-            if not filename.startswith(rand):
+            if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
                 continue
             file_path = os.path.join(directory, filename)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
