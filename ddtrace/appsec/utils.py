@@ -3,6 +3,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec import _asm_request_context
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
@@ -13,6 +14,7 @@ from ddtrace.internal.utils.formats import asbool
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
     from typing import Optional
 
     from ddtrace import Tracer
@@ -141,3 +143,38 @@ def parse_form_params(body):
             else:
                 req_body[key] = [prev_value, val]
     return req_body
+
+
+def parse_form_multipart(body):
+    # type: (unicode) -> dict[unicode, Any]
+    """Return a dict of form data after HTTP form parsing"""
+    import email
+    import json
+
+    import xmltodict
+
+    def parse_message(msg):
+        if msg.is_multipart():
+            res = {
+                part.get_param("name", failobj=part.get_filename(), header="content-disposition"): parse_message(part)
+                for part in msg.get_payload()
+            }
+        else:
+            content_type = msg.get("Content-Type")
+            if content_type in ("application/json", "text/json"):
+                res = json.loads(msg.get_payload())
+            elif content_type in ("application/xml", "text/xml"):
+                res = xmltodict.parse(msg.get_payload())
+            elif content_type in ("text/plain", None):
+                res = msg.get_payload()
+            else:
+                res = ""
+
+        return res
+
+    headers = _asm_request_context.get_headers()
+    if headers is not None:
+        content_type = headers.get("Content-Type")
+        msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
+        return parse_message(msg)
+    return {}
