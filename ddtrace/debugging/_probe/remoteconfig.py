@@ -273,6 +273,10 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             # DEV: We emit a status update event here to avoid having to spawn a
             # separate thread for this.
             log.debug("Dynamic Instrumentation Updated")
+            print("self._status_timestamp")
+            print(self._status_timestamp)
+            print("time.time()")
+            print(time.time())
             if time.time() > self._status_timestamp:
                 log.debug("Dynamic Instrumentation,Emitting probe status log messages")
                 probes = [probe for config in self._configs.values() for probe in config.values()]

@@ -677,11 +677,11 @@ def test_probe_status_logging(monkeypatch):
             print("llega1!!")
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.5)
+            sleep(0.6)
             print("llega2!!")
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.5)
+            sleep(0.6)
             print("llega3!!")
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
