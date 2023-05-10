@@ -86,7 +86,7 @@ class PsycopgCore(TracerTestCase):
         start = time.time()
         cursor = db.cursor()
         res = await cursor.execute(q)  # execute now returns the cursor
-        self.assertEqual(psycopg.Cursor, type(res))
+        self.assertEqual(psycopg.AsyncCursor, type(res))
         rows = await res.fetchall()
         end = time.time()
 

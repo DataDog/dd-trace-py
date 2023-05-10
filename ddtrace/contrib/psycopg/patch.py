@@ -8,7 +8,7 @@ from ddtrace.contrib import dbapi
 
 
 try:
-    from ddtrace.contrib.psycopg.async_connection import patched_connect_async
+    from ddtrace.contrib.psycopg.async_connection import patched_connect_async_factory
     from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
     from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 # catch async function syntax errors when using Python<3.7 with no async support
@@ -115,7 +115,7 @@ def _patch(psycopg_module):
         _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
 
-        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async)
+        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
 
         config.psycopg["_patched_modules"].add(psycopg_module)
