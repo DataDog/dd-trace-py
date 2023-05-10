@@ -8,6 +8,7 @@ import random
 import re
 import subprocess
 from typing import Dict
+from typing import Generator
 from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
@@ -224,8 +225,11 @@ def extract_user_git_metadata(env=None):
 
 @contextlib.contextmanager
 def build_git_packfiles(revisions, cwd=None):
+    # type: (str, Optional[str]) -> Generator
     basename = str(random.randint(1, 1000000))
     with TemporaryDirectory() as tempdir:
         prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
-        _git_subprocess_cmd("pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions)
+        _git_subprocess_cmd(
+            "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
+        )
         yield prefix
