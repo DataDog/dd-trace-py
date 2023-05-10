@@ -599,6 +599,8 @@ class Debugger(Service):
     def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("Received poller event %r with probes %r", event, probes)
+        print("PROBES!")
+        print(probes)
         if len(list(probes)) + len(self._probe_registry) > config.max_probes:
             log.warning("Too many active probes. Ignoring new ones.")
             return
