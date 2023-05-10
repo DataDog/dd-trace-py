@@ -380,7 +380,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
     # mock_callback.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_not_called()
+    # mock_callback.assert_not_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()

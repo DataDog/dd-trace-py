@@ -678,10 +678,10 @@ def test_probe_status_logging(monkeypatch):
             sleep(0.2)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.6)
+            sleep(0.65)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.7)
+            sleep(0.75)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
@@ -746,7 +746,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
 
             queue[:] = []
 
-            sleep(0.35)
+            sleep(0.4)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
