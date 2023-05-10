@@ -17,6 +17,7 @@ from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
@@ -633,9 +634,9 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.1
+    remoteconfig_poller._interval = 0.3
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -649,9 +650,9 @@ def test_probe_status_logging(monkeypatch):
         return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.4) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     probe_id="line-probe-ok",
@@ -673,21 +674,24 @@ def test_probe_status_logging(monkeypatch):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
             sleep(0.2)
+            print("llega1!!")
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.4)
+            sleep(0.5)
+            print("llega2!!")
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
             sleep(0.5)
+            print("llega3!!")
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
 def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.1
+    remoteconfig_poller._interval = 0.3
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -701,9 +705,9 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
         return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.4) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,
@@ -736,6 +740,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
                 ]
 
             sleep(0.2)
+            print("llega1!!")
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
@@ -743,6 +748,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
             queue[:] = []
 
             sleep(0.5)
+            print("llega2!!")
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 

@@ -266,6 +266,8 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     def _exec_callback(self, data, test_tracer=None):
         log.debug("[%s] Subscriber %s _exec_callback", os.getpid(), self._name)
         if data:
+            print("_exec_callback!!")
+            print(data)
             metadata = data["metadata"]
             rc_config = data["config"]
             # DEV: We emit a status update event here to avoid having to spawn a
