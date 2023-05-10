@@ -57,7 +57,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_push_class_name(const char *class_name)
         void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line)
         void ddup_flush_sample()
-        void ddup_set_runtime_id(const char *_id)
+        void ddup_set_runtime_id(const char *_id, size_t sz)
         void ddup_upload()
 
     def init(
@@ -168,6 +168,6 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         ddup_flush_sample()
 
     def upload() -> None:
-        cdef bytes runtime_id = str.encode(runtime.get_runtime_id())
-        ddup_set_runtime_id(runtime_id)
+        runtime_id = str.encode(runtime.get_runtime_id())
+        ddup_set_runtime_id(runtime_id, len(runtime_id))
         ddup_upload()

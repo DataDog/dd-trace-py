@@ -129,7 +129,8 @@ Uploader *UploaderBuilder::build_ptr() {
       !add_tag(tags, ExportTagKey::version, version, errmsg) ||
       !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
       !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
-      !add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg)) {
+      !add_tag(tags, ExportTagKey::profiler_version, profiler_version,
+               errmsg)) {
     return nullptr;
   }
 
@@ -336,14 +337,9 @@ void Profile::push_frame_impl(std::string_view name, std::string_view filename,
     return;
 
   // Ensure strings are stored.
-  // Slightly wasteful since it requires allocating another string.
-  // This can be refactored to avoid the extra allocation in favor of an extra
-  // hash if the insertion (slow, infrequent) path is hit.  Idea courtesy
-  // of @sjanel via @r1viollet
-  auto insert_or_get = [&](std::string_view sv) -> std::string_view {
-    std::string str(sv);
-    auto [it, _] = strings.insert(std::move(str));
-    return *it;
+  auto insert_or_get = [this](std::string_view str) -> std::string_view {
+    auto it = strings.find(str);
+    return (it != strings.end()) ? *it : *strings.emplace(str).first;
   };
   name = insert_or_get(name);
   filename = insert_or_get(filename);
@@ -464,7 +460,7 @@ bool Profile::push_cputime(int64_t cputime, int64_t count) {
     values[val_idx.cpu_count] += count;
     return true;
   }
- std::cout << "bad push" << std::endl;
+  std::cout << "bad push" << std::endl;
   return false;
 }
 

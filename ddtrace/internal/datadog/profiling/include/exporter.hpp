@@ -126,6 +126,32 @@ public:
   };
 
 private:
+  struct str_hash {
+    // Hashing functor to allow incoming strings to get checked without
+    // speculuatively allocating before conversion to std::string
+    using is_transparent = void;
+
+    template <typename T> std::size_t operator()(T &&v) const {
+      return hasher(std::forward<T>(v));
+    }
+
+  private:
+    // Save on instantiating std::hash<>{} on every call
+    std::hash<std::string_view> hasher{};
+  };
+
+  struct str_eq {
+    // Before C++20, can't use std::equal_to<> for transparent comparison
+    // so we roll our own, taking advantage of the semantics of string_view
+    using is_transparent = void;
+
+    template <typename T, typename U> bool operator()(T &&t, U &&u) const {
+      return std::string_view(std::forward<T>(t)) ==
+             std::string_view(std::forward<U>(u));
+    }
+  };
+
+  using StringTable = std::unordered_set<std::string_view, str_hash, str_eq>;
   unsigned int type_mask;
   unsigned int max_nframes;
   unsigned int nframes;
@@ -140,7 +166,7 @@ private:
   size_t cur_frame;
 
   // Storage for strings
-  std::unordered_set<std::string> strings;
+  StringTable strings;
 
   // Storage for labels
   std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)>
