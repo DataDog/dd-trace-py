@@ -283,8 +283,9 @@ class Config(object):
 
         trace_compute_stats_default = self._is_gcp_function or self._is_azure_function
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS",
-                      os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default))
+            os.getenv(
+                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+            )
         )
 
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
