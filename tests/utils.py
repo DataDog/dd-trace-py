@@ -17,6 +17,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
@@ -404,7 +405,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer._writer.spans
+        return self.tracer.get_spans()
 
     def pop_spans(self):
         # type: () -> List[Span]
@@ -475,7 +476,11 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
+            kwargs["agent_url"] = agent.get_trace_url()
+        kwargs["api_version"] = kwargs.get("api_version", "v0.5")
+
+        # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
+        self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
@@ -487,8 +492,17 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
+            if self._trace_flush_enabled:
+                AgentWriter.write(self, spans=spans)
+            else:
+                self.msgpack_encoder.put(spans)
+                self.msgpack_encoder.encode()
+
+    def pop(self):
+        spans = DummyWriterMixin.pop(self)
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self)
+        return spans
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -511,6 +525,7 @@ class DummyTracer(Tracer):
 
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
+        self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
 
     @property
@@ -523,20 +538,34 @@ class DummyTracer(Tracer):
         # type: () -> Encoder
         return self._writer.msgpack_encoder
 
+    def get_spans(self):
+        # type: () -> List[List[Span]]
+        spans = self._writer.spans
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self._writer)
+        return spans
+
     def pop(self):
         # type: () -> List[Span]
-        return self._writer.pop()
+        spans = self._writer.pop()
+        return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        return self._writer.pop_traces()
+        traces = self._writer.pop_traces()
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self._writer)
+        return traces
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
+
         if not kwargs.get("writer"):
-            kwargs["writer"] = DummyWriter()
+            # if no writer is present, check if test agent is running to determine if we
+            # should emit traces.
+            kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
@@ -1124,3 +1153,41 @@ def git_repo(git_repo_empty):
         shell=True,
     )
     return cwd
+
+
+def check_test_agent_status():
+    agent_url = agent.get_trace_url()
+    try:
+        parsed = parse.urlparse(agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/info")
+        response = conn.getresponse()
+        if response.status == 200:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+
+
+def flush_test_tracer_spans(writer):
+    client = writer._clients[0]
+    n_traces = len(client.encoder)
+    try:
+        encoded_traces = client.encoder.encode()
+        if encoded_traces is None:
+            return
+        headers = writer._get_finalized_headers(n_traces, client)
+        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client)
+    except Exception:
+        return
+
+    assert response.status == 200, response.body
+
+
+def add_dd_env_variables_to_headers(headers):
+    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith("DD_")}
+    if dd_env_vars:
+        dd_env_vars_string = ",".join(["%s=%s" % (key, value) for key, value in dd_env_vars.items()])
+        headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
+    return headers
