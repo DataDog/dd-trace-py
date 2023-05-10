@@ -29,11 +29,7 @@ class RemoteConfigSubscriber(object):
         self._callback = callback
         self._name = name
         log.debug("[%s] Subscriber %s init", os.getpid(), self._name)
-
-    @property
-    def interval(self):
-        # type: () -> float
-        return get_poll_interval_seconds()
+        self.interval = get_poll_interval_seconds()
 
     def _exec_callback(self, data, test_tracer=None):
         # type: (SharedDataType, Optional[Tracer]) -> None

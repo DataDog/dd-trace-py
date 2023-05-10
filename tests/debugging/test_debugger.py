@@ -635,10 +635,8 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.4")
+def test_probe_status_logging():
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.4
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -649,6 +647,7 @@ def test_probe_status_logging(monkeypatch):
 
         for cb in self.get_pubsubs():
             cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
@@ -676,23 +675,23 @@ def test_probe_status_logging(monkeypatch):
             def count_status(queue):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.6)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.7)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
+def test_probe_status_logging_reemit_on_modify():
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.3
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -703,6 +702,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
 
         for cb in self.get_pubsubs():
             cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
             cb.publish({"test": str(uuid.uuid4())}, None)
         return True
 
@@ -741,14 +741,15 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
                     if _["debugger"]["diagnostics"]["status"] == status
                 ]
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
 
             queue[:] = []
 
-            sleep(0.35)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
