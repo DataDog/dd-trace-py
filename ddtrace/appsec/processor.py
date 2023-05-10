@@ -220,8 +220,7 @@ class AppSecSpanProcessor(SpanProcessor):
         else:
             new_asm_context = _asm_request_context.asm_request_context_manager()
             new_asm_context.__enter__()
-            span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
-            _asm_request_context.register(span)
+            _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
 
@@ -376,7 +375,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
@@ -392,6 +390,4 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf._at_request_end()
         finally:
             # release asm context if it was created by the span
-            if asm_context is not None:
-                asm_context.__exit__(None, None, None)  # type: ignore
-                del span.context._meta["ASM_CONTEXT_%d" % id(span)]
+            _asm_request_context.unregister(span)
