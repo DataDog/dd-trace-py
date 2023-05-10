@@ -1,8 +1,7 @@
 import typing
 from typing import Optional
 
-import packaging.version
-
+import ddtrace.vendor.packaging.version as packaging_version
 from ddtrace.version import get_version
 
 
@@ -32,8 +31,8 @@ def parse_version(version):
     # we will end up with a LegacyVersion
 
     try:
-        parsed = packaging.version.parse(version)
-    except packaging.version.InvalidVersion:
+        parsed = packaging_version.parse(version)
+    except packaging_version.InvalidVersion:
         # packaging>=22.0 raises an InvalidVersion instead of returning a LegacyVersion
         return (0, 0, 0)
 
