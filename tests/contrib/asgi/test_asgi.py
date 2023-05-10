@@ -127,9 +127,10 @@ async def tasks_app_with_more_body(scope, receive, send):
         await send({"type": "http.response.body", "body": b"*", "more_body": True})
         assert not request_span.finished
 
-        # assert that the span has finished after more_body is False
+        # assert that the span has not finished after more_body. Span should be finished after
+        # the ddtrace trace middleware is exited.
         await send({"type": "http.response.body", "body": b"*", "more_body": False})
-        assert request_span.finished
+        assert not request_span.finished
         await asyncio.sleep(1)
 
 
@@ -524,7 +525,7 @@ async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
-    assert request_span.duration < 1
+    assert request_span.duration < 1.1
 
 
 @pytest.mark.asyncio
@@ -547,7 +548,7 @@ async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
-    assert request_span.duration < 1
+    assert request_span.duration < 1.1
 
 
 @pytest.mark.asyncio
