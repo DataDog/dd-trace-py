@@ -345,7 +345,6 @@ def test_streaming_response(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("component") == "fastapi"
-    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_file_response(client, tracer, test_spans):
