@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-from json import loads
 import logging
 import os
 import sys
@@ -25,10 +24,11 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_metrics_writer
-from ...internal.telemetry import telemetry_writer
+from ...internal.serverless import in_gcp_function
+from ...internal.telemetry import telemetry_lifecycle_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
+from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
@@ -54,6 +54,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+
+
+class NoEncodableSpansError(Exception):
+    pass
+
 
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
@@ -96,77 +101,6 @@ def _human_size(nbytes):
         i += 1
     f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
     return "%s%s" % (f, suffixes[i])
-
-
-class Response(object):
-    """
-    Custom API Response object to represent a response from calling the API.
-
-    We do this to ensure we know expected properties will exist, and so we
-    can call `resp.read()` and load the body once into an instance before we
-    close the HTTPConnection used for the request.
-    """
-
-    __slots__ = ["status", "body", "reason", "msg"]
-
-    def __init__(self, status=None, body=None, reason=None, msg=None):
-        self.status = status
-        self.body = body
-        self.reason = reason
-        self.msg = msg
-
-    @classmethod
-    def from_http_response(cls, resp):
-        """
-        Build a ``Response`` from the provided ``HTTPResponse`` object.
-
-        This function will call `.read()` to consume the body of the ``HTTPResponse`` object.
-
-        :param resp: ``HTTPResponse`` object to build the ``Response`` from
-        :type resp: ``HTTPResponse``
-        :rtype: ``Response``
-        :returns: A new ``Response``
-        """
-        return cls(
-            status=resp.status,
-            body=resp.read(),
-            reason=getattr(resp, "reason", None),
-            msg=getattr(resp, "msg", None),
-        )
-
-    def get_json(self):
-        """Helper to parse the body of this request as JSON"""
-        try:
-            body = self.body
-            if not body:
-                log.debug("Empty reply from Datadog Agent, %r", self)
-                return
-
-            if not isinstance(body, str) and hasattr(body, "decode"):
-                body = body.decode("utf-8")
-
-            if hasattr(body, "startswith") and body.startswith("OK"):
-                # This typically happens when using a priority-sampling enabled
-                # library with an outdated agent. It still works, but priority sampling
-                # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug(
-                    "Cannot parse Datadog Agent response. "
-                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
-                )
-                return
-
-            return loads(body)
-        except (ValueError, TypeError):
-            log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
-
-    def __repr__(self):
-        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
-            self.__class__.__name__,
-            self.status,
-            self.body,
-            self.reason,
-            self.msg,
-        )
 
 
 class TraceWriter(six.with_metaclass(abc.ABCMeta)):
@@ -375,11 +309,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count):
-        return self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = self._headers.copy()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        return headers
 
     def _send_payload(self, payload, count, client):
-        headers = self._get_finalized_headers(count)
+        headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
 
@@ -457,6 +394,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -571,7 +510,7 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if is_windows else "v0.5"
+        default_api_version = "v0.4" if (is_windows or in_gcp_function()) else "v0.5"
 
         self._api_version = (
             api_version
@@ -706,13 +645,7 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-            # are initialized
-            if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                telemetry_writer.enable()
-
-            if config._telemetry_metrics_enabled:
-                telemetry_metrics_writer.enable()
+            telemetry_lifecycle_writer.enable()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
@@ -720,7 +653,8 @@ class AgentWriter(HTTPWriter):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count):
-        headers = self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

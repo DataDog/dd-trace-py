@@ -1,0 +1,3 @@
+fixes:
+  - |
+    appsec: Fixes an encoding error when we are unable to cleanup the AppSec request context associated with a span.

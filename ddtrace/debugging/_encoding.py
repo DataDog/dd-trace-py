@@ -14,15 +14,15 @@ from typing import cast
 
 import six
 
-from ddtrace.debugging._capture import utils
-from ddtrace.debugging._capture.model import CapturedEvent
-from ddtrace.debugging._capture.snapshot import Snapshot
-from ddtrace.debugging._capture.snapshot import _capture_context
 from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LogProbeMixin
+from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._signal.snapshot import _capture_context
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
@@ -124,7 +124,7 @@ def _snapshot_data(snapshot):
             }
 
     return {
-        "id": snapshot.event_id,
+        "id": snapshot.uuid,
         "timestamp": int(snapshot.timestamp * 1e3),  # milliseconds
         "duration": snapshot.duration,  # nanoseconds
         "stack": utils.capture_stack(frame),
@@ -205,29 +205,29 @@ def snapshot_message(snapshot, snapshot_data):
         arguments = snapshot_data["captures"]["entry"]["arguments"]
         retval = snapshot.return_capture["locals"].get("@return") if snapshot.return_capture else None
         return format_message(cast(str, snapshot.probe.func_qname), arguments, retval)
-    return "snapshot " + snapshot.event_id
+    return "snapshot " + snapshot.uuid
 
 
 def _build_log_track_payload(
     service,  # type: str
-    event,  # type: CapturedEvent
+    signal,  # type: Signal
     message,  # type: str
     snapshot_data,  # type: Dict[str,Any]
     host,  # type: Optional[str]
 ):
     # type: (...) -> Dict[str, Any]
-    context = event.context
+    context = signal.trace_context
 
     payload = {
         "service": service,
         "debugger.snapshot": snapshot_data,
         "host": host,
-        "logger": _logs_track_logger_details(event.thread, event.frame),
+        "logger": _logs_track_logger_details(signal.thread, signal.frame),
         "dd.trace_id": context.trace_id if context else None,
         "dd.span_id": context.span_id if context else None,
         "ddsource": "dd_debugger",
         "message": message,
-        "timestamp": int(event.timestamp * 1e3),  # milliseconds,
+        "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
     add_tags(payload)
     return payload
@@ -244,7 +244,7 @@ def logs_track_upload_snapshot_request(
 
     return _build_log_track_payload(
         service=service,
-        event=snapshot,
+        signal=snapshot,
         message=message,
         snapshot_data=snapshot_data,
         host=host,

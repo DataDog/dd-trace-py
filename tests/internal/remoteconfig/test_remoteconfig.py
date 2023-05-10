@@ -13,8 +13,8 @@ from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
-from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
 

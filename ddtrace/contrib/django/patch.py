@@ -21,6 +21,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
@@ -29,7 +30,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
-from ddtrace.contrib.django.compat import get_resolver
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -43,8 +43,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt.importer import when_imported
 
-from . import utils
 from .. import trace_utils
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
@@ -80,20 +80,26 @@ config._add(
 
 
 _NotSet = object()
-psycopg_cursor_cls = Psycopg2TracedCursor = _NotSet
+psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
 def patch_conn(django, conn):
-    global psycopg_cursor_cls, Psycopg2TracedCursor
+    global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
     if psycopg_cursor_cls is _NotSet:
         try:
-            from psycopg2._psycopg import cursor as psycopg_cursor_cls
+            from psycopg.cursor import Cursor as psycopg_cursor_cls
 
-            from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+            from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
         except ImportError:
-            psycopg_cursor_cls = None
-            Psycopg2TracedCursor = None
+            Psycopg3TracedCursor = None
+            try:
+                from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
+            except ImportError:
+                psycopg_cursor_cls = None
+                Psycopg2TracedCursor = None
 
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
@@ -116,9 +122,14 @@ def patch_conn(django, conn):
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):
                 # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+                from ddtrace.contrib.psycopg.cursor import Psycopg2TracedCursor
 
                 traced_cursor_cls = Psycopg2TracedCursor
+            elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
+                # Import lazily to avoid importing psycopg if not already imported.
+                from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+
+                traced_cursor_cls = Psycopg3TracedCursor
         except AttributeError:
             pass
 
@@ -155,6 +166,8 @@ def instrument_dbs(django):
 
 @trace_utils.with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
+    from . import utils
+
     if not config.django.instrument_caches:
         return func(*args, **kwargs)
 
@@ -180,11 +193,16 @@ def traced_cache(django, pin, func, instance, args, kwargs):
                 db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
             )
         elif command_name == "get":
-            # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
-            # missing key
-            if result and result != getattr(instance, "_missing_key", None):
-                span.set_metric(db.ROWCOUNT, 1)
-            else:
+            try:
+                # check also for special case for Django~3.2 that returns an empty Sentinel object for empty results
+                # also check if result is Iterable first since some iterables return ambiguous truth results with ``==``
+                if result is None or (
+                    not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
+                ):
+                    span.set_metric(db.ROWCOUNT, 0)
+                else:
+                    span.set_metric(db.ROWCOUNT, 1)
+            except (AttributeError, NotImplementedError, ValueError):
                 span.set_metric(db.ROWCOUNT, 0)
         return result
 
@@ -271,6 +289,18 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
+
+            # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
+            if _is_iast_enabled() and kwargs and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
+                try:
+                    from ddtrace.appsec.iast._input_info import Input_info
+                    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                    for k, v in kwargs.items():
+                        kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                except Exception:
+                    log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -362,6 +392,8 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 
 
 def _set_block_tags(request, request_headers, span):
+    from . import utils
+
     try:
         span.set_tag_str(http.STATUS_CODE, "403")
         span.set_tag_str(http.METHOD, request.method)
@@ -380,6 +412,8 @@ def _set_block_tags(request, request_headers, span):
 def _block_request_callable(request, request_headers, span):
     # This is used by user-id blocking to block responses. It could be called
     # at any point so it's a callable stored in the ASM context.
+    from django.core.exceptions import PermissionDenied
+
     _context.set_item("http.request.blocked", True, span=span)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
@@ -394,6 +428,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     Django requests are handled by a Handler.get_response method (inherited from base.BaseHandler).
     This method invokes the middleware chain and returns the response generated by the chain.
     """
+    from ddtrace.contrib.django.compat import get_resolver
+
+    from . import utils
 
     request = get_argument_value(args, kwargs, 0, "request")
     if request is None:
@@ -427,6 +464,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
+                from django.http import HttpResponseForbidden
+
                 ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
                 content = appsec_utils._get_blocked_template(ctype)
                 response = HttpResponseForbidden(content, content_type=ctype)
@@ -532,6 +571,8 @@ def instrument_view(django, view):
 
 def _instrument_view(django, view):
     """Helper to wrap Django views."""
+    from . import utils
+
     # All views should be callable, double check before doing anything
     if not callable(view):
         return view
@@ -681,6 +722,8 @@ def unwrap_views(func, instance, args, kwargs):
     On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a DjangoViewProxy.
     Since get_asgi_application is not a django view callback this function will unwrap it.
     """
+    from . import utils
+
     routes = get_argument_value(args, kwargs, 0, "routes")
     for route in routes:
         if isinstance(route.callback, utils.DjangoViewProxy):
@@ -691,26 +734,34 @@ def unwrap_views(func, instance, args, kwargs):
 
 def _patch(django):
     Pin().onto(django)
-    trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
 
-    # DEV: this check will be replaced with import hooks in the future
-    if "django.core.handlers.base" not in sys.modules:
-        import django.core.handlers.base
+    when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
 
     if config.django.instrument_middleware:
-        trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
+        when_imported("django.core.handlers.base")(
+            lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
+        )
 
-    if "django.core.handlers.wsgi" not in sys.modules:
-        import django.core.handlers.wsgi
+    when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
 
-        trace_utils.wrap(django, "core.handlers.wsgi.WSGIRequest.__init__", wrap_wsgi_environ)
-
-    trace_utils.wrap(
-        django,
-        "http.request.QueryDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, "http.request.parameter"),
+    when_imported("django.http.request")(
+        lambda m: trace_utils.wrap(
+            m,
+            "QueryDict.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
+        )
     )
 
+    @when_imported("django.core.handlers.base")
+    def _(m):
+        import django
+
+        trace_utils.wrap(m, "BaseHandler.get_response", traced_get_response(django))
+        if django.VERSION >= (3, 1):
+            # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
+            from ._asgi import traced_get_response_async
+
+    # JJJ: use when_imported
     if "django.contrib.auth.authenticate" not in sys.modules:
         import django.contrib.auth
 
@@ -722,71 +773,60 @@ def _patch(django):
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
         from ._asgi import traced_get_response_async
 
-        trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async(django))
+            trace_utils.wrap(m, "BaseHandler.get_response_async", traced_get_response_async(django))
 
-        # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
-        # because get_response and get_asgi_application will be used.
-        if "django.core.asgi" not in sys.modules:
-            try:
-                import django.core.asgi
-            except ImportError:
-                pass
-            else:
-                trace_utils.wrap(django, "core.asgi.get_asgi_application", traced_get_asgi_application(django))
+    # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
+    # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
+    # with the previous patching hook because of circular imports within `django.core.asgi`.
+    if django.VERSION >= (3, 1):
+        when_imported("django.core.asgi")(
+            lambda m: trace_utils.wrap(m, "get_asgi_application", traced_get_asgi_application(django))
+        )
 
-    # DEV: this check will be replaced with import hooks in the future
     if config.django.instrument_templates:
-        if "django.template.base" not in sys.modules:
-            import django.template.base
-        trace_utils.wrap(django, "template.base.Template.render", traced_template_render(django))
-
-    # DEV: this check will be replaced with import hooks in the future
-    if "django.conf.urls.static" not in sys.modules:
-        import django.conf.urls.static
+        when_imported("django.template.base")(
+            lambda m: trace_utils.wrap(m, "Template.render", traced_template_render(django))
+        )
 
     if django.VERSION < (4, 0, 0):
-        trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+        when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
 
     if django.VERSION >= (2, 0, 0):
-        trace_utils.wrap(django, "urls.path", traced_urls_path(django))
-        trace_utils.wrap(django, "urls.re_path", traced_urls_path(django))
 
-    # DEV: this check will be replaced with import hooks in the future
-    if "django.views.generic.base" not in sys.modules:
-        import django.views.generic.base
-    trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+        @when_imported("django.urls")
+        def _(m):
+            trace_utils.wrap(m, "path", traced_urls_path(django))
+            trace_utils.wrap(m, "re_path", traced_urls_path(django))
 
-    try:
+    when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
+
+    @when_imported("channels.routing")
+    def _(m):
         import channels
-        import channels.routing
 
         channels_version = tuple(int(x) for x in channels.__version__.split("."))
         if channels_version >= (3, 0):
             # ASGI3 is only supported in channels v3.0+
-            trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
-    except ImportError:
-        pass  # channels is not installed
+            trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
     if _is_iast_enabled():
+        if not args:
+            return wrapped(*args, **kwargs)
+
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        return wrapped(*((LazyTaintDict(args[0]),) + args[1:]), **kwargs)
+        return wrapped(
+            *((LazyTaintDict(args[0], origins=(IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),) + args[1:]),
+            **kwargs
+        )
 
     return wrapped(*args, **kwargs)
 
 
 def patch():
-    # DEV: this import will eventually be replaced with the module given from an import hook
     import django
-
-    if django.VERSION < (1, 10, 0):
-        utils.Resolver404 = django.core.urlresolvers.Resolver404
-    else:
-        utils.Resolver404 = django.urls.exceptions.Resolver404
-
-    utils.DJANGO22 = django.VERSION >= (2, 2, 0)
 
     if getattr(django, "_datadog_patch", False):
         return

@@ -1,7 +1,7 @@
 # project
 from ...ext import net
 from ..pylibmc.addrs import parse_addresses
-from ..redis.util import _extract_conn_tags as extract_redis_tags
+from ..trace_utils_redis import _extract_conn_tags as extract_redis_tags
 
 
 def _resource_from_cache_prefix(resource, cache):

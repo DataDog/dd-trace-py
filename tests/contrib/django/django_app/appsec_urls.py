@@ -11,6 +11,12 @@ from ddtrace.appsec.iast._util import _is_python_version_supported as python_sup
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
 
+try:
+    from ddtrace.appsec.iast._ast.aspects import add_aspect
+except ImportError:
+    # Python 2 compatibility
+    from operator import add as add_aspect
+
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
 if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
@@ -75,6 +81,34 @@ def sqli_http_request_parameter(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def sqli_http_request_header_name(request):
+    key = [x for x in request.META.keys() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
+
+    return HttpResponse(request.META["master"], status=200)
+
+
+def sqli_http_request_header_value(request):
+    value = [x for x in request.META.values() if x == "master"][0]
+
+    with connection.cursor() as cursor:
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_http_path_parameter(request, q_http_path_parameter):
+    from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+    with connection.cursor() as cursor:
+        query = add_aspect("SELECT 1 from ", q_http_path_parameter)
+        cursor.execute(query)
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -125,6 +159,13 @@ urlpatterns = [
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
+    handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
+    handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
+    path(
+        "sqli_http_path_parameter/<str:q_http_path_parameter>/",
+        sqli_http_path_parameter,
+        name="sqli_http_path_parameter",
+    ),
 ]
 
 if django.VERSION >= (2, 0, 0):

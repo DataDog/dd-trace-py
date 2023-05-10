@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import pytest
 import rediscluster
 
 from ddtrace import Pin
@@ -9,24 +10,37 @@ from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
+from tests.utils import override_config
+
+
+@pytest.fixture()
+def redis_client():
+    patch()
+    try:
+        r = _get_test_client()
+        r.flushall()
+        yield r
+    finally:
+        unpatch()
+
+
+def _get_test_client():
+    # type: () -> rediscluster.StrictRedisCluster
+    host = REDISCLUSTER_CONFIG["host"]
+    ports = REDISCLUSTER_CONFIG["ports"]
+
+    startup_nodes = [{"host": host, "port": int(port)} for port in ports.split(",")]
+    if REDISCLUSTER_VERSION >= (2, 0, 0):
+        return rediscluster.RedisCluster(startup_nodes=startup_nodes)
+    else:
+        return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
 
 class TestGrokzenRedisClusterPatch(TracerTestCase):
-
-    TEST_HOST = REDISCLUSTER_CONFIG["host"]
-    TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
-
-    def _get_test_client(self):
-        startup_nodes = [{"host": self.TEST_HOST, "port": int(port)} for port in self.TEST_PORTS.split(",")]
-        if REDISCLUSTER_VERSION >= (2, 0, 0):
-            return rediscluster.RedisCluster(startup_nodes=startup_nodes)
-        else:
-            return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
-
     def setUp(self):
         super(TestGrokzenRedisClusterPatch, self).setUp()
         patch()
-        r = self._get_test_client()
+        r = _get_test_client()
         r.flushall()
         Pin.override(r, tracer=self.tracer)
         self.r = r
@@ -99,7 +113,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         patch()
         patch()
 
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
@@ -110,7 +124,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         # Test unpatch
         unpatch()
 
-        r = self._get_test_client()
+        r = _get_test_client()
         r.get("key")
 
         spans = tracer.pop()
@@ -119,7 +133,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         # Test patch again
         patch()
 
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
@@ -138,7 +152,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
 
         assert config.service == "mysvc"
 
-        r = self._get_test_client()
+        r = _get_test_client()
         Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
@@ -162,3 +176,19 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.service == "myrediscluster"
 
         self.reset()
+
+
+@pytest.mark.snapshot
+def test_cmd_max_length(redis_client):
+    with override_config("rediscluster", dict(cmd_max_length=7)):
+        redis_client.get("here-is-a-long-key")
+
+
+@pytest.mark.skip(reason="No traces sent to the test agent")
+@pytest.mark.subprocess(env=dict(DD_REDISCLUSTER_CMD_MAX_LENGTH="10"), ddtrace_run=True)
+@pytest.mark.snapshot
+def test_cmd_max_length_env():
+    from tests.contrib.rediscluster.test import _get_test_client
+
+    r = _get_test_client()
+    r.get("here-is-a-long-key")

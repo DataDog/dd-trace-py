@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "completions/ada",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "api_base": "https://api.openai.com/v1",
+      "component": "openai",
+      "language": "python",
+      "openai.endpoint": "completions",
+      "openai.model": "ada",
+      "openai.organization.name": "datadog-4",
+      "openai.organization.ratelimit.requests.remaining": "2999",
+      "openai.organization.ratelimit.tokens.remaining": "249983",
+      "openai.request.prompt": "hello world",
+      "openai.response.choices.0.finish_reason": "length",
+      "openai.response.choices.0.logprobs": "returned",
+      "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
+      "openai.response.object": "text_completion",
+      "openai.user.api_key": "sk-...eal>",
+      "runtime-id": "e7e8e1729b2748a6811fe03920383ea8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.response.choices.num": 1,
+      "process_id": 14817
+    },
+    "duration": 7521000,
+    "start": 1683148557799162000
+  }]]
