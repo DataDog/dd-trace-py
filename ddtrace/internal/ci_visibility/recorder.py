@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from uuid import uuid4
@@ -80,7 +81,8 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
-        self._tests_to_skip = {}
+        # (suite, module) -> List[test_name]
+        self._tests_to_skip = {}  # type: Dict[Tuple[str, Optional[str]], List[str]]
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._git_client = None
@@ -193,33 +195,33 @@ class CIVisibility(Service):
     def should_skip(cls, test, suite, module):
         if not cls.enabled:
             return False
+
         return test in cls._instance._get_tests_to_skip(suite, module)
 
     def _get_tests_to_skip(self, suite, module):
         if (suite, module) in self._tests_to_skip:
             return self._tests_to_skip[(suite, module)]
+
         payload = {
             "data": {
                 "type": "test_params",
                 "attributes": {
-                    "service": "dd-trace-go",
-                    "env": "testing-emmett",
-                    "repository_url": "https://github.com/DataDog/dd-trace-go",
-                    "sha": "a00d7e59a6fab34c4a79a9ed5388c9b68511622b",
-                    "suite": "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer",
-                    "configurations": {
-                        "os.platform": "Linux",
-                        "os.architecture": "amd64",
-                        "os.version": "410",
-                        "runtime.name": "CPython",
-                        "runtime.version": "100",
-                    },
+                    "service": self._service,
+                    "env": ddconfig.env,
+                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
+                    "sha": self._tags.get(ci.git.COMMIT_SHA),
+                    "suite": suite,
+                    "configurations": {},
                 },
             }
         }
-        url = "https://api.datadoghq.com/api/v2/ci/tests/skippable"
+        if module:
+            payload["data"]["attributes"]["module"] = module
+        payload["data"]["attributes"]["configurations"] = ci._get_runtime_and_os_metadata()
+        endpoint = "api/v2/ci/tests/skippable"
+        url = "https://api.{}/{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), endpoint)
         headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": os.getenv("DD_APP_KEY")}
-        response = _do_request("POST", url, payload, headers)
+        response = _do_request("POST", url, json.dumps(payload), headers)
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
             return []
@@ -232,9 +234,7 @@ class CIVisibility(Service):
         for item in parsed["data"]:
             attributes = item["attributes"]
             if item["type"] == "test":
-                self._tests_to_skip[(suite, module)].append(
-                    (attributes["suite"], attributes["name"], attributes["parameters"])
-                )
+                self._tests_to_skip[(suite, module)].append(attributes["name"])
         return self._tests_to_skip[(suite, module)]
 
     @classmethod
