@@ -17,6 +17,7 @@ from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
+from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -137,7 +138,7 @@ def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
 @pytest.fixture
 def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
-    mock_tracer = DummyTracer()
+    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(openai, tracer=mock_tracer)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
