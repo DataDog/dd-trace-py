@@ -647,14 +647,13 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
             ),
             # form body must be blocked
             ("attack=yqrweytqwreasldhkuqwgervflnmlnli", "application/x-www-form-urlencoded", True),
-            # DEV: multipart/form-data not supported for now
-            #  (
-            #     '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
-            #     'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
-            #     "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
-            #     "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
-            #     True,
-            # ),
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                True,
+            ),
             # raw body must not be blocked
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
