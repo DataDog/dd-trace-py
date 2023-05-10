@@ -654,16 +654,16 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
     assert "OSError: ddwaf run failed" in caplog.text
 
 
-def test_asm_context_meta(tracer_appsec):
+def test_asm_context_registration(tracer_appsec):
     tracer = tracer_appsec
 
     # For a web type span, a context manager is added, but then removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        assert span.context._meta["ASM_CONTEXT_%d" % (id(span),)]
-    assert span.context._meta.get("ASM_CONTEXT_%d" % (id(span),)) is None
+        assert _asm_request_context._ASM.get().span_asm_context
+    assert _asm_request_context._ASM.get().span_asm_context is None
 
     # Regression test, if the span type changes after being created, we always removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.span_type = SpanTypes.HTTP
-        assert span.context._meta["ASM_CONTEXT_%d" % (id(span),)]
-    assert span.context._meta.get("ASM_CONTEXT_%d" % (id(span),)) is None
+        assert _asm_request_context._ASM.get().span_asm_context
+    assert _asm_request_context._ASM.get().span_asm_context is None
