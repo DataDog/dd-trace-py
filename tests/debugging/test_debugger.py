@@ -751,7 +751,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
             queue[:] = []
             sleep(0.5)
             remoteconfig_poller._client.request()
-            sleep(0.5)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
