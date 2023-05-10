@@ -8,17 +8,17 @@ from psycopg.sql import SQL
 from ddtrace import Pin
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
 
 
-class PsycopgCore(TracerTestCase):
+class PsycopgCore(AsyncioTestCase):
 
     # default service
     TEST_SERVICE = "postgres"
@@ -69,10 +69,7 @@ class PsycopgCore(TracerTestCase):
         await conn.cursor().execute("""select 'blah'""")
         self.assert_structure(dict(name="postgres.query", service=service))
 
-    @mark_asyncio
-    async def test_assert_conn_is_traced_async(self):
-        db = await self._get_conn()
-        service = "myservice"
+    async def assert_conn_is_traced_async(self, db, service):
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
         try:
@@ -182,7 +179,7 @@ class PsycopgCore(TracerTestCase):
         # https://github.com/DataDog/dd-trace-py/issues/228
         conn = await self._get_conn()
         t = type(conn.cursor())
-        with conn.cursor() as cur:
+        async with conn.cursor() as cur:
             assert t == type(cur), "{} != {}".format(t, type(cur))
             await cur.execute(query="""select 'blah'""")
             rows = await cur.fetchall()
@@ -232,7 +229,7 @@ class PsycopgCore(TracerTestCase):
         )
         db = await self._get_conn()
 
-        with db.cursor() as cur:
+        async with db.cursor() as cur:
             await cur.execute(query=query)
             rows = await cur.fetchall()
             assert len(rows) == 2, rows
@@ -245,7 +242,7 @@ class PsycopgCore(TracerTestCase):
         )
 
     @mark_asyncio
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -264,7 +261,7 @@ class PsycopgCore(TracerTestCase):
         assert spans[0].service != "mysvc"
 
     @mark_asyncio
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -295,7 +292,8 @@ class PsycopgCore(TracerTestCase):
         """Checks whether connection execute shortcute method works as normal"""
 
         query = SQL("""select 'one' as x""")
-        cur = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG).execute(query)
+        conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
+        cur = await conn.execute(query)
 
         rows = await cur.fetchall()
         assert len(rows) == 1, rows

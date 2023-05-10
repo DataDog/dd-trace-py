@@ -29,10 +29,10 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
 
         async def patched_execute(*args, **kwargs):
             try:
-                cur = await self.cursor()
+                cur = self.cursor()
                 if kwargs.get("binary", None):
                     cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
+                return await cur.execute(*args, **kwargs)
             except Exception as ex:
                 raise ex.with_traceback(None)
 
