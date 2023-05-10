@@ -634,9 +634,9 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.2")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.3
+    remoteconfig_poller._interval = 0.2
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -689,9 +689,9 @@ def test_probe_status_logging(monkeypatch):
 
 
 def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
     remoteconfig_poller.disable()
-    remoteconfig_poller._interval = 0.3
+    remoteconfig_poller._interval = 0.1
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
@@ -747,7 +747,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
 
             queue[:] = []
 
-            sleep(0.5)
+            sleep(0.6)
             print("llega2!!")
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
