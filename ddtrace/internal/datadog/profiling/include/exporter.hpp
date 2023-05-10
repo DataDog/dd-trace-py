@@ -151,7 +151,7 @@ private:
     }
   };
 
-  using StringTable = std::unordered_set<std::string_view, str_hash, str_eq>;
+  using StringTable = std::unordered_set<std::string, str_hash, str_eq>;
   unsigned int type_mask;
   unsigned int max_nframes;
   unsigned int nframes;
