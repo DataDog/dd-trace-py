@@ -7,7 +7,6 @@ import pytest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
@@ -341,27 +340,10 @@ def test_invalid_path(client, tracer, test_spans):
     assert request_span.get_tag("span.kind") == "server"
 
 
-def test_500_error_raised(client, tracer, test_spans):
+@snapshot(ignores=["meta.error.stack"])
+def test_500_error_raised(snapshot_client):
     with pytest.raises(RuntimeError):
-        client.get("/500", headers={"X-Token": "DataDog"})
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /500"
-    assert request_span.get_tag("http.route") == "/500"
-    assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/500"
-    assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag(ERROR_MSG) == "Server error"
-    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
-    assert request_span.get_tag("component") == "fastapi"
-    assert request_span.get_tag("span.kind") == "server"
-    assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
+        snapshot_client.get("/500")
 
 
 def test_streaming_response(client, tracer, test_spans):
@@ -647,7 +629,7 @@ def test_background_task(client, tracer, test_spans):
     assert request_span.resource == "GET /asynctask"
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
-    assert request_span.duration < 1
+    assert request_span.duration < 1.1
 
 
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])

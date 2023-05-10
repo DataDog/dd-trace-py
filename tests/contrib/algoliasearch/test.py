@@ -210,3 +210,27 @@ class AlgoliasearchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
         unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "algoliasearch.search"
+        unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "algoliasearch.search.request"
+        unpatch()
