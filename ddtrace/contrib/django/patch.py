@@ -762,18 +762,24 @@ def _patch(django):
             from ._asgi import traced_get_response_async
 
     # JJJ: use when_imported
+    # @when_imported("django.contrib.auth")
+    # def _(m):
+    #     import django
+    #     trace_utils.wrap(m, "login", traced_login(django))
+    #     trace_utils.wrap(m, "authenticate", traced_authenticate(django))
     if "django.contrib.auth.authenticate" not in sys.modules:
         import django.contrib.auth
 
         trace_utils.wrap(django, "contrib.auth.login", traced_login(django))
         trace_utils.wrap(django, "contrib.auth.authenticate", traced_authenticate(django))
 
+    import django.core.handlers.base
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
     if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
         # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
         from ._asgi import traced_get_response_async
 
-            trace_utils.wrap(m, "BaseHandler.get_response_async", traced_get_response_async(django))
+        trace_utils.wrap(django.core.handlers.base, "BaseHandler.get_response_async", traced_get_response_async(django))
 
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
