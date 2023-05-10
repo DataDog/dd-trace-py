@@ -436,3 +436,31 @@ class PymemcacheClientConfiguration(TracerTestCase):
         spans = tracer.pop()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v0"))
+    def test_operation_name_v0(self):
+        """
+        v0 schema: The operation name is memcached.command
+        """
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.pop()
+
+        assert spans[0].name == "memcached.command"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v1"))
+    def test_operation_name_v1(self):
+        """
+        v1 schema: The operation name is memcached.command
+        """
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.pop()
+
+        assert spans[0].name == "memcached.command"

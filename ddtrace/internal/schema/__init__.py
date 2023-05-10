@@ -22,12 +22,14 @@ _validate_schema(__schema_version)
 
 DEFAULT_SPAN_SERVICE_NAME = _DEFAULT_SPAN_SERVICE_NAMES[__schema_version]
 schematize_service_name = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["service_name"]
-schematize_storage_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["storage_operation"]
+schematize_database_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["database_operation"]
 schematize_cache_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["cache_operation"]
+schematize_cloud_api_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["cloud_api_operation"]
 
 __all__ = [
     "DEFAULT_SPAN_SERVICE_NAME",
     "schematize_service_name",
-    "schematize_storage_operation",
+    "schematize_database_operation",
     "schematize_cache_operation",
+    "schematize_cloud_api_operation",
 ]
