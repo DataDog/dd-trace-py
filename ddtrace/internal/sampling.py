@@ -144,6 +144,8 @@ class SpanSamplingRule:
     __slots__ = (
         "_service_matcher",
         "_name_matcher",
+        "_resource_matcher",
+        "_tags_matcher",
         "_sample_rate",
         "_max_per_second",
         "_sampling_id_threshold",
@@ -157,6 +159,8 @@ class SpanSamplingRule:
         max_per_second,  # type: int
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        tags=None,  # type: Optional[str]
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
@@ -167,6 +171,10 @@ class SpanSamplingRule:
         # we need to create matchers for the service and/or name pattern provided
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
+        self._resource_matcher = GlobMatcher(resource) if resource is not None else None
+
+        # for tags, we'll just try to match on the full key value pair as a string, rather than break it up into a dict
+        self._tag_matchers = [GlobMatcher(tag) for tag in tags] if tags is not None else []
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -190,26 +198,53 @@ class SpanSamplingRule:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
-        # If a span lacks a name and service, we can't match on it
-        if service is None and name is None:
+        resource = span.resource
+        tags = span.get_tags()
+        # If a span lacks a name, service, resource, and tags, we can't match on it
+        # Dev: originally this was just for name and service to optimize, now I'm not sure it's worth it
+        if service is None and name is None and resource is None and not tags:
             return False
 
-        # Default to True, as the rule may not have a name or service rule
+        # Default to True in the absence of a rule
         # For whichever rules it does have, it will attempt to match on them
         service_match = True
         name_match = True
+        resource_match = True
+        tag_match = True
 
         if self._service_matcher:
             if service is None:
                 return False
             else:
                 service_match = self._service_matcher.match(service)
+
         if self._name_matcher:
             if name is None:
                 return False
             else:
                 name_match = self._name_matcher.match(name)
-        return service_match and name_match
+
+        if self._resource_matcher:
+            if resource is None:
+                return False
+            else:
+                resource_match = self._resource_matcher.match(resource)
+
+        if self._tag_matchers:
+            if tags is None:
+                return False
+            else:
+                try:
+                    for tag_matcher in self._tag_matchers:
+                        for tag in tags:
+                            tag_match = tag_matcher.match(tag)
+                            if tag_match:
+                                # If we get a single match, no need to continue trying to match, exit loops
+                                raise Found
+                except Found:
+                    pass
+
+        return service_match and name_match and resource_match and tag_match
 
     def apply_span_sampling_tags(self, span):
         # type: (Span) -> None
@@ -307,3 +342,7 @@ def _check_unsupported_pattern(string):
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
+
+
+class Found(Exception):
+    pass
