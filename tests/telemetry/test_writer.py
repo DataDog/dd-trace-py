@@ -68,6 +68,10 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     # validate request body
     payload = {
         "configuration": [],
+        "error": {
+            "code": 0,
+            "message": "",
+        },
     }
     assert events[0] == _get_request_body(payload, "app-started")
 
@@ -97,8 +101,8 @@ def test_app_closing_event(telemetry_lifecycle_writer, test_agent_session, mock_
 def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
-    telemetry_lifecycle_writer.add_integration("integration-t", True)
-    telemetry_lifecycle_writer.add_integration("integration-f", False)
+    telemetry_lifecycle_writer.add_integration("integration-t", True, True, "")
+    telemetry_lifecycle_writer.add_integration("integration-f", False, False, "terrible failure")
     # send integrations to the agent
     telemetry_lifecycle_writer.periodic()
 
@@ -121,10 +125,10 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
             {
                 "name": "integration-f",
                 "version": "",
-                "enabled": True,
+                "enabled": False,
                 "auto_enabled": False,
-                "compatible": True,
-                "error": "",
+                "compatible": False,
+                "error": "terrible failure",
             },
         ]
     }
@@ -135,7 +139,7 @@ def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
     telemetry_lifecycle_writer.disable()
 
-    telemetry_lifecycle_writer.add_integration("integration-name", False)
+    telemetry_lifecycle_writer.add_integration("integration-name", True, False, "")
     telemetry_lifecycle_writer.periodic()
 
     assert len(test_agent_session.get_requests()) == 0

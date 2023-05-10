@@ -5,6 +5,7 @@ import sys
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import CGroupInfo
@@ -15,7 +16,6 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import get_version
 from ddtrace.settings import _config as config
 
 
@@ -32,10 +32,10 @@ def test_get_application():
         "env": "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": get_version(),
+        "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {"appsec": {"version": get_version(), "enabled": config._appsec_enabled}},
+        "products": {"appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled}},
     }
 
     assert get_application("", "", "") == expected_application
@@ -189,15 +189,15 @@ def test_enable_products(run_python_code_in_subprocess):
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
+import ddtrace
 from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_version
 
 application = get_application("service-x", "1.1.1", "staging")
 assert "products" in application
 
 assert application["products"] == {
     "appsec": {
-        "version": get_version(),
+        "version": ddtrace.__version__,
         "enabled": True,
     },
 }
