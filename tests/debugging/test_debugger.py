@@ -634,6 +634,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_probe_status_logging(monkeypatch):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.4")
     remoteconfig_poller.disable()
@@ -678,15 +679,16 @@ def test_probe_status_logging(monkeypatch):
             sleep(0.2)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.65)
+            sleep(0.6)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.75)
+            sleep(0.7)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_probe_status_logging_reemit_on_modify(monkeypatch):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.3")
     remoteconfig_poller.disable()
@@ -746,7 +748,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
 
             queue[:] = []
 
-            sleep(0.4)
+            sleep(0.35)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
