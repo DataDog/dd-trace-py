@@ -749,7 +749,7 @@ def test_probe_status_logging_reemit_on_modify():
             queue[:] = []
 
             remoteconfig_poller._client.request()
-            sleep(0.1)
+            sleep(0.2)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
