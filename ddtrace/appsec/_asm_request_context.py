@@ -37,6 +37,7 @@ class ASM_Environment:
     def __init__(self, active=False):  # type: (bool) -> None
         self.active = active
         self.span = None
+        self.span_asm_context = None  # type: None | contextlib.AbstractContextManager
         self.waf_addresses = {}  # type: dict[str, Any]
         self.callbacks = {}  # type: dict[str, Any]
         self.telemetry = {}  # type: dict[str, Any]
@@ -51,12 +52,19 @@ def free_context_available():  # type: () -> bool
     return env.active and env.span is None
 
 
-def register(span):
+def register(span, span_asm_context=None):
     env = _ASM.get()
     if not env.active:
         log.debug("registering a span with no active asm context")
         return
     env.span = span
+    env.span_asm_context = span_asm_context
+
+
+def unregister(span):
+    env = _ASM.get()
+    if env.span_asm_context is not None and env.span is span:
+        env.span_asm_context.__exit__(None, None, None)
 
 
 class _DataHandler:
