@@ -635,7 +635,8 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging():
+def test_probe_status_logging(monkeypatch):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
     remoteconfig_poller.disable()
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -690,7 +691,8 @@ def test_probe_status_logging():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging_reemit_on_modify():
+def test_probe_status_logging_reemit_on_modify(monkeypatch):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
     remoteconfig_poller.disable()
 
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -747,9 +749,9 @@ def test_probe_status_logging_reemit_on_modify():
             assert versions(queue, "RECEIVED") == [1]
 
             queue[:] = []
-
+            sleep(0.5)
             remoteconfig_poller._client.request()
-            sleep(0.05)
+            sleep(0.5)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
