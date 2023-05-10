@@ -523,3 +523,29 @@ class TestCassandraConfig(TracerTestCase):
         assert len(spans) == 1
         query = spans[0]
         assert query.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"
