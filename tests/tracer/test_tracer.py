@@ -18,6 +18,7 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace import config
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -38,7 +39,6 @@ from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -944,14 +944,21 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(FUNCTION_NAME="my-func", GCP_PROJECT="project-name"))
     def test_detect_gcp_function_old_runtime(self):
-        assert in_gcp_function()
+        assert config._is_gcp_function
         tracer = Tracer()
         assert isinstance(tracer._writer, AgentWriter)
         assert tracer._writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(K_SERVICE="my-func", FUNCTION_TARGET="function-target"))
     def test_detect_gcp_function_new_runtime(self):
-        assert in_gcp_function()
+        assert config._is_gcp_function
+        tracer = Tracer()
+        assert isinstance(tracer._writer, AgentWriter)
+        assert tracer._writer._sync_mode
+
+    @run_in_subprocess(env_overrides=dict(FUNCTIONS_WORKER_RUNTIME="dummy_runtime", AzureWebJobsStorage="dummy_value"))
+    def test_detect_azure_function(self):
+        assert config._is_azure_function
         tracer = Tracer()
         assert isinstance(tracer._writer, AgentWriter)
         assert tracer._writer._sync_mode

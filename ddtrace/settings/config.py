@@ -8,7 +8,6 @@ from typing import Tuple
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
@@ -191,6 +190,16 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
+        is_deprecated_gcp_function = (
+            os.environ.get("FUNCTION_NAME", "") != "" and os.environ.get("GCP_PROJECT", "") != ""
+        )
+        is_newer_gcp_function = os.environ.get("K_SERVICE", "") != "" and os.environ.get("FUNCTION_TARGET", "") != ""
+        self._is_gcp_function = is_deprecated_gcp_function or is_newer_gcp_function
+
+        self._is_azure_function = (
+            os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("AzureWebJobsStorage", "") != ""
+        )
+
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
 
@@ -209,8 +218,11 @@ class Config(object):
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
-        if self.service is None and in_gcp_function():
+        if self.service is None and self._is_gcp_function:
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+
+        if self.service is None and self._is_azure_function:
+            self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
@@ -268,9 +280,13 @@ class Config(object):
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+
+        trace_compute_stats_default = self._is_gcp_function or self._is_azure_function
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
+            os.getenv("DD_TRACE_COMPUTE_STATS",
+                      os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default))
         )
+
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
@@ -303,6 +319,8 @@ class Config(object):
         self._ci_visibility_code_coverage_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
         )
+
+        self._is_
 
     def __getattr__(self, name):
         if name not in self._config:
