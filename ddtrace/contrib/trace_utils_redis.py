@@ -13,6 +13,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
 
 
@@ -39,7 +40,9 @@ def _extract_conn_tags(conn_kwargs):
 def _trace_redis_cmd(pin, config_integration, instance, args):
     """Create a span for the execute command method and tag it"""
     with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
+        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        service=trace_utils.ext_service(pin, config_integration),
+        span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag_str(COMPONENT, config_integration.integration_name)
@@ -47,7 +50,8 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag(SPAN_MEASURED_KEY)
         query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
         span.resource = query
-        span.set_tag_str(redisx.RAWCMD, query)
+        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
+        span.set_tag_str(span_name, query)
         if pin.tags:
             span.set_tags(pin.tags)
         # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
@@ -63,7 +67,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
 def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, is_cluster=False):
     """Create a span for the execute pipeline method and tag it"""
     with pin.tracer.trace(
-        redisx.CMD,
+        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
@@ -72,7 +76,8 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, i
         span.set_tag_str(COMPONENT, config_integration.integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag_str(redisx.RAWCMD, resource)
+        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
+        span.set_tag_str(span_name, resource)
         if not is_cluster:
             span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))

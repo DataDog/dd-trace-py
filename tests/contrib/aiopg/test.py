@@ -240,7 +240,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v0(self):
+    def test_unspecified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The aiopg integration should use it.
@@ -255,6 +255,32 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_trace_span_name_v0_schema(self):
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "postgres.query"
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_trace_span_name_v1_schema(self):
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "postgresql.query"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):
