@@ -2,6 +2,7 @@ from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
@@ -108,7 +109,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace(
-        "algoliasearch.search",
+        schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
