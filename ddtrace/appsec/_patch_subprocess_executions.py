@@ -3,7 +3,7 @@ from fnmatch import fnmatch
 import os
 import re
 import shlex
-import subprocess
+import subprocess  # nosec
 from threading import RLock
 from typing import Deque
 from typing import Dict
@@ -312,7 +312,7 @@ def _unpatch():
 @trace_utils.with_traced_module
 def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
-        shellcmd = SubprocessCmdLine(args[0], shell=True)
+        shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
@@ -393,7 +393,7 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         cmd_args = args[0] if len(args) else kwargs["args"]
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
         is_shell = kwargs.get("shell", False)
-        shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)
+        shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             _context.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell, span=span)
