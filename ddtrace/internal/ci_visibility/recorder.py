@@ -207,6 +207,11 @@ class CIVisibility(Service):
         if (suite, module) in self._tests_to_skip:
             return self._tests_to_skip[(suite, module)]
 
+        # Make sure git uploading has finished
+        # this will block the thread until that happens
+        if self._git_client is not None:
+            self._git_client.shutdown()
+
         self._tests_to_skip.setdefault((suite, module), [])
         payload = {
             "data": {
