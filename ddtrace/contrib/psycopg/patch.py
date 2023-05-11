@@ -82,7 +82,7 @@ try:
     # using unwrap
     _original_connect = psycopg_import.Connection.__dict__["connect"]
     _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-except:
+except ImportError:
     pass
 
 
