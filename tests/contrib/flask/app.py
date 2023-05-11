@@ -88,6 +88,7 @@ if sys.platform == "linux":
 def run_subcommunicateshell():
     subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
     subp.communicate()
+    subp.wait()
     ret = subp.returncode
     return str(ret), 200
 
@@ -96,5 +97,6 @@ def run_subcommunicateshell():
 def run_subcommunicatenoshell():
     subp = subprocess.Popen(args=["dir", "-li", "/"], shell=False)
     subp.communicate()
+    subp.wait()
     ret = subp.returncode
     return str(ret), 200
