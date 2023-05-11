@@ -13,6 +13,7 @@ import six
 import tenacity
 
 from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -128,7 +129,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP, "ACCEPT": "text/html"})
     assert resp.status_code == 403
@@ -157,7 +158,7 @@ def test_flask_ipblock_match_403(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403_json(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
     assert resp.status_code == 403
@@ -185,7 +186,7 @@ def test_flask_ipblock_match_403_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_userblock_match_403_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
     assert resp.status_code == 403
@@ -213,7 +214,7 @@ def test_flask_userblock_match_403_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_userblock_match_200_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _ALLOWED_USER)
     assert resp.status_code == 200
@@ -237,7 +238,7 @@ def test_flask_userblock_match_200_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_ossystem(flask_client):
     resp = flask_client.get("/executions/ossystem")
     assert resp.status_code == 200
@@ -263,7 +264,7 @@ def test_flask_processexec_ossystem(flask_client):
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_osspawn(flask_client):
     resp = flask_client.get("/executions/osspawn")
     assert resp.status_code == 200
@@ -288,7 +289,7 @@ def test_flask_processexec_osspawn(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_subprocesscommunicateshell(flask_client):
     resp = flask_client.get("/executions/subcommunicateshell")
     assert resp.status_code == 200
@@ -313,7 +314,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-# @pytest.mark.skipif(PY2, reason="FIXME: check why this hangs on CI (flaky) but not locally")
+@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_subprocesscommunicatenoshell(flask_client):
     resp = flask_client.get("/executions/subcommunicatenoshell")
     assert resp.status_code == 200
