@@ -45,7 +45,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.9.0"
+LIBDDWAF_VERSION = "1.10.0"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
