@@ -46,7 +46,6 @@ config._add(
         _default_service=schematize_service_name("postgres"),
         _dbapi_span_name_prefix="postgres",
         _patched_modules=set(),
-        _patched_functions=dict(),
         trace_fetch_methods=asbool(
             os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
             or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
@@ -90,7 +89,6 @@ def _patch(psycopg_module):
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
-        config.psycopg["_patched_functions"].update({"psycopg2.connect": psycopg_module.connect})
 
         # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
@@ -101,21 +99,12 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
-        config.psycopg["_patched_functions"].update(
-            {
-                "psycopg.connect": psycopg_module.connect,
-                "psycopg.Connection": psycopg_module.Connection,
-                "psycopg.Cursor": psycopg_module.Cursor,
-                "psycopg.AsyncConnection": psycopg_module.AsyncConnection,
-                "psycopg.AsyncCursor": psycopg_module.AsyncCursor,
-            }
-        )
 
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        _w(psycopg_module, "Connection.connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
 
-        _w(psycopg_module, "AsyncConnection.connect", patched_connect_async_factory(psycopg_module))
+        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
 
         config.psycopg["_patched_modules"].add(psycopg_module)
@@ -147,11 +136,13 @@ def _unpatch(psycopg_module):
             # _u throws an attribute error for Python 3.11 on method objects because of
             # no __get__ method on the BoundFunctionWrapper
             except AttributeError:
-                _original_connection_class = config.psycopg["_patched_functions"]["psycopg.Connection"]
-                _original_asyncconnection_class = config.psycopg["_patched_functions"]["psycopg.AsyncConnection"]
+                traced_connection = psycopg_module.Connection
+                traced_connect = traced_connection.__getattribute__(traced_connection, "connect")
+                setattr(traced_connection, "connect", traced_connect.__wrapped__)
 
-                psycopg_module.Connection = _original_connection_class
-                psycopg_module.AsyncConnection = _original_asyncconnection_class
+                traced_async_connection = getattr(psycopg_module, "AsyncConnection")
+                traced_async_connect = traced_async_connection.__getattribute__(traced_async_connection, "connect")
+                setattr(traced_async_connection, "connect", traced_async_connect.__wrapped__)
 
         pin = Pin.get_from(psycopg_module)
         if pin:
@@ -163,7 +154,14 @@ def init_cursor_from_connection_factory(psycopg_module):
         connection = kwargs.pop("connection", None)
         if not connection:
             args = list(args)
-            connection = args.pop(next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None))
+            index = next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None)
+            if index is not None:
+                connection = args.pop(index)
+
+            # if we do not have an example of a traced connection, call the original cursor function
+            if not connection:
+                return wrapped_cursor_cls(*args, **kwargs)
+
         pin = Pin.get_from(connection).clone()
         cfg = config.psycopg
 

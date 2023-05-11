@@ -488,3 +488,29 @@ class PsycopgCore(TracerTestCase):
             ),
             (("foo",), ("bar",)),
         )
+
+    def test_patch_and_unpatch_several_times(self):
+        """Checks whether connection execute shortcute method works as normal"""
+
+        def execute_query_and_get_spans(n_spans):
+            query = SQL("""select 'one' as x""")
+            cur = self._get_conn().execute(query)
+
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            spans = self.pop_spans()
+            self.assertEqual(len(spans), n_spans)
+
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        unpatch()
+        execute_query_and_get_spans(0)
