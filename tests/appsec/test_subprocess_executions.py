@@ -6,7 +6,8 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.appsec._constants import COMMANDS
-from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine, _patch
+from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
+from ddtrace.appsec._patch_subprocess_executions import _patch
 from ddtrace.appsec._patch_subprocess_executions import _unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
