@@ -194,7 +194,8 @@ void ddup_push_frame(const char *name, const char *fname, uint64_t address,
 void ddup_flush_sample() { g_profile->flush_sample(); }
 
 void ddup_set_runtime_id(const char *id, size_t sz) {
-  g_uploader->set_runtime_id(std::string_view(id, sz));
+  if (id && *id)
+    g_uploader->set_runtime_id(std::string_view(id, sz));
 }
 
 void ddup_upload_impl(Datadog::Profile *prof) { g_uploader->upload(prof); }
