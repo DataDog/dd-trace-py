@@ -213,15 +213,7 @@ class TraceMiddleware:
                 trace_utils.set_http_meta(
                     span, self.integration_config, status_code=status_code, response_headers=response_headers
                 )
-
-                try:
-                    return await send(message)
-                finally:
-                    # Per asgi spec, "more_body" is used if there is still data to send
-                    # Close the span if "http.response.body" has no more data left to send in the
-                    # response.
-                    if message.get("type") == "http.response.body" and not message.get("more_body", False):
-                        span.finish()
+                return await send(message)
 
             async def wrapped_blocked_send(message):
                 accept_header = (
@@ -243,11 +235,7 @@ class TraceMiddleware:
                     message["body"] = bytes(appsec_utils._get_blocked_template(accept_header), "utf-8")
                     message["more_body"] = False
 
-                try:
-                    return await send(message)
-                finally:
-                    if message.get("type") == "http.response.body":
-                        span.finish()
+                return await send(message)
 
             try:
                 if _request_blocked(span):
@@ -259,9 +247,6 @@ class TraceMiddleware:
                 self.handle_exception_span(exc, span)
                 reraise(exc_type, exc_val, exc_tb)
             finally:
-                try:
-                    del scope["datadog"]["request_span"]
-                except KeyError:
-                    pass
-
+                if span in scope["datadog"]["request_spans"]:
+                    scope["datadog"]["request_spans"].remove(span)
                 span.finish()

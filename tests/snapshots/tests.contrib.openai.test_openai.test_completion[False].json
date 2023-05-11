@@ -28,7 +28,7 @@
       "openai.response.choices.1.text": " (1",
       "openai.response.object": "text_completion",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "8154bd1813ea422fa959cacf3fdfa1bc"
+      "runtime-id": "63662f4332ba432294d87e4a7b5611fb"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -43,8 +43,8 @@
       "openai.response.usage.completion_tokens": 12,
       "openai.response.usage.prompt_tokens": 2,
       "openai.response.usage.total_tokens": 14,
-      "process_id": 14806
+      "process_id": 69859
     },
-    "duration": 12100000,
-    "start": 1683148556156614000
+    "duration": 3171000,
+    "start": 1683747761171953000
   }]]
