@@ -25,6 +25,7 @@ from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_cache_operation
 from ...pin import Pin
 
 
@@ -146,7 +147,7 @@ class WrappedClient(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with p.tracer.trace(
-            memcachedx.CMD,
+            schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
             service=p.service,
             resource=method_name,
             span_type=SpanTypes.CACHE,

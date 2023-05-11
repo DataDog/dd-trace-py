@@ -421,6 +421,32 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
+
     def test_context_manager(self):
         conn = self._given_a_traced_connection(self.tracer)
         with conn as conn2:
