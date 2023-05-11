@@ -206,7 +206,7 @@ try:
         # integrations.
         cleanup_loaded_modules()
         modules_to_patch = os.getenv("DD_PATCH_MODULES")
-        modules_to_str= parse_tags_str(modules_to_patch)
+        modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
     else:
