@@ -319,7 +319,7 @@ def pytest_runtest_protocol(item, nextitem):
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
 
-    if _CIVisibility.test_skipping_enabled:
+    if _CIVisibility.test_skipping_enabled():
 
         if _CIVisibility.should_skip(
             item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
