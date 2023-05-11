@@ -97,7 +97,7 @@ class CIVisibility(Service):
 
         self._git_client = None
 
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled or self._test_skipping_enabled_by_api:
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
             else:
@@ -116,6 +116,11 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
             return False, False
+
+        # DEV: Remove this ``if`` once ITR is in GA
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
         url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
         _headers = {
             "dd-api-key": self._api_key,
@@ -183,12 +188,6 @@ class CIVisibility(Service):
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
         return False
-
-    @classmethod
-    def code_coverage_enabled(cls):
-        if not cls.enabled:
-            return False
-        return getattr(cls._instance, "_code_coverage_enabled_by_api", False)
 
     @classmethod
     def test_skipping_enabled(cls):
