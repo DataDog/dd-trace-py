@@ -13,7 +13,6 @@ import six
 import tenacity
 
 from ddtrace.contrib.flask.patch import flask_version
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
