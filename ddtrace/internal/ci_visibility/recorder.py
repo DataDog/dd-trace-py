@@ -59,9 +59,9 @@ def _do_request(method, url, payload, headers):
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)
+        return Response.from_http_response(resp)
     finally:
         conn.close()
-    return Response.from_http_response(resp)
 
 
 class CIVisibility(Service):
@@ -97,7 +97,7 @@ class CIVisibility(Service):
 
         self._git_client = None
 
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled or self._test_skipping_enabled_by_api:
             if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
             else:
@@ -117,7 +117,11 @@ class CIVisibility(Service):
         if not self._app_key:
             return False, False
         url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
-        _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
+        _headers = {
+            "dd-api-key": self._api_key,
+            "dd-application-key": self._app_key,
+            "Content-Type": "application/json",
+        }
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -203,6 +207,7 @@ class CIVisibility(Service):
         if (suite, module) in self._tests_to_skip:
             return self._tests_to_skip[(suite, module)]
 
+        self._tests_to_skip.setdefault((suite, module), [])
         payload = {
             "data": {
                 "type": "test_params",
@@ -223,6 +228,7 @@ class CIVisibility(Service):
         url = "https://api.{}/{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), endpoint)
         headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": os.getenv("DD_APP_KEY")}
         response = _do_request("POST", url, json.dumps(payload), headers)
+
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
             return []
@@ -231,11 +237,11 @@ class CIVisibility(Service):
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return []
-        self._tests_to_skip[(suite, module)].setdefault([])
+
         for item in parsed["data"]:
-            attributes = item["attributes"]
             if item["type"] == "test":
-                self._tests_to_skip[(suite, module)].append(attributes["name"])
+                self._tests_to_skip[(suite, module)].append(item["attributes"]["name"])
+
         return self._tests_to_skip[(suite, module)]
 
     @classmethod

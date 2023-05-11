@@ -2,6 +2,7 @@ import json
 from multiprocessing import Process
 import os
 from typing import Callable  # noqa
+from typing import List  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
@@ -12,6 +13,7 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
+from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 
 from .. import compat
@@ -159,9 +161,17 @@ class CIVisibilityGitClientSerializerV1(object):
         )
 
     def search_commits_decode(self, payload):
-        # type: (str) -> list[str]
-        parsed = json.loads(payload)
-        return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
+        # type: (str) -> List[str]
+        res = []  # type: List[str]
+        try:
+            parsed = json.loads(payload)
+            return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
+        except KeyError:
+            log.warning("Expected information not found in search_commits response", exc_info=True)
+        except JSONDecodeError:
+            log.warning("Unexpected decode error in search_commits response", exc_info=True)
+
+        return res
 
     def upload_packfile_encode(self, repo_url, sha, file_path):
         # type: (str, str, str) -> Tuple[str, bytes]
