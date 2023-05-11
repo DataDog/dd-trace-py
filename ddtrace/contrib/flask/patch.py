@@ -31,7 +31,6 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor.wrapt import when_imported
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -260,33 +259,6 @@ def patch():
     setattr(flask, "_datadog_patch", True)
 
     Pin().onto(flask.Flask)
-
-    def if_iast_taint_cookies(wrapped, instance, args, kwargs):
-        if _is_iast_enabled():
-            # Werkzeug <= 1.0.1 uses args[0].__name__
-            # Werkzeug > 1.0.1 has an attribute slot_name to check this value
-            if not instance and (
-                (hasattr(args[0], "slot_name") and args[0].slot_name == "_cache_cookies")
-                or args[0].__name__ == "cookies"
-            ):
-                from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-                res = LazyTaintDict(
-                    wrapped(*args, **kwargs),
-                    origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
-                    override_pyobject_tainted=True,
-                )
-                return res
-
-        return wrapped(*args, **kwargs)
-
-    when_imported("werkzeug.utils")(
-        lambda m: _w(
-            m,
-            "cached_property.__get__",
-            if_iast_taint_cookies,
-        )
-    )
 
     _w(
         "werkzeug.datastructures",
@@ -756,6 +728,15 @@ def _set_request_tags(span):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
+
+        if _is_iast_enabled():
+            from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+            request.cookies = LazyTaintDict(
+                request.cookies,
+                origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
+                override_pyobject_tainted=True,
+            )
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
