@@ -74,7 +74,18 @@ def _psycopg_modules():
             pass
 
 
-# NB: We are patching the default elasticsearch.transport module
+try:
+    psycopg_import = import_module("psycopg")
+
+    # must get the original connect class method from the class __dict__ to use later in unpatch
+    # Python 3.11 and wrapt result in the class method being rebinded as an instance method when
+    # using unwrap
+    _original_connect = psycopg_import.Connection.__dict__["connect"]
+    _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
+except:
+    pass
+
+
 def patch():
     for psycopg_module in _psycopg_modules():
         _patch(psycopg_module)
@@ -103,11 +114,11 @@ def _patch(psycopg_module):
     else:
 
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
-
-        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
+
+        _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
 
         config.psycopg["_patched_modules"].add(psycopg_module)
 
@@ -131,20 +142,10 @@ def _unpatch(psycopg_module):
             _u(psycopg_module, "Cursor")
             _u(psycopg_module, "AsyncCursor")
 
-            try:
-                _u(psycopg_module.Connection, "connect")
-                _u(psycopg_module.AsyncConnection, "connect")
-
-            # _u throws an attribute error for Python 3.11 on method objects because of
-            # no __get__ method on the BoundFunctionWrapper
-            except AttributeError:
-                traced_connection = psycopg_module.Connection
-                traced_connect = traced_connection.__getattribute__(traced_connection, "connect")
-                setattr(traced_connection, "connect", traced_connect.__wrapped__)
-
-                traced_async_connection = getattr(psycopg_module, "AsyncConnection")
-                traced_async_connect = traced_async_connection.__getattribute__(traced_async_connection, "connect")
-                setattr(traced_async_connection, "connect", traced_async_connect.__wrapped__)
+            # _u throws an attribute error for Python 3.11, no __get__ on the BoundFunctionWrapper
+            # unlike Python Class Methods which implement __get__
+            setattr(psycopg_module.Connection, "connect", _original_connect)
+            setattr(psycopg_module.AsyncConnection, "connect", _original_async_connect)
 
         pin = Pin.get_from(psycopg_module)
         if pin:
