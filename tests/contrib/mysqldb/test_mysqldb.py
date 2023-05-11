@@ -737,3 +737,25 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert span.name == "MySQLdb.connection.connect"
         assert span.span_type == "sql"
         assert span.error == 0
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_schema_v0(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = tracer.pop()
+
+        span = spans[0]
+        assert span.name == "mysql.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_schema_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = tracer.pop()
+
+        span = spans[0]
+        assert span.name == "mysql.query"

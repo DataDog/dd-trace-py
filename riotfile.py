@@ -192,6 +192,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"bandit": latest},
+            venvs=[
+                Venv(
+                    name="bandit",
+                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},
             venvs=[
                 Venv(
