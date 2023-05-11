@@ -337,9 +337,15 @@ void Profile::push_frame_impl(std::string_view name, std::string_view filename,
     return;
 
   // Ensure strings are stored.
-  auto insert_or_get = [this](std::string_view str) -> std::string_view {
-    auto it = strings.find(str);
-    return (it != strings.end()) ? *it : *strings.emplace(str).first;
+  auto insert_or_get = [this](std::string_view sv) -> std::string_view {
+    auto it = strings.find(sv);
+    if (it != strings.end()) {
+      return *it;
+    } else {
+      string_storage.emplace_back(sv);
+      strings.insert(string_storage.back());
+      return string_storage.back();
+    }
   };
   name = insert_or_get(name);
   filename = insert_or_get(filename);

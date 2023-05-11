@@ -130,7 +130,6 @@ private:
     // Hashing functor to allow incoming strings to get checked without
     // speculuatively allocating before conversion to std::string
     using is_transparent = void;
-
     template <typename T> std::size_t operator()(T &&v) const {
       return hasher(std::forward<T>(v));
     }
@@ -151,7 +150,13 @@ private:
     }
   };
 
-  using StringTable = std::unordered_set<std::string, str_hash, str_eq>;
+  // Unordered containers don't get heterogeneous lookup until gcc-10, so for now use this
+  // strategy to dedupe + store strings
+  using StringTable = std::unordered_set<std::string_view, str_hash, str_eq>;
+
+  std::vector<std::string> string_storage;
+  StringTable strings;
+
   unsigned int type_mask;
   unsigned int max_nframes;
   unsigned int nframes;
@@ -164,9 +169,6 @@ private:
   std::array<ddog_prof_Location, 1024> locations;
   std::array<ddog_prof_Line, 1024> lines;
   size_t cur_frame;
-
-  // Storage for strings
-  StringTable strings;
 
   // Storage for labels
   std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)>
