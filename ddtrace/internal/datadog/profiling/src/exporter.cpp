@@ -326,6 +326,7 @@ bool Profile::reset() {
 
 bool Profile::start_sample(unsigned int nframes) {
   strings.clear();
+  string_storage.clear();
   clear_buffers();
   this->nframes = nframes;
   return true;
