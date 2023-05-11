@@ -25,6 +25,7 @@ from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
@@ -180,7 +181,8 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace("cassandra.query", service=service, span_type=SpanTypes.CASSANDRA)
+    span_name = schematize_database_operation("cassandra.query", database_provider="cassandra")
+    span = tracer.trace(span_name, service=service, span_type=SpanTypes.CASSANDRA)
 
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
