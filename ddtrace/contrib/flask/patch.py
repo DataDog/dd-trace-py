@@ -19,6 +19,8 @@ from ddtrace.internal.constants import COMPONENT
 from ...appsec import _asm_request_context
 from ...appsec import utils
 from ...internal import _context
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -74,7 +76,7 @@ config._add(
     "flask",
     dict(
         # Flask service configuration
-        _default_service="flask",
+        _default_service=schematize_service_name("flask"),
         collect_view_args=True,
         distributed_tracing_enabled=True,
         template_default_name="<memory>",
@@ -125,7 +127,7 @@ def taint_request_init(wrapped, instance, args, kwargs):
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = "flask.request"
+    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction="inbound")
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
