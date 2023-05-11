@@ -76,6 +76,8 @@ class IAST(object):
     HTTP_REQUEST_PATH = "http.request.path"
     HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
     HTTP_REQUEST_QUERYSTRING = "http.request.querystring"
+    HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
+    HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

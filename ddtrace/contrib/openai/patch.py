@@ -4,6 +4,7 @@ import sys
 import time
 from typing import AsyncGenerator
 from typing import Generator
+from typing import Optional
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -76,15 +77,18 @@ class _OpenAIIntegration:
 
     @property
     def _user_api_key(self):
-        # type: () -> str
+        # type: () -> Optional[str]
         """Get a representation of the user API key for tagging."""
         # Match the API key representation that OpenAI uses in their UI.
+        if self._openai.api_key is None:
+            return
         return "sk-...%s" % self._openai.api_key[-4:]
 
     def set_base_span_tags(self, span):
         # type: (Span) -> None
         span.set_tag_str(COMPONENT, self._config.integration_name)
-        span.set_tag_str("openai.user.api_key", self._user_api_key)
+        if self._user_api_key is not None:
+            span.set_tag_str("openai.user.api_key", self._user_api_key)
 
         # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
@@ -292,6 +296,10 @@ def _patched_make_session(func, args, kwargs):
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     span = integration.trace(pin, args[0].OBJECT_NAME, kwargs.get("model"))
+    openai_api_key = kwargs.get("api_key")
+    if openai_api_key:
+        # API key can either be set on the import or per request
+        span.set_tag_str("openai.user.api_key", "sk-...%s" % openai_api_key[-4:])
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)

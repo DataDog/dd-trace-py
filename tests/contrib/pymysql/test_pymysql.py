@@ -512,3 +512,25 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "pymysql.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "mysql.query"

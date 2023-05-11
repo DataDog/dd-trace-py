@@ -17,6 +17,7 @@ from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
+from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -49,6 +50,23 @@ def openai_vcr():
 
 
 @pytest.fixture
+def api_key_in_env():
+    return True
+
+
+@pytest.fixture
+def request_api_key(api_key_in_env, openai_api_key):
+    """
+    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
+    to make sure the env var will be used.
+    """
+    if api_key_in_env:
+        return None
+    return openai_api_key
+
+
+@pytest.fixture
 def openai_api_key():
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
@@ -59,10 +77,11 @@ def openai_organization():
 
 
 @pytest.fixture
-def openai(openai_api_key, openai_organization):
+def openai(openai_api_key, openai_organization, api_key_in_env):
     import openai
 
-    openai.api_key = openai_api_key
+    if api_key_in_env:
+        openai.api_key = openai_api_key
     openai.organization = openai_organization
     yield openai
     # Since unpatching doesn't work (see the unpatch() function),
@@ -114,9 +133,10 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization):
+def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
     with override_config("openai", ddtrace_config_openai):
-        openai.api_key = openai_api_key
+        if api_key_in_env:
+            openai.api_key = openai_api_key
         openai.organization = openai_organization
         patch(openai=True)
         yield
@@ -137,7 +157,7 @@ def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
 @pytest.fixture
 def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
-    mock_tracer = DummyTracer()
+    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(openai, tracer=mock_tracer)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -198,10 +218,11 @@ def test_patching(openai):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
         resp = openai.Completion.create(
-            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
         )
 
     assert resp["object"] == "text_completion"
@@ -271,10 +292,18 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_acompletion(
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     with openai_vcr.use_cassette("completion_async.yaml"):
         resp = await openai.Completion.acreate(
-            model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
+            api_key=request_api_key,
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
         )
     assert resp["object"] == "text_completion"
     assert resp["choices"] == [
@@ -457,12 +486,14 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_chat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion.yaml"):
         openai.ChatCompletion.create(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -488,11 +519,13 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
         await openai.ChatCompletion.acreate(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -506,20 +539,22 @@ async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_embedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding.yaml"):
-        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_aembedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_async.yaml"):
-        await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
+        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
