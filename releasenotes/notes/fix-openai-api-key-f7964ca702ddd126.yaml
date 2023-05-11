@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    OpenAI: Resolved an issue where OpenAI API keys set in individual requests rather than as an
+    environment variable caused an error in the integration.
+
