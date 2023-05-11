@@ -15,11 +15,20 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import RemoteConfigError
 from ddtrace.internal.remoteconfig.client import TargetFile
-from tests.internal.remoteconfig.test_remoteconfig import RCMockPubSub
 from tests.utils import override_env
 
 
-class RCMockPubSub2(PubSub):
+class RCClientMockPubSub(PubSub):
+    __subscriber_class__ = RemoteConfigSubscriber
+    __publisher_class__ = RemoteConfigPublisherMergeFirst
+    __shared_data = PublisherSubscriberConnector()
+
+    def __init__(self, _preprocess_results, callback):
+        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "TESTS")
+
+
+class RCClientMockPubSub2(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisherMergeFirst
     __shared_data = PublisherSubscriberConnector()
@@ -81,7 +90,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
         ),
     }
 
-    asm_callback = RCMockPubSub(None, _mock_appsec_callback)
+    asm_callback = RCClientMockPubSub(None, _mock_appsec_callback)
     rc_client = RemoteConfigClient()
     rc_client.register_product("ASM_DATA", asm_callback)
     rc_client.register_product("ASM_FEATURES", asm_callback)
@@ -321,7 +330,7 @@ def test_apply_merge_callback():
     target = "1/ASM/2"
     config = {"Config": "data"}
     test_list_callbacks = []
-    callback = RCMockPubSub(None, _mock_appsec_callback)
+    callback = RCClientMockPubSub(None, _mock_appsec_callback)
     RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
     callback.start_subscriber()
     for callback_to_dispach in test_list_callbacks:
@@ -343,8 +352,8 @@ def test_apply_merge_multiple_callback():
         def _mock_appsec_callback(cls, *args, **kwargs):
             cls.result = dict(args[0])
 
-    callback1 = RCMockPubSub(None, callbackClass._mock_appsec_callback)
-    callback2 = RCMockPubSub2(None, callbackClass._mock_appsec_callback)
+    callback1 = RCClientMockPubSub(None, callbackClass._mock_appsec_callback)
+    callback2 = RCClientMockPubSub2(None, callbackClass._mock_appsec_callback)
     callback_content1 = {"d": [1]}
     callback_content2 = {"e": [2]}
     target = "1/ASM/3"
@@ -380,8 +389,8 @@ def test_apply_merge_different_callback():
         def _mock_appsec_callback(cls, *args, **kwargs):
             cls.result = dict(args[0])
 
-    callback1 = RCMockPubSub(None, Callback1And2Class._mock_appsec_callback)
-    callback3 = RCMockPubSub2(None, Callback3Class._mock_appsec_callback)
+    callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+    callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
     callback_content1 = {"a": [1]}
     callback_content2 = {"b": [2]}
     callback_content3 = {"c": [2]}
@@ -420,8 +429,8 @@ def test_apply_merge_different_target_callback():
             cls.result = dict(args[0])
 
     with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
-        callback1 = RCMockPubSub(None, Callback1And2Class._mock_appsec_callback)
-        callback3 = RCMockPubSub2(None, Callback3Class._mock_appsec_callback)
+        callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+        callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
         callback_content1 = {"f": [1]}
         callback_content2 = {"g": [2]}
         callback_content3 = {"g": [3]}

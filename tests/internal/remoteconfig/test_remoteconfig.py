@@ -3,9 +3,11 @@ import base64
 import datetime
 import hashlib
 import json
+from time import sleep
 import warnings
 
 import mock
+from mock.mock import ANY
 import pytest
 
 from ddtrace.internal.compat import PY2
@@ -170,6 +172,31 @@ def test_remote_configuration_check_deprecated_var():
             assert len(capture) == 0
 
 
+@mock.patch.object(RemoteConfigClient, "_send_request")
+def test_remote_configuration_1_click(mock_send_request):
+    class Callback:
+        features = {}
+
+        def _reload_features(self, features, test_tracer=None):
+            self.features = features
+
+    callback = Callback()
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.5")):
+        with RemoteConfigPoller() as rc:
+            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            mock_pubsub.start_subscriber()
+            rc._online()
+            mock_send_request.assert_called()
+            sleep(0.5)
+            assert callback.features == {
+                "config": {"asm": {"enabled": True}},
+                "metadata": {},
+                "shared_data_counter": ANY,
+            }
+
+
 def test_remote_configuration_check_deprecated_var_message():
     with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         with warnings.catch_warnings(record=True) as capture:
@@ -186,46 +213,45 @@ def test_remote_configuration_check_deprecated_override():
             assert str(capture[0].message).startswith("Using environment")
 
 
-# @mock.patch.object(RemoteConfigClient, "_send_request")
-# def test_remote_configuration_ip_blocking(mock_send_request):
-#     class Callback:
-#         features = {}
-#
-#         def _reload_features(self, features, test_tracer=None):
-#             self.features = dict(features)
-#
-#     callback = Callback()
-#
-#     with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
-#         mock_send_request.return_value = get_mock_encoded_msg(
-#             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
-#             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
-#             b'"type": "ip_with_expiration"}]}'
-#         )
-#         with RemoteConfigPoller() as rc:
-#             mock_pubsub = RCMockPubSub(None, callback._reload_features)
-#             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-#             mock_pubsub.start_subscriber()
-#             rc._online()
-#             mock_send_request.assert_called_once()
-#             time.sleep(1)
-#             assert callback.features == {
-#                 "config": {
-#                     "rules_data": [
-#                         {
-#                             "data": [
-#                                 {"expiration": 1662804872, "value": "127.0.0.0"},
-#                                 {"expiration": 1662804872, "value": "52.80.198.1"},
-#                             ],
-#                             "id": "blocking_ips",
-#                             "type": "ip_with_expiration",
-#                         }
-#                     ]
-#                 },
-#                 "metadata": {},
-#                 "shared_data_counter": 1,
-#             }
-#             rc.stop_subscribers()
+@mock.patch.object(RemoteConfigClient, "_send_request")
+def test_remote_configuration_ip_blocking(mock_send_request):
+    class Callback:
+        features = {}
+
+        def _reload_features(self, features, test_tracer=None):
+            self.features = dict(features)
+
+    callback = Callback()
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+        mock_send_request.return_value = get_mock_encoded_msg(
+            b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
+            b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
+            b'"type": "ip_with_expiration"}]}'
+        )
+        with RemoteConfigPoller() as rc:
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            mock_pubsub.start_subscriber()
+            rc._online()
+            mock_send_request.assert_called_once()
+            sleep(0.5)
+            assert callback.features == {
+                "config": {
+                    "rules_data": [
+                        {
+                            "data": [
+                                {"expiration": 1662804872, "value": "127.0.0.0"},
+                                {"expiration": 1662804872, "value": "52.80.198.1"},
+                            ],
+                            "id": "blocking_ips",
+                            "type": "ip_with_expiration",
+                        }
+                    ]
+                },
+                "metadata": {},
+                "shared_data_counter": ANY,
+            }
 
 
 def test_remoteconfig_semver():
