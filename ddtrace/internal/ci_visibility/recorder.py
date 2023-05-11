@@ -81,6 +81,16 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+
+        int_service = None
+        if self.config is not None:
+            int_service = trace_utils.int_service(None, self.config)
+        # check if repository URL detected from environment or .git, and service name unchanged
+        if self._tags.get(ci.git.REPOSITORY_URL, None) and self.config and int_service == self.config._default_service:
+            self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
+        elif self._service is None and int_service is not None:
+            self._service = int_service
+
         # (suite, module) -> List[test_name]
         self._tests_to_skip = {}  # type: Dict[Tuple[str, Optional[str]], List[str]]
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
@@ -92,15 +102,6 @@ class CIVisibility(Service):
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
             else:
                 self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
-
-        int_service = None
-        if self.config is not None:
-            int_service = trace_utils.int_service(None, self.config)
-        # check if repository URL detected from environment or .git, and service name unchanged
-        if self._tags.get(ci.git.REPOSITORY_URL, None) and self.config and int_service == self.config._default_service:
-            self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
-        elif self._service is None and int_service is not None:
-            self._service = int_service
 
         try:
             from ddtrace.internal.codeowners import Codeowners
