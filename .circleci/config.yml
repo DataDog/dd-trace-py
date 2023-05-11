@@ -260,6 +260,9 @@ jobs:
       - run:
           name: "Run scripts/*.py tests"
           command: riot run -s scripts
+      - run:
+          name: "Running security analysis checks with bandit"
+          command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
