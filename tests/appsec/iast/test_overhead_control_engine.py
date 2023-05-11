@@ -36,7 +36,9 @@ def function_with_vulnerabilities_1(tracer):
     with tracer.trace("test_child"):
         import hashlib
 
-        m = hashlib.md5()
+        # JJJ was hashlib.md5
+        # m = hashlib.md5()
+        m = hashlib.sha1()
         m.update(b"Nobody inspects")
         m.digest()
         sleep(0.1)
@@ -47,7 +49,9 @@ def function_with_vulnerabilities_1(tracer):
 def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
     import hashlib
 
-    m = hashlib.md5()
+    # JJJ was hashlib.md5
+    # m = hashlib.md5()
+    m = hashlib.sha1()
     m.update(b"Nobody inspects")
     m.digest()
     m.digest()
@@ -62,7 +66,9 @@ def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
 def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     import hashlib
 
-    m = hashlib.md5()
+    # JJJ was hashlib.md5
+    # m = hashlib.md5()
+    m = hashlib.sha1()
     m.update(b"Nobody inspects")
     m.digest()
     m.digest()
