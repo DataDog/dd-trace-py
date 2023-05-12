@@ -286,10 +286,10 @@ def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_r
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
 
-        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
-
         _do_request.assert_not_called()
-        assert code_cov_enabled is False
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -300,18 +300,17 @@ def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do
             DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
 
-        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
-
         _do_request.assert_not_called()
-        assert code_cov_enabled is False
-        assert itr_enabled is False
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
+        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -367,6 +366,7 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
 
         # Git client is started
         assert git_start.call_count == 1
+        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -388,14 +388,13 @@ def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_re
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
 
-        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
-
         _do_request.assert_called()
-        assert code_cov_enabled is False
-        assert itr_enabled is False
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
         # Git client is started
         assert git_start.call_count == 1
+        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -420,11 +419,12 @@ def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_reques
         code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
 
         _do_request.assert_called()
-        assert code_cov_enabled is False
-        assert itr_enabled is False
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
         # Git client is started
         assert git_start.call_count == 1
+        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -448,13 +448,12 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
 
-        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
-
         _do_request.assert_called()
-        assert code_cov_enabled is False
-        assert itr_enabled is False
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
         # Git client is started
         assert git_start.call_count == 1
 
         mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
+        CIVisibility.disable()
