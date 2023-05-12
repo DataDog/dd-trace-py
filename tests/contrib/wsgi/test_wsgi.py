@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import six
 from webtest import TestApp
@@ -329,3 +331,25 @@ def test_wsgi_traced_iterable(tracer, test_spans):
     assert hasattr(resp, "close")
     assert hasattr(resp, "next") or hasattr(resp, "__next__")
     assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
+
+
+@pytest.mark.snapshot()
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+def test_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    code = """
+from webtest import TestApp
+from ddtrace.contrib.wsgi import wsgi
+from tests.conftest import *
+from tests.contrib.wsgi.test_wsgi import application
+
+app = TestApp(wsgi.DDWSGIMiddleware(application))
+app.get("/")"""
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env['DD_TRACE_SPAN_ATTRIBUTE_SCHEMA'] = schema_version
+    if service_name is not None:
+        env['DD_SERVICE'] = service_name
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
