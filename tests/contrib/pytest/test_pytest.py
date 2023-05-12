@@ -1302,11 +1302,18 @@ class PytestTestCase(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
             return_value=[
                 "test_will_work",
             ],
-        ), mock.patch("pytest.skip") as pytest_skip:
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
@@ -1330,9 +1337,16 @@ class PytestTestCase(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
             return_value=[],
-        ), mock.patch("pytest.skip") as pytest_skip:
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
