@@ -144,6 +144,7 @@ class CIVisibility(Service):
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
+            log.warning("Malformed response for settings endpoint")
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
             log.warning(

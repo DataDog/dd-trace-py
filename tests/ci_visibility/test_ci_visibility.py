@@ -265,3 +265,177 @@ def test_civisibilitywriter_agentless_url_envvar():
         CIVisibility.enable()
         assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_not_called()
+        assert code_cov_enabled is False
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_not_called()
+        assert code_cov_enabled is False
+        assert itr_enabled is False
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+        '{"code_coverage":true,"tests_skipping":true}}}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_ENV="staging",
+            DD_GIT_COMMIT_SHA="fffffff",
+            DD_GIT_BRANCH="main",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start, mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.uuid4"
+    ) as _uuid4:
+        _uuid4.return_value = "111-111-111"
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_called_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+            '{"data": {"id": "111-111-111", "type": "ci_app_test_service_libraries_settings", "attributes": {"service": null, "env": "staging", "repository_url": "git@github.com:DataDog/dd-trace-py.git", "sha": "fffffff", "branch": "main"}}}',
+            {"dd-api-key": "foo.bar", "dd-application-key": "foobar.baz", "Content-Type": "application/json"},
+        )
+        assert code_cov_enabled is True
+        assert itr_enabled is True
+
+        # Git client is started
+        assert git_start.call_count == 1
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"errors":["Not found"]}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_called()
+        assert code_cov_enabled is False
+        assert itr_enabled is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_request):
+    _do_request.return_value = Response(
+        status=404,
+        body="",
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_called()
+        assert code_cov_enabled is False
+        assert itr_enabled is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body="}",
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.log") as mock_log, mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
+    ) as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_called()
+        assert code_cov_enabled is False
+        assert itr_enabled is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+
+        mock_log.warning.assert_called_with("Malformed response for settings endpoint")
