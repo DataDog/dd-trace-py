@@ -1,4 +1,5 @@
 import contextlib
+import json
 import os
 import time
 
@@ -340,7 +341,21 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
         _do_request.assert_called_with(
             "POST",
             "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
-            '{"data": {"id": "111-111-111", "type": "ci_app_test_service_libraries_settings", "attributes": {"service": null, "env": "staging", "repository_url": "git@github.com:DataDog/dd-trace-py.git", "sha": "fffffff", "branch": "main"}}}',
+            json.dumps(
+                {
+                    "data": {
+                        "id": "111-111-111",
+                        "type": "ci_app_test_service_libraries_settings",
+                        "attributes": {
+                            "service": None,
+                            "env": "staging",
+                            "repository_url": "git@github.com:DataDog/dd-trace-py.git",
+                            "sha": "fffffff",
+                            "branch": "main",
+                        },
+                    }
+                }
+            ),
             {"dd-api-key": "foo.bar", "dd-application-key": "foobar.baz", "Content-Type": "application/json"},
         )
         assert code_cov_enabled is True
