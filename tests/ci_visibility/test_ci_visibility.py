@@ -89,7 +89,9 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
 
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar", DD_CIVISIBILITY_ITR_ENABLED="1")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar", DD_CIVISIBILITY_ITR_ENABLED="1")), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+    ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
