@@ -88,7 +88,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
 
         # URL is heavily processed in profiler.py; may not be compatible with libdatadog agentless
         if url:
-            ddup_config_url(str.encode(url));
+            ddup_config_url(str.encode(url))
 
         # Inherited
         ddup_config_runtime(str.encode(platform.python_implementation()))
