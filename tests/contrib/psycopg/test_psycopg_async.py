@@ -283,6 +283,26 @@ class PsycopgCore(TracerTestCase):
         assert spans[0].service == "mysvc"
 
     @pytest.mark.asyncio
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    async def test_span_name_v0_schema(self):
+        conn = await self._get_conn()
+        await conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgres.query"
+
+    @pytest.mark.asyncio
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_span_name_v1_schema(self):
+        conn = await self._get_conn()
+        await conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgresql.query"
+
+    @pytest.mark.asyncio
     async def test_contextmanager_connection(self):
         service = "fo"
         async with self._get_conn(service=service) as conn:

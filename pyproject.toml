@@ -88,3 +88,37 @@ exclude-modules = '''
   | ddtrace.appsec.ddwaf.ddwaf_types
 )
 '''
+
+[tool.bandit]
+targets = ["ddtrace/"]
+
+# TODO: Remove excludes
+exclude_dirs = [
+  "ddtrace/vendor/",
+  "ddtrace/appsec/iast/_ast/visitor.py",
+  "ddtrace/appsec/iast/_loader.py",
+  "ddtrace/appsec/iast/_patch.py",
+  "ddtrace/appsec/iast/_taint_tracking/__init__.py",
+  "ddtrace/commands/ddtrace_run.py",
+  "ddtrace/contrib/elasticsearch/patch.py",
+  "ddtrace/contrib/pylibmc/client.py",
+  "ddtrace/contrib/pytest_bdd/plugin.py",
+  "ddtrace/contrib/sanic/patch.py",
+  "ddtrace/debugging/_debugger.py",
+  "ddtrace/debugging/_function/discovery.py",
+  "ddtrace/debugging/_probe/registry.py",
+  "ddtrace/debugging/_probe/status.py",
+  "ddtrace/debugging/_signal/metric_sample.py",
+  "ddtrace/ext/git.py",
+  "ddtrace/ext/test.py",
+  "ddtrace/internal/module.py",
+  "ddtrace/internal/processor/stats.py",
+  "ddtrace/internal/rate_limiter.py",
+  "ddtrace/internal/schema/__init__.py",
+  "ddtrace/internal/schema/span_attribute_schema.py",
+  "ddtrace/internal/serverless/mini_agent.py",
+  "ddtrace/internal/uwsgi.py",
+  "ddtrace/internal/wrapping.py",
+  "ddtrace/profiling/collector/_lock.py",
+  "ddtrace/sourcecode/_utils.py",
+]

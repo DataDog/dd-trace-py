@@ -17,6 +17,7 @@ from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
+from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -49,6 +50,23 @@ def openai_vcr():
 
 
 @pytest.fixture
+def api_key_in_env():
+    return True
+
+
+@pytest.fixture
+def request_api_key(api_key_in_env, openai_api_key):
+    """
+    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
+    to make sure the env var will be used.
+    """
+    if api_key_in_env:
+        return None
+    return openai_api_key
+
+
+@pytest.fixture
 def openai_api_key():
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
@@ -59,10 +77,11 @@ def openai_organization():
 
 
 @pytest.fixture
-def openai(openai_api_key, openai_organization):
+def openai(openai_api_key, openai_organization, api_key_in_env):
     import openai
 
-    openai.api_key = openai_api_key
+    if api_key_in_env:
+        openai.api_key = openai_api_key
     openai.organization = openai_organization
     yield openai
     # Since unpatching doesn't work (see the unpatch() function),
@@ -114,9 +133,10 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization):
+def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
     with override_config("openai", ddtrace_config_openai):
-        openai.api_key = openai_api_key
+        if api_key_in_env:
+            openai.api_key = openai_api_key
         openai.organization = openai_organization
         patch(openai=True)
         yield
@@ -128,7 +148,7 @@ def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
-    yield
+    yield pin.tracer
 
     mock_logs.reset_mock()
     mock_metrics.reset_mock()
@@ -137,7 +157,7 @@ def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
 @pytest.fixture
 def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
-    mock_tracer = DummyTracer()
+    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(openai, tracer=mock_tracer)
     pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 
@@ -198,10 +218,11 @@ def test_patching(openai):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
         resp = openai.Completion.create(
-            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
         )
 
     assert resp["object"] == "text_completion"
@@ -219,6 +240,7 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
         "openai.endpoint:completions",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
         "error:0",
     ]
     mock_metrics.assert_has_calls(
@@ -270,10 +292,18 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_acompletion(
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     with openai_vcr.use_cassette("completion_async.yaml"):
         resp = await openai.Completion.acreate(
-            model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
+            api_key=request_api_key,
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
         )
     assert resp["object"] == "text_completion"
     assert resp["choices"] == [
@@ -302,6 +332,7 @@ async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot
         "openai.endpoint:completions",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
         "error:0",
     ]
     mock_metrics.assert_has_calls(
@@ -392,7 +423,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4",  # noqa: E501
+                    "ddtags": "env:,version:,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
@@ -427,6 +458,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     assert span.get_tag("openai.model") == "ada"
     assert span.get_tag("openai.endpoint") == "completions"
     assert span.get_tag("openai.organization.name") == "datadog-4"
+    assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
     for _, args, kwargs in mock_metrics.mock_calls:
         expected_metrics = [
@@ -436,6 +468,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
             "openai.model:ada",
             "openai.endpoint:completions",
             "openai.organization.name:datadog-4",
+            "openai.user.api_key:sk-...key>",
         ]
         actual_tags = kwargs.get("tags")
         for m in expected_metrics:
@@ -448,17 +481,19 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         assert log["service"] == "test-svc"
         assert (
             log["ddtags"]
-            == "env:staging,version:1234,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4"  # noqa: E501
+            == "env:staging,version:1234,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
         )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_chat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion.yaml"):
         openai.ChatCompletion.create(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -484,11 +519,13 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
         await openai.ChatCompletion.acreate(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -502,20 +539,22 @@ async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_embedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding.yaml"):
-        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_aembedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_async.yaml"):
-        await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
+        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -543,10 +582,8 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     assert completion == '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
 
     traces = mock_tracer.pop_traces()
-    assert len(traces) == 2
-    t1, t2 = traces
-    assert len(t1) == len(t2) == 1
-    assert t2[0].parent_id == t1[0].span_id
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
 
     expected_tags = [
         "version:",
@@ -555,30 +592,14 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "openai.model:ada",
         "openai.endpoint:completions",
         "openai.organization.id:",
-        "openai.organization.name:",
+        "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
+        "openai.user.api_key:sk-...key>",
         "error:0",
         "openai.estimated:true",
     ]
-    mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "tokens.prompt",
-                2,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                len(chunks),
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                len(chunks) + 2,
-                tags=expected_tags,
-            ),
-        ],
-        any_order=True,
-    )
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -592,10 +613,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
     assert completion == "\" and just start creating stuff. Don't expect it to draw like this."
 
     traces = mock_tracer.pop_traces()
-    assert len(traces) == 2
-    t1, t2 = traces
-    assert len(t1) == len(t2) == 1
-    assert t2[0].parent_id == t1[0].span_id
+    assert len(traces) == 1
 
     expected_tags = [
         "version:",
@@ -604,34 +622,18 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "openai.model:ada",
         "openai.endpoint:completions",
         "openai.organization.id:",
-        "openai.organization.name:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
         "error:0",
         "openai.estimated:true",
     ]
-    mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "tokens.prompt",
-                2,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                len(chunks),
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                len(chunks) + 2,
-                tags=expected_tags,
-            ),
-        ],
-        any_order=True,
-    )
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
+def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
@@ -643,10 +645,75 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
             ],
             stream=True,
         )
+        span = snapshot_tracer.current_span()
         chunks = [c for c in resp]
         assert len(chunks) == 15
         completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
         assert completion == "The Los Angeles Dodgers won the World Series in 2020."
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.model:gpt-3.5-turbo",
+        "openai.endpoint:chat.completions",
+        "openai.organization.id:",
+        "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", "3", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", "2", tags=expected_tags) in mock_metrics.mock_calls
+    expected_tags += ["openai.estimated:true"]
+    assert mock.call.distribution("tokens.prompt", 8, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", len(chunks) + 8, tags=expected_tags) in mock_metrics.mock_calls
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.asyncio
+async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+
+    with openai_vcr.use_cassette("chat_completion_streamed_async.yaml"):
+        resp = await openai.ChatCompletion.acreate(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who is the captain of the toronto maple leafs?"},
+            ],
+            stream=True,
+        )
+        span = snapshot_tracer.current_span()
+        chunks = [c async for c in resp]
+        assert len(chunks) == 39
+        completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
+        assert (
+            completion
+            == "As an AI language model, I do not have access to real-time information but as of the 2021 season, the captain of the Toronto Maple Leafs is John Tavares."  # noqa: E501
+        )
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.model:gpt-3.5-turbo",
+        "openai.endpoint:chat.completions",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", "3500", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.tokens", "90000", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", "3499", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.tokens", "89971", tags=expected_tags) in mock_metrics.mock_calls
+    expected_tags += ["openai.estimated:true"]
+    assert mock.call.distribution("tokens.prompt", 10, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", len(chunks) + 10, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)

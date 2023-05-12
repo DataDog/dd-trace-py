@@ -33,10 +33,12 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -939,6 +941,20 @@ class EnvTracerTestCase(TracerTestCase):
                 with self.trace("") as child2:
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
+
+    @run_in_subprocess(env_overrides=dict(FUNCTION_NAME="my-func", GCP_PROJECT="project-name"))
+    def test_detect_gcp_function_old_runtime(self):
+        assert in_gcp_function()
+        tracer = Tracer()
+        assert isinstance(tracer._writer, AgentWriter)
+        assert tracer._writer._sync_mode
+
+    @run_in_subprocess(env_overrides=dict(K_SERVICE="my-func", FUNCTION_TARGET="function-target"))
+    def test_detect_gcp_function_new_runtime(self):
+        assert in_gcp_function()
+        tracer = Tracer()
+        assert isinstance(tracer._writer, AgentWriter)
+        assert tracer._writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -1934,3 +1950,14 @@ def test_ctx_api():
         _context.get_item("appsec.key")
     with pytest.raises(ValueError):
         _context.get_items(["appsec.key"])
+
+
+def test_installed_excepthook():
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    telemetry.uninstall_excepthook()
+    assert sys.excepthook is not telemetry._excepthook
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    # Reset exception hooks
+    telemetry.uninstall_excepthook()

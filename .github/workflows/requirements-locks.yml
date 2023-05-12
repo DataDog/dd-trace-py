@@ -20,7 +20,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set python interpreters
-        run: pyenv global 3.10.3 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 3.11.0
+        run: pyenv global 3.10 2.7 3.5 3.6 3.7 3.8 3.9 3.11
 
       - name: Install Dependencies
         run: pip install --upgrade pip && pip install riot
@@ -29,4 +29,4 @@ jobs:
         run: scripts/compile-and-prune-test-requirements
 
       - name: Check git diff
-        run: scripts/check-diff 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+        run: scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'

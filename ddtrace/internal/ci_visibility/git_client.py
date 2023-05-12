@@ -18,12 +18,16 @@ from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import GIT_API_BASE_PATH
 
 
 log = get_logger(__name__)
 
 # this exists only for the purpose of mocking in tests
 RESPONSE = None
+
+# we're only interested in uploading .pack files
+PACK_EXTENSION = ".pack"
 
 
 class CIVisibilityGitClient(object):
@@ -38,7 +42,7 @@ class CIVisibilityGitClient(object):
         # type: (str, str, str) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
-        self._base_url = "https://api.{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+        self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
         self._response = RESPONSE
 
     def start(self, cwd=None):
@@ -120,7 +124,7 @@ class CIVisibilityGitClient(object):
         directory = "/".join(parts[:-1])
         rand = parts[-1]
         for filename in os.listdir(directory):
-            if not filename.startswith(rand):
+            if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
                 continue
             file_path = os.path.join(directory, filename)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)

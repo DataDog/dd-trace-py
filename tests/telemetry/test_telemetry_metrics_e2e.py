@@ -28,7 +28,7 @@ def _build_env():
 def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
-    env["_DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
+    env["DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
     env["DD_TELEMETRY_METRICS_INTERVAL_SECONDS"] = "1.0"
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
@@ -97,6 +97,6 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         response_content = json.loads(response.content)
         assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 2.0
     events = test_agent_session.get_events()
-    assert len(events) == 6
-    assert events[2]["payload"]["series"][0]["metric"] == "test_metric"
-    assert events[4]["payload"]["series"][0]["metric"] == "test_metric"
+    assert len(events) == 8
+    assert events[1]["payload"]["series"][0]["metric"] == "test_metric"
+    assert events[3]["payload"]["series"][0]["metric"] == "test_metric"
