@@ -21,7 +21,6 @@
       "http.version": "1.1",
       "language": "python",
       "runtime-id": "64d5226c7c7c4f79a067f32ae2c114ef",
-      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
