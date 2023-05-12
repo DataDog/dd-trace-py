@@ -295,7 +295,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     )
                 args[0].path = taint_pyobject(args[0].path, Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH))
                 args[0].path_info = taint_pyobject(
-                    args[0].path, Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH)
+                    args[0].path_info, Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH)
                 )
                 args[0].environ["PATH_INFO"] = taint_pyobject(
                     args[0].environ["PATH_INFO"], Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH)
