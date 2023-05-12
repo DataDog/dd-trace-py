@@ -334,7 +334,7 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
         _uuid4.return_value = "111-111-111"
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        CIVisibility.enable()
+        CIVisibility.enable(service="test-service")
 
         code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
 
@@ -347,7 +347,7 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
                         "id": "111-111-111",
                         "type": "ci_app_test_service_libraries_settings",
                         "attributes": {
-                            "service": None,
+                            "service": "test-service",
                             "env": "staging",
                             "repository_url": "git@github.com:DataDog/dd-trace-py.git",
                             "sha": "fffffff",
@@ -453,4 +453,4 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         # Git client is started
         assert git_start.call_count == 1
 
-        mock_log.warning.assert_called_with("Malformed response for settings endpoint")
+        mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")

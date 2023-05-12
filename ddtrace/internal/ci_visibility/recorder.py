@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import os
 from typing import Any
@@ -92,7 +93,7 @@ class CIVisibility(Service):
             self._service = int_service
 
         # (suite, module) -> List[test_name]
-        self._tests_to_skip = {}  # type: Dict[Tuple[str, Optional[str]], List[str]]
+        self._tests_to_skip = defaultdict(list)  # type: Dict[Tuple[str, Optional[str]], List[str]]
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._git_client = None
@@ -144,7 +145,7 @@ class CIVisibility(Service):
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
-            log.warning("Malformed response for settings endpoint")
+            log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
             log.warning(
@@ -203,16 +204,12 @@ class CIVisibility(Service):
 
         return test in cls._instance._get_tests_to_skip(suite, module)
 
-    def _get_tests_to_skip(self, suite, module):
-        if (suite, module) in self._tests_to_skip:
-            return self._tests_to_skip[(suite, module)]
-
+    def _fetch_tests_to_skip(self):
         # Make sure git uploading has finished
         # this will block the thread until that happens
         if self._git_client is not None:
             self._git_client.shutdown()
 
-        self._tests_to_skip.setdefault((suite, module), [])
         payload = {
             "data": {
                 "type": "test_params",
@@ -221,13 +218,10 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "suite": suite,
                     "configurations": {},
                 },
             }
         }
-        if module:
-            payload["data"]["attributes"]["module"] = module
         payload["data"]["attributes"]["configurations"] = ci._get_runtime_and_os_metadata()
         endpoint = "api/v2/ci/tests/skippable"
         url = "https://api.{}/{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), endpoint)
@@ -236,18 +230,20 @@ class CIVisibility(Service):
 
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
-            return []
+            return
         try:
             parsed = json.loads(response.body)
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
-            return []
+            return
 
         for item in parsed["data"]:
-            if item["type"] == "test":
-                self._tests_to_skip[(suite, module)].append(item["attributes"]["name"])
+            if item["type"] == "test" and "suite" in item["attributes"]:
+                module = item["attributes"].get("module", None)
+                self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
 
-        return self._tests_to_skip[(suite, module)]
+    def _get_tests_to_skip(self, suite, module):
+        return self._tests_to_skip.get((suite, module), [])
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
@@ -289,6 +285,8 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
+        if not self._instance._tests_to_skip:
+            self._instance._fetch_tests_to_skip()
 
     def _stop_service(self):
         # type: () -> None
