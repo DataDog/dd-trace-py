@@ -25,19 +25,17 @@ class TracedAsyncCursor(TracedCursor):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__aenter__
 
-        # and finally, yield the traced cursor.
-        return self
+        # type:  () -> TracedCursor
+        return self.__wrapped__.__aenter__()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__aexit__
 
-        # and finally, yield the traced cursor.
-        return self
+        # type: (...) -> (...)
+        return self.__wrapped__.__aexit__()
 
     async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
@@ -165,9 +163,7 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
 
 
 class TracedAsyncConnection(TracedConnection):
-    def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
-        if not cfg:
-            cfg = config.dbapi2
+    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
@@ -227,10 +223,9 @@ class TracedAsyncConnection(TracedConnection):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__aexit__
 
         # and finally, yield the traced cursor.
-        return self
+        return self.__wrapped__.__aexit__()
 
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
