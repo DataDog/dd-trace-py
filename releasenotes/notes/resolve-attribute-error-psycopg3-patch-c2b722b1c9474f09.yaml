@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    psycopg: This change resolved an issue where the psycopg traced async connection and dbapi_async objects were not initializing 
+    properly due to how the Pin object was accessed. The new psycopg patch now uses a connection factory for the async connection. 
+    It takes in the patched psycopg module and uses it to safely get the Pin object.

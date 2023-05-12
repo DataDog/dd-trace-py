@@ -41,7 +41,7 @@ class PsycopgCore(TracerTestCase):
         unpatch()
 
     def _get_conn(self, service=None):
-        conn = psycopg.Connection.connect(**POSTGRES_CONFIG)
+        conn = psycopg.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
             pin.clone(service=service, tracer=self.tracer).onto(conn)
