@@ -1,8 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import platform
-import sys
 import typing
 from typing import List
 from typing import Optional
@@ -98,11 +96,6 @@ class Profiler(object):
     ):
         # type: (...) -> typing.Any
         return getattr(self._profiler, key)
-
-
-# to be removed when libdatadog is supported on all needed platforms
-def is_glibc_linux_x86_64():
-    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]
 
 
 @attr.s
@@ -221,11 +214,6 @@ class _ProfilerInstance(service.Service):
             },
             default_max_events=config.max_events,
         )
-
-        # enforce architecture compatibility
-        if self.export_libdd_enabled and not is_glibc_linux_x86_64():
-            self.export_libdd_enabled = False
-            LOG.error("libdatadog is not a supported exporter on your system.")
 
         self._collectors = [
             stack.StackCollector(
