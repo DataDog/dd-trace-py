@@ -348,8 +348,8 @@ app.get("/")"""
 
     env = os.environ.copy()
     if schema_version is not None:
-        env['DD_TRACE_SPAN_ATTRIBUTE_SCHEMA'] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name is not None:
-        env['DD_SERVICE'] = service_name
+        env["DD_SERVICE"] = service_name
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
