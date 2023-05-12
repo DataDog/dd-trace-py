@@ -1306,7 +1306,7 @@ class PytestTestCase(TracerTestCase):
             return_value=[
                 True,
             ],
-        ), mock.patch(
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
             return_value=[
                 "test_will_work",
@@ -1341,7 +1341,7 @@ class PytestTestCase(TracerTestCase):
             return_value=[
                 True,
             ],
-        ), mock.patch(
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
             return_value=[],
         ), mock.patch(

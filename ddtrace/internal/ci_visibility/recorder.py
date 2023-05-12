@@ -209,6 +209,7 @@ class CIVisibility(Service):
         # this will block the thread until that happens
         if self._git_client is not None:
             self._git_client.shutdown()
+            self._git_client = None
 
         payload = {
             "data": {

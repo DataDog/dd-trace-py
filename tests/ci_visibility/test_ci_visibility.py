@@ -172,7 +172,9 @@ def test_git_client_worker(_do_request, git_repo):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             start_time = time.time()
-            with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+                "ddtrace.internal.ci_visibility.recorder._get_git_repo"
+            ) as ggr:
                 original = ddtrace.internal.ci_visibility.git_client.RESPONSE
                 ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
                 ggr.return_value = git_repo
@@ -330,15 +332,15 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
             DD_GIT_COMMIT_SHA="fffffff",
             DD_GIT_BRANCH="main",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start, mock.patch(
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
+    ) as git_start, mock.patch(
         "ddtrace.internal.ci_visibility.recorder.uuid4"
     ) as _uuid4:
         _uuid4.return_value = "111-111-111"
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
-
-        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
 
         _do_request.assert_called_with(
             "POST",
@@ -360,8 +362,8 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
             ),
             {"dd-api-key": "foo.bar", "dd-application-key": "foobar.baz", "Content-Type": "application/json"},
         )
-        assert code_cov_enabled is True
-        assert itr_enabled is True
+        assert CIVisibility._instance._code_coverage_enabled_by_api is True
+        assert CIVisibility._instance._test_skipping_enabled_by_api is True
 
         # Git client is started
         assert git_start.call_count == 1
