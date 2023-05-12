@@ -157,16 +157,18 @@ class DdtraceRunTest(BaseTestCase):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()
         """
-        out = subprocess.check_output(
-            ["python", "tests/commands/ddtrace_run_patched_modules_overrides.py"],
+        with self.override_env(
             env=dict(
                 DD_PATCH_MODULES="flask:true,gevent:true,django:false,boto:true,falcon:false",
                 DD_TRACE_FLASK_ENABLED="false",
                 DD_TRACE_GEVENT_ENABLED="false",
                 DD_TRACE_FALCON_ENABLED="true",
-            ),
-        )
-        assert out.startswith(b"Test success"), out
+            )
+        ):
+            out = subprocess.check_output(
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_patched_modules_overrides.py"],
+            )
+            assert out.startswith(b"Test success"), out
 
     def test_sitecustomize_without_ddtrace_run_command(self):
         # [Regression test]: ensure `sitecustomize` path is removed only if it's

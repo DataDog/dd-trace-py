@@ -1,6 +1,5 @@
 if __name__ == "__main__":
     from ddtrace._monkey import _PATCHED_MODULES
-    import ddtrace.bootstrap.sitecustomize  # noqa: F401
 
     assert (
         "flask" in _PATCHED_MODULES
