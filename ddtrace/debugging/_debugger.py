@@ -257,7 +257,7 @@ class Debugger(Service):
             log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
         # Register the debugger with the RCM client.
-        di_callback = self.__rc_adapter__("", self._on_configuration)
+        di_callback = self.__rc_adapter__(None, self._on_configuration)
         remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
