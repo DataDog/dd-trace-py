@@ -79,7 +79,7 @@ class MetricSample(LogSignal):
 
     @property
     def message(self):
-        return ("Condition evaluation error for probe %s" % self.probe.probe_id) if self.errors else None
+        return ("Evaluation errors for probe id %s" % self.probe.probe_id) if self.errors else None
 
     def has_message(self):
         # type () -> bool
