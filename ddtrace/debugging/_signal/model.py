@@ -16,6 +16,8 @@ import six
 from ddtrace.context import Context
 from ddtrace.debugging import safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.internal.rate_limiter import RateLimitExceeded
@@ -32,10 +34,9 @@ class SignalState(object):
     NONE = "NONE"
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
-    COND_ERROR_AND_COMMIT = "COND_ERROR_AND_COMMIT"
     SKIP_RATE = "SKIP_RATE"
+    COND_ERROR = "COND_ERROR"
     DONE = "DONE"
-    DONE_AND_COMMIT = "COMMIT"
 
 
 @attr.s
@@ -73,7 +74,7 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
             if probe.condition_error_limiter.limit() is RateLimitExceeded:
                 self.state = SignalState.SKIP_COND_ERROR
             else:
-                self.state = SignalState.COND_ERROR_AND_COMMIT
+                self.state = SignalState.COND_ERROR
         else:
             self.state = SignalState.SKIP_COND
 
@@ -97,3 +98,68 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def line(self):
         pass
+
+
+@attr.s
+class LogSignal(Signal):
+    """A signal that also emits a log message.
+
+    Some signals might require sending a log message along with the base signal
+    data. For example, all the collected errors from expression evaluations
+    (e.g. conditions) might need to be reported.
+    """
+
+    @property
+    @abc.abstractmethod
+    def message(self):
+        # type () -> Optional[str]
+        """The log message to emit."""
+        pass
+
+    @abc.abstractmethod
+    def has_message(self):
+        # type () -> bool
+        """Whether the signal has a log message to emit."""
+        pass
+
+    @property
+    def data(self):
+        # type () -> Dict[str, Any]
+        """Extra data to include in the snapshot portion of the log message."""
+        return {}
+
+    def _probe_details(self):
+        # type () -> Dict[str, Any]
+        probe = self.probe
+        if isinstance(probe, LineLocationMixin):
+            location = {
+                "file": probe.source_file,
+                "lines": [probe.line],
+            }
+        elif isinstance(probe, FunctionLocationMixin):
+            location = {
+                "type": probe.module,
+                "method": probe.func_qname,
+            }
+        else:
+            return {}
+
+        return {
+            "id": probe.probe_id,
+            "version": probe.version,
+            "location": location,
+        }
+
+    @property
+    def snapshot(self):
+        # type () -> Dict[str, Any]
+        full_data = {
+            "id": self.uuid,
+            "timestamp": int(self.timestamp * 1e3),  # milliseconds
+            "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in self.errors],
+            "probe": self._probe_details(),
+            "language": "python",
+        }
+        full_data.update(self.data)
+
+        return full_data

@@ -20,7 +20,7 @@ from six import PY3
 import ddtrace
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BatchJsonEncoder
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -42,6 +42,7 @@ from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.metric_sample import MetricSample
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
@@ -230,7 +231,7 @@ class Debugger(Service):
 
         self._encoder = BatchJsonEncoder(
             item_encoders={
-                Snapshot: SnapshotJsonEncoder(service_name),
+                LogSignal: LogSignalJsonEncoder(service_name),
                 str: str,
             },
             on_full=self._on_encoder_buffer_full,
