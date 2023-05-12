@@ -66,7 +66,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             env: Optional[str],
             version: Optional[str],
             tags: Optional[typing.Dict[str, str]],
-            max_nframes: Optional[int]) -> None:
+            max_nframes: Optional[int],
+            url: Optional[str]) -> None:
 
         # Default service is the main script, but what if there isn't one?
         if not service:
@@ -84,6 +85,10 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         # No default version?
         if version:
             ddup_config_version(str.encode(version))
+
+        # URL is heavily processed in profiler.py; may not be compatible with libdatadog agentless
+        if url:
+            ddup_config_url(str.encode(url));
 
         # Inherited
         ddup_config_runtime(str.encode(platform.python_implementation()))

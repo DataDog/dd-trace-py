@@ -185,6 +185,7 @@ class _ProfilerInstance(service.Service):
                 version=self.version,
                 tags=self.tags,
                 max_nframes=config.max_frames,
+                url=endpoint,
             )
 
         if self.export_py_enabled:

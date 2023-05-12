@@ -50,7 +50,10 @@ void ddup_config_runtime_version(const char *runtime_version) {
 void ddup_config_profiler_version(const char *profiler_version) {
   uploader_builder.set_profiler_version(profiler_version);
 }
-void ddup_config_url(const char *url) { uploader_builder.set_url(url); }
+void ddup_config_url(const char *url) {
+  if (url && *url)
+    uploader_builder.set_url(url);
+}
 void ddup_config_user_tag(const char *key, const char *val) {
   uploader_builder.set_tag(key, val);
 }
