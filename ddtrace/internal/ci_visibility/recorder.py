@@ -285,8 +285,8 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
-        if not self._instance._tests_to_skip:
-            self._instance._fetch_tests_to_skip()
+        if self.test_skipping_enabled() and not self._tests_to_skip:
+            self._fetch_tests_to_skip()
 
     def _stop_service(self):
         # type: () -> None
