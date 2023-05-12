@@ -11,7 +11,7 @@
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"blk-001-001\",\n      \"name\": \"Block IP addresses\",\n      \"on_match\": [\n        \"block\"\n      ],\n      \"tags\": {\n        \"category\": \"blocking\",\n        \"type\": \"ip_addresses\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"ip_match\",\n        \"operator_value\": \"\",\n        \"parameters\": [\n          {\n            \"address\": \"http.client_ip\",\n            \"highlight\": [\n              \"8.8.4.4\"\n            ],\n            \"key_path\": [],\n            \"value\": \"8.8.4.4\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
-      "_dd.appsec.waf.version": "1.9.0",
+      "_dd.appsec.waf.version": "1.10.0",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
       "_dd.runtime_family": "python",
@@ -30,22 +30,22 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.30.0",
       "language": "python",
-      "runtime-id": "ba630e06222c4ee59f4c563c6944535e"
+      "runtime-id": "3b980c47d1f34972b9b0f73ddb48c54a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 29.631,
-      "_dd.appsec.waf.duration_ext": 54.836273193359375,
+      "_dd.appsec.waf.duration": 29.755,
+      "_dd.appsec.waf.duration_ext": 62.70408630371094,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 3852194
+      "process_id": 3891397
     },
-    "duration": 611190,
-    "start": 1683879492911309067
+    "duration": 622497,
+    "start": 1683880394045633962
   },
      {
        "name": "flask.response",
@@ -59,6 +59,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 216577,
-       "start": 1683879492911688212
+       "duration": 199868,
+       "start": 1683880394046040782
      }]]
