@@ -47,6 +47,9 @@ class Scheduler(periodic.PeriodicService):
 
         if not self.export_py_enabled:
             # If we're not using the Python profiler, then stop now
+            # But set these fields for compatibility
+            start = self._last_export
+            self._last_export = compat.time_ns()
             return
 
         if self.before_flush is not None:
