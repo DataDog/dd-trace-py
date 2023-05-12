@@ -152,8 +152,7 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    if test_session_span is not None:
-        test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
+    test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
@@ -186,8 +185,7 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    if test_session_span is not None:
-        test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
+    test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
     test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
     if test_module_span is not None:
         test_suite_span.set_tag(_MODULE_ID, test_module_span.span_id)
@@ -344,8 +342,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        if test_session_span is not None:
-            span.set_tag(_SESSION_ID, test_session_span.span_id)
+        span.set_tag(_SESSION_ID, test_session_span.span_id)
 
         if test_module_span is not None:
             span.set_tag(_MODULE_ID, test_module_span.span_id)
