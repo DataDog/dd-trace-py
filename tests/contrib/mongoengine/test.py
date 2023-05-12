@@ -193,6 +193,32 @@ class MongoEngineCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].name == "pymongo.cmd"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].name == "mongodb.query"
+
 
 class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""

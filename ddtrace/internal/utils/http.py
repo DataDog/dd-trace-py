@@ -135,28 +135,11 @@ def connector(url, **kwargs):
         ...     conn.request("GET", "/")
         ...     ...
     """
-    scheme = "http"
-    if "://" in url:
-        scheme, _, authority = url.partition("://")
-    else:
-        authority = url
-
-    try:
-        Connection = {
-            "http": compat.httplib.HTTPConnection,
-            "https": compat.httplib.HTTPSConnection,
-            "unix": compat.httplib.HTTPConnection,
-        }[scheme]
-    except KeyError:
-        raise ValueError("Unsupported scheme: %s" % scheme)
-
-    host, _, _port = authority.partition(":")
-    port = int(_port) if _port else None
 
     @contextmanager
     def _connector_context():
         # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
-        connection = Connection(host, port, **kwargs)
+        connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
 

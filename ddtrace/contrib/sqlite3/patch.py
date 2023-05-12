@@ -10,6 +10,7 @@ from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
 from ...ext import db
+from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...pin import Pin
@@ -23,6 +24,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("sqlite"),
         _dbapi_span_name_prefix="sqlite",
+        _dbapi_span_operation_name=schematize_database_operation("sqlite.query", database_provider="sqlite"),
         trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
     ),
 )

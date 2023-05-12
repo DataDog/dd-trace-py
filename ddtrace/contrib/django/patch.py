@@ -187,12 +187,16 @@ def traced_cache(django, pin, func, instance, args, kwargs):
                 db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
             )
         elif command_name == "get":
-            # if valid result and check for special case for Django~3.0 that returns an empty Sentinel object as
-            # missing key
-            if result is not None and result != getattr(instance, "_missing_key", None):
-                span.set_metric(db.ROWCOUNT, 1)
-            # else result is invalid or None, set row count to 0
-            else:
+            try:
+                # check also for special case for Django~3.2 that returns an empty Sentinel object for empty results
+                # also check if result is Iterable first since some iterables return ambiguous truth results with ``==``
+                if result is None or (
+                    not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
+                ):
+                    span.set_metric(db.ROWCOUNT, 0)
+                else:
+                    span.set_metric(db.ROWCOUNT, 1)
+            except (AttributeError, NotImplementedError, ValueError):
                 span.set_metric(db.ROWCOUNT, 0)
         return result
 
@@ -281,15 +285,23 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     s._ignore_exception(exc)
 
             # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
-            if _is_iast_enabled() and kwargs and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
-                try:
-                    from ddtrace.appsec.iast._input_info import Input_info
-                    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+            if _is_iast_enabled() and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
+                from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-                    for k, v in kwargs.items():
-                        kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
-                except Exception:
-                    log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+                if not isinstance(args[0].COOKIES, LazyTaintDict):
+                    args[0].COOKIES = LazyTaintDict(
+                        args[0].COOKIES, origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE)
+                    )
+
+                if kwargs:
+                    try:
+                        from ddtrace.appsec.iast._input_info import Input_info
+                        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+                        for k, v in kwargs.items():
+                            kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                    except Exception:
+                        log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 
             return func(*args, **kwargs)
 
