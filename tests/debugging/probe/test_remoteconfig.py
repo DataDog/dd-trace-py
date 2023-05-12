@@ -67,8 +67,7 @@ def mock_config():
         ("prod", "dev", set(["probe1", "probe2", "probe3", "probe4"])),
     ],
 )
-def test_poller_env_version(env, version, expected, mock_config):
-    remoteconfig_poller.disable()
+def test_poller_env_version(env, version, expected, remote_config_worker, mock_config):
     probes = []
 
     def callback(e, ps, *args, **kwargs):
@@ -116,8 +115,7 @@ def test_poller_env_version(env, version, expected, mock_config):
         assert set(_.probe_id for _ in probes) == expected
 
 
-def test_poller_events(mock_config):
-    remoteconfig_poller.disable()
+def test_poller_events(remote_config_worker, mock_config):
     events = set()
 
     def callback(e, ps, *args, **kwargs):
@@ -197,8 +195,7 @@ def test_poller_events(mock_config):
         config.diagnostics_interval = old_interval
 
 
-def test_multiple_configs():
-    remoteconfig_poller.disable()
+def test_multiple_configs(remote_config_worker):
     events = set()
 
     def cb(e, ps):
@@ -382,8 +379,7 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
-def test_modified_probe_events(mock_config):
-    remoteconfig_poller.disable()
+def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 
     def cb(e, ps):

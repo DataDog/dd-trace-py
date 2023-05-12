@@ -258,11 +258,10 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     events that can be handled easily by the debugger.
     """
 
-    _status_timestamp = time.time()
-
     def __init__(self, data_connector, callback, name):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
         self._configs = {}  # type: Dict[str, Dict[str, Probe]]
+        self._status_timestamp = time.time()
         self._next_status_update_timestamp()
 
     def _exec_callback(self, data, test_tracer=None):
@@ -319,8 +318,8 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 class ProbeRCAdapter(PubSub):
     __publisher_class__ = RemoteConfigPublisher
     __subscriber_class__ = DebuggerRemoteConfigSubscriber
-    __shared_data = PublisherSubscriberConnector()
+    __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "DEBUGGER")
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER")

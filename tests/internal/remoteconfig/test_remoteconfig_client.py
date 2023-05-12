@@ -21,21 +21,21 @@ from tests.utils import override_env
 class RCClientMockPubSub(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisherMergeFirst
-    __shared_data = PublisherSubscriberConnector()
+    __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "TESTS")
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 
 
 class RCClientMockPubSub2(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisherMergeFirst
-    __shared_data = PublisherSubscriberConnector()
+    __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, "TESTS")
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")

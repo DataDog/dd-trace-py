@@ -32,11 +32,11 @@ Example 1: A callback for one or more Remote Configuration Products
 AppSec needs to aggregate different products in the same callback for all child processes.
 
 class AppSecRC(PubSubMergeFirst):
-    __shared_data = ConnectorSharedMemory()
+    __shared_data__ = ConnectorSharedMemory()
 
     def __init__(self, _preprocess_results, callback, name="Default"):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, name)
 
 asm_callback = AppSecRC(preprocess_1click_activation, appsec_callback, "ASM")
 
@@ -49,11 +49,11 @@ Example 2: One Callback for each product
 DI needs to aggregate different products in the same callback for all child processes.
 
 class DynamicInstrumentationRC(PubSub):
-    __shared_data = ConnectorSharedMemory()
+    __shared_data__ = ConnectorSharedMemory()
 
     def __init__(self, _preprocess_results, callback, name="Default"):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, name)
 
 di_callback_1 = DynamicInstrumentationRC(callback=di_callback_1, name="ASM")
 di_callback_2 = DynamicInstrumentationRC(callback=di_callback_2, name="ASM")

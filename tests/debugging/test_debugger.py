@@ -635,10 +635,9 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging(monkeypatch):
+def test_probe_status_logging(monkeypatch, remote_config_worker):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
-    remoteconfig_poller.disable()
-
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
@@ -691,10 +690,9 @@ def test_probe_status_logging(monkeypatch):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_probe_status_logging_reemit_on_modify(monkeypatch):
+def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker):
     monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
-    remoteconfig_poller.disable()
-
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request

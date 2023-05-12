@@ -24,7 +24,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
@@ -32,22 +31,6 @@ from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-def _stop_remote_config_worker():
-    if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service()
-        remoteconfig_poller._worker = None
-
-
-@pytest.fixture
-def remote_config_worker(tracer):
-    remoteconfig_poller._client = RemoteConfigClient()
-    _stop_remote_config_worker()
-    try:
-        yield
-    finally:
-        _stop_remote_config_worker()
 
 
 def _set_and_get_appsec_tags(tracer):
