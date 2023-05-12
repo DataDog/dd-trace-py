@@ -324,6 +324,7 @@ def pytest_runtest_protocol(item, nextitem):
         if _CIVisibility.should_skip(
             item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
         ):
+            # Replace test body by pytest skip call
             item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
             yield
             return
