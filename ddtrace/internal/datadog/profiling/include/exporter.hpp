@@ -193,7 +193,8 @@ public:
   bool push_lock_name(std::string_view lock_name);
   bool push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                        std::string_view thread_name);
-  bool push_taskinfo(int64_t task_id, std::string_view task_name);
+  bool push_task_id(int64_t task_id);
+  bool push_task_name(std::string_view task_name);
   bool push_span_id(int64_t span_id);
   bool push_local_root_span_id(int64_t local_root_span_id);
   bool push_trace_type(std::string_view trace_type);

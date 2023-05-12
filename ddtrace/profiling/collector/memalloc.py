@@ -185,3 +185,5 @@ class MemoryCollector(collector.PeriodicCollector):
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
+        else:
+            return []

@@ -48,7 +48,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_push_heap(uint64_t size)
         void ddup_push_lock_name(const char *lock_name)
         void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name)
-        void ddup_push_taskinfo(int64_t task_id, const char *task_name)
+        void ddup_push_task_id(int64_t task_id)
+        void ddup_push_task_name(const char *task_name)
         void ddup_push_span_id(int64_t span_id)
         void ddup_push_local_root_span_id(int64_t local_root_span_id)
         void ddup_push_trace_type(const char *trace_type)
@@ -67,6 +68,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             tags: Optional[typing.Dict[str, str]],
             max_nframes: Optional[int]) -> None:
 
+        # Default service is the main script, but what if there isn't one?
         if not service:
             if hasattr(__main__, "__file"):
                 service = os.path.basename(__main__.__file__)
@@ -74,12 +76,13 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
                 service = os.path.basename(sys.argv[0])
         ddup_config_service(str.encode(service))
 
-        if env is not None:
-            ddup_config_env(str.encode(env))
-        else:
-            ddup_config_env(str.encode("prod"))
+        # Default env is "prod"
+        if not env:
+            env = "prod"
+        ddup_config_env(str.encode(env))
 
-        if version is not None:
+        # No default version?
+        if version:
             ddup_config_version(str.encode(version))
 
         # Inherited
@@ -137,14 +140,12 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         else:
             ddup_push_threadinfo(thread_id, thread_native_id, str.encode(thread_name))
 
-    def push_taskinfo(task_id: int, task_name: str) -> None:
-        if task_id is None:
-            task_id = 0
+    def push_task_id(task_id: int) -> None:
+        ddup_push_task_id(task_id)
 
-        if task_name is None:
-            ddup_push_taskinfo(task_id, task_name)
-        else:
-            ddup_push_taskinfo(task_id, str.encode(task_name))
+    def push_task_name(task_name: str) -> None:
+        if task_name:
+            ddup_push_task_name(str.encode(task_name))
 
     def push_exceptioninfo(exc_type: type, count: int) -> None:
         if exc_type is not None:

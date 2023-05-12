@@ -32,7 +32,8 @@ void ddup_push_heap(uint64_t size);
 void ddup_push_lock_name(const char *lock_name);
 void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                           const char *thread_name);
-void ddup_push_taskinfo(int64_t task_id, const char *task_name);
+void ddup_push_task_id(int64_t task_id);
+void ddup_push_task_name(const char *task_name);
 void ddup_push_span_id(int64_t span_id);
 void ddup_push_local_root_span_id(int64_t local_root_span_id);
 void ddup_push_trace_type(const char *trace_type);

@@ -150,10 +150,14 @@ void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
   g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
-void ddup_push_taskinfo(int64_t task_id, const char *task_name) {
-  if (!task_name)
-    return;
-  g_profile->push_taskinfo(task_id, task_name);
+void ddup_push_task_id(int64_t task_id) {
+  if (task_id > 0)
+    g_profile->push_task_id(task_id);
+}
+
+void ddup_push_task_name(const char *task_name) {
+  if (task_name && *task_name)
+    g_profile->push_task_name(task_name);
 }
 
 void ddup_push_span_id(int64_t span_id) { g_profile->push_span_id(span_id); }

@@ -80,13 +80,6 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
 
   std::string_view key_sv = keys[static_cast<size_t>(key)];
 
-  // Input check
-  if (val.empty()) {
-    errmsg = "tag '" + std::string(key_sv) + "' is invalid";
-    std::cout << errmsg << std::endl;
-    return false;
-  }
-
   // Add
   ddog_Vec_Tag_PushResult res =
       ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
@@ -101,12 +94,10 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
 
 bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
                     std::string_view val, std::string &errmsg) {
-  if (key.empty() || val.empty()) {
-    errmsg =
-        "tag '" + std::string(key) + "'='" + std::string(val) + "' is invalid";
-    std::cout << errmsg << std::endl;
+  if (key.empty()) {
     return false;
   }
+
   ddog_Vec_Tag_PushResult res =
       ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
   if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
@@ -548,9 +539,15 @@ bool Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id,
   return true;
 }
 
-bool Profile::push_taskinfo(int64_t task_id, std::string_view task_name) {
-  if (!push_label(ExportLabelKey::task_id, task_id) ||
-      !push_label(ExportLabelKey::task_name, task_name)) {
+bool Profile::push_task_id(int64_t task_id) {
+  if (!push_label(ExportLabelKey::task_id, task_id)) {
+    std::cout << "bad push" << std::endl;
+    return false;
+  }
+  return true;
+}
+bool Profile::push_task_name(std::string_view task_name) {
+  if (!push_label(ExportLabelKey::task_name, task_name)) {
     std::cout << "bad push" << std::endl;
     return false;
   }
