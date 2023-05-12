@@ -1,8 +1,8 @@
 [[
   {
-    "name": "http.request",
-    "service": "global-service-name",
-    "resource": "http.request",
+    "name": "http.client.request",
+    "service": "unnamed-python-service",
+    "resource": "http.client.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -16,7 +16,7 @@
       "http.url": "http://localhost:8001/status/200",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "ed5d4610c6c04210b54dcd43a0b8767f",
+      "runtime-id": "74048d49dc6e49ee89fe82f51d84dcf2",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,8 +25,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85267
+      "process_id": 926
     },
-    "duration": 13840000,
-    "start": 1667242897599408000
+    "duration": 2350000,
+    "start": 1683920782595878000
   }]]
