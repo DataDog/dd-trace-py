@@ -23,7 +23,7 @@ log = get_logger(__name__)
 class TracedAsyncCursor(TracedCursor):
     async def __aenter__(self):
         # previous versions of the dbapi didn't support context managers. let's
-        # reference the func that would be called to ensure that errors
+        # reference the func that would be called to ensure that error
         # messages will be the same.
         await self.__wrapped__.__aenter__()
 
