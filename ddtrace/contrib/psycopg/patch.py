@@ -30,6 +30,18 @@ from ...internal.utils.wrappers import unwrap as _u
 from ...propagation._database_monitoring import _DBM_Propagator
 
 
+try:
+    psycopg_import = import_module("psycopg")
+
+    # must get the original connect class method from the class __dict__ to use later in unpatch
+    # Python 3.11 and wrapt result in the class method being rebinded as an instance method when
+    # using unwrap
+    _original_connect = psycopg_import.Connection.__dict__["connect"]
+    _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
+except ImportError:
+    pass
+
+
 def _psycopg_sql_injector(dbm_comment, sql_statement):
     for psycopg_module in config.psycopg["_patched_modules"]:
         if (
@@ -72,18 +84,6 @@ def _psycopg_modules():
             yield import_module(module_name)
         except ImportError:
             pass
-
-
-try:
-    psycopg_import = import_module("psycopg")
-
-    # must get the original connect class method from the class __dict__ to use later in unpatch
-    # Python 3.11 and wrapt result in the class method being rebinded as an instance method when
-    # using unwrap
-    _original_connect = psycopg_import.Connection.__dict__["connect"]
-    _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-except ImportError:
-    pass
 
 
 def patch():
