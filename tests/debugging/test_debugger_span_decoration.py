@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 import sys
 
 import ddtrace
@@ -6,10 +7,12 @@ from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.internal.compat import PY3
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_decoration_line_probe
 from tests.debugging.utils import ddexpr
+from tests.debugging.utils import ddstrtempl
 from tests.utils import TracerTestCase
 
 
@@ -45,8 +48,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                         SpanDecoration(
                             when=ddexpr(True),
                             tags=[
-                                SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "@return"})),
-                                SpanDecorationTag(name="test.bad", value=ddexpr({"ref": "notathing"})),
+                                SpanDecorationTag(name="test.tag", value=ddstrtempl([{"ref": "@return"}])),
+                                SpanDecorationTag(name="test.bad", value=ddstrtempl([{"ref": "notathing"}])),
                             ],
                         )
                     ],
@@ -81,14 +84,14 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                         SpanDecoration(
                             when=None,
                             tags=[
-                                SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "@return"})),
-                                SpanDecorationTag(name="test.bad", value=ddexpr({"ref": "notathing"})),
+                                SpanDecorationTag(name="test.tag", value=ddstrtempl([{"ref": "@return"}])),
+                                SpanDecorationTag(name="test.bad", value=ddstrtempl([{"ref": "notathing"}])),
                             ],
                         ),
                         SpanDecoration(
                             when=ddexpr({"ref": "notathing"}),
                             tags=[
-                                SpanDecorationTag(name="test.failedcond", value=ddexpr({"ref": "@return"})),
+                                SpanDecorationTag(name="test.failedcond", value=ddstrtempl([{"ref": "@return"}])),
                             ],
                         ),
                     ],
@@ -120,12 +123,12 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                 create_span_decoration_line_probe(
                     probe_id="span-decoration",
                     source_file="tests/submod/traced_stuff.py",
-                    line=2,
+                    line=3,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
                             when=ddexpr(True),
-                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl(["test.value"]))],
                         )
                     ],
                 )
@@ -152,7 +155,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     decorations=[
                         SpanDecoration(
                             when=ddexpr(True),
-                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl(["test.value"]))],
                         )
                     ],
                 )
@@ -178,7 +181,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     decorations=[
                         SpanDecoration(
                             when=ddexpr(True),
-                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr("test.value"))],
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl(["test.value"]))],
                         )
                     ],
                 )
@@ -199,12 +202,12 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                 create_span_decoration_line_probe(
                     probe_id="span-decoration",
                     source_file="tests/submod/traced_stuff.py",
-                    line=7,
+                    line=8,
                     target_span=SpanDecorationTargetSpan.ROOT,
                     decorations=[
                         SpanDecoration(
                             when=ddexpr(True),
-                            tags=[SpanDecorationTag(name="test.tag", value=ddexpr({"ref": "cake"}))],
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl([{"ref": "cake"}]))],
                         )
                     ],
                 )
@@ -218,7 +221,11 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             parent, child = self.get_spans()
 
             assert parent is root
-            assert parent.get_tag("test.tag") == "🍰"
+            if PY3:
+                assert parent.get_tag("test.tag") == "🍰"
+            else:
+                # String coertions in Python 2 change the value of the string
+                assert parent.get_tag("test.tag") is not None
             assert parent.get_tag("_dd.test.tag.probe_id") == "span-decoration"
 
             assert child.name == "traceme"

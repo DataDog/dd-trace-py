@@ -5,7 +5,6 @@ from typing import Dict
 from typing import Iterable
 from typing import Optional
 from typing import Type
-from typing import cast
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import config
@@ -30,6 +29,7 @@ from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
@@ -224,7 +224,10 @@ class SpanDecorationProbeFactory(ProbeFactory):
                     tags=[
                         SpanDecorationTag(
                             name=t["name"],
-                            value=cast(DDExpression, _compile_expression(t["value"])),
+                            value=StringTemplate(
+                                template=t["value"].get("template"),
+                                segments=[_compile_segment(segment) for segment in t["value"].get("segments", [])],
+                            ),
                         )
                         for t in d.get("tags", [])
                     ],

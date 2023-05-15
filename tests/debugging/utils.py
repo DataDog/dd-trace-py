@@ -1,6 +1,6 @@
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
@@ -15,6 +15,7 @@ from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._probe.model import StringTemplate
 
 
 def compile_template(*args):
@@ -34,6 +35,10 @@ def compile_template(*args):
 
 def ddexpr(json, dsl="test"):
     return DDExpression(dsl=dsl, callable=dd_compile(json))
+
+
+def ddstrtempl(segments, template=""):
+    return StringTemplate(template=template, segments=[ddexpr(segment) for segment in segments])
 
 
 def create_probe_defaults(f):
@@ -66,7 +71,7 @@ def log_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("take_snapshot", False)
         kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
-        kwargs.setdefault("limits", CaptureLimits())
+        kwargs.setdefault("limits", DEFAULT_CAPTURE_LIMITS)
         return f(*args, **kwargs)
 
     return _wrapper
@@ -76,7 +81,7 @@ def snapshot_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("take_snapshot", True)
         kwargs.setdefault("rate", DEFAULT_SNAPSHOT_PROBE_RATE)
-        kwargs.setdefault("limits", CaptureLimits())
+        kwargs.setdefault("limits", DEFAULT_CAPTURE_LIMITS)
         kwargs.setdefault("template", "")
         kwargs.setdefault("segments", [])
         return f(*args, **kwargs)

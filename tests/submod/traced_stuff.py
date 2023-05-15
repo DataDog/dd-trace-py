@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 def inner():
     return 42
 
