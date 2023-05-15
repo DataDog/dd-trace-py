@@ -7,6 +7,7 @@ import mock
 
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from tests.debugging.utils import create_snapshot_line_probe
@@ -64,15 +65,37 @@ def test_collector_cond():
 
 
 def test_collector_collect_enqueue_only_commit_state():
+    class MockLogSignal(LogSignal):
+        def __init__(self, *args, **kwargs):
+            super(MockLogSignal, self).__init__(*args, **kwargs)
+            self.exit_call_count = 0
+            self.enter_call_count = 0
+
+        def enter(self):
+            self.enter_call_count += 1
+
+        def exit(self, retval, exc_info, duration):
+            self.exit_call_count += 1
+
+        def line(self):
+            return
+
+        @property
+        def message(self):
+            return "test"
+
+        def has_message(self):
+            return True
+
     encoder, _ = mock_encoder()
 
     collector = SignalCollector(encoder=encoder)
     for i in range(10):
-        mocked_signal = mock.Mock()
+        mocked_signal = MockLogSignal(mock.Mock(), None, None)
         with collector.attach(mocked_signal):
-            mocked_signal.enter.assert_called_once()
-            mocked_signal.state = SignalState.DONE_AND_COMMIT if i % 2 == 0 else SignalState.SKIP_COND
-        mocked_signal.exit.assert_called_once()
+            assert mocked_signal.enter_call_count == 1
+            mocked_signal.state = SignalState.DONE if i % 2 == 0 else SignalState.SKIP_COND
+        assert mocked_signal.exit_call_count == 1
 
     assert len(encoder.put.mock_calls) == 5
 

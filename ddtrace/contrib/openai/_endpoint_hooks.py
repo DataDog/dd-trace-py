@@ -38,8 +38,7 @@ class _BaseCompletionHook(_EndpointHook):
     """
     Share streamed response handling logic between Completion and ChatCompletion endpoints.
     """
-
-    def _handle_response(self, span, integration, resp):
+    def _handle_response(self, pin, span, integration, resp):
         """Handle the response object returned from endpoint calls.
 
         This method helps with streamed responses by wrapping the generator returned with a
@@ -127,6 +126,7 @@ class _CompletionHook(_BaseCompletionHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         prompt = kwargs.get("prompt", "")
         if integration.is_pc_sampled_span(span):
+            prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
                 span.set_tag_str("openai.request.prompt", integration.trunc(prompt))
             elif prompt:
@@ -170,7 +170,7 @@ class _CompletionHook(_BaseCompletionHook):
                         "choices": resp["choices"] if resp and "choices" in resp else [],
                     },
                 )
-        return self._handle_response(span, integration, resp)
+        return self._handle_response(pin, span, integration, resp)
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
@@ -191,6 +191,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         messages = kwargs.get("messages")
         if messages and integration.is_pc_sampled_span(span):
+        messages = kwargs.get("messages")
+        if sample_pc_span and messages:
             for idx, m in enumerate(messages):
                 content = integration.trunc(m.get("content", ""))
                 role = integration.trunc(m.get("role", ""))
@@ -203,6 +205,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             for m in messages:
                 est_num_message_tokens += _est_tokens(m.get("content", ""))
             span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
+
+        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if resp and not kwargs.get("stream"):
@@ -302,9 +306,6 @@ class _ListHook(_EndpointHook):
                     span.set_tag("openai.response.data.%d.%s" % (idx, k), v)
 
         # TODO: what info to return from the response? Do we need to return all listed info?
-        import pdb
-
-        pdb.set_trace()
         return resp
 
 
@@ -583,9 +584,6 @@ class _FileDownloadHook(_EndpointHook):
         pass
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        import pdb
-
-        pdb.set_trace()
         return resp
 
 
@@ -604,9 +602,6 @@ class _FineTuneCreateHook(_EndpointHook):
     _default_name = "fine-tunes.create"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        import pdb
-
-        pdb.set_trace()
         _set_openai_api_key_tag(span, args, kwargs, api_key_index=1)
         train_file_id = kwargs.get("training_file", "")
         valid_file_id = kwargs.get("validation_file", "")
@@ -633,4 +628,29 @@ class _FineTuneCreateHook(_EndpointHook):
         span.set_tag("openai.response.created_at", resp.get("created_at", ""))
         span.set_tag("openai.response.updated_at", resp.get("updated_at", ""))
 
+        return resp
+
+
+class _EmbeddingHook(_EndpointHook):
+    _default_name = "embeddings"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        for kw_attr in ["model", "input", "user"]:
+            if kw_attr in kwargs:
+                if kw_attr == "input" and integration.is_pc_sampled_span(span):
+                    if isinstance(kwargs["input"], list):
+                        for idx, inp in enumerate(kwargs["input"]):
+                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
+                    else:
+                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+                else:
+                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        return
+
+    def _post_response(self, pin, integration, span, args, kwargs, resp, error):
+        if resp:
+            if "data" in resp:
+                span.set_tag("openai.response.data.num-embeddings", len(resp["data"]))
+                span.set_tag("openai.response.data.embedding-length", len(resp["data"][0]["embedding"]))
+            integration.record_usage(span, resp.get("usage"))
         return resp

@@ -8,13 +8,13 @@ import threading
 import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
-from ddtrace.debugging._encoding import _capture_context
-from ddtrace.debugging._encoding import format_message
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._signal.snapshot import _capture_context
+from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
@@ -196,7 +196,7 @@ def test_batch_json_encoder():
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
     buffer_size = 30 * (1 << 10)
-    encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)}, buffer_size=buffer_size)
+    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)}, buffer_size=buffer_size)
 
     s.line()
 
@@ -230,7 +230,7 @@ def test_batch_flush_reencode():
 
     s.line()
 
-    encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)})
+    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)})
 
     snapshot_total_size = sum(encoder.put(s) for _ in range(2))
     assert encoder.count == 2
