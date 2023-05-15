@@ -38,6 +38,7 @@ class _BaseCompletionHook(_EndpointHook):
     """
     Share streamed response handling logic between Completion and ChatCompletion endpoints.
     """
+
     def _handle_response(self, pin, span, integration, resp):
         """Handle the response object returned from endpoint calls.
 
@@ -126,13 +127,11 @@ class _CompletionHook(_BaseCompletionHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         prompt = kwargs.get("prompt", "")
         if integration.is_pc_sampled_span(span):
-            prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
                 span.set_tag_str("openai.request.prompt", integration.trunc(prompt))
             elif prompt:
                 for idx, p in enumerate(prompt):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(p))
-
         if "stream" in kwargs and kwargs["stream"]:
             prompt = kwargs.get("prompt", "")
             num_prompt_tokens = 0
@@ -142,7 +141,6 @@ class _CompletionHook(_BaseCompletionHook):
                 for p in prompt:
                     num_prompt_tokens += _est_tokens(p)
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -191,8 +189,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         messages = kwargs.get("messages")
         if messages and integration.is_pc_sampled_span(span):
-        messages = kwargs.get("messages")
-        if sample_pc_span and messages:
             for idx, m in enumerate(messages):
                 content = integration.trunc(m.get("content", ""))
                 role = integration.trunc(m.get("role", ""))
@@ -205,7 +201,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
             for m in messages:
                 est_num_message_tokens += _est_tokens(m.get("content", ""))
             span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
-
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -236,7 +231,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                         "completion": choices,
                     },
                 )
-        return self._handle_response(span, integration, resp)
+        return self._handle_response(pin, span, integration, resp)
 
 
 class _EmbeddingHook(_EndpointHook):
@@ -271,6 +266,10 @@ class _EmbeddingHook(_EndpointHook):
 
 
 class _ListHook(_EndpointHook):
+    """
+    Hook for openai.ListableAPIResource, which is used by Model.list, Files.list, and FineTunes.list.
+    """
+
     _default_name = "list"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -290,8 +289,6 @@ class _ListHook(_EndpointHook):
                             for dict_k, dict_v in v.items()
                         ],
                     )
-                    # for dict_k, dict_v in v.items():
-                    #     span.set_tag("openai.response.data.{}.{}.{}".format(idx, k, dict_k), dict_v)
                 elif isinstance(v, list):
                     for list_idx, list_obj in enumerate(v):
                         set_flattened_tags(
@@ -310,6 +307,8 @@ class _ListHook(_EndpointHook):
 
 
 class _RetrieveHook(_EndpointHook):
+    """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTunes.retrieve."""
+
     _default_name = "retrieve"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -362,7 +361,7 @@ class _EditHook(_EndpointHook):
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled edit",
+                "sampled %s" % self._default_name,
                 attrs={
                     "instruction": instruction,
                     "input": input_text,
@@ -404,7 +403,7 @@ class _ImageHook(_EndpointHook):
                 mask = args[2] or kwargs.get("mask", "")
                 attrs_dict.update({"mask": getattr(mask, "name", "")})
             integration.log(
-                span, "info" if error is None else "error", "sampled image %s" % self._default_name, attrs=attrs_dict
+                span, "info" if error is None else "error", "sampled %s" % self._default_name, attrs=attrs_dict
             )
         return resp
 
@@ -473,7 +472,7 @@ class _AudioHook(_EndpointHook):
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled audio %s" % self._default_name,
+                "sampled %s" % self._default_name,
                 attrs={
                     "file": getattr(file_input, "name", ""),
                     "text": resp["text"] if isinstance(resp, dict) else resp,
@@ -506,17 +505,16 @@ class _ModerationHook(_EndpointHook):
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         _set_openai_api_key_tag(span, args, kwargs, api_key_index=3)
-        if integration.is_pc_sampled_span(span):
-            input_text = args[1]
-            model = args[2]
-            span.set_tag_str("openai.request.input", integration.trunc(input_text))
-            span.set_tag_str("openai.model", model)
+        input_text = args[1]
+        model = args[2]
+        span.set_tag_str("openai.request.input", integration.trunc(input_text))
+        span.set_tag_str("openai.model", model)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        if integration.is_pc_sampled_span(span) and "results" in resp:
+        if resp.get("results"):
             results = resp["results"][0]
             categories = results.get("categories", {})
             scores = results.get("category_scores", {})
@@ -525,8 +523,6 @@ class _ModerationHook(_EndpointHook):
                 span.set_metric("openai.response.category_scores.%s" % category, scores.get(category, 0))
                 span.set_tag_str("openai.response.categories.%s" % category, str(categories.get(category, "")))
             span.set_tag_str("openai.response.flagged", str(flagged))
-        if integration.is_pc_sampled_log(span):
-            pass
 
         return resp
 
@@ -628,29 +624,4 @@ class _FineTuneCreateHook(_EndpointHook):
         span.set_tag("openai.response.created_at", resp.get("created_at", ""))
         span.set_tag("openai.response.updated_at", resp.get("updated_at", ""))
 
-        return resp
-
-
-class _EmbeddingHook(_EndpointHook):
-    _default_name = "embeddings"
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "user"]:
-            if kw_attr in kwargs:
-                if kw_attr == "input" and integration.is_pc_sampled_span(span):
-                    if isinstance(kwargs["input"], list):
-                        for idx, inp in enumerate(kwargs["input"]):
-                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
-                    else:
-                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-                else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-        return
-
-    def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        if resp:
-            if "data" in resp:
-                span.set_tag("openai.response.data.num-embeddings", len(resp["data"]))
-                span.set_tag("openai.response.data.embedding-length", len(resp["data"][0]["embedding"]))
-            integration.record_usage(span, resp.get("usage"))
         return resp
