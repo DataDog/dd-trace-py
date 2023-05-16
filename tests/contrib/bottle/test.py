@@ -518,11 +518,12 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app = webtest.TestApp(self.app)
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
-        root.assert_matches(service="bottle-app")
+        root.assert_matches(service="bottle")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0_schema(self):
@@ -535,11 +536,12 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app = webtest.TestApp(self.app)
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
-        root.assert_matches(service="bottle-app")
+        root.assert_matches(service="bottle")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1_schema(self):

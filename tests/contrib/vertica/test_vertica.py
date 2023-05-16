@@ -482,7 +482,7 @@ class TestVertica(TracerTestCase):
         spans = self.test_tracer.pop()
         assert len(spans) == 2
         span = spans[0]
-        assert span.service != "mysvc"
+        assert span.service == "vertica"
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True

@@ -675,7 +675,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, request_span.service
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_service_name_schematization_v0(self):
@@ -685,7 +685,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, request_span.service
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_service_name_schematization_v1(self):
@@ -695,7 +695,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, request_span.service
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
 
     @TracerTestCase.run_in_subprocess()
     def test_unspecified_service_name_schematization_default(self):
@@ -705,7 +705,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado-web" == request_span.service, request_span.service
+        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_name_schematization_v0(self):
@@ -715,7 +715,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado-web" == request_span.service, request_span.service
+        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_name_schematization_v1(self):
@@ -725,7 +725,9 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert DEFAULT_SPAN_SERVICE_NAME == request_span.service, request_span.service
+        assert DEFAULT_SPAN_SERVICE_NAME == request_span.service, "Expected '{}' but got {}".format(
+            DEFAULT_SPAN_SERVICE_NAME, request_span.service
+        )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_operation_name_schematization_v0(self):
@@ -735,7 +737,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado.request" == request_span.name, request_span.name
+        assert "tornado.request" == request_span.name, "Expected 'tornado.request' but got {}".format(request_span.name)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_operation_name_schematization_v1(self):
@@ -745,4 +747,6 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "http.server.request" == request_span.name, request_span.name
+        assert "http.server.request" == request_span.name, "Expected 'http.server.request' but got {}".format(
+            request_span.name
+        )

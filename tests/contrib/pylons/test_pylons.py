@@ -914,7 +914,7 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == "pylons", root_span.service
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
@@ -923,7 +923,7 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == "pylons", root_span.service
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
@@ -932,7 +932,7 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == "mysvc", root_span.service
+        assert root_span.service == "mysvc", "Expected 'mysvc' but got {}".format(root_span.service)
 
     @TracerTestCase.run_in_subprocess()
     def test_schematized_unspecified_service_name_default(self):
@@ -941,7 +941,7 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == "pylons"
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
@@ -950,7 +950,7 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == "pylons"
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
@@ -959,7 +959,9 @@ class PylonsSchemaTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.service == DEFAULT_SPAN_SERVICE_NAME
+        assert root_span.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' but got {}".format(
+            DEFAULT_SPAN_SERVICE_NAME, root_span.service
+        )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):

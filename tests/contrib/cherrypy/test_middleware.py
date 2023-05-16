@@ -469,53 +469,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 
         cherrypy.tools.tracer.service = previous_service
 
-    # @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE='mysvc'))
-    # def test_service_name_default_schema(self):
-    #    helper.stop()
-    #    helper.start()
-    #    import os
-
-    #    self.getPage("/")
-    #    time.sleep(0.1)
-    #    self.assertStatus("200 OK")
-    #    #self.assertHeader("Content-Type", "text/html;charset=utf-8")
-    #    #self.assertBody("Hello world!")
-
-    #    #assert not self.tracer.current_span()
-    #    #spans = self.pop_spans()
-    #    #assert len(spans) == 1
-    #    #s = spans[0]
-    #    #assert s.service == "test.cherrypy.service"
-
-
-# @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE='mysvc'))
-# def test_service_name_v0_schema(self):
-#     self.getPage("/")
-#     time.sleep(0.1)
-#     self.assertStatus("200 OK")
-#     self.assertHeader("Content-Type", "text/html;charset=utf-8")
-#     self.assertBody("Hello world!")
-
-#     assert not self.tracer.current_span()
-#     spans = self.pop_spans()
-#     assert len(spans) == 1
-#     s = spans[0]
-#     assert s.service == "test.cherrypy.service"
-
-# @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE='mysvc'))
-# def test_service_name_v1_schema(self):
-#     self.getPage("/")
-#     time.sleep(0.1)
-#     self.assertStatus("200 OK")
-#     self.assertHeader("Content-Type", "text/html;charset=utf-8")
-#     self.assertBody("Hello world!")
-
-#     assert not self.tracer.current_span()
-#     spans = self.pop_spans()
-#     assert len(spans) == 1
-#     s = spans[0]
-#     assert s.service == "mysvc"
-
 
 class TestCherrypySnapshot(helper.CPWebCase):
     @staticmethod

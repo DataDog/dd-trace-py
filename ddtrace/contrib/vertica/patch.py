@@ -84,7 +84,7 @@ config._add(
                         "measured": True,
                     },
                     "copy": {
-                        "operation_name": schematize_database_operation("vertica.copy", database_provider="vertica"),
+                        "operation_name": "vertica.copy",
                         "span_type": SpanTypes.SQL,
                         "span_start": copy_span_start,
                         "measured": False,
@@ -106,7 +106,7 @@ config._add(
                         "measured": False,
                     },
                     "nextset": {
-                        "operation_name": schematize_database_operation("vertica.nextset", database_provider="vertica"),
+                        "operation_name": "vertica.nextset",
                         "span_type": SpanTypes.SQL,
                         "span_end": fetch_span_end,
                         "measured": False,

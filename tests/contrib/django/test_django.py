@@ -1485,9 +1485,14 @@ def test_service_can_be_overridden(client, test_spans):
     assert span.service == "test-service"
 
 
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version):
-    expected_service_name = {None: "django", "v0": "django", "v1": _DEFAULT_SPAN_SERVICE_NAMES["v1"]}[schema_version]
+def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "django",
+        "v0": global_service_name or "django",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
     code = """
 import pytest
 import sys
@@ -1505,7 +1510,7 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.service == "{}", span.service
+    assert span.service == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -1516,6 +1521,8 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
         env=env,
@@ -1545,7 +1552,7 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.name == "{}", span.service
+    assert span.name == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
