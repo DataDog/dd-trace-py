@@ -54,6 +54,7 @@ class APPSEC(object):
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
 

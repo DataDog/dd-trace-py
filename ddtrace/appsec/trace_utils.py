@@ -99,9 +99,10 @@ def track_user_signup_event(tracer, user_id, success):
     span = tracer.current_root_span()
     if span:
         success_str = "true" if success else "false"
-        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, "signup"), success_str)
+        span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
+        span.set_tag_str(user.ID, user_id)
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
-        return span
+        return
     else:
         log.warning(
             "No root span in the current execution. Skipping track_user_signup tags. "
