@@ -10,42 +10,43 @@ from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
-from tests.utils import TracerTestCase
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
-class TestTracedAsyncCursor(TracerTestCase):
+class TestTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
         super(TestTracedAsyncCursor, self).setUp()
-        self.cursor = mock.Mock()
+        self.cursor = mock.AsyncMock()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @mark_asyncio
     async def test_dbm_propagation_not_supported(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
         # By default _dbm_propagator attribute should not be set or have a value of None.
         # DBM context propagation should be opt in.
         assert getattr(cfg, "_dbm_propagator", None) is None
-        traced_cursor = await TracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        traced_cursor = TracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
         # Ensure dbm comment is not appended to sql statement
         await traced_cursor.execute("SELECT * FROM db;")
         cursor.execute.assert_called_once_with("SELECT * FROM db;")
 
-    @TracerTestCase.run_in_subprocess(
+    @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
@@ -53,11 +54,11 @@ class TestTracedAsyncCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
-        traced_cursor = await TracedAsyncCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
+        traced_cursor = TracedAsyncCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
 
         # The following operations should generate DBM comments
         await traced_cursor.execute("SELECT * FROM db;")
@@ -72,55 +73,55 @@ class TestTracedAsyncCursor(TracerTestCase):
         # DBM comment should not be added procedure names
         cursor.callproc.assert_called_once_with("procedure_named_moon")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.executemany.return_value = "__result__"
 
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchone_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchall.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchmany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchmany.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_correct_span_names(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin("pin_name", tracer=tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
 
         await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         self.assert_structure(dict(name="sql.query"))
@@ -146,7 +147,7 @@ class TestTracedAsyncCursor(TracerTestCase):
         await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         self.assert_has_no_spans()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_when_pin_disabled_then_no_tracing(self):
         cursor = self.cursor
         tracer = self.tracer
@@ -156,7 +157,7 @@ class TestTracedAsyncCursor(TracerTestCase):
 
         tracer.enabled = False
         pin = Pin("pin_name", tracer=tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
 
         assert "__result__" == await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         assert len(tracer.pop()) == 0
@@ -180,15 +181,15 @@ class TestTracedAsyncCursor(TracerTestCase):
         assert "fetchall" == await traced_cursor.fetchall("arg_1", "arg_2")
         assert len(tracer.pop()) == 0
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_span_info(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
@@ -206,71 +207,71 @@ class TestTracedAsyncCursor(TracerTestCase):
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
         assert span.get_tag("span.kind") == "client"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_cfg_service(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, tracer=tracer, tags={"pin1": "value_pin1"})
         cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
-        traced_cursor = await TracedAsyncCursor(cursor, pin, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, pin, cfg)
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "cfg-service"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_default_service(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, tracer=tracer, tags={"pin1": "value_pin1"})
 
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "db"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_default_service_cfg(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, tracer=tracer, tags={"pin1": "value_pin1"})
         cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
-        traced_cursor = await TracedAsyncCursor(cursor, pin, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, pin, cfg)
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "default-svc"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_service_cfg_and_pin(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("pin-svc", tracer=tracer, tags={"pin1": "value_pin1"})
         cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
-        traced_cursor = await TracedAsyncCursor(cursor, pin, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, pin, cfg)
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "pin-svc"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         tracer = self.tracer
@@ -280,9 +281,9 @@ class TestTracedAsyncCursor(TracerTestCase):
         cursor.rowcount = 123
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
         cfg = IntegrationConfig(Config(), "db-test")
-        traced_cursor = await TracedAsyncCursor(cursor, pin, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, pin, cfg)
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
@@ -290,14 +291,14 @@ class TestTracedAsyncCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_cursor_analytics_default(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
 
@@ -305,71 +306,71 @@ class TestTracedAsyncCursor(TracerTestCase):
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
 
-class TestFetchTracedAsyncCursor(TracerTestCase):
+class TestFetchTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
         super(TestFetchTracedAsyncCursor, self).setUp()
-        self.cursor = mock.Mock()
+        self.cursor = mock.AsyncMock()
         self.config = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.executemany.return_value = "__result__"
 
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchone_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchall.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetchmany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchmany.return_value = "__result__"
         pin = Pin("pin_name", tracer=self.tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_correct_span_names(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin("pin_name", tracer=tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
 
         await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         self.assert_structure(dict(name="sql.query"))
@@ -395,7 +396,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         self.assert_structure(dict(name="sql.query.fetchall"))
         self.reset()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_when_pin_disabled_then_no_tracing(self):
         cursor = self.cursor
         tracer = self.tracer
@@ -405,7 +406,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
 
         tracer.enabled = False
         pin = Pin("pin_name", tracer=tracer)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
 
         assert "__result__" == await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         assert len(tracer.pop()) == 0
@@ -429,15 +430,15 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         assert "fetchall" == await traced_cursor.fetchall("arg_1", "arg_2")
         assert len(tracer.pop()) == 0
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_span_info(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
@@ -453,7 +454,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
         assert span.get_tag("span.kind") == "client"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         tracer = self.tracer
@@ -462,9 +463,9 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
@@ -472,7 +473,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_fetch_no_analytics(self):
         """Confirm fetch* methods do not have analytics sample rate metric"""
         with self.override_config("dbapi2", dict(analytics_enabled=True)):
@@ -480,7 +481,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchone.return_value = "__result__"
             pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
             assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
 
             span = self.pop_spans()[0]
@@ -490,7 +491,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchall.return_value = "__result__"
             pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
             assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
 
             span = self.pop_spans()[0]
@@ -500,13 +501,13 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchmany.return_value = "__result__"
             pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+            traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
             assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
 
             span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_unknown_rowcount(self):
         class Unknown(object):
             pass
@@ -515,22 +516,22 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = Unknown()
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
-        traced_cursor = await FetchTracedAsyncCursor(cursor, pin, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, pin, {})
 
-        def method():
+        async def method():
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.get_metric("db.row_count") is None
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor
         tracer = self.tracer
         pin = Pin("pin_name", tracer=tracer)
         cursor.callproc.return_value = "gme --> moon"
-        traced_cursor = await TracedAsyncCursor(cursor, pin, {})
+        traced_cursor = TracedAsyncCursor(cursor, pin, {})
 
         await traced_cursor.callproc("proc_name", "arg_1")
         spans = self.tracer.pop()
@@ -547,7 +548,7 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         assert len(spans) == 1
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(
+    @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="full",
             DD_SERVICE="orders-app",
@@ -555,12 +556,12 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
         dbm_propagator = _DBM_Propagator(0, "query")
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagator=dbm_propagator)
-        traced_cursor = await FetchTracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        traced_cursor = FetchTracedAsyncCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
 
         # The following operations should not generate DBM comments
         await traced_cursor.fetchone()
@@ -587,64 +588,64 @@ class TestFetchTracedAsyncCursor(TracerTestCase):
         cursor.executemany.assert_called_once_with(dbm_comment_excmany + "SELECT * FROM db;", ())
 
 
-class TestTracedAsyncConnection(TracerTestCase):
+class TestTracedAsyncConnection(AsyncioTestCase):
     def setUp(self):
         super(TestTracedAsyncConnection, self).setUp()
-        self.connection = mock.Mock()
+        self.connection = mock.AsyncMock()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_cursor_class(self):
         pin = Pin("pin_name", tracer=self.tracer)
 
         # Default
-        traced_connection = await TracedAsyncConnection(self.connection, pin=pin)
+        traced_connection = TracedAsyncConnection(self.connection, pin=pin)
         self.assertTrue(traced_connection._self_cursor_cls is TracedAsyncCursor)
 
         # Trace fetched methods
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
-            traced_connection = await TracedAsyncConnection(self.connection, pin=pin)
+            traced_connection = TracedAsyncConnection(self.connection, pin=pin)
             self.assertTrue(traced_connection._self_cursor_cls is FetchTracedAsyncCursor)
 
         # Manually provided cursor class
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
-            traced_connection = await TracedAsyncConnection(self.connection, pin=pin, cursor_cls=TracedAsyncCursor)
+            traced_connection = TracedAsyncConnection(self.connection, pin=pin, cursor_cls=TracedAsyncCursor)
             self.assertTrue(traced_connection._self_cursor_cls is TracedAsyncCursor)
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_commit_is_traced(self):
         connection = self.connection
         tracer = self.tracer
         connection.commit.return_value = None
         pin = Pin("pin_name", tracer=tracer)
-        traced_connection = await TracedAsyncConnection(connection, pin)
+        traced_connection = TracedAsyncConnection(connection, pin)
         await traced_connection.commit()
         assert tracer.pop()[0].name == "mock.connection.commit"
         connection.commit.assert_called_with()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_rollback_is_traced(self):
         connection = self.connection
         tracer = self.tracer
         connection.rollback.return_value = None
         pin = Pin("pin_name", tracer=tracer)
-        traced_connection = await TracedAsyncConnection(connection, pin)
+        traced_connection = TracedAsyncConnection(connection, pin)
         await traced_connection.rollback()
         assert tracer.pop()[0].name == "mock.connection.rollback"
         connection.rollback.assert_called_with()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_connection_analytics_with_rate(self):
         with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             connection = self.connection
             tracer = self.tracer
             connection.commit.return_value = None
             pin = Pin("pin_name", tracer=tracer)
-            traced_connection = await TracedAsyncConnection(connection, pin)
+            traced_connection = TracedAsyncConnection(connection, pin)
             await traced_connection.commit()
             span = tracer.pop()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_connection_context_manager(self):
         class Cursor(object):
             rowcount = 0
@@ -655,10 +656,10 @@ class TestTracedAsyncConnection(TracerTestCase):
             async def fetchall(self, *args, **kwargs):
                 pass
 
-            async def __enter__(self):
+            async def __aenter__(self):
                 return self
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
             async def commit(self, *args, **kwargs):
@@ -668,26 +669,26 @@ class TestTracedAsyncConnection(TracerTestCase):
         # should be returned so that tracing works.
 
         class ConnectionConnection(object):
-            async def __enter__(self):
+            async def __aenter__(self):
                 return self
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
-            async def cursor(self):
+            def cursor(self):
                 return Cursor()
 
             async def commit(self):
                 pass
 
         pin = Pin("pin", tracer=self.tracer)
-        conn = await TracedAsyncConnection(ConnectionConnection(), pin)
-        with conn as conn2:
+        conn = TracedAsyncConnection(ConnectionConnection(), pin)
+        async with conn as conn2:
             await conn2.commit()
         spans = self.pop_spans()
         assert len(spans) == 1
 
-        with conn as conn2:
+        async with conn as conn2:
             async with conn2.cursor() as cursor:
                 await cursor.execute("query")
                 await cursor.fetchall()
@@ -699,10 +700,10 @@ class TestTracedAsyncConnection(TracerTestCase):
         # then it should be instrumented.
 
         class ConnectionCursor(object):
-            async def __enter__(self):
+            async def __aenter__(self):
                 return Cursor()
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
             async def commit(self):
@@ -718,14 +719,14 @@ class TestTracedAsyncConnection(TracerTestCase):
         # be double instrumented.
 
         class ConnectionTracedAsyncCursor(object):
-            async def __enter__(self):
+            async def __aenter__(self):
                 return self.cursor()
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
-            async def cursor(self):
-                return await TracedAsyncCursor(Cursor(), pin, {})
+            def cursor(self):
+                return TracedAsyncCursor(Cursor(), pin, {})
 
             async def commit(self):
                 pass
@@ -743,25 +744,25 @@ class TestTracedAsyncConnection(TracerTestCase):
         other_conn = ConnectionConnection()
 
         class ConnectionDifferentConnection(object):
-            async def __enter__(self):
+            async def __aenter__(self):
                 return other_conn
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
-            async def cursor(self):
+            def cursor(self):
                 return Cursor()
 
             async def commit(self):
                 pass
 
-        conn = await TracedAsyncConnection(ConnectionDifferentConnection(), pin)
-        with conn as conn2:
+        conn = TracedAsyncConnection(ConnectionDifferentConnection(), pin)
+        async with conn as conn2:
             await conn2.commit()
         spans = self.pop_spans()
         assert len(spans) == 0
 
-        with conn as conn2:
+        async with conn as conn2:
             async with conn2.cursor() as cursor:
                 await cursor.execute("query")
                 await cursor.fetchall()
@@ -773,25 +774,25 @@ class TestTracedAsyncConnection(TracerTestCase):
         # it should be handled gracefully.
 
         class ConnectionUnknown(object):
-            async def __enter__(self):
+            async def __aenter__(self):
                 return 123456
 
-            async def __exit__(self, *exc):
+            async def __aexit__(self, *exc):
                 return False
 
-            async def cursor(self):
+            def cursor(self):
                 return Cursor()
 
             async def commit(self):
                 pass
 
-        conn = await TracedAsyncConnection(ConnectionDifferentConnection(), pin)
-        with conn as conn2:
+        conn = TracedAsyncConnection(ConnectionDifferentConnection(), pin)
+        async with conn as conn2:
             await conn2.commit()
         spans = self.pop_spans()
         assert len(spans) == 0
 
-        with conn as conn2:
+        async with conn as conn2:
             async with conn2.cursor() as cursor:
                 await cursor.execute("query")
                 await cursor.fetchall()
@@ -808,7 +809,7 @@ class TestTracedAsyncConnection(TracerTestCase):
             async def commit(self):
                 pass
 
-        conn = await TracedAsyncConnection(ConnectionNoCtx(), pin)
+        conn = TracedAsyncConnection(ConnectionNoCtx(), pin)
         with pytest.raises(AttributeError):
             with conn:
                 pass
