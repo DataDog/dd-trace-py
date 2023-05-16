@@ -9,7 +9,7 @@ from ddtrace.debugging._config import config as debugger_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -165,7 +165,7 @@ class NoopProbeStatusLogger(object):
         pass
 
 
-class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
+class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
     def encode(self, snapshot):
         # type: (Snapshot) -> bytes
         return b""
@@ -174,7 +174,7 @@ class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
 class ExplorationSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
         super(ExplorationSignalCollector, self).__init__(*args, **kwargs)
-        encoder_class = SnapshotJsonEncoder if config.encode else NoopSnapshotJsonEncoder
+        encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
         self._snapshots = []

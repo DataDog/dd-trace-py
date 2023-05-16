@@ -260,7 +260,6 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    # IAST
     _w(
         "werkzeug.datastructures",
         "Headers.items",
@@ -333,7 +332,6 @@ def patch():
 
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
-
     # flask static file helpers
     _w("flask", "send_file", simple_tracer("flask.send_file"))
 
@@ -730,6 +728,15 @@ def _set_request_tags(span):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
+
+        if _is_iast_enabled():
+            from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+            request.cookies = LazyTaintDict(
+                request.cookies,
+                origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
+                override_pyobject_tainted=True,
+            )
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
