@@ -19,9 +19,3 @@ IDEA_DEF = "idea"
 DEFAULT_WEAK_HASH_ALGORITHMS = {MD5_DEF, SHA1_DEF}
 
 DEFAULT_WEAK_CIPHER_ALGORITHMS = {DES_DEF, BLOWFISH_DEF, RC2_DEF, RC4_DEF, IDEA_DEF}
-
-IAST_PATCH = {
-    "path_traversal": True,
-    "weak_cipher": True,
-    "weak_hash": True,
-}
