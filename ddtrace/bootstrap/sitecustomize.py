@@ -7,8 +7,6 @@ from ddtrace import LOADED_MODULES  # isort:skip
 import logging  # noqa
 import os  # noqa
 import sys
-from typing import Any  # noqa
-from typing import Dict  # noqa
 import warnings  # noqa
 
 from ddtrace import config  # noqa
@@ -154,7 +152,6 @@ def cleanup_loaded_modules():
 try:
     from ddtrace import tracer
 
-    priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
     profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
 
     if profiling:
@@ -183,22 +180,7 @@ try:
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
-    opts = {}  # type: Dict[str, Any]
-
-    dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
-    if asbool(dd_trace_enabled):
-        trace_enabled = True
-    else:
-        trace_enabled = False
-        opts["enabled"] = False
-
-    if priority_sampling:
-        opts["priority_sampling"] = asbool(priority_sampling)
-
-    if not opts:
-        tracer.configure(**opts)
-
-    if trace_enabled:
+    if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
         # We need to clean up after we have imported everything we need from
