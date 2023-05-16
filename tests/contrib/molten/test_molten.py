@@ -379,7 +379,7 @@ class TestMolten(TracerTestCase):
         molten_client()
         spans = self.pop_spans()
         for span in spans:
-            assert span.service == "molten", span.service
+            assert span.service == "molten", "Expected 'molten' but got {}".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0_schema(self):
@@ -401,7 +401,9 @@ class TestMolten(TracerTestCase):
         molten_client()
         spans = self.pop_spans()
         for span in spans:
-            assert span.service == DEFAULT_SPAN_SERVICE_NAME, span.service
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' but got {}".format(
+                DEFAULT_SPAN_SERVICE_NAME, span.service
+            )
 
     @TracerTestCase.run_in_subprocess()
     def test_schematized_operation_name_default(self):

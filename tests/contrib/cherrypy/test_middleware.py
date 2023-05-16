@@ -573,7 +573,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, (err.decode() if err else "") or (out.decode() if out else "")
+    assert status == 0, (err, out)
     assert err == b""
 
 
@@ -632,5 +632,5 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, (err.decode() if err else "") or (out.decode() if out else "")
+    assert status == 0, (err, out)
     assert err == b""
