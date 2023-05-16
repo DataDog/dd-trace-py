@@ -1,9 +1,15 @@
 import os
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
-from ddtrace.internal import _context
-from tests.appsec.iast.fixtures.path_traversal import pt_open
+import pytest
+
+
+try:
+    from ddtrace.appsec._constants import IAST
+    from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
+    from ddtrace.internal import _context
+    from tests.appsec.iast.fixtures.path_traversal import pt_open
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/path_traversal.py"
