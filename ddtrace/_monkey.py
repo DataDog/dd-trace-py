@@ -128,10 +128,6 @@ _MODULES_FOR_CONTRIB = {
     "kafka": ("confluent_kafka",),
 }
 
-IAST_PATCH = {
-    "weak_hash": True,
-    "weak_cipher": True,
-}
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
@@ -200,6 +196,9 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
+
+    from .appsec.iast.constants import IAST_PATCH
+
     patch_iast(**IAST_PATCH)
 
 
