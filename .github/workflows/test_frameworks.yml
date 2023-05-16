@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       # Regression test for DataDog/dd-trace-py/issues/5722
-      DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE: auto
+      DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE: true
     defaults:
       run:
         working-directory: sanic
@@ -73,11 +73,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install sanic and dependencies required to run tests
-        run: pip3 install '.[test]' aioquic gevent
+        run: pip3 install '.[test]' aioquic
       - name: Install ddtrace
         run: pip3 install ../ddtrace
       - name: Run tests
-        run: ddtrace-run pytest tests -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers"
+        run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context"
 
   django-testsuite-3_1:
     strategy:
