@@ -324,7 +324,7 @@ def test_wsgi_traced_iterable(tracer, test_spans):
     def start_response(status, headers, exc_info=None):
         pass
 
-    resp = middleware.__call__(enviorn, start_response)
+    resp = middleware(enviorn, start_response)
     assert hasattr(resp, "__iter__")
     assert hasattr(resp, "close")
     assert hasattr(resp, "next") or hasattr(resp, "__next__")
