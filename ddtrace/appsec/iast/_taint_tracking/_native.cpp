@@ -1,6 +1,5 @@
 #include "TaintedObject/TaintedObject.h"
 
-
 static PyMethodDef TaintTrackingMethods[] = {
     // We are using  METH_VARARGS because we need compatibility with
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
