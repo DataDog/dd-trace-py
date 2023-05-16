@@ -57,6 +57,7 @@ class APPSEC(object):
     USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_USER_EVENTS_TRACKING"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

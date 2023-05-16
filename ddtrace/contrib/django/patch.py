@@ -21,7 +21,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST, APPSEC
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
@@ -669,20 +669,26 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
 
+# TODO: try...except, this should never fail, only log
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     request = get_argument_value(args, kwargs, 0, "request")
     func(*args, **kwargs)
+    events_tracking_mode = os.environ.get(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "enabled")
 
-    # FIXME: user a constant for the env var
-    if not asbool(os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_ENABLED", "false")):
+    if not config._appsec_enabled or events_tracking_mode == "disabled":
         return
 
-    user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
-    email_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_EMAIL_FIELD", "")
-    name_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_NAME_FIELD", "")
-    role_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_ROLE_FIELD", "")
-    scope_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_SCOPE_FIELD", "")
+    extended = (events_tracking_mode == "extended")
+
+    if extended:
+        user_id_field = "username"
+        email_field = "email"
+        name_field = "name"
+    else:
+        user_id_field = "pk"
+        email_field = ""
+        name_field = ""
 
     user = get_user(request)
     if user:
@@ -696,8 +702,6 @@ def traced_login(django, pin, func, instance, args, kwargs):
                     # FIXME: this should also use surname if it exists?
                     name=getattr(user, email_field, None),
                     email=getattr(user, name_field, None),
-                    role=getattr(user, role_field, None),
-                    scope=getattr(user, scope_field, None),
                     session_id=session_key,
                     propagate=True,
                 )
@@ -712,14 +716,19 @@ def traced_login(django, pin, func, instance, args, kwargs):
             track_user_login_failure_event(pin.tracer, user_id=username, exists=False)
 
 
+# TODO: try...except, this should never fail, only log
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
-    if not asbool(os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_ENABLED", "false")):
+    events_tracking_mode = os.environ.get(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "enabled")
+
+    if not config._appsec_enabled or events_tracking_mode == "disabled":
         return result_user
 
+    extended = (events_tracking_mode == "extended")
+    user_id_field = "username"  # FIXME: add support for safe, should probably get the pk from the DB
+
     if not result_user:
-        user_id_field = os.environ.get("DD_AUTOMATIC_LOGIN_EVENTS_CUSTOM_USERID_FIELD", "username")
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             track_user_login_failure_event(pin.tracer, user_id=kwargs[user_id_field], exists=False)
 
@@ -775,17 +784,16 @@ def _patch(django):
             # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
             from ._asgi import traced_get_response_async
 
-    # JJJ: use when_imported
-    # @when_imported("django.contrib.auth")
-    # def _(m):
-    #     import django
-    #     trace_utils.wrap(m, "login", traced_login(django))
-    #     trace_utils.wrap(m, "authenticate", traced_authenticate(django))
-    if "django.contrib.auth.authenticate" not in sys.modules:
+    @when_imported("django.contrib.auth")
+    def _(m):
         import django.contrib.auth
-
-        trace_utils.wrap(django, "contrib.auth.login", traced_login(django))
-        trace_utils.wrap(django, "contrib.auth.authenticate", traced_authenticate(django))
+        trace_utils.wrap(m, "login", traced_login(django))
+        trace_utils.wrap(m, "authenticate", traced_authenticate(django))
+            
+    # if "django.contrib.auth.authenticate" not in sys.modules:
+    #     import django.contrib.auth
+    #     trace_utils.wrap(django, "contrib.auth.login", traced_login(django))
+    #     trace_utils.wrap(django, "contrib.auth.authenticate", traced_authenticate(django))
 
     import django.core.handlers.base
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
