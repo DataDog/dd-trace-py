@@ -32,6 +32,7 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.datastreams.processor import DataStreamsProcessor
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -270,6 +271,7 @@ class Tracer(object):
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
+        self.data_streams_processor = DataStreamsProcessor(self._agent_url)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -1013,6 +1015,7 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+            self.data_streams_processor.shutdown()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
