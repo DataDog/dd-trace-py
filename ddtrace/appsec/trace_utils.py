@@ -94,6 +94,22 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
 
+def track_user_signup_event(tracer, user_id, success):
+    # type: (Tracer, str, bool) -> None
+    span = tracer.current_root_span()
+    if span:
+        success_str = "true" if success else "false"
+        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, "signup"), success_str)
+        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        return span
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping track_user_signup tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+
+
 def track_custom_event(tracer, event_name, metadata):
     # type: (Tracer, str, dict) -> None
     """
