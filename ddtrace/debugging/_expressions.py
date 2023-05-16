@@ -200,6 +200,14 @@ def _call_function(func, *args):
     # type: (Callable, List[Instr]) -> List[Instr]
     if PY < (3, 11):
         return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+    elif PY > (3, 11):
+        return (
+            [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
+            + list(chain(*args))
+            + [Instr("CALL", len(args))]
+        )
+
+    # Python 3.11
     return (
         [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
         + list(chain(*args))
