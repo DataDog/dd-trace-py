@@ -1,0 +1,5 @@
+---
+
+fixes:
+  - |
+    kafka: Fixes ``TypeError` raised when artibrary keyword arguments are passed to ``confluent_kafka.Consumer``
