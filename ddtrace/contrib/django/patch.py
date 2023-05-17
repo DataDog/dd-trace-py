@@ -285,7 +285,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
             # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
             if _is_iast_enabled() and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
-                from ddtrace.appsec.iast._input_info import Input_info
+                from ddtrace.appsec.iast._source import _Source
                 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
                 from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
@@ -293,18 +293,18 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     args[0].COOKIES = LazyTaintDict(
                         args[0].COOKIES, origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE)
                     )
-                args[0].path = taint_pyobject(args[0].path, Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH))
+                args[0].path = taint_pyobject(args[0].path, _Source("path", args[0].path, IAST.HTTP_REQUEST_PATH))
                 args[0].path_info = taint_pyobject(
-                    args[0].path_info, Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH)
+                    args[0].path_info, _Source("path", args[0].path, IAST.HTTP_REQUEST_PATH)
                 )
                 args[0].environ["PATH_INFO"] = taint_pyobject(
-                    args[0].environ["PATH_INFO"], Input_info("path", args[0].path, IAST.HTTP_REQUEST_PATH)
+                    args[0].environ["PATH_INFO"], _Source("path", args[0].path, IAST.HTTP_REQUEST_PATH)
                 )
                 if kwargs:
                     try:
 
                         for k, v in kwargs.items():
-                            kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                            kwargs[k] = taint_pyobject(v, _Source(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
                     except Exception:
                         log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 

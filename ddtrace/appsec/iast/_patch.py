@@ -3,7 +3,7 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._source import _Source
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -144,7 +144,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
-                return taint_pyobject(value, Input_info(name, value, origin))
+                return taint_pyobject(value, _Source(name, value, origin))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value
@@ -155,8 +155,8 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         for key, value in wrapped(*args, **kwargs):
-            new_key = taint_pyobject(key, Input_info(key, key, origins[0]))
-            new_value = taint_pyobject(value, Input_info(key, value, origins[1]))
+            new_key = taint_pyobject(key, _Source(key, key, origins[0]))
+            new_value = taint_pyobject(value, _Source(key, value, origins[1]))
 
             yield new_key, new_value
 

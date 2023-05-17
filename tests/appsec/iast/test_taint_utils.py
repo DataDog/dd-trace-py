@@ -5,7 +5,7 @@ import pytest
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._input_info import Input_info
+    from ddtrace.appsec.iast._source import _Source
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
@@ -21,33 +21,33 @@ def setup():
 
 
 def test_tainted_types():
-    tainted = taint_pyobject("hello", Input_info("request_body", "hello", "request_body"))
+    tainted = taint_pyobject("hello", _Source("request_body", "hello", "request_body"))
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(b"hello", Input_info("request_body", "hello", 0))
+    tainted = taint_pyobject(b"hello", _Source("request_body", "hello", 0))
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(bytearray("hello", encoding="utf-8"), Input_info("request_body", "hello", 0))
+    tainted = taint_pyobject(bytearray("hello", encoding="utf-8"), _Source("request_body", "hello", 0))
     assert is_pyobject_tainted(tainted)
 
     # Not tainted as string is empty
-    not_tainted = taint_pyobject("", Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject("", _Source("request_body", "hello", "request_body"))
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(123456, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(123456, _Source("request_body", "hello", "request_body"))
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(1234.56, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(1234.56, _Source("request_body", "hello", "request_body"))
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject({"a": "1", "b": 2}, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject({"a": "1", "b": 2}, _Source("request_body", "hello", "request_body"))
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(["a", "1", "b", 2], Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(["a", "1", "b", 2], _Source("request_body", "hello", "request_body"))
     assert not is_pyobject_tainted(not_tainted)
 
 
@@ -138,7 +138,7 @@ def test_checked_tainted_args():
     setattr(cursor.executemany, "__name__", "executemany")
 
     arg = "nobody expects the spanish inquisition"
-    tainted_arg = taint_pyobject(arg, Input_info("request_body", arg, 0))
+    tainted_arg = taint_pyobject(arg, _Source("request_body", arg, 0))
 
     untainted_arg = "gallahad the pure"
 

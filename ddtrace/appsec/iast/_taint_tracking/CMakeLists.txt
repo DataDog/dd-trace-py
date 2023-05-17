@@ -21,8 +21,8 @@ message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 
 
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-file(GLOB SOURCE_FILES "*.cpp" "TaintedObject/*.cpp" "InputInfo/*.cpp" "TaintRange/*.cpp")
-file(GLOB HEADER_FILES "*.h" "TaintedObject/*.h" "InputInfo/*.h" "TaintRange/*.h")
+file(GLOB SOURCE_FILES "*.cpp" "TaintedObject/*.cpp" "Source/*.cpp" "TaintRange/*.cpp")
+file(GLOB HEADER_FILES "*.h" "TaintedObject/*.h" "Source/*.h" "TaintRange/*.h")
 
 
 add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp Constants.h)

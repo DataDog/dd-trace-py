@@ -112,14 +112,14 @@ def taint_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec.iast._input_info import Input_info
+            from ddtrace.appsec.iast._source import _Source
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
             taint_pyobject(
                 instance.query_string,
-                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
+                _Source(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
             )
-            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
+            taint_pyobject(instance.path, _Source(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 

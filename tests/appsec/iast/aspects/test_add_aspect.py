@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._source import _Source
 
 
 def setup():
@@ -79,7 +79,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
+        obj1 = taint_pyobject(obj1, _Source("test_add_aspect_tainting_left_hand", obj1, 0))
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert result == obj1 + obj2
@@ -117,7 +117,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0))
+        obj2 = taint_pyobject(obj2, _Source("test_add_aspect_tainting_right_hand", repr(obj2), 0))
         if len(obj2):
             assert get_tainted_ranges(obj2)
 

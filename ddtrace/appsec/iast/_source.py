@@ -1,4 +1,4 @@
-class Input_info(object):
+class _Source(object):
     __slots__ = ["name", "value", "origin"]
 
     def __init__(self, name, value, origin):

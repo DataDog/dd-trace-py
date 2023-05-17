@@ -1,5 +1,5 @@
 #include "Constants.h"
-#include "InputInfo/InputInfo.h"
+#include "Source/Source.h"
 #include "TaintRange/TaintRange.h"
 #include "TaintedObject/TaintedObject.h"
 
@@ -27,9 +27,9 @@ PyMODINIT_FUNC PyInit__native(void) {
   if (m == NULL)
     return NULL;
 
-  Py_INCREF(&InputInfoType);
-  if (PyModule_AddObject(m, "InputInfo", (PyObject *)&InputInfoType) < 0) {
-    Py_DECREF(&InputInfoType);
+  Py_INCREF(&SourceType);
+  if (PyModule_AddObject(m, "Source", (PyObject *)&SourceType) < 0) {
+    Py_DECREF(&SourceType);
     Py_DECREF(m);
     return NULL;
   }

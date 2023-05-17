@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.iast._input_info import Input_info
+    from ddtrace.appsec.iast._source import _Source
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
@@ -29,14 +29,14 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
         new_ranges = list(taint_dict[id(op1)])
     if is_pyobject_tainted(op2):
         offset = len(op1)
-        for input_info, start, size in taint_dict[id(op2)]:
-            new_ranges.append((input_info, start + offset, size))
+        for source, start, size in taint_dict[id(op2)]:
+            new_ranges.append((source, start + offset, size))
 
     taint_dict[id(pyobject)] = tuple(new_ranges)
     return pyobject
 
 
-def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
+def taint_pyobject(pyobject, source):  # type: (Any, _Source) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -45,13 +45,13 @@ def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    if input_info is None:
+    if source is None:
         return pyobject
 
     len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     taint_dict = get_taint_dict()
-    taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
+    taint_dict[id(pyobject)] = ((source, 0, len_pyobject),)
     return pyobject
 
 
@@ -69,7 +69,7 @@ def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
     return get_taint_dict().get(id(pyobject), tuple())
 
 
-def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Input_info]]
+def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[_Source]]
     value_parts = []
     sources = []
     current_pos = 0
@@ -78,14 +78,14 @@ def taint_ranges_as_evidence_info(pyobject):  # type: (Any) -> Tuple[List[Dict[s
         return ([{"value": pyobject}], [])
 
     for _range in tainted_ranges:
-        _input_info, _pos, _length = _range
+        _source, _pos, _length = _range
         if _pos > current_pos:
             value_parts.append({"value": pyobject[current_pos:_pos]})
 
-        if _input_info not in sources:
-            sources.append(_input_info)
+        if _source not in sources:
+            sources.append(_source)
 
-        value_parts.append({"value": pyobject[_pos : _pos + _length], "source": sources.index(_input_info)})
+        value_parts.append({"value": pyobject[_pos : _pos + _length], "source": sources.index(_source)})
         current_pos = _pos + _length
 
     if current_pos < len(pyobject):

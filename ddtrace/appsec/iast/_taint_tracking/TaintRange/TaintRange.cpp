@@ -7,25 +7,30 @@
 #include <sstream>
 
 void TaintRange::reset() {
-  position = 0;
+  start = 0;
   length = 0;
-  // TODO: reset input info
-  //        inputinfo = "";
+  Source source;
+  // TODO: reset source
 };
 
 const char *TaintRange::toString() const {
   ostringstream ret;
   ret << "TaintRange at " << this << " "
-      << " [position=" << position << ", length=" << length
-      << " input_info=" << inputinfo.toString() << "]";
+      << " [start=" << start << ", length=" << length
+      << " source=" << source.toString() << "]";
   return ret.str().c_str();
 }
 
 TaintRange::operator std::string() const { return toString(); }
 
 size_t TaintRange::get_hash() const {
-  size_t hposition = hash<size_t>()(this->position);
+  size_t hstart = hash<size_t>()(this->start);
   size_t hlength = hash<size_t>()(this->length);
-  size_t hinputinfo = hash<size_t>()(this->inputinfo.get_hash());
-  return hposition ^ hlength ^ hinputinfo;
+  size_t hsource = hash<size_t>()(this->source.get_hash());
+  return hstart ^ hlength ^ hsource;
 };
+
+
+// TODO: equals()
+// TODO: isValid()
+// TODO: shift()

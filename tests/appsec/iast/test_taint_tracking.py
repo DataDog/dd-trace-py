@@ -6,7 +6,7 @@ import pytest
 try:
     from ddtrace.appsec.iast import oce
     from ddtrace.appsec.iast._ast.aspects import add_aspect
-    from ddtrace.appsec.iast._input_info import Input_info
+    from ddtrace.appsec.iast._source import _Source
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
@@ -28,7 +28,7 @@ def test_taint_ranges_as_evidence_info_nothing_tainted():
 
 def test_taint_ranges_as_evidence_info_all_tainted():
     arg = "all tainted"
-    input_info = Input_info("request_body", arg, 0)
+    input_info = _Source("request_body", arg, 0)
     tainted_text = taint_pyobject(arg, input_info)
     value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
     assert value_parts == [{"value": tainted_text, "source": 0}]
@@ -37,7 +37,7 @@ def test_taint_ranges_as_evidence_info_all_tainted():
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():
     arg = "tainted part"
-    input_info = Input_info("request_body", arg, 0)
+    input_info = _Source("request_body", arg, 0)
     text = "|not tainted part|"
     tainted_text = taint_pyobject(arg, input_info)
     tainted_add_result = add_aspect(tainted_text, text)
@@ -49,7 +49,7 @@ def test_taint_ranges_as_evidence_info_tainted_op1_add():
 
 def test_taint_ranges_as_evidence_info_tainted_op2_add():
     arg = "tainted part"
-    input_info = Input_info("request_body", arg, 0)
+    input_info = _Source("request_body", arg, 0)
     text = "|not tainted part|"
     tainted_text = taint_pyobject(arg, input_info)
     tainted_add_result = add_aspect(text, tainted_text)
@@ -61,7 +61,7 @@ def test_taint_ranges_as_evidence_info_tainted_op2_add():
 
 def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     arg = "tainted part"
-    input_info = Input_info("request_body", arg, 0)
+    input_info = _Source("request_body", arg, 0)
     text = "|not tainted part|"
     tainted_text = taint_pyobject(arg, input_info)
     tainted_add_result = add_aspect(tainted_text, add_aspect(text, tainted_text))
@@ -74,8 +74,8 @@ def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
 def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     arg1 = "tainted body"
     arg2 = "tainted header"
-    input_info1 = Input_info("request_body", arg1, 0)
-    input_info2 = Input_info("request_header", arg2, 0)
+    input_info1 = _Source("request_body", arg1, 0)
+    input_info2 = _Source("request_header", arg2, 0)
     text = "|not tainted part|"
     tainted_text1 = taint_pyobject(arg1, input_info1)
     tainted_text2 = taint_pyobject(arg2, input_info2)

@@ -8,23 +8,23 @@
 #include "structmember.h"
 
 #include "../Constants.h"
-#include "../InputInfo/InputInfo.h"
+#include "../Source/Source.h"
 
 #define PY_MODULE_NAME_TAINTRANGES PY_MODULE_NAME "." "TaintRange"
 
 
 struct TaintRange {
     PyObject_HEAD
-    long position{};
+    long start{};
     long length{};
-    InputInfo inputinfo;
+    Source source;
 
     TaintRange() = default;
 
-    TaintRange(long position, long length, InputInfo inputinfo)
-            : position(position),
+    TaintRange(long start, long length, Source source)
+            : start(start),
               length(length),
-              inputinfo(std::move(inputinfo)){}
+              source(std::move(source)){}
 
     void reset();
 
@@ -45,10 +45,10 @@ struct TaintRange {
 static void
 TaintRange_dealloc(TaintRange *self)
 {
-    Py_XDECREF(self->position);
+    Py_XDECREF(self->start);
     Py_XDECREF(self->length);
-    // TODO: dealloc inputinfo
-    //  Py_XDECREF(self->inputinfo);
+    // TODO: dealloc source
+    //  Py_XDECREF(self->source);
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -59,13 +59,13 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     TaintRange *self;
     self = (TaintRange *) type->tp_alloc(type, 0);
     if (self != NULL) {
-//        self->inputinfo = InputInfo_new();
-//        if (self->inputinfo == NULL) {
+//        self->source = Source();
+//        if (self->source == NULL) {
 //            Py_DECREF(self);
 //            return NULL;
 //        }
 
-        self->position = 0;
+        self->start = 0;
         self->length = 0;
     }
     return (PyObject *) self;
@@ -74,19 +74,19 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"position", "length", "inputinfo", NULL};
-    PyObject *inputinfo = NULL, *tmp;
+    static char *kwlist[] = {"start", "length", "source", NULL};
+    PyObject *source = NULL, *tmp;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", kwlist,
-                                     &self->position, &self->length,
-                                     &inputinfo))
+                                     &self->start, &self->length,
+                                     &source))
         return -1;
 
-    if (inputinfo) {
-        // TODO: assign input info
-//        tmp = self->inputinfo;
-//        Py_INCREF(inputinfo);
-//        self->inputinfo = inputinfo;
+    if (source) {
+        // TODO: assign source
+//        tmp = self->source;
+//        Py_INCREF(source);
+//        self->source = source;
         Py_XDECREF(tmp);
     }
 
@@ -96,8 +96,8 @@ TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 static PyObject *
 TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
 {
-    if (self->position == NULL) {
-        PyErr_SetString(PyExc_AttributeError, "position");
+    if (self->start == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "start");
         return NULL;
     }
     if (self->length == NULL) {
@@ -111,8 +111,8 @@ TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
 static PyMemberDef TaintRange_members[] = {
         {"length", T_INT, offsetof(TaintRange, length), 0,
                 "TaintRange last name"},
-        {"position", T_INT, offsetof(TaintRange, position), 0,
-                "TaintRange position"},
+        {"start", T_INT, offsetof(TaintRange, start), 0,
+                "TaintRange start"},
         {NULL}  /* Sentinel */
 };
 

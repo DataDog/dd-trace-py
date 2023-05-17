@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._source import _Source
 
 
 def setup():
@@ -45,7 +45,7 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
     if should_be_tainted:
-        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0))
+        infix = taint_pyobject(infix, _Source("test_decode_aspect", infix, 0))
 
     main_string = ddtrace_aspects.add_aspect(prefix, infix)
     if should_be_tainted:
@@ -90,7 +90,7 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
     if should_be_tainted:
-        infix = taint_pyobject(infix, Input_info("test_decode_aspect", infix, 0))
+        infix = taint_pyobject(infix, _Source("test_decode_aspect", infix, 0))
 
     main_string = ddtrace_aspects.add_aspect(prefix, infix)
     if should_be_tainted:
