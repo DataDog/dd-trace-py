@@ -1,5 +1,6 @@
-import confluent_kafka
 import logging
+
+import confluent_kafka
 import pytest
 import six
 
