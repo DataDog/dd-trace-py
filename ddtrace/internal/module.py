@@ -5,10 +5,7 @@ from os.path import isdir
 from os.path import isfile
 from os.path import join
 import sys
-from types import ModuleType
 import typing
-from typing import Callable
-from typing import cast
 
 
 if typing.TYPE_CHECKING:
@@ -24,6 +21,7 @@ if typing.TYPE_CHECKING:
     from typing import Type
     from typing import Union
 
+    ModuleHookType = Callable[[ModuleType], None]
     PreExecHookType = Callable[[Any, ModuleType], None]
     PreExecHookCond = Union[str, Callable[[str], bool]]
 
@@ -34,7 +32,6 @@ from ddtrace.internal.utils import get_argument_value
 
 log = get_logger(__name__)
 
-ModuleHookType = Callable[[ModuleType], None]
 
 
 _run_code = None
