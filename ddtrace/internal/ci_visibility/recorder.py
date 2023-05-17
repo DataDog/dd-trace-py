@@ -16,6 +16,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
+from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -23,11 +24,11 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
 from .. import agent
-from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import EVP_SUBDOMAIN_HEADER_VALUE
+from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
 
@@ -71,7 +72,7 @@ class CIVisibility(Service):
         super(CIVisibility, self).__init__()
 
         self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APP_KEY")
+        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._configure_writer()
@@ -79,7 +80,6 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
-        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
         if self.config is not None:
@@ -90,6 +90,15 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
+        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
+
+        self._git_client = None
+
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            if self._app_key is None:
+                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            else:
+                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -103,6 +112,11 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
             return False, False
+
+        # DEV: Remove this ``if`` once ITR is in GA
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
         url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
         _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
         payload = {
@@ -121,7 +135,7 @@ class CIVisibility(Service):
         response = _do_request("POST", url, json.dumps(payload), _headers)
         try:
             parsed = json.loads(response.body)
-        except json.JSONDecodeError:
+        except JSONDecodeError:
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
             log.warning(
@@ -138,7 +152,6 @@ class CIVisibility(Service):
             headers = {"dd-api-key": self._api_key}
             if headers["dd-api-key"]:
                 writer = CIVisibilityWriter(
-                    intake_url="%s.%s" % (AGENTLESS_BASE_URL, self._dd_site),
                     headers=headers,
                 )
             else:
@@ -206,9 +219,13 @@ class CIVisibility(Service):
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(settings={"FILTERS": tracer_filters})
+        if self._git_client is not None:
+            self._git_client.start(cwd=_get_git_repo())
 
     def _stop_service(self):
         # type: () -> None
+        if self._git_client is not None:
+            self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:
             self.tracer.shutdown()
         except Exception:

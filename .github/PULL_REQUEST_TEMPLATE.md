@@ -6,7 +6,7 @@
 - [ ] Change is maintainable (easy to change, telemetry, documentation).
 - [ ] [Library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines) are followed.
 - [ ] Documentation is included (in-code, generated user docs, [public corp docs](https://github.com/DataDog/documentation/)).
-- [ ] PR description includes explicit acknowledgement/acceptance of the performance implications of this PR as reported in the benchmarks PR comment.
+- [x] OPTIONAL: PR description includes explicit acknowledgement of the performance implications of the change as reported in the benchmarks PR comment.
 
 ## Reviewer Checklist
 

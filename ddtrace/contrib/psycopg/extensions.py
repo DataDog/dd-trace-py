@@ -5,6 +5,7 @@ import functools
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
@@ -31,7 +32,9 @@ def get_psycopg2_extensions(psycopg_module):
                 return psycopg_module.extensions.cursor.execute(self, query, vars)
 
             with self._datadog_tracer.trace(
-                "postgres.query", service=self._datadog_service, span_type=SpanTypes.SQL
+                schematize_database_operation("postgres.query", database_provider="postgresql"),
+                service=self._datadog_service,
+                span_type=SpanTypes.SQL,
             ) as s:
                 s.set_tag_str(COMPONENT, config.psycopg.integration_name)
                 s.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)

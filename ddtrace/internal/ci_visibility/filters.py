@@ -30,11 +30,11 @@ class TraceCiVisibilityFilter(TraceFilter):
         if not local_root or local_root.span_type != SpanTypes.TEST:
             return None
 
-        local_root.service = self._service
         local_root.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         local_root.context.sampling_priority = AUTO_KEEP
-        local_root.set_tags(self._tags)
-        # DEV: it might not be necessary to add library_version when using agentless mode
-        local_root.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
+        for span in trace:
+            span.set_tags(self._tags)
+            span.service = self._service
+            span.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
 
         return trace

@@ -5,16 +5,16 @@ import typing as t
 
 from _config import config
 
-from ddtrace.debugging._capture.collector import CapturedEventCollector
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config as debugger_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -165,16 +165,16 @@ class NoopProbeStatusLogger(object):
         pass
 
 
-class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
+class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
     def encode(self, snapshot):
         # type: (Snapshot) -> bytes
         return b""
 
 
-class ExplorationCapturedEventCollector(CapturedEventCollector):
+class ExplorationSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
-        super(ExplorationCapturedEventCollector, self).__init__(*args, **kwargs)
-        encoder_class = SnapshotJsonEncoder if config.encode else NoopSnapshotJsonEncoder
+        super(ExplorationSignalCollector, self).__init__(*args, **kwargs)
+        encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
         self._snapshots = []
@@ -208,7 +208,7 @@ class ExplorationCapturedEventCollector(CapturedEventCollector):
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
     __uploader__ = NoopLogsIntakeUploader
-    __collector__ = ExplorationCapturedEventCollector
+    __collector__ = ExplorationSignalCollector
     __watchdog__ = ModuleCollector
     __logger__ = NoopProbeStatusLogger
     __poller__ = NoopProbePoller

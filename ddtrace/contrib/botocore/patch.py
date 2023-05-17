@@ -10,7 +10,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
+from typing import Union
 
 import botocore.client
 import botocore.exceptions
@@ -36,6 +38,8 @@ from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
+
+_PATCHED_SUBMODULES = set()  # type: Set[str]
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
@@ -319,12 +323,23 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
+    _PATCHED_SUBMODULES.clear()
 
 
 def unpatch():
+    _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
         unwrap(botocore.client.BaseClient, "_make_api_call")
+
+
+def patch_submodules(submodules):
+    # type: (Union[List[str], bool]) -> None
+    if isinstance(submodules, bool) and submodules:
+        _PATCHED_SUBMODULES.clear()
+    elif isinstance(submodules, list):
+        submodules = [sub_module.lower() for sub_module in submodules]
+        _PATCHED_SUBMODULES.update(submodules)
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -334,6 +349,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+
+    if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
+        return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
@@ -352,7 +370,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             # across Python versions (see
             # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
             span.resource = ".".join((endpoint_name, operation.lower()))
-
+            span.set_tag("aws_service", endpoint_name)
             if config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
@@ -388,6 +406,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             span.set_tag_str("aws.operation", operation)
         if region_name is not None:
             span.set_tag_str("aws.region", region_name)
+            span.set_tag_str("region", region_name)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())

@@ -144,6 +144,14 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={
+                "cython-lint": latest,
+            },
+            name="cython-lint",
+            command="cython-lint {cmdargs} .",
+        ),
+        Venv(
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -179,6 +187,16 @@ venv = Venv(
                 Venv(
                     name="slotscheck",
                     command="python -m slotscheck -v ddtrace/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"bandit": latest},
+            venvs=[
+                Venv(
+                    name="bandit",
+                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
                 ),
             ],
         ),
@@ -222,6 +240,9 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -264,6 +285,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
+                "coverage": latest,
                 "attrs": ["==20.1.0", latest],
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
@@ -300,6 +322,9 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 # httpretty v1.0 drops python 2.7 support
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": "<=2.2.3",
                 "httpretty": "==0.9.7",
             },
         ),
@@ -307,7 +332,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             command="pytest --no-cov {cmdargs} tests/integration/",
-            pkgs={"msgpack": [latest]},
+            pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -356,15 +381,15 @@ venv = Venv(
                 "gevent": latest,
             },
             venvs=[
-                Venv(pys="2.7", pkgs={"packaging": ["==17.1", latest]}),
+                Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", latest]},
+                    pkgs={"pytest-asyncio": latest},
                 ),
                 # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
                 Venv(
                     pys=select_pys(min_version="3.7"),
-                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", "==22.0", latest]},
+                    pkgs={"pytest-asyncio": latest},
                 ),
             ],
         ),
@@ -468,7 +493,6 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
-                "packaging": ">=17.1",
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -898,6 +922,22 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="django_celery",
+            command="pytest {cmdargs} tests/contrib/django_celery",
+            pkgs={
+                # The test app was built with Django 2. We don't need to test
+                # other versions as the main purpose of these tests is to ensure
+                # an error-free interaction between Django and Celery. We find
+                # that we currently have no reasons for expanding this matrix.
+                "django": "==2.2.1",
+                "sqlalchemy": "~=1.2.18",
+                "celery": "~=5.0.5",
+                "gevent": latest,
+                "requests": latest,
+            },
+            pys=select_pys(min_version="3.8"),
+        ),
+        Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
@@ -931,6 +971,18 @@ venv = Venv(
                         "elasticsearch": ["~=1.6.0"],
                         "elasticsearch6": [latest],
                         "elasticsearch7": ["<7.14.0"],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="elasticsearch8-patch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "elasticsearch8": [latest],
                     },
                 ),
             ],
@@ -1012,13 +1064,40 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2",  # latest 2.2
                         ],
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.2",  # latest 2.2
+                        ],
+                        "importlib_metadata": "<=6.0",
+                    },
+                ),
+                Venv(
+                    # flask dropped support for Python 3.7 in 2.3.0
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
+                        "importlib_metadata": "<=6.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
                     command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
@@ -2171,7 +2250,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
-                        "sanic": ["~=21.3", "~=21.12"],
+                        "sanic": [
+                            "~=21.3",
+                            "~=21.12",
+                        ],
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2186,7 +2268,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12"],
+                        "sanic": ["~=22.3", "~=22.12", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2194,7 +2276,7 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": "~=22.12.0",
+                        "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2346,7 +2428,7 @@ venv = Venv(
         Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
-            pys=select_pys(min_version="3.5"),
+            pys=select_pys(min_version="3.6"),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
@@ -2355,7 +2437,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                    pys=["3.6", "3.8", "3.9", "3.10"],
                 ),
                 Venv(pys=["3.11"], pkgs={"attrs": latest}),
             ],
@@ -2419,6 +2501,18 @@ venv = Venv(
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
+            },
+        ),
+        Venv(
+            name="openai",
+            command="pytest {cmdargs} tests/contrib/openai",
+            env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
+            pys=select_pys(min_version="3.8"),
+            pkgs={
+                "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
+                "vcrpy": "==4.2.1",
+                "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
+                "pytest-asyncio": latest,
             },
         ),
         Venv(
@@ -2695,6 +2789,7 @@ venv = Venv(
             name="ci_visibility",
             command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
+            pkgs={"msgpack": latest, "coverage": latest},
         ),
         Venv(
             name="profile",

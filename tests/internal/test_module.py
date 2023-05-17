@@ -73,6 +73,14 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
+def test_after_module_imported_decorator(module_watchdog):
+    hook = mock.Mock()
+    module = sys.modules[__name__]
+    module_watchdog.after_module_imported(module.__name__)(hook)
+
+    hook.assert_called_once_with(module)
+
+
 def test_register_hook_without_install():
     with pytest.raises(RuntimeError):
         ModuleWatchdog.register_origin_hook(__file__, mock.Mock())

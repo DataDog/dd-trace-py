@@ -12,6 +12,8 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
@@ -34,7 +36,7 @@ DBMS_NAME = "postgresql"
 config._add(
     "asyncpg",
     dict(
-        _default_service="postgres",
+        _default_service=schematize_service_name("postgres"),
     ),
 )
 
@@ -96,7 +98,10 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
 async def _traced_query(pin, method, query, args, kwargs):
     with pin.tracer.trace(
-        "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
+        schematize_database_operation("postgres.query", database_provider="postgresql"),
+        resource=query,
+        service=ext_service(pin, config.asyncpg),
+        span_type=SpanTypes.SQL,
     ) as span:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)

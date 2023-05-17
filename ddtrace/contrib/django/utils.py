@@ -5,6 +5,7 @@ from typing import List
 from typing import Text
 from typing import Union
 
+import django
 from django.utils.functional import SimpleLazyObject
 import six
 import xmltodict
@@ -18,7 +19,6 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
-from ...appsec import _asm_request_context
 from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
@@ -36,9 +36,12 @@ except ImportError:
 
 log = get_logger(__name__)
 
-# Set on patch, when django is imported
-Resolver404 = None
-DJANGO22 = None
+if django.VERSION < (1, 10, 0):
+    Resolver404 = django.core.urlresolvers.Resolver404
+else:
+    Resolver404 = django.urls.exceptions.Resolver404
+
+DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -251,36 +254,27 @@ def _before_request_tags(pin, span, request):
 
 
 def _extract_body(request):
-    req_body = None
-
+    # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if config._appsec_enabled and request.method in _BODY_METHODS:
+        from ddtrace.appsec.utils import parse_form_multipart
+        from ddtrace.appsec.utils import parse_form_params
+
+        req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-
-        rest_framework = hasattr(request, "data")
-
         try:
             if content_type == "application/x-www-form-urlencoded":
-                req_body = request.data.dict() if rest_framework else request.POST.dict()
+                req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
+            elif content_type == "multipart/form-data":
+                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/json", "text/json"):
-                req_body = (
-                    json.loads(request.data.decode("UTF-8"))
-                    if rest_framework
-                    else json.loads(request.body.decode("UTF-8"))
-                )
+                req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
-                req_body = (
-                    xmltodict.parse(request.data.decode("UTF-8"))
-                    if rest_framework
-                    else xmltodict.parse(request.body.decode("UTF-8"))
-                )
-            elif request.method == "POST" and request.POST:
-                req_body = dict(request.POST)
+                req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
         except BaseException:
             log.debug("Failed to parse request body", exc_info=True)
             # req_body is None
-
         return req_body
 
 
@@ -365,6 +359,8 @@ def _after_request_tags(pin, span, request, response):
 
             request_headers = None
             if config._appsec_enabled:
+                from ddtrace.appsec import _asm_request_context
+
                 request_headers = _asm_request_context.get_headers()
 
             if not request_headers:

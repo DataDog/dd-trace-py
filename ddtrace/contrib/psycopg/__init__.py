@@ -1,5 +1,5 @@
 """
-The psycopg integration instruments the psycopg3 library to trace Postgres queries.
+The psycopg integration instruments the psycopg and psycopg2 libraries to trace Postgres queries.
 
 
 Enabling
@@ -51,9 +51,9 @@ To configure the psycopg integration on an per-connection basis use the
 ``Pin`` API::
 
     from ddtrace import Pin
-    import psycopg3
+    import psycopg
 
-    db = psycopg3.connect(connection_factory=factory)
+    db = psycopg.connect(connection_factory=factory)
     # Use a pin to override the service name.
     Pin.override(db, service="postgres-users")
 

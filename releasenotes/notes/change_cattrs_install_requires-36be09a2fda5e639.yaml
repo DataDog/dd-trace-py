@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dependencies: Resolves an issue where ddtrace installs an incompatible version of cattrs when Python 3.6 is used.

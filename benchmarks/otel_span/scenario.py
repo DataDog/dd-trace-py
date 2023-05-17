@@ -14,9 +14,6 @@ os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 otel_tracer = get_tracer(__name__)
 
 
-utils.drop_traces(tracer)
-
-
 class OtelSpan(bm.Scenario):
     nspans = bm.var(type=int)
     ntags = bm.var(type=int)
@@ -34,7 +31,11 @@ class OtelSpan(bm.Scenario):
         setmetrics = len(metrics) > 0
 
         # run scenario to include finishing spans
+        # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
+        # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
+        # Recreate span processors and configure global tracer to avoid sending traces to the agent
+        utils.drop_traces(tracer)
 
         def _(loops):
             for _ in range(loops):
