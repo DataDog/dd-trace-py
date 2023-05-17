@@ -270,24 +270,22 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             rc_configs = data["config"]
             # DEV: We emit a status update event here to avoid having to spawn a
             # separate thread for this.
-            log.debug("Dynamic Instrumentation Updated")
-            if time.time() > self._status_timestamp:
-                for idx in range(len(rc_configs)):
-                    log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-                    if time.time() > self._status_timestamp:
-                        log.debug(
-                            "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
-                            os.getpid(),
-                            os.getppid(),
-                        )
-                        probes = [probe for config in self._configs.values() for probe in config.values()]
-                        self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
-                        self._next_status_update_timestamp()
-                    if metadatas[idx] is None:
-                        log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
-                        return
+            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+            for idx in range(len(rc_configs)):
+                if time.time() > self._status_timestamp:
+                    log.debug(
+                        "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
+                        os.getpid(),
+                        os.getppid(),
+                    )
+                    probes = [probe for config in self._configs.values() for probe in config.values()]
+                    self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
+                    self._next_status_update_timestamp()
+                if metadatas[idx] is None:
+                    log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
+                    return
 
-                    self._update_probes_for_config(metadatas[idx]["id"], rc_configs[idx])
+                self._update_probes_for_config(metadatas[idx]["id"], rc_configs[idx])
 
     def _next_status_update_timestamp(self):
         # type: () -> None

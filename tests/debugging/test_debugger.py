@@ -632,7 +632,7 @@ def test_probe_status_logging(monkeypatch, remote_config_worker):
         for cb in self.get_pubsubs():
             cb._subscriber._status_timestamp = time()
             cb._subscriber.interval = 0.1
-            cb.publish({"test": str(uuid.uuid4())}, None)
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
         return True
 
     RemoteConfigClient.request = request
@@ -687,7 +687,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker
         for cb in self.get_pubsubs():
             cb._subscriber._status_timestamp = time()
             cb._subscriber.interval = 0.1
-            cb.publish({"test": str(uuid.uuid4())}, None)
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
         return True
 
     RemoteConfigClient.request = request

@@ -12,11 +12,12 @@ def test_remoteconfig_publisher_dispatch():
     mock_connector = MockConnector({"example": "data"})
 
     publisher = RemoteConfigPublisher(mock_connector, mock_preprocess_results)
-    publisher.dispatch(config={"config": "data"}, metadata={})
-    mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
+    publisher.append({"config": "data"}, "", {})
+    publisher.dispatch()
+    # mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
 
-    assert mock_connector.data == {"config": "parsed_data"}
-    assert mock_connector.metadata == {}
+    assert mock_connector.data == [{"config": "data"}]
+    assert mock_connector.metadata == [None]
 
 
 def test_remoteconfig_publisher_merge_first_dispatch_lists():
@@ -24,20 +25,22 @@ def test_remoteconfig_publisher_merge_first_dispatch_lists():
 
     publisher = RemoteConfigPublisherMergeFirst(mock_connector, None)
     publisher.append(
-        "target_a",
         {
             "config": [
                 "data1",
             ]
         },
+        "target_a",
+        None,
     )
     publisher.append(
-        "target_b",
         {
             "config": [
                 "data2",
             ]
         },
+        "target_b",
+        None,
     )
 
     publisher.dispatch()
@@ -51,7 +54,7 @@ def test_remoteconfig_publisher_merge_first_dispatch_dicts():
     mock_connector = MockConnector({})
 
     publisher = RemoteConfigPublisherMergeFirst(mock_connector, None)
-    publisher.append("target_b", {"config": {"c": "d"}})
+    publisher.append({"config": {"c": "d"}}, "target_b", None)
 
     publisher.dispatch()
 

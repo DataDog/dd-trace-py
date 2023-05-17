@@ -51,7 +51,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
         self._config_and_metadata = []  # type: List[Tuple[Optional[Any], Optional[Any]]]
 
-    def append(self, config_content, target, config_metadata=None):
+    def append(self, config_content, target="", config_metadata=None):
         # type: (Optional[Any], str, Optional[Any]) -> None
         self._config_and_metadata.append((config_content, config_metadata))
 

@@ -108,8 +108,7 @@ def test_poller_env_version(env, version, expected, remote_config_worker, mock_c
 
         adapter = ProbeRCAdapter("", callback)
         remoteconfig_poller.register("TEST", adapter)
-
-        adapter.publish({"test": random.randint(0, 11111111)}, config_metadata())
+        adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         remoteconfig_poller._poll_data()
 
         assert set(_.probe_id for _ in probes) == expected
@@ -156,7 +155,7 @@ def test_poller_events(remote_config_worker, mock_config):
     try:
         adapter = ProbeRCAdapter("", callback)
         remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
-        adapter.publish({"test": 2}, metadata)
+        adapter.append_and_publish({"test": 2}, "", metadata)
         remoteconfig_poller._poll_data()
         mock_config.remove_probes("probe1", "probe2")
         mock_config.add_probes(
@@ -177,12 +176,12 @@ def test_poller_events(remote_config_worker, mock_config):
                 ),
             ]
         )
-        adapter.publish({"test": 3}, metadata)
+        adapter.append_and_publish({"test": 3}, "", metadata)
         remoteconfig_poller._poll_data()
 
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter.publish({"test": 4}, metadata)
+        adapter.append_and_publish({"test": 4}, "", metadata)
         remoteconfig_poller._poll_data()
         sleep(0.5)
         assert events == {
@@ -211,7 +210,7 @@ def test_multiple_configs(remote_config_worker):
         adapter = ProbeRCAdapter("", cb)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
-        adapter.publish(
+        adapter.append_and_publish(
             {
                 "id": "probe1",
                 "version": 0,
@@ -221,6 +220,7 @@ def test_multiple_configs(remote_config_worker):
                 "where": {"type": "Stuff", "method": "foo"},
                 "resource": "resourceX",
             },
+            "",
             config_metadata("spanProbe_probe1"),
         )
         remoteconfig_poller._poll_data()
@@ -231,7 +231,7 @@ def test_multiple_configs(remote_config_worker):
             }
         )
 
-        adapter.publish(
+        adapter.append_and_publish(
             {
                 "id": "probe2",
                 "version": 1,
@@ -241,6 +241,7 @@ def test_multiple_configs(remote_config_worker):
                 "metricName": "test.counter",
                 "kind": "COUNTER",
             },
+            "",
             config_metadata("metricProbe_probe2"),
         )
         remoteconfig_poller._poll_data()
@@ -251,7 +252,7 @@ def test_multiple_configs(remote_config_worker):
             }
         )
 
-        adapter.publish(
+        adapter.append_and_publish(
             {
                 "id": "probe3",
                 "version": 1,
@@ -261,6 +262,7 @@ def test_multiple_configs(remote_config_worker):
                 "template": "hello {#foo}",
                 "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             },
+            "",
             config_metadata("logProbe_probe3"),
         )
         remoteconfig_poller._poll_data()
@@ -277,7 +279,7 @@ def test_multiple_configs(remote_config_worker):
         #  1. after sleep 0.5 probe status should report 2 probes
         #  2. bad config raises ValueError
         with pytest.raises(ValueError):
-            adapter.publish({}, config_metadata("not-supported"))
+            adapter.append_and_publish({}, "", config_metadata("not-supported"))
             remoteconfig_poller._poll_data()
 
         validate_events(
@@ -287,7 +289,7 @@ def test_multiple_configs(remote_config_worker):
         )
 
         # remove configuration
-        adapter.publish(None, config_metadata("metricProbe_probe2"))
+        adapter.append_and_publish(None, "", config_metadata("metricProbe_probe2"))
         remoteconfig_poller._poll_data()
 
         validate_events(
@@ -405,7 +407,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter)
         sleep(0.5)
-        adapter.publish({"test": 5}, metadata)
+        adapter.append_and_publish({"test": 5}, "", metadata)
         remoteconfig_poller._poll_data()
 
         mock_config.add_probes(
@@ -419,11 +421,11 @@ def test_modified_probe_events(remote_config_worker, mock_config):
                 )
             ]
         )
-        adapter.publish({"test": 6}, metadata)
+        adapter.append_and_publish({"test": 6}, "", metadata)
         remoteconfig_poller._poll_data()
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter.publish({"test": 7}, metadata)
+        adapter.append_and_publish({"test": 7}, "", metadata)
         remoteconfig_poller._poll_data()
 
         assert events == [

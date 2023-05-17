@@ -55,7 +55,8 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.publish.assert_called_once_with(mock_config_content, mock_config)
+    mock_callback.append.assert_called_once_with(mock_config_content, "mock/ASM_FEATURES", mock_config)
+    mock_callback.publish.assert_called_once()
     assert applied_configs == client_configs
 
 
@@ -302,9 +303,13 @@ def test_apply_default_callback():
         _publisher = None
 
         @classmethod
-        def publish(cls, *args, **kwargs):
-            cls.config = dict(args[1])
+        def append(cls, *args, **kwargs):
+            cls.config = dict(args[2])
             cls.result = dict(args[0])
+
+        @classmethod
+        def publish(cls):
+            pass
 
     callback_content = {"a": 1}
     target = "1/ASM/2"
@@ -315,7 +320,7 @@ def test_apply_default_callback():
 
     assert CallbackClass.config == config
     assert CallbackClass.result == callback_content
-    assert test_list_callbacks == []
+    assert test_list_callbacks == [callback]
 
 
 def test_apply_merge_callback():

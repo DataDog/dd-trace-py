@@ -102,10 +102,10 @@ class PubSub(object):
         # type: () -> None
         self._publisher.dispatch(self)
 
-    def publish_and_poll(self, config_content=None, config_metadata=None, test_tracer=None):
-        # type: (Any, Optional[Any], Optional[Any], Optional[Tracer]) -> None
-        self.publish(config_content=config_content, config_metadata=config_metadata)
-        self._poll_data(test_tracer)
+    def append_and_publish(self, config_content=None, target="", config_metadata=None, test_tracer=None):
+        # type: (Optional[Any], str, Optional[Any], Optional[Tracer]) -> None
+        self.append(config_content, target, config_metadata)
+        self.publish()
 
     def append(self, config_content, target, config_metadata):
         # type: (Optional[Any], str, Optional[Any]) -> None
