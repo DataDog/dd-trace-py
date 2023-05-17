@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: Resolved an issue where using an array of tokens or an array of token arrays as the 
+    input for the Embeddings endpoint caused an AttributeError when attempting to parse request parameters.
