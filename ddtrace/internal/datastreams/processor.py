@@ -33,7 +33,6 @@ from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .fnv import fnv1_64
 
-
 log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
@@ -57,6 +56,22 @@ class PathwayStats(object):
         self.edge_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
 
+class PartitionKey(NamedTuple):
+    topic: str
+    partition: int
+
+
+class ConsumerPartitionKey(NamedTuple):
+    group: str
+    topic: str
+    partition: int
+
+
+class Bucket(NamedTuple):
+    pathway_stats: DefaultDict[PathwayAggrKey, PathwayStats]
+    latest_produce_offsets: DefaultDict[PartitionKey, int]
+    latest_commit_offsets: DefaultDict[ConsumerPartitionKey, int]
+
 class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
@@ -71,9 +86,7 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(
-            lambda: defaultdict(PathwayStats)
-        )  # type: DefaultDict[int, DefaultDict[PathwayAggrKey, PathwayStats]]
+        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
@@ -108,9 +121,27 @@ class DataStreamsProcessor(PeriodicService):
             # Align the span into the corresponding stats bucket
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             aggr_key = (",".join(edge_tags), hash_value, parent_hash)
-            stats = self._buckets[bucket_time_ns][aggr_key]
+            stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
+
+    # for now, we only track consumer lag for Kafka. We might want to generalize that logic later on.
+    def track_kafka_produce(self, topic, partition, offset, now_sec):
+        print("tracking kafka produce", topic, partition, offset, now_sec)
+        now_ns = int(now_sec * 1e9)
+        key = PartitionKey(topic, partition)
+        with self._lock:
+            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
+            self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(offset, self._buckets[bucket_time_ns].latest_produce_offsets[key])
+
+
+    def track_kafka_commit(self, group, topic, partition, offset, now_sec):
+        print("tracking kafka commit", group, topic, partition, offset, now_sec)
+        now_ns = int(now_sec * 1e9)
+        key = ConsumerPartitionKey(group, topic, partition)
+        with self._lock:
+            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
+            self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(offset, self._buckets[bucket_time_ns].latest_commit_offsets[key])
 
     def _serialize_buckets(self):
         # type: () -> List[Dict]
@@ -119,9 +150,10 @@ class DataStreamsProcessor(PeriodicService):
         serialized_bucket_keys = []
         for bucket_time_ns, bucket in self._buckets.items():
             bucket_aggr_stats = []
+            backlogs = []
             serialized_bucket_keys.append(bucket_time_ns)
 
-            for aggr_key, stat_aggr in bucket.items():
+            for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
                     u"EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
@@ -131,11 +163,28 @@ class DataStreamsProcessor(PeriodicService):
                     u"EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
+            for key, offset in bucket.latest_commit_offsets.items():
+                backlogs.append(
+                    {
+                        u"Tags": ["type:kafka_commit", "consumer_group:"+key.group, "topic:"+key.topic, "partition:"+str(key.partition)],
+                        u"Value": offset,
+                    }
+                )
+            for key, offset in bucket.latest_produce_offsets.items():
+                backlogs.append(
+                    {
+                        u"Tags": ["type:kafka_produce", "topic:"+key.topic, "partition:"+str(key.partition)],
+                        u"Value": offset,
+                    }
+                )
+            print("backlogs")
+            print(backlogs)
             serialized_buckets.append(
                 {
                     u"Start": bucket_time_ns,
                     u"Duration": self._bucket_size_ns,
                     u"Stats": bucket_aggr_stats,
+                    u"Backlogs": backlogs,
                 }
             )
 
