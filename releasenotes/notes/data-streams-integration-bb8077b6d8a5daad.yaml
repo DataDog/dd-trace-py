@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add the Data Streams integration to Python and instrument Kafka with it.
