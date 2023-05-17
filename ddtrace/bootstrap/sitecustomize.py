@@ -180,6 +180,8 @@ try:
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
+    tracer._generate_diagnostic_logs()
+
     if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
@@ -193,8 +195,6 @@ try:
         patch_all(**modules_to_bool)
     else:
         cleanup_loaded_modules()
-
-    tracer._generate_diagnostic_logs()
 
     # Only the import of the original sitecustomize.py is allowed after this
     # point.
