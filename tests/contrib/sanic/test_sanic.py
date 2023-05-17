@@ -94,7 +94,7 @@ def app(tracer):
             await response.write("foo,")
             await response.write("bar")
 
-        return stream(sample_streaming_fn, content_type="text/csv")
+        return stream(sample_streaming_fn, content_type="text/csv", headers={})
 
     @app.route("/error400")
     async def error_400(request):
@@ -102,7 +102,9 @@ def app(tracer):
 
     @app.route("/error")
     async def error(request):
-        raise ServerError("Something bad happened", status_code=500)
+        server_error = ServerError("Something bad happened")
+        server_error.status_code = 500
+        raise server_error
 
     @app.route("/invalid")
     async def invalid(request):

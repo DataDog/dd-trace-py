@@ -23,7 +23,8 @@
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
       "openai.response.object": "text_completion",
-      "runtime-id": "23f762fd4d0b4cd896ddcebde9a92d62"
+      "openai.user.api_key": "sk-...eal>",
+      "runtime-id": "cf048dcf95484c74a7e7a1b144eba095"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,10 +33,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.choices.num": 1,
-      "process_id": 74717
+      "process_id": 14813
     },
-    "duration": 15800000,
-    "start": 1682540152858064000
+    "duration": 11498000,
+    "start": 1683148557194072000
   },
      {
        "name": "requests.request",
@@ -51,13 +52,13 @@
          "http.method": "POST",
          "http.status_code": "200",
          "http.url": "https://api.openai.com/v1/completions",
-         "http.useragent": "OpenAI/v1 PythonBindings/0.27.4",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.27.6",
          "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 2758000,
-       "start": 1682540152870161000
+       "duration": 2319000,
+       "start": 1683148557202475000
      }]]

@@ -32,7 +32,7 @@ def test_add_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
     assert requests[0]["headers"]["DD-Client-Library-Version"] == _pep440_to_semver()
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == payload_type
-    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v1"
+    assert requests[0]["headers"]["DD-Telemetry-API-Version"] == "v2"
     assert requests[0]["headers"]["DD-Telemetry-Debug-Enabled"] == "False"
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
@@ -53,9 +53,6 @@ def test_add_event_disabled_writer(telemetry_lifecycle_writer, test_agent_sessio
 
 def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
-    # queue integrations
-    telemetry_lifecycle_writer.add_integration("integration-t", True)
-    telemetry_lifecycle_writer.add_integration("integration-f", False)
     # queue an app started event
     telemetry_lifecycle_writer._app_started_event()
     # force a flush
@@ -70,28 +67,23 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
 
     # validate request body
     payload = {
-        "dependencies": get_dependencies(),
-        "integrations": [
-            {
-                "name": "integration-t",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": True,
-                "compatible": True,
-                "error": "",
-            },
-            {
-                "name": "integration-f",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": False,
-                "compatible": True,
-                "error": "",
-            },
-        ],
-        "configurations": [],
+        "configuration": [],
+        "error": {
+            "code": 0,
+            "message": "",
+        },
     }
     assert events[0] == _get_request_body(payload, "app-started")
+
+
+def test_app_dependencies_loaded_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    telemetry_lifecycle_writer._app_dependencies_loaded_event()
+    # force a flush
+    telemetry_lifecycle_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    payload = {"dependencies": get_dependencies()}
+    assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
 
 
 def test_app_closing_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
@@ -109,8 +101,8 @@ def test_app_closing_event(telemetry_lifecycle_writer, test_agent_session, mock_
 def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
-    telemetry_lifecycle_writer.add_integration("integration-t", True)
-    telemetry_lifecycle_writer.add_integration("integration-f", False)
+    telemetry_lifecycle_writer.add_integration("integration-t", True, True, "")
+    telemetry_lifecycle_writer.add_integration("integration-f", False, False, "terrible failure")
     # send integrations to the agent
     telemetry_lifecycle_writer.periodic()
 
@@ -133,10 +125,10 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
             {
                 "name": "integration-f",
                 "version": "",
-                "enabled": True,
+                "enabled": False,
                 "auto_enabled": False,
-                "compatible": True,
-                "error": "",
+                "compatible": False,
+                "error": "terrible failure",
             },
         ]
     }
@@ -147,7 +139,7 @@ def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
     telemetry_lifecycle_writer.disable()
 
-    telemetry_lifecycle_writer.add_integration("integration-name", False)
+    telemetry_lifecycle_writer.add_integration("integration-name", True, False, "")
     telemetry_lifecycle_writer.periodic()
 
     assert len(test_agent_session.get_requests()) == 0
@@ -178,12 +170,13 @@ def test_telemetry_graceful_shutdown(telemetry_lifecycle_writer, test_agent_sess
     telemetry_lifecycle_writer.stop()
 
     events = test_agent_session.get_events()
-    assert len(events) == 2
+    assert len(events) == 3
 
     # Reverse chronological order
     assert events[0]["request_type"] == "app-closing"
-    assert events[0] == _get_request_body({}, "app-closing", 2)
-    assert events[1]["request_type"] == "app-started"
+    assert events[0] == _get_request_body({}, "app-closing", 3)
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_lifecycle_writer, test_agent_session):
@@ -230,7 +223,7 @@ def _get_request_body(payload, payload_type, seq_id=1):
     return {
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
-        "api_version": "v1",
+        "api_version": "v2",
         "debug": False,
         "seq_id": seq_id,
         "application": get_application(config.service, config.version, config.env),

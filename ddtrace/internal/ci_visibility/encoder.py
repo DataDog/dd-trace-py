@@ -3,6 +3,7 @@ import threading
 from typing import Any
 from typing import Dict
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
@@ -131,6 +132,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
+    boundary = uuid4().hex
+    content_type = "multipart/form-data; boundary=%s" % boundary
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -138,7 +141,32 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_payload(self, traces):
+    def _build_coverage_attachment(self, data):
+        return [
+            b"--%s" % self.boundary.encode("utf-8"),
+            b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
+            b"Content-Type: application/msgpack",
+            b"",
+            data,
+        ]
+
+    def _build_event_json_attachment(self):
+        return [
+            b"--%s" % self.boundary.encode("utf-8"),
+            b'Content-Disposition: form-data; name="event"; filename="event.json"',
+            b"Content-Type: application/json",
+            b"",
+            b'{"dummy":true}',
+        ]
+
+    def _build_body(self, data):
+        return (
+            self._build_coverage_attachment(data)
+            + self._build_event_json_attachment()
+            + [b"--%s--" % self.boundary.encode("utf-8")]
+        )
+
+    def _build_data(self, traces):
         normalized_covs = [
             CIVisibilityCoverageEncoderV02._convert_span(span, "")
             for trace in traces
@@ -149,6 +177,9 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             return
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
+
+    def _build_payload(self, traces):
+        return b"\r\n".join(self._build_body(self._build_data(traces)))
 
     @staticmethod
     def _convert_span(span, dd_origin):

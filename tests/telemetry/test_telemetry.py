@@ -16,12 +16,14 @@ telemetry_lifecycle_writer.enable()
     assert stderr == b""
 
     events = test_agent_session.get_events()
-    assert len(events) == 2
+    assert len(events) == 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
+    assert events[2]["payload"]["error"] == {"code": 0, "message": ""}
 
 
 @pytest.mark.snapshot
@@ -41,9 +43,11 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     events = test_agent_session.get_events()
-    assert len(events) == 2
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
+    assert len(events) == 4
+    assert events[0]["request_type"] == "app-integrations-change"
+    assert events[1]["request_type"] == "app-closing"
+    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert events[3]["request_type"] == "app-started"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -76,12 +80,15 @@ else:
     requests = test_agent_session.get_requests()
 
     # We expect 2 events from the parent process to get sent, but none from the child process
-    assert len(requests) == 2
+    assert len(requests) == 3
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
     assert requests[0]["body"]["request_type"] == "app-closing"
     assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[1]["body"]["request_type"] == "app-started"
+    assert requests[1]["body"]["request_type"] == "app-dependencies-loaded"
+    assert requests[1]["body"]["runtime_id"] == runtime_id
+    assert requests[2]["body"]["request_type"] == "app-started"
+    assert requests[2]["body"]["runtime_id"] == runtime_id
 
 
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
@@ -154,3 +161,103 @@ os.fork()
 
     assert status == 0, err
     assert err == b""
+
+
+def test_app_started_error_handled_exception(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import logging
+logging.basicConfig()
+
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+
+class FailingFilture(TraceFilter):
+    def process_trace(self, trace):
+       raise Exception("Exception raised in trace filter")
+
+tracer.configure(
+    settings={
+        "FILTERS": [FailingFilture()],
+    }
+)
+
+# generate and encode span
+tracer.trace("hello").finish()
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    assert b"Exception raised in trace filter" in stderr
+
+    events = test_agent_session.get_events()
+
+    assert len(events) == 3
+
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
+    assert events[2]["payload"]["error"]["code"] == 1
+    assert (
+        "ddtrace/internal/processor/trace.py/trace.py:221: error applying processor FailingFilture()"
+        in events[2]["payload"]["error"]["message"]
+    )
+
+
+def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 1, stderr
+    assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
+
+    events = test_agent_session.get_events()
+
+    assert len(events) == 2
+
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-started"
+    assert events[1]["payload"]["error"]["code"] == 1
+    assert (
+        "/test.py:1: Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[1]["payload"]["error"]["message"]
+    )
+
+
+def test_integration_error(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import logging
+logging.basicConfig()
+
+import sqlite3
+# patch() of the sqlite integration assumes this attribute is there
+# removing it should cause patching to fail.
+del sqlite3.connect
+
+from ddtrace import patch, tracer
+patch(raise_errors=False, sqlite3=True)
+tracer.trace("test").finish()
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    expected_stderr = b"failed to import"
+    assert expected_stderr in stderr
+
+    events = test_agent_session.get_events()
+    assert len(events) == 4
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"] == events[2]["runtime_id"] == events[3]["runtime_id"]
+    assert events[0]["request_type"] == "app-integrations-change"
+    assert events[1]["request_type"] == "app-closing"
+    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert events[3]["request_type"] == "app-started"
+
+    assert (
+        events[0]["payload"]["integrations"][0]["error"]
+        == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
+    )

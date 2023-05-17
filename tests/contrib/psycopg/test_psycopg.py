@@ -418,6 +418,24 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgres.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgresql.query"
+
     def test_contextmanager_connection(self):
         service = "fo"
         with self._get_conn(service=service) as conn:
@@ -488,3 +506,53 @@ class PsycopgCore(TracerTestCase):
             ),
             (("foo",), ("bar",)),
         )
+
+    def test_patch_and_unpatch_several_times(self):
+        """Patches and unpatches module sequentially to ensure proper functionality"""
+
+        def execute_query_and_get_spans(n_spans):
+            query = SQL("""select 'one' as x""")
+            cur = self._get_conn().execute(query)
+
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            spans = self.pop_spans()
+            self.assertEqual(len(spans), n_spans)
+
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        unpatch()
+        execute_query_and_get_spans(0)
+
+    def test_connection_instance_method_patch(self):
+        """Checks whether connection instance method connect works as intended"""
+
+        other_conn = self._get_conn()
+        conn = psycopg.Connection(other_conn.pgconn)
+        connection = conn.connect(**POSTGRES_CONFIG)
+
+        pin = Pin.get_from(connection)
+        if pin:
+            pin.clone(service="postgres", tracer=self.tracer).onto(connection)
+
+        query = SQL("""select 'one' as x""")
+        cur = connection.execute(query)
+
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+
+        query_span = spans[0]
+        assert query_span.name == "postgres.query"

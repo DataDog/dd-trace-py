@@ -1,3 +1,4 @@
+from ddtrace import config
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
@@ -10,7 +11,6 @@ from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...pin import Pin
-from ..dbapi import FetchTracedCursor
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
 from ..trace_utils import ext_service
@@ -21,6 +21,20 @@ log = get_logger(__name__)
 
 
 class TracedAsyncCursor(TracedCursor):
+    async def __aenter__(self):
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that error
+        # messages will be the same.
+        await self.__wrapped__.__aenter__()
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that error
+        # messages will be the same.
+        return await self.__wrapped__.__aexit__()
+
     async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
@@ -61,7 +75,7 @@ class TracedAsyncCursor(TracedCursor):
                     SqlInjection.report(evidence_value=args[0])
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedCursor):
+            if not isinstance(self, FetchTracedAsyncCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             if dbm_propagator:
@@ -147,8 +161,11 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
 
 
 class TracedAsyncConnection(TracedConnection):
-    traced_cursor_cls = TracedCursor
-    traced_fetch_cursor_cls = FetchTracedCursor
+    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None):
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
+        super(TracedAsyncConnection, self).__init__(conn, pin, cfg, cursor_cls)
 
     async def __aenter__(self):
         """Context management is not defined by the dbapi spec.
@@ -165,7 +182,7 @@ class TracedAsyncConnection(TracedConnection):
         - pymysql doesn't implement it.
         - sqlite3 returns the connection.
         """
-        r = self.__wrapped__.__aenter__()
+        r = await self.__wrapped__.__aenter__()
 
         if hasattr(r, "cursor"):
             # r is Connection-like.
@@ -190,7 +207,7 @@ class TracedAsyncConnection(TracedConnection):
                 pin = Pin.get_from(self)
                 if not pin:
                     return r
-                return await self._self_cursor_cls(r, pin, self._self_config)
+                return self._self_cursor_cls(r, pin, self._self_config)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -204,10 +221,7 @@ class TracedAsyncConnection(TracedConnection):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__aenter__
-
-        # and finally, yield the traced cursor.
-        return self
+        return await self.__wrapped__.__aexit__()
 
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
