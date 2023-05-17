@@ -141,7 +141,7 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             else:
                 asm_features = features.get("asm", {})
                 if asm_features is not None:
-                    rc_appsec_enabled = asm_features.get("enabled", False)
+                    rc_appsec_enabled = asm_features.get("enabled")
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
@@ -159,9 +159,7 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
                     remoteconfig_poller.unregister(PRODUCTS.ASM)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
-        if features is False:
-            features = {"asm": {"enabled": rc_appsec_enabled}}
-        else:
+
             features["asm"] = {"enabled": rc_appsec_enabled}
     return features
 

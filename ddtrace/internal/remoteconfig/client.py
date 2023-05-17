@@ -30,8 +30,8 @@ from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
-from ._publishers import RemoteConfigPublisherMergeFirst
 from ._pubsub import PubSub
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import MutableMapping
@@ -371,12 +371,9 @@ class RemoteConfigClient(object):
     @staticmethod
     def _apply_callback(list_callbacks, callback, config_content, target, config_metadata):
         # type: (List[PubSub], Any, Any, str, ConfigMetadata) -> None
-        if isinstance(callback._publisher, RemoteConfigPublisherMergeFirst):
-            callback.append(config_content, target)
-            if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
-                list_callbacks.append(callback)
-        else:
-            callback.publish(config_content, config_metadata)
+        callback.append(config_content, target, config_metadata)
+        if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
+            list_callbacks.append(callback)
 
     def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
         # type: (AppliedConfigType, TargetsType, TargetsType) -> None

@@ -95,12 +95,18 @@ class PubSub(object):
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
     def stop(self):
+        # type: () -> None
         self._subscriber.stop()
 
-    def publish(self, config_content=None, config_metadata=None):
-        # type: (Any, Optional[Any], Optional[Any]) -> None
-        self._publisher.dispatch(config_content, config_metadata, self)
+    def publish(self):
+        # type: () -> None
+        self._publisher.dispatch(self)
 
-    def append(self, config_content, target):
-        # type: (Optional[Any], str) -> None
-        self._publisher.append(target, config_content)
+    def publish_and_poll(self, config_content=None, config_metadata=None, test_tracer=None):
+        # type: (Any, Optional[Any], Optional[Any], Optional[Tracer]) -> None
+        self.publish(config_content=config_content, config_metadata=config_metadata)
+        self._poll_data(test_tracer)
+
+    def append(self, config_content, target, config_metadata):
+        # type: (Optional[Any], str, Optional[Any]) -> None
+        self._publisher.append(config_content, target, config_metadata)
