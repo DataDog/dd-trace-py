@@ -78,7 +78,6 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
-        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         int_service = None
         if self.config is not None:
@@ -88,6 +87,8 @@ class CIVisibility(Service):
             self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
         elif self._service is None and int_service is not None:
             self._service = int_service
+
+        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         try:
             from ddtrace.internal.codeowners import Codeowners
