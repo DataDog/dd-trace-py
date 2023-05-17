@@ -1016,7 +1016,7 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            if self.data_streams_processor:
+            if config._data_streams_enabled:
                 self.data_streams_processor.shutdown()
 
             atexit.unregister(self._atexit)

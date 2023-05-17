@@ -24,8 +24,6 @@ from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
-
-# if typing.TYPE_CHECKING:  # pragma: no cover
 from typing import DefaultDict
 from typing import Dict
 from typing import List
@@ -56,7 +54,7 @@ class PathwayStats(object):
 
 
 class DataStreamsProcessor(PeriodicService):
-    """PipelineStatsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
+    """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
     def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
         # type: (str, Optional[float], float, int) -> None
@@ -154,23 +152,23 @@ class DataStreamsProcessor(PeriodicService):
         else:
             if resp.status == 404:
                 log.error(
-                    "Datadog agent does not support tracer stats computation, disabling, please upgrade your agent"
+                    "Datadog agent does not support data streams monitoring, disabling, please upgrade your agent to 7.34+"
                 )
                 self._enabled = False
                 return
             elif resp.status >= 400:
                 log.error(
-                    "failed to send stats payload, %s (%s) (%s) response from Datadog agent at %s",
+                    "failed to send data stream stats payload, %s (%s) (%s) response from Datadog agent at %s",
                     resp.status,
                     resp.reason,
                     resp.read(),
                     self._agent_endpoint,
                 )
             else:
-                log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
+                log.debug("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
     def periodic(self):
-        # type: (...) -> None
+        # type: () -> None
 
         with self._lock:
             serialized_stats = self._serialize_buckets()
@@ -231,7 +229,7 @@ class DataStreamsCtx:
         self.env = six.ensure_text(config.env or "none")
 
     def encode(self):
-        # type: (...) -> bytes
+        # type: () -> bytes
         return struct.pack('<Q', self.hash) + \
             encode_var_int_64(int(self.pathway_start_sec * 1e3)) + \
             encode_var_int_64(int(self.current_edge_start_sec * 1e3))

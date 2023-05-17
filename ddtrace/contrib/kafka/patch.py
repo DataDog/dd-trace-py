@@ -131,8 +131,8 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
-            headers = {header[0]: header[1] for header in (message.headers() or [])}
             if config._data_streams_enabled:
+                headers = {header[0]: header[1] for header in (message.headers() or [])}
                 ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
                 ctx.set_checkpoint(["direction:in", "group:"+instance._group_id, "topic:"+message.topic(), "type:kafka"])
             message_key = message.key() or ""
