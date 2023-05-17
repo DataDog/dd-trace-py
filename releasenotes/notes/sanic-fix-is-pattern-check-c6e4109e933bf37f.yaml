@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    sanic: Resolves ``sanic_routing.exceptions.InvalidUsage`` error raised when
+    gevent is installed or ``DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE`` is set to True.
