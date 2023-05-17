@@ -13,6 +13,7 @@ from typing import cast
 
 if typing.TYPE_CHECKING:
     from typing import Any
+    from typing import Callabe
     from typing import DefaultDict
     from typing import Dict
     from typing import Iterator
