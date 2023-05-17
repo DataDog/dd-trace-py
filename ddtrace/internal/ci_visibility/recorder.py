@@ -103,7 +103,6 @@ class CIVisibility(Service):
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
             else:
                 self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
-
         try:
             from ddtrace.internal.codeowners import Codeowners
 
