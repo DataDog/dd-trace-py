@@ -55,8 +55,24 @@ def test_ci_visibility_service_enable():
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_ci_visibility_service_enable_with_app_key(_do_request):
+def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
     with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=200,
+            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+            '{"code_coverage":true,"tests_skipping":true}}}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
+
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
             body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
