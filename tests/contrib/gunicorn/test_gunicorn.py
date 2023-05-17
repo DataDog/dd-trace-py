@@ -155,7 +155,7 @@ SETTINGS_GEVENT_POSTWORKERIMPORT = _gunicorn_settings_factory(
 )
 SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     worker_class="gevent",
-    debug_mode="true",
+    debug_mode=True,
     enable_module_cloning=True,
 )
 
