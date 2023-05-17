@@ -90,8 +90,7 @@ def traced_produce(func, instance, args, kwargs):
     if config._data_streams_enabled:
         # inject data streams context
         headers = kwargs.get('headers', {})
-        pathway = pin.tracer.data_streams_processor.new_pathway()
-        pathway.set_checkpoint(["direction:out", "topic:"+topic, "type:kafka"])
+        pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:"+topic, "type:kafka"])
         headers[PROPAGATION_KEY] = pathway.encode()
         kwargs['headers'] = headers
 

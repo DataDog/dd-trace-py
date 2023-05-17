@@ -1,5 +1,6 @@
 # coding: utf-8
 import gzip
+import threading
 from collections import defaultdict
 import os
 import typing
@@ -79,6 +80,7 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = six.ensure_text(get_hostname())
         self._service = six.ensure_text(config._get_service("unnamed-python-service"))
         self._lock = Lock()
+        self._current_context = threading.local()
         self._enabled = True
         self._retry_request = tenacity.Retrying(
             # Use a Fibonacci policy with jitter, same as AgentWriter.
@@ -208,6 +210,8 @@ class DataStreamsProcessor(PeriodicService):
             pathway_start_ms, data = decode_var_int_64(data)
             current_edge_start_ms, data = decode_var_int_64(data)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
+            # reset context of current thread everytime we decode
+            self._current_context.value = ctx
             return ctx
         except:
             return self.new_pathway()
@@ -216,6 +220,14 @@ class DataStreamsProcessor(PeriodicService):
         # type: () -> DataStreamsCtx
         now_sec=time.time()
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
+        return ctx
+
+    def set_checkpoint(self, tags):
+        ctx = self._current_context.value
+        if ctx is None:
+            ctx = self.new_pathway()
+            self._current_context.value = ctx
+        ctx.set_checkpoint(tags)
         return ctx
 
 class DataStreamsCtx:
