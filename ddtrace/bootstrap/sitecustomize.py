@@ -108,6 +108,7 @@ def cleanup_loaded_modules():
             "asyncio",
             "concurrent",
             "typing",
+            "re",  # referenced by the typing module
             "logging",
             "attr",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
