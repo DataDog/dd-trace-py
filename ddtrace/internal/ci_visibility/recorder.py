@@ -102,6 +102,11 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
             return False, False
+
+        # DEV: Remove this ``if`` once ITR is in GA
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
         url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
         _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
         payload = {
