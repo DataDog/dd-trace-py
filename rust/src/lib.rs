@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyBool};
 use std::collections::HashMap;
 
 /// Formats the sum of two numbers as string.
@@ -19,27 +19,37 @@ fn count_words(s: String) -> Py<PyAny> {
 }
 
 
-#[pyfunction]
-fn match_tags(tags: Vec<HashMap<String, i32>>) -> PyResult<bool> {
-    let mut hm = HashMap::new();
-    // for sub_str in s.split(' ') {
-    //     let count = hm
-    //     .entry(sub_str)
-    //     .or_insert(0);
-    // *count += 1;
-    // }
-    for tag in tags.iter() {
-        tot += d[&key];
-    }
-    let is_match = r#match(subject, pattern);
+// #[pyfunction]
+// fn match_tags(tags: Vec<HashMap<String, i32>>) -> PyResult<bool> {
+//     let mut hm = HashMap::new();
+//     // for sub_str in s.split(' ') {
+//     //     let count = hm
+//     //     .entry(sub_str)
+//     //     .or_insert(0);
+//     // *count += 1;
+//     // }
+//     for tag in tags.iter() {
+//         tot += d[&key];
+//     }
+//     let is_match = r#match(subject, pattern);
     
+//     return Python::with_gil(|py| {
+//         is_match.to_object(py)
+//     });
+    
+// }
+
+#[pyfunction]
+fn match_subject(subject: String, pattern: String) -> Py<PyAny> {
+    let is_match = r#match(subject, pattern);
     return Python::with_gil(|py| {
         is_match.to_object(py)
     });
     
 }
 
-pub fn r#match(subject: &str, pattern: &str) -> bool {
+
+pub fn r#match(subject: String, pattern: String) -> bool {
     let mut px: usize = 0;  // [p]attern inde[x]
     let mut sx: usize = 0;  // [s]ubject inde[x]
     let mut next_px: usize = 0;
@@ -81,7 +91,8 @@ pub fn r#match(subject: &str, pattern: &str) -> bool {
 
 // A Python module implemented in Rust.
 #[pymodule]
-fn word_counter(_py: Python, m: &PyModule) -> PyResult<()> {
+fn matcher(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(count_words, m)?)?;
+    m.add_function(wrap_pyfunction!(match_subject, m)?)?;
     Ok(())
 }
