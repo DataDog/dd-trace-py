@@ -194,6 +194,8 @@ try:
     else:
         cleanup_loaded_modules()
 
+    tracer._generate_diagnostic_logs()
+
     # Only the import of the original sitecustomize.py is allowed after this
     # point.
 

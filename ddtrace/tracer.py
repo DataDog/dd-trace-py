@@ -516,6 +516,9 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
+        self._generate_diagnostic_logs()
+
+    def _generate_diagnostic_logs(self):
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
