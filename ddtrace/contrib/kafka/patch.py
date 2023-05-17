@@ -90,7 +90,8 @@ def traced_produce(func, instance, args, kwargs):
     if config._data_streams_enabled:
         # inject data streams context
         headers = kwargs.get('headers', {})
-        pathway = pin.tracer.data_streams_processor.new_pathway(["type:kafka", "direction:out", "topic:"+topic])
+        pathway = pin.tracer.data_streams_processor.new_pathway()
+        pathway.set_checkpoint(["direction:out", "topic:"+topic, "type:kafka"])
         headers[PROPAGATION_KEY] = pathway.encode()
         kwargs['headers'] = headers
 
@@ -132,7 +133,8 @@ def traced_poll(func, instance, args, kwargs):
         if message is not None:
             headers = {header[0]: header[1] for header in (message.headers() or [])}
             if config._data_streams_enabled:
-                pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None), ["type:kafka", "direction:in", "topic:"+message.topic(), "group:"+instance._group_id])
+                ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
+                ctx.set_checkpoint(["direction:in", "group:"+instance._group_id, "topic:"+message.topic(), "type:kafka"])
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())

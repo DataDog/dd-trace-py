@@ -14,7 +14,8 @@ def test_encoding():
 
 def test_pathway_encoding():
     processor = DataStreamsProcessor("")
-    ctx = processor.new_pathway(["direction:out", "type:kafka", "topic:topic1"])
+    ctx = processor.new_pathway()
+    ctx.set_checkpoint(["direction:out", "type:kafka", "topic:topic1"])
     expected_pathway_start = ctx.pathway_start_sec
     data = ctx.encode()
 
@@ -23,5 +24,6 @@ def test_pathway_encoding():
         assert edge_tags == ["direction:in", "type:kafka", "topic:topic1"]
 
     processor.on_checkpoint_creation = on_checkpoint_creation
-    decoded = processor.decode_pathway(data, ["direction:in", "type:kafka", "topic:topic1"])
+    decoded = processor.decode_pathway(data)
+    decoded.set_checkpoint(["direction:in", "type:kafka", "topic:topic1"])
     assert abs(decoded.pathway_start_sec - expected_pathway_start) <= 1e-3

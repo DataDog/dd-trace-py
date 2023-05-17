@@ -202,24 +202,22 @@ class DataStreamsProcessor(PeriodicService):
         self.periodic()
         self.stop(timeout)
 
-    def decode_pathway(self, data, tags):
-        # type: (bytes, List[str]) -> DataStreamsCtx
+    def decode_pathway(self, data):
+        # type: (bytes) -> DataStreamsCtx
         try:
             hash_value = struct.unpack('<Q', data[:8])[0]
             data = data[8:]
             pathway_start_ms, data = decode_var_int_64(data)
             current_edge_start_ms, data = decode_var_int_64(data)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
-            ctx.set_checkpoint(tags)
             return ctx
         except:
-            return self.new_pathway(tags)
+            return self.new_pathway()
 
-    def new_pathway(self, tags):
-        # type: (List[str]) -> DataStreamsCtx
-        now_sec = time.time()
+    def new_pathway(self):
+        # type: () -> DataStreamsCtx
+        now_sec=time.time()
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
-        ctx._set_checkpoint(tags, now_sec)
         return ctx
 
 class DataStreamsCtx:
@@ -241,10 +239,6 @@ class DataStreamsCtx:
     def set_checkpoint(self, tags):
         # type: (List[str]) -> None
         now_sec = time.time()
-        self._set_checkpoint(tags, now_sec)
-
-    def _set_checkpoint(self, tags, now_sec):
-        # type: (List[str], float) -> None
         tags = sorted(tags)
         b = bytes(self.service, "utf-8") + bytes(self.env, "utf-8")
         for t in tags:
@@ -254,7 +248,6 @@ class DataStreamsCtx:
         hash_value = fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
         edge_latency_sec = now_sec - self.current_edge_start_sec
         pathway_latency_sec = now_sec - self.pathway_start_sec
-        self.parent_hash = self.hash
         self.hash = hash_value
         self.current_edge_start_sec = now_sec
         self.processor.on_checkpoint_creation(hash_value, parent_hash, tags, now_sec, edge_latency_sec,
