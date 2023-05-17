@@ -271,7 +271,8 @@ class Tracer(object):
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
-        self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+        if config._data_streams_enabled:
+            self.data_streams_processor = DataStreamsProcessor(self._agent_url)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -1015,7 +1016,8 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            self.data_streams_processor.shutdown()
+            if self.data_streams_processor:
+                self.data_streams_processor.shutdown()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
