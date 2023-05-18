@@ -224,7 +224,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
-    @property
     def _intake_endpoint(self, client=None):
         return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
 
