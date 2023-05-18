@@ -211,7 +211,7 @@ class DataStreamsProcessor(PeriodicService):
             pathway_start_ms, data = decode_var_int_64(data)
             current_edge_start_ms, data = decode_var_int_64(data)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
-            # reset context of current thread everytime we decode
+            # reset context of current thread every time we decode
             self._current_context.value = ctx
             return ctx
         except EOFError:
