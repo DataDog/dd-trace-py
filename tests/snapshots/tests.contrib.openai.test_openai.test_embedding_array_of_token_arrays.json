@@ -21,7 +21,7 @@
       "openai.request.input.1": "[4444, 5555, 6666]",
       "openai.request.input.2": "[7777, 8888, 9999]",
       "openai.request.model": "text-embedding-ada-002",
-      "openai.user.api_key": "sk-...key",
+      "openai.user.api_key": "sk-...key>",
       "runtime-id": "b168eb19ef14414ca786ac99826ef9e0"
     },
     "metrics": {
