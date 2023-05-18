@@ -16,9 +16,6 @@ def _configure_ddtrace():
     # This import has the same effect as ddtrace-run for the current process.
     print("attempt to import ddtrace")
     import ddtrace.bootstrap.sitecustomize
-    from ddtrace import __version__
-
-    print("imported ddtrace successfully. ddtrace_version: {}".format(__version__))
 
     bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
     prev_python_path = os.getenv("PYTHONPATH", "")
