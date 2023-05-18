@@ -24,8 +24,6 @@ def fnv(data, hval_init, fnv_prime, fnv_size):
     """
     Core FNV hash algorithm used in FNV0 and FNV1.
     """
-    assert isinstance(data, bytes)
-
     hval = hval_init
     for byte in data:
         hval = (hval * fnv_prime) % fnv_size
