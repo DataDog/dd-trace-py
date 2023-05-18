@@ -81,7 +81,7 @@ def _inject_hook(code, hook, lineno, arg):
 _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
 if sys.version_info[:2] < (3, 11):
     _INJECT_HOOK_OPCODES = ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-elif sys.version_info[:2} > (3, 11):
+elif sys.version_info[:2] > (3, 11):
     _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "CALL", "POP_TOP"]
 
 _INJECT_HOOK_OPCODE_POS = 0 if sys.version_info < (3, 11) else 1
