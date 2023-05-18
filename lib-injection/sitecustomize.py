@@ -6,7 +6,10 @@ import os
 import sys
 import site
 
-print("lib injection started: %s, python: %s, site packages: %s" % (__file__, sys.executable, site.getsitepackages()))
+print(
+    "lib injection started: %s, python: %s, site packages: %s, sys.path: %s"
+    % (__file__, sys.executable, site.getsitepackages(), sys.path)
+)
 
 
 def _configure_ddtrace():
@@ -74,4 +77,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         _configure_ddtrace()
 else:
     print("NOP: lib injection is already in progress")
-print("lib injection complete: %s, python: %s, site packages: %s" % (__file__, sys.executable, site.getsitepackages()))
+print(
+    "lib injection complete: %s, python: %s, site packages: %s, sys.path: %s"
+    % (__file__, sys.executable, site.getsitepackages(), sys.path)
+)
