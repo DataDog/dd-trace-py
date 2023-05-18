@@ -10,6 +10,8 @@ print(
     "lib injection started: %s, python: %s, site packages: %s, sys.path: %s"
     % (__file__, sys.executable, site.getsitepackages(), sys.path)
 )
+del sys.path["/home/runner/work/dd-trace-py/dd-trace-py"]
+print("removed dd-trace-py from sys path: {}".format(sys.path))
 
 
 def _configure_ddtrace():
