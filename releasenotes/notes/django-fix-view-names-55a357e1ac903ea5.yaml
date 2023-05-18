@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    django: Resolves an issue where the resource name of django.request span did not contain the full name of a view
+    when ``DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=True``. This issue impacts ``django>=4.0``.
