@@ -51,7 +51,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         try:
             pkgs_path = os.path.join(os.path.dirname(__file__), "ddtrace_pkgs")
             p = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--no-index", "--find-links", pkgs_path, "ddtrace"],
+                ["python", "-m", "pip", "install", "--no-index", "--find-links", pkgs_path, "ddtrace"],
                 env=env,
                 capture_output=True,
                 check=True,
