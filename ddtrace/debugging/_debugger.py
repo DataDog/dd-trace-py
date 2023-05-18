@@ -425,13 +425,21 @@ class Debugger(Service):
             failed = self._function_store.inject_hooks(
                 function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
             )
+
             for probe in probes:
                 if probe.probe_id in failed:
                     self._probe_registry.set_error(probe, "Failed to inject")
-                    log.error("Failed to inject %r", probe)
                 else:
                     self._probe_registry.set_installed(probe)
-                    log.debug("Injected probes %r in %r", [probe.probe_id for probe in probes], function)
+
+            if failed:
+                log.error("Failed to inject probes %r", failed)
+
+            log.debug(
+                "Injected probes %r in %r",
+                [probe.probe_id for probe in probes if probe.probe_id not in failed],
+                function,
+            )
 
     def _inject_probes(self, probes):
         # type: (List[LineProbe]) -> None
