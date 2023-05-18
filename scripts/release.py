@@ -251,13 +251,12 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             )
             return
 
-    diff_raw = subprocess.check_output(
-        "git cherry -v {last_version} 1.x".format(last_version=last_version),
+    commit_hashes = subprocess.check_output(
+        "git log {last_version}..1.x --oneline | cut -d \" \" -f 1".format(last_version=last_version),
         shell=True,
         cwd=os.pardir,
-    ).decode("utf8")
+    ).decode("utf8").strip("\n").split("\n")
 
-    commit_hashes = re.findall("[0-9a-f]{5,40}", diff_raw)
     commits = []
     # get the commit objects
     for commit_hash in commit_hashes:
@@ -274,7 +273,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         files = commit.files
         for file in files:
             filename = file.filename
-            if "releasenotes/notes/" in filename:
+            if filename.startswith("releasenotes/notes/"):
                 # we need to make another api call to get ContentFile object so we can see what's in there
                 rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                 # try to grab a good portion of the release note for us to use to insert in our reno release notes
