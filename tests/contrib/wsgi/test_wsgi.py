@@ -308,3 +308,24 @@ def test_distributed_tracing_nested():
     assert config.wsgi.distributed_tracing is True
     assert resp.status == "200 OK"
     assert resp.status_int == 200
+
+
+def test_wsgi_traced_iterable(tracer, test_spans):
+    # Regression test to ensure wsgi iterable does not define an __len__ attribute
+    middleware = wsgi.DDWSGIMiddleware(application)
+    environ = {
+        "PATH_INFO": "/chunked",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "REQUEST_METHOD": "GET",
+    }
+
+    def start_response(status, headers, exc_info=None):
+        pass
+
+    resp = middleware(environ, start_response)
+    assert hasattr(resp, "__iter__")
+    assert hasattr(resp, "close")
+    assert hasattr(resp, "next") or hasattr(resp, "__next__")
+    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
