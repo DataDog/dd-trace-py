@@ -236,3 +236,12 @@ def test_templates_disabled():
         resp = client.get("/template-view/")
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
+
+
+@snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+def test_django_resource_handler():
+    # regression test for: DataDog/dd-trace-py/issues/5711
+    with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as client:
+        # Request a class based view
+        assert client.get("simple/").status_code == 200
