@@ -169,7 +169,8 @@ class TelemetryBase(PeriodicService):
         if start_worker_thread:
             self.start()
             atexit.register(self.stop)
-
+            return True
+        self.status = ServiceStatus.RUNNING
         return True
 
     def disable(self):
@@ -184,6 +185,8 @@ class TelemetryBase(PeriodicService):
         if self.is_periodic:
             atexit.unregister(self.stop)
             self.stop()
+        else:
+            self.status = ServiceStatus.STOPPED
 
     @property
     def is_periodic(self):
@@ -220,6 +223,11 @@ class TelemetryBase(PeriodicService):
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
+
+    def _stop_service(self, *args, **kwargs):
+        # type: (...) -> None
+        super(TelemetryBase, self)._stop_service(*args, **kwargs)
+        self.join(timeout=2)
 
 
 class TelemetryLogsMetricsWriter(TelemetryBase):
