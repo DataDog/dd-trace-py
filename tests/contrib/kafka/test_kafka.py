@@ -1,3 +1,5 @@
+import logging
+
 import confluent_kafka
 import pytest
 import six
@@ -61,6 +63,21 @@ def consumer(tracer):
     _consumer.subscribe([TOPIC_NAME])
     yield _consumer
     _consumer.close()
+
+
+def test_consumer_created_with_logger_does_not_raise(tracer):
+    """Test that adding a logger to a Consumer init does not raise any errors."""
+    logger = logging.getLogger()
+    # regression test for DataDog/dd-trace-py/issues/5873
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+        },
+        logger=logger,
+    )
+    consumer.close()
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
