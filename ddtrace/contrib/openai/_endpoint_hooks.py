@@ -2,29 +2,62 @@ from typing import AsyncGenerator
 from typing import Generator
 
 from ..trace_utils import set_flattened_tags
+from .utils import _format_bool
 from .utils import _est_tokens
-from .utils import _set_openai_api_key_tag
+from .utils import _format_openai_api_key
 
 
 class _EndpointHook:
-    _request_tag_attrs = []
-    _default_name = "openai"
+    # Assume base arg signature follows openai.EngineAPIResource.create(...)
+    _request_arg_params = ["cls", "api_key", "api_base", "api_type", "request_id", "api_version", "organization"]
+    _request_kwarg_params = []
+    _prompt_completion = False
+    ENDPOINT_NAME = "openai"
+    REQUEST_TYPE = ""
+    OPERATION_ID = ""
 
-    def _record_request(self, span, kwargs):
-        for kw_attr in self._request_tag_attrs:
+    def _record_request(self, span, integration, args, kwargs):
+        endpoint = getattr(args[0], "OBJECT_NAME", self.ENDPOINT_NAME)
+        if not endpoint.startswith("/"):
+            endpoint = "/%s" % endpoint
+        span.set_tag_str("openai.request.endpoint", endpoint)
+        span.set_tag_str("openai.request.method", self.REQUEST_TYPE)
+
+        base_level_tag_args = ("api_base", "api_type", "api_version")
+        for idx, arg in enumerate(self._request_arg_params[1:], 1):
+            if idx >= len(args):
+                break
+            if args[idx] is None:
+                continue
+            if arg in base_level_tag_args:
+                span.set_tag("openai.%s" % arg, args[idx] or "")
+            elif arg == "organization":
+                span.set_tag_str("openai.organization.id", args[idx])
+            elif arg == "api_key":
+                span.set_tag_str("openai.user.api_key", _format_openai_api_key(args[idx]))
+            elif (
+                self._prompt_completion is True and integration.is_pc_sampled_span
+            ) or self._prompt_completion is False:
+                if hasattr(args[idx], "name"):  # For file args
+                    span.set_tag_str("openai.request.%s" % arg, integration.trunc(args[idx].name))
+                else:
+                    span.set_tag("openai.request.%s" % arg, integration.trunc(args[idx]))
+        for kw_attr in self._request_kwarg_params:
             if kw_attr in kwargs:
                 if isinstance(kwargs[kw_attr], dict):
                     set_flattened_tags(
                         span, [("openai.request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
                     )
                 else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+                    if isinstance(kwargs[kw_attr], str):
+                        span.set_tag_str("openai.request.%s" % kw_attr, integration.trunc(kwargs[kw_attr]))
+                    else:
+                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
 
     def handle_request(self, pin, integration, span, args, kwargs):
+        self._record_request(span, integration, args, kwargs)
         self._pre_response(pin, integration, span, args, kwargs)
-        self._record_request(span, kwargs)
         resp, error = yield
-        span.set_tag("openai.response.object", self._default_name)
         return self._post_response(pin, integration, span, args, kwargs, resp, error)
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -38,6 +71,8 @@ class _BaseCompletionHook(_EndpointHook):
     """
     Share streamed response handling logic between Completion and ChatCompletion endpoints.
     """
+
+    _prompt_completion = True
 
     def _handle_response(self, pin, span, integration, resp):
         """Handle the response object returned from endpoint calls.
@@ -106,7 +141,8 @@ class _BaseCompletionHook(_EndpointHook):
 
 
 class _CompletionHook(_BaseCompletionHook):
-    _request_tag_attrs = [
+    _request_kwarg_params = [
+        "model",
         "suffix",
         "max_tokens",
         "temperature",
@@ -122,7 +158,9 @@ class _CompletionHook(_BaseCompletionHook):
         "logit_bias",
         "user",
     ]
-    _default_name = "completions"
+    ENDPOINT_NAME = "/completions"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createCompletion"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         prompt = kwargs.get("prompt", "")
@@ -131,9 +169,8 @@ class _CompletionHook(_BaseCompletionHook):
                 span.set_tag_str("openai.request.prompt", integration.trunc(prompt))
             elif prompt:
                 for idx, p in enumerate(prompt):
-                    span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(p))
+                    span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
         if kwargs.get("stream"):
-            prompt = kwargs.get("prompt", "")
             num_prompt_tokens = 0
             if isinstance(prompt, str):
                 num_prompt_tokens += _est_tokens(prompt)
@@ -148,7 +185,10 @@ class _CompletionHook(_BaseCompletionHook):
             return self._handle_response(pin, span, integration, resp)
         if "choices" in resp:
             choices = resp["choices"]
-            span.set_tag("openai.response.choices.num", len(choices))
+            span.set_tag("openai.response.choices_count", len(choices))
+            span.set_tag("openai.response.created", resp.get("created"))
+            span.set_tag_str("openai.response.id", resp.get("id", ""))
+            span.set_tag_str("openai.response.model", resp.get("model", ""))
             for choice in choices:
                 idx = choice["index"]
                 if "finish_reason" in choice:
@@ -163,7 +203,7 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled %s" % self._default_name,
+                "sampled %s" % self.OPERATION_ID,
                 attrs={
                     "prompt": prompt,
                     "choices": resp["choices"] if resp and "choices" in resp else [],
@@ -173,7 +213,8 @@ class _CompletionHook(_BaseCompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_tag_attrs = [
+    _request_kwarg_params = [
+        "model",
         "temperature",
         "top_p",
         "n",
@@ -185,7 +226,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
         "logit_bias",
         "user",
     ]
-    _default_name = "chat.completions"
+    ENDPOINT_NAME = "/chat/completions"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createChatCompletion"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         messages = kwargs.get("messages", [])
@@ -193,8 +236,10 @@ class _ChatCompletionHook(_BaseCompletionHook):
             for idx, m in enumerate(messages):
                 content = integration.trunc(m.get("content", ""))
                 role = integration.trunc(m.get("role", ""))
+                name = integration.trunc(m.get("name", ""))
                 span.set_tag_str("openai.request.messages.%d.content" % idx, content)
                 span.set_tag_str("openai.request.messages.%d.role" % idx, role)
+                span.set_tag_str("openai.request.messages.%d.name" % idx, name)
         if kwargs.get("stream"):
             # streamed responses do not have a usage field, so we have to
             # estimate the number of tokens returned.
@@ -208,6 +253,10 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if not resp or kwargs.get("stream"):
             return self._handle_response(pin, span, integration, resp)
         choices = resp.get("choices", [])
+        span.set_tag("openai.response.choices_count", len(choices))
+        span.set_tag("openai.response.created", resp.get("created"))
+        span.set_tag_str("openai.response.id", resp.get("id", ""))
+        span.set_tag_str("openai.response.model", resp.get("model", ""))
         for choice in choices:
             idx = choice["index"]
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
@@ -220,14 +269,17 @@ class _ChatCompletionHook(_BaseCompletionHook):
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message").get("role")),
                 )
+                span.set_tag(
+                    "openai.response.choices.%d.message.name" % idx,
+                    integration.trunc(choice.get("message").get("name")),
+                )
         integration.record_usage(span, resp.get("usage"))
-
         if integration.is_pc_sampled_log(span):
             messages = kwargs.get("messages")
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled %s" % self._default_name,
+                "sampled %s" % self.OPERATION_ID,
                 attrs={
                     "messages": messages,
                     "completion": choices,
@@ -237,10 +289,11 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_tag_attrs = [
-        "user",
-    ]
-    _default_name = "embeddings"
+    _request_kwarg_params = ["model", "user"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/embeddings"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createEmbedding"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         """
@@ -258,11 +311,13 @@ class _EmbeddingHook(_EndpointHook):
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
+        span.set_tag_str("openai.response.model", resp.get("model", ""))
+        span.set_tag("openai.response.created", resp.get("created"))
         if "data" in resp:
-            span.set_tag("openai.response.data.num-embeddings", len(resp["data"]))
+            span.set_tag("openai.response.embeddings_count", len(resp["data"]))
             for result in resp["data"]:
                 idx = result["index"]
-                span.set_tag("openai.response.data.%d.embedding-length" % idx, len(result["embedding"]))
+                span.set_tag("openai.response.embeddings.%d.embedding-length" % idx, len(result["embedding"]))
         integration.record_usage(span, resp.get("usage"))
         return resp
 
@@ -272,72 +327,93 @@ class _ListHook(_EndpointHook):
     Hook for openai.ListableAPIResource, which is used by Model.list, Files.list, and FineTunes.list.
     """
 
-    _default_name = "list"
+    _request_arg_params = ["cls", "api_key", "request_id", "api_version", "organization", "api_base", "api_type"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/list"
+    REQUEST_TYPE = "GET"
+    OPERATION_ID = "list"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=1)
+        if span.get_tag("openai.request.endpoint") == "/models":
+            span.resource = "listModels"
+        elif span.get_tag("openai.request.endpoint") == "/files":
+            span.resource = "listFiles"
+        elif span.get_tag("openai.request.endpoint") == "/fine-tunes":
+            span.resource = "listFineTunes"
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        span.set_tag_str("openai.response.object", self._default_name)
-        span.set_tag("openai.response.data.num", len(resp.get("data", [])))
-        for idx, data_obj in enumerate(resp.get("data", [])):
-            for k, v in data_obj.items():
-                if isinstance(v, dict):
-                    set_flattened_tags(
-                        span,
-                        [
-                            ("openai.response.data.{}.{}.{}".format(idx, k, dict_k), dict_v)
-                            for dict_k, dict_v in v.items()
-                        ],
-                    )
-                elif isinstance(v, list):
-                    for list_idx, list_obj in enumerate(v):
-                        set_flattened_tags(
-                            span,
-                            [
-                                ("openai.response.data.{}.{}.{}.{}".format(idx, k, list_idx, dict_k), dict_v)
-                                for dict_k, dict_v in list_obj.items()
-                            ],
-                        )
-                    # TODO: WHAT DO WE DO HERE WHEN OBJ IS A LIST???
-                else:
-                    span.set_tag("openai.response.data.%d.%s" % (idx, k), v)
-
-        # TODO: what info to return from the response? Do we need to return all listed info?
+        if not resp:
+            return
+        span.set_tag("openai.response.count", len(resp.get("data", [])))
         return resp
 
 
 class _RetrieveHook(_EndpointHook):
     """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTunes.retrieve."""
 
-    _default_name = "retrieve"
+    _request_arg_params = ["cls", "id", "api_key", "request_id", "request_timeout"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/retrieve"
+    REQUEST_TYPE = "GET"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=2)
-        span.set_tag_str("openai.request.id", args[1])
-        if args[0].OBJECT_NAME == "models":
-            span.set_tag_str("openai.model", args[1])
+        if span.get_tag("openai.request.endpoint") == "/models":
+            span.resource = "retrieveModel"
+        elif span.get_tag("openai.request.endpoint") == "/files":
+            span.resource = "retrieveFile"
+        elif span.get_tag("openai.request.endpoint") == "/fine-tunes":
+            span.resource = "retrieveFineTune"
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag_str("openai.response.object", self._default_name)
-        if hasattr(resp, "created"):
-            span.set_tag("openai.response.created", resp["created"])
-        if hasattr(resp, "created_at"):
-            span.set_tag("openai.response.created_at", resp["created_at"])
+        response_attrs = (
+            "id",
+            "owned_by",
+            "root",
+            "bytes",
+            "created_at",
+            "purpose",
+            "filename",
+            "fine_tuned_model",
+            "status",
+            "status_details",
+            "updated_at ",
+        )
+        for resp_attr in response_attrs:
+            if resp_attr in resp:
+                span.set_tag("openai.response.%s" % resp_attr, resp.get(resp_attr, ""))
+        if resp.get("permission"):
+            set_flattened_tags(
+                span,
+                [
+                    ("openai.response.permission.%s" % k, _format_bool(v))
+                    for k, v in resp.get("permission", {})[0].items()
+                ],
+            )
+        if resp.get("hyperparams"):
+            set_flattened_tags(
+                span, [("openai.response.hyperparams.%s" % k, v) for k, v in resp.get("hyperparams", {}).items()]
+            )
+        for resp_attr in ("result_files", "training_files", "validation_files"):
+            if resp_attr in resp:
+                span.set_tag("openai.response.%s_count" % resp_attr, len(resp.get(resp_attr, [])))
         return resp
 
 
 class _EditHook(_EndpointHook):
-    _request_tag_attrs = [
+    _request_kwarg_params = [
+        "model",
         "n",
         "temperature",
         "top_p",
     ]
-    _default_name = "edits"
+    _prompt_completion = True
+    ENDPOINT_NAME = "/edits"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createEdit"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         if integration.is_pc_sampled_span(span):
@@ -351,19 +427,20 @@ class _EditHook(_EndpointHook):
         if not resp:
             return
         choices = resp.get("choices", [])
-        span.set_tag("openai.response.choices.num", len(choices))
+        span.set_tag("openai.response.choices_count", len(choices))
+        span.set_tag("openai.response.created", resp.get("created"))
         if integration.is_pc_sampled_span(span):
             for choice in choices:
                 idx = choice["index"]
                 span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
         integration.record_usage(span, resp.get("usage"))
         if integration.is_pc_sampled_log(span):
-            instruction = kwargs.get("instrution", "")
+            instruction = kwargs.get("instruction", "")
             input_text = kwargs.get("input", "")
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled %s" % self._default_name,
+                "sampled %s" % self.OPERATION_ID,
                 attrs={
                     "instruction": instruction,
                     "input": input_text,
@@ -374,107 +451,100 @@ class _EditHook(_EndpointHook):
 
 
 class _ImageHook(_EndpointHook):
-    _default_name = "images"
+    _prompt_completion = True
+    ENDPOINT_NAME = "/images"
+    REQUEST_TYPE = "POST"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag_str("openai.response.object", self._default_name)
         if integration.is_pc_sampled_span(span):
             choices = resp.get("data", [])
             span.set_tag("openai.response.created", resp.get("created"))
-            span.set_tag("openai.response.choices.num", len(choices))
+            span.set_tag("openai.response.images_count", len(choices))
             if integration.is_pc_sampled_span(span):
                 for idx, choice in enumerate(choices):
                     if choice.get("b64_json"):
-                        span.set_tag_str(
-                            "openai.response.choices.%d.b64_json" % idx, integration.trunc(choice.get("b64_json"))
-                        )
+                        span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
                     else:
-                        span.set_tag_str("openai.response.choices.%d.url" % idx, integration.trunc(choice.get("url")))
+                        span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.get("url")))
         if integration.is_pc_sampled_log(span):
-            attrs_dict = {
-                "choices": resp["data"] if resp and "data" in resp else [],
-            }
-            if "prompt" in self._request_tag_attrs:
+            attrs_dict = {}
+            if kwargs.get("response_format", "") == "b64_json":
+                attrs_dict.update({"choices": [{"b64_json": "returned"} for _ in resp.get("data", [])]})
+            else:
+                attrs_dict.update({"choices": resp["data"] if resp and "data" in resp else []})
+            if "prompt" in self._request_kwarg_params:
                 attrs_dict.update({"prompt": kwargs.get("prompt", "")})
-            if "image" in self._request_tag_attrs:
-                image = args[1] or kwargs.get("image", "")
+            if "image" in self._request_kwarg_params:
+                image = args[1] or ""
                 attrs_dict.update({"image": getattr(image, "name", "")})
-            if "mask" in self._request_tag_attrs:
-                mask = args[2] or kwargs.get("mask", "")
+            if "mask" in self._request_kwarg_params:
+                mask = args[2] or ""
                 attrs_dict.update({"mask": getattr(mask, "name", "")})
+            attrs_dict.update({"choices": resp.get("data", [])})
             integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self._default_name, attrs=attrs_dict
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         return resp
 
 
 class _ImageCreateHook(_ImageHook):
-    _request_tag_attrs = ["prompt", "n", "size", "response_format", "user"]
-    _default_name = "images.creation"
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=1)
-        return
+    _request_arg_params = ["cls", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _request_kwarg_params = ["prompt", "n", "size", "response_format", "user"]
+    ENDPOINT_NAME = "/images/generations"
+    OPERATION_ID = "createImage"
 
 
 class _ImageEditHook(_ImageHook):
-    _request_tag_attrs = ["image", "mask", "prompt", "n", "size", "response_format", "user"]
-    _default_name = "images.edits"
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=3)
-        if integration.is_pc_sampled_span(span):
-            image = args[1] or kwargs.get("image", "")
-            mask = args[2] or kwargs.get("mask", "")
-            span.set_tag_str("openai.request.image", integration.trunc(getattr(image, "name", "")))
-            span.set_tag_str("openai.request.mask", integration.trunc(getattr(mask, "name", "")))
-        return
+    _request_arg_params = ["cls", "image", "mask", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _request_kwarg_params = ["prompt", "n", "size", "response_format", "user"]
+    ENDPOINT_NAME = "/images/edits"
+    OPERATION_ID = "createImageEdit"
 
 
 class _ImageVariationHook(_ImageHook):
-    _request_tag_attrs = ["image", "n", "size", "response_format", "user"]
-    _default_name = "images.create_variations"
+    _request_arg_params = ["cls", "image", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _request_kwarg_params = ["n", "size", "response_format", "user"]
+    ENDPOINT_NAME = "/images/variations"
+    OPERATION_ID = "createImageVariation"
+
+
+class _BaseAudioHook(_EndpointHook):
+    _request_arg_params = ["cls", "model", "file", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _prompt_completion = True
+    ENDPOINT_NAME = "/audio"
+    REQUEST_TYPE = "POST"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=2)
-        if integration.is_pc_sampled_span(span):
-            image = args[1] or kwargs.get("image", "")
-            span.set_tag_str("openai.request.image", integration.trunc(getattr(image, "name", "")))
-        return
-
-
-class _AudioHook(_EndpointHook):
-    _default_name = "audio"
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=3)
-        if integration.is_pc_sampled_span(span):
-            model = args[1] or kwargs.get("model", "")
-            file_input = args[2] or kwargs.get("file", "")
-            span.set_tag_str("openai.request.file", integration.trunc(getattr(file_input, "name", "")))
-            span.set_tag_str("openai.model", model)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag_str("openai.response.object", self._default_name)
         if integration.is_pc_sampled_span(span):
             if isinstance(resp, str):
                 text = resp
             elif isinstance(resp, dict):
                 text = resp.get("text", "")
+                if resp.get("language"):
+                    span.set_tag_str("openai.response.language", resp.get("language"))
+                if resp.get("duration"):
+                    span.set_tag("openai.response.duration", resp.get("duration"))
+                if resp.get("segments", []):
+                    span.set_tag("openai.response.segments_count", len(resp["segments"]))
             else:
                 text = ""
             span.set_tag_str("openai.response.text", integration.trunc(text))
         if integration.is_pc_sampled_log(span):
-            file_input = args[2] or kwargs.get("file", "")
+            file_input = args[2] or ""
             integration.log(
                 span,
                 "info" if error is None else "error",
-                "sampled %s" % self._default_name,
+                "sampled %s" % self.OPERATION_ID,
                 attrs={
                     "file": getattr(file_input, "name", ""),
                     "text": resp["text"] if isinstance(resp, dict) else resp,
@@ -483,34 +553,35 @@ class _AudioHook(_EndpointHook):
         return resp
 
 
-class _AudioTranscriptionHook(_AudioHook):
-    _request_tag_attrs = [
+class _AudioTranscriptionHook(_BaseAudioHook):
+    _request_kwarg_params = [
         "prompt",
         "response_format",
         "temperature",
         "language",
     ]
-    _default_name = "audio.transcriptions"
+    ENDPOINT_NAME = "/audio/transcriptions"
+    OPERATION_ID = "createTranscription"
 
 
-class _AudioTranslationHook(_AudioHook):
-    _request_tag_attrs = [
+class _AudioTranslationHook(_BaseAudioHook):
+    _request_kwarg_params = [
         "prompt",
         "response_format",
         "temperature",
     ]
-    _default_name = "audio.translations"
+    ENDPOINT_NAME = "/audio/translations"
+    OPERATION_ID = "createTranslation"
 
 
 class _ModerationHook(_EndpointHook):
-    _default_name = "moderations"
+    _request_arg_params = ["cls", "input", "model", "api_key"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/moderations"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createModeration"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=3)
-        input_text = args[1]
-        model = args[2]
-        span.set_tag_str("openai.request.input", integration.trunc(input_text))
-        span.set_tag_str("openai.model", model)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -521,72 +592,116 @@ class _ModerationHook(_EndpointHook):
             categories = results.get("categories", {})
             scores = results.get("category_scores", {})
             flagged = results.get("flagged", "")
+            mod_id = resp.get("id", "")
+            model = resp.get("model", "")
             for category in categories.keys():
                 span.set_metric("openai.response.category_scores.%s" % category, scores.get(category, 0))
-                span.set_tag_str("openai.response.categories.%s" % category, str(categories.get(category, "")))
+                span.set_tag("openai.response.categories.%s" % category, _format_bool(categories.get(category, "")))
             span.set_tag_str("openai.response.flagged", str(flagged))
-
+            span.set_tag_str("openai.response.id", mod_id)
+            span.set_tag_str("openai.response.model", model)
         return resp
 
 
-class _FileCreateHook(_EndpointHook):
-    _default_name = "files.create"
+class _BaseFileHook(_EndpointHook):
+    _prompt_completion = False
+    ENDPOINT_NAME = "/files"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=4)
-        file_input = args[1] or ""
-        purpose = args[2] or ""
-        model = args[3] or ""
-        user_provided_filename = args[9] or ""
-        span.set_tag_str("openai.request.file", integration.trunc(getattr(file_input, "name", "")))
-        span.set_tag_str("openai.request.purpose", purpose)
-        span.set_tag_str("openai.request.user_provided_filename", integration.trunc(user_provided_filename))
-        if model:
-            span.set_tag_str("openai.model", model)
         return
+
+
+class _FileCreateHook(_BaseFileHook):
+    _request_arg_params = [
+        "cls",
+        "file",
+        "purpose",
+        "model",
+        "api_key",
+        "api_base",
+        "api_type",
+        "api_version",
+        "organization",
+        "user_provided_filename",
+    ]
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createFile"
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
         for k, v in resp.items():
             span.set_tag("openai.response.%s" % k, v if v else "")
-        span.set_tag_str("openai.response.object", self._default_name)
+        return resp
 
+
+class _FileDownloadHook(_BaseFileHook):
+    _request_arg_params = ["cls", "id", "api_key", "api_base", "api_type", "api_version", "organization"]
+    REQUEST_TYPE = "GET"
+    OPERATION_ID = "downloadFile"
+
+    def _post_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return
+        span.set_tag("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
 
 
 class _FileDeleteHook(_EndpointHook):
     # TODO: This will probably conflict with fine-tune delete model
-    _default_name = "files.delete"
+    _request_arg_params = ["cls", "sid", "api_type", "api_version"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/files"
+    REQUEST_TYPE = "DELETE"
+    OPERATION_ID = "deleteFile"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=None)
-        span.set_tag_str("openai.request.file_id", args[1] or kwargs.get(""))
-        pass
+        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
         for k, v in resp.data.items():
             span.set_tag("openai.response.%s" % k, v)
-        span.set_tag_str("openai.response.object", self._default_name)
         return resp
 
 
-class _FileDownloadHook(_EndpointHook):
-    _default_name = "files.download"
+class _BaseFineTuneHook(_EndpointHook):
+    _prompt_completion = False
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=2)
-        span.set_tag_str("openai.request.id", args[1] or kwargs.get(""))
-        pass
+        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return
+
+        for k, v in resp.items():
+            if isinstance(v, dict):
+                set_flattened_tags(
+                    span, [("openai.response.%s.%s" % (k, dict_k), dict_v) for dict_k, dict_v in v.items()]
+                )
+            elif isinstance(v, list):
+                for idx, list_obj in enumerate(v):
+                    if isinstance(list_obj, dict):
+                        set_flattened_tags(
+                            span,
+                            [
+                                ("openai.response.%s.%d.%s" % (k, idx, dict_k), dict_v)
+                                for dict_k, dict_v in list_obj.items()
+                            ],
+                        )
+                    else:
+                        span.set_tag("openai.response.%s.%d" % (k, idx), list_obj)
+            else:
+                span.set_tag("openai.response.%s" % k, integration.trunc(str(v)))
         return resp
 
 
-class _FineTuneCreateHook(_EndpointHook):
-    _request_tag_attrs = [
+class _FineTuneCreateHook(_BaseFineTuneHook):
+    _request_kwarg_params = [
+        "training_file",
+        "validation_file",
         "n_epochs",
         "batch_size",
         "learning_rate_multiplier",
@@ -597,32 +712,26 @@ class _FineTuneCreateHook(_EndpointHook):
         "classification_betas",
         "suffix",
     ]
-    _default_name = "fine-tunes.create"
+    ENDPOINT_NAME = "/fine-tunes"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "createFineTune"
 
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        _set_openai_api_key_tag(span, args, kwargs, api_key_index=1)
-        train_file_id = kwargs.get("training_file", "")
-        valid_file_id = kwargs.get("validation_file", "")
-        span.set_tag_str("openai.request.training_file", train_file_id)
-        span.set_tag_str("openai.request.validation_file", valid_file_id)
+
+class _FineTuneCancelHook(_BaseFineTuneHook):
+    _request_arg_params = ["cls", "id", "api_key", "api_type", "request_id", "api_version"]
+    ENDPOINT_NAME = "/fine-tunes/cancel"
+    REQUEST_TYPE = "POST"
+    OPERATION_ID = "cancelFineTune"
+
+
+class _FineTuneListEventsHook(_BaseFineTuneHook):
+    _request_arg_params = ["cls", "id"]
+    ENDPOINT_NAME = "/fine-tunes/events"
+    REQUEST_TYPE = "GET"
+    OPERATION_ID = "listFineTuneEvents"
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        for idx, event in enumerate(resp.get("events", [])):
-            for k, v in event.items():
-                span.set_tag("openai.response.events.%d.%s" % (idx, k), v)
-        span.set_tag_str("openai.response.fine_tuned_model", resp.get("fine_tuned_model", ""))
-        for k, v in resp.get("hyperparams", {}).items():
-            span.set_metric("openai.response.hyperparams.%s" % k, v)
-        span.set_tag_str("openai.response.organization_id", resp.get("organization_id", ""))
-        span.set_tag_str("openai.response.status", resp.get("status", ""))
-        for idx, train_file in enumerate(resp.get("training_files", [])):
-            for k, v in train_file.items():
-                span.set_tag("openai.response.training_files.%d.%s" % (idx, k), v)
-        for idx, valid_file in enumerate(resp.get("validation_files", [])):
-            for k, v in valid_file.items():
-                span.set_tag("openai.response.validation_files.%d.%s" % (idx, k), v)
-        span.set_tag("openai.response.created_at", resp.get("created_at", ""))
-        span.set_tag("openai.response.updated_at", resp.get("updated_at", ""))
+        span.set_tag("openai.response.count", len(resp.get("data", [])))
         return resp

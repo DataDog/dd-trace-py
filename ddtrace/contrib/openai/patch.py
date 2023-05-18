@@ -91,48 +91,41 @@ class _OpenAIIntegration:
         # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
         # organization_id is only returned by a few endpoints, grab it when we can.
-        for attr in ("api_base", "api_version", "organization_id"):
+        for attr in ("api_base", "api_version", "api_type", "organization"):
             v = getattr(self._openai, attr, None)
             if v is not None:
-                if attr == "organization_id":
+                if attr == "organization":
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
-                    span.set_tag_str(attr, v)
+                    span.set_tag_str("openai.%s" % attr, v)
 
-    def trace(self, pin, endpoint, model):
+    def trace(self, pin, operation_id):
         """Start an OpenAI span.
 
         Set default OpenAI span attributes when possible.
         """
-        resource = endpoint
-        if model:
-            resource += "/%s" % model
         # Reuse the service of the application as we tag the downstream requests/aiohttp spans with the service
         # `openai`. Eventually those should also be internal service spans once peer.service is implemented.
-        span = pin.tracer.trace("openai.request", resource=resource, service=trace_utils.int_service(pin, self._config))
+        span = pin.tracer.trace(
+            "openai.request", resource=operation_id, service=trace_utils.int_service(pin, self._config)
+        )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
 
         self.set_base_span_tags(span)
 
-        span.set_tag_str("openai.endpoint", endpoint)
-        if model:
-            span.set_tag_str("openai.model", model)
         return span
 
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        tags = (
-            "env:%s,version:%s,openai.endpoint:%s,openai.model:%s,openai.organization.name:%s,openai.user.api_key:%s"
-            % (
-                (config.env or ""),
-                (config.version or ""),
-                (span.get_tag("openai.endpoint") or ""),
-                (span.get_tag("openai.model") or ""),
-                (span.get_tag("openai.organization.name") or ""),
-                (span.get_tag("openai.user.api_key") or ""),
-            )
+        tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.model:%s,openai.organization.name:%s,openai.user.api_key:%s" % (
+            (config.env or ""),
+            (config.version or ""),
+            (span.get_tag("openai.request.endpoint") or ""),
+            (span.get_tag("openai.request.model") or ""),
+            (span.get_tag("openai.organization.name") or ""),
+            (span.get_tag("openai.user.api_key") or ""),
         )
 
         log = {
@@ -155,8 +148,8 @@ class _OpenAIIntegration:
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "openai.model:%s" % (span.get_tag("openai.model") or ""),
-            "openai.endpoint:%s" % (span.get_tag("openai.endpoint") or ""),
+            "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
             "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
@@ -392,6 +385,18 @@ def patch():
             openai.api_resources.fine_tune.FineTune.acreate,
             _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCreateHook),
         )
+        _wrap_classmethod(
+            openai.api_resources.fine_tune.FineTune.list_events,
+            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.fine_tune.FineTune.cancel,
+            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneCancelHook),
+        )
+        _wrap_classmethod(
+            openai.api_resources.fine_tune.FineTune.acancel,
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
+        )
 
     setattr(openai, "__datadog_patch", True)
 
@@ -415,8 +420,7 @@ def _patched_make_session(func, args, kwargs):
 
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
-    endpoint = getattr(args[0], "OBJECT_NAME", endpoint_hook._default_name)
-    span = integration.trace(pin, endpoint, kwargs.get("model"))
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     if openai_api_key:
         # API key can either be set on the import or per request
