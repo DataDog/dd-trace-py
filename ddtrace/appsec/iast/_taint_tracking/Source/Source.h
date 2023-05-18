@@ -1,7 +1,3 @@
-//
-// Created by alberto.vara on 16/05/23.
-//
-
 #ifndef _TAINT_TRACKING_SOURCE_H
 #define _TAINT_TRACKING_SOURCE_H
 #include <sstream>

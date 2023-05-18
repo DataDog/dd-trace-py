@@ -1,7 +1,3 @@
-//
-// Created by alberto.vara on 16/05/23.
-//
-
 #ifndef _TAINT_TRACKING_TAINTRANGE_H
 #define _TAINT_TRACKING_TAINTRANGE_H
 #include <Python.h>
@@ -15,16 +11,16 @@
 
 struct TaintRange {
     PyObject_HEAD
-    long start{};
-    long length{};
-    Source source;
+    long start = -1;
+    long length = -1;
+    Source* source = nullptr;
 
     TaintRange() = default;
 
-    TaintRange(long start, long length, Source source)
+    TaintRange(long start, long length, Source* source)
             : start(start),
               length(length),
-              source(std::move(source)){}
+              source(source){}
 
     void reset();
 
@@ -47,8 +43,11 @@ TaintRange_dealloc(TaintRange *self)
 {
     Py_XDECREF(self->start);
     Py_XDECREF(self->length);
-    // TODO: dealloc source
-    //  Py_XDECREF(self->source);
+    if (self->source) {
+        Py_XDECREF(self->source);
+        delete self->source;
+        self->source = nullptr;
+    }
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -58,12 +57,12 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     TaintRange *self;
     self = (TaintRange *) type->tp_alloc(type, 0);
-    if (self != NULL) {
-//        self->source = Source();
-//        if (self->source == NULL) {
-//            Py_DECREF(self);
-//            return NULL;
-//        }
+    if (self != nullptr) {
+        self->source = new Source();
+        if (self->source == nullptr) {
+            Py_DECREF(self);
+            return nullptr;
+        }
 
         self->start = 0;
         self->length = 0;
@@ -74,20 +73,17 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"start", "length", "source", NULL};
-    PyObject *source = NULL, *tmp;
+    static char *kwlist[] = {"start", "length", "source", nullptr};
+    PyObject *pysource = nullptr;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", kwlist,
                                      &self->start, &self->length,
-                                     &source))
+                                     &pysource))
         return -1;
 
-    if (source) {
-        // TODO: assign source
-//        tmp = self->source;
-//        Py_INCREF(source);
-//        self->source = source;
-        Py_XDECREF(tmp);
+    if (pysource) {
+        self->source = (Source*)pysource;
+        Py_INCREF(self->source);
     }
 
     return 0;
@@ -96,13 +92,13 @@ TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 static PyObject *
 TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
 {
-    if (self->start == NULL) {
+    if (self->start == -1) {
         PyErr_SetString(PyExc_AttributeError, "start");
-        return NULL;
+        return nullptr;
     }
-    if (self->length == NULL) {
+    if (self->length == -1) {
         PyErr_SetString(PyExc_AttributeError, "length");
-        return NULL;
+        return nullptr;
     }
     return PyUnicode_FromFormat("%S", self->toString());
 }
@@ -113,18 +109,20 @@ static PyMemberDef TaintRange_members[] = {
                 "TaintRange last name"},
         {"start", T_INT, offsetof(TaintRange, start), 0,
                 "TaintRange start"},
-        {NULL}  /* Sentinel */
+        {"source", T_OBJECT, offsetof(TaintRange, source), 0,
+                "TaintRange source"},
+        {nullptr}  /* Sentinel */
 };
 
 static PyMethodDef TaintRange_methods[] = {
         {"to_string", (PyCFunction) TaintRange_to_string, METH_NOARGS,
                 "Return representation of a TaintRange"
         },
-        {NULL}  /* Sentinel */
+        {nullptr}  /* Sentinel */
 };
 
 static PyTypeObject TaintRangeType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
+        PyVarObject_HEAD_INIT(nullptr, 0)
         .tp_name = PY_MODULE_NAME_TAINTRANGES,
         .tp_basicsize = sizeof(TaintRange),
         .tp_itemsize = 0,

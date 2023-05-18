@@ -1,7 +1,3 @@
-//
-// Created by alberto.vara on 16/05/23.
-//
-
 #include "Source.h"
 
 const char *Source::toString() const {
