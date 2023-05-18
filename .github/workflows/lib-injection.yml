@@ -82,6 +82,11 @@ jobs:
             --platform manylinux2014 \
             --output-dir ddtrace_pkgs \
             --verbose
+      - name: Ensure the correct ddtrace version is installed
+        run: |
+          export inject_dir=$(pwd)
+          cd /tmp
+          PYTHONPATH=$inject_dir/lib-injection python -c "import ddtrace; exit(1) if ddtrace._version.version_tuple[:2] != (1, 10) else exit()"
       - name: Build test app
         run: |
           docker build \

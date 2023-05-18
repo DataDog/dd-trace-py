@@ -1,4 +1,7 @@
+print("ddtrace imported: %s" % (__file__,))
 import sys
+
+print(sys.executable)
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
@@ -40,6 +43,7 @@ __version__ = get_version()
 
 # a global tracer instance with integration settings
 tracer = Tracer()
+print("ddtrace import complete: %s" % (__file__,))
 
 __all__ = [
     "patch",

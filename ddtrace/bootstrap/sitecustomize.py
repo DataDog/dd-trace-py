@@ -2,6 +2,8 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+print("ddtrace-run sitecustomize started: %s" % (__file__,))
+
 from ddtrace import LOADED_MODULES  # isort:skip
 
 import logging  # noqa
@@ -272,3 +274,4 @@ try:
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)
+print("ddtrace-run sitecustomize complete: %s" % (__file__,))
