@@ -13,8 +13,8 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
+from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -954,27 +954,27 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
 
 def test_est_tokens():
     """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
-    est = _patch._est_tokens
-    assert est("") == 0  # oracle: 1
-    assert est("hello") == 1  # oracle: 1
-    assert est("hello, world") == 3  # oracle: 3
-    assert est("hello world") == 2  # oracle: 2
-    assert est("Hello world, how are you?") == 6  # oracle: 7
-    assert est("    hello    ") == 3  # oracle: 8
+    _est_tokens
+    assert _est_tokens("") == 0  # oracle: 1
+    assert _est_tokens("hello") == 1  # oracle: 1
+    assert _est_tokens("hello, world") == 3  # oracle: 3
+    assert _est_tokens("hello world") == 2  # oracle: 2
+    assert _est_tokens("Hello world, how are you?") == 6  # oracle: 7
+    assert _est_tokens("    hello    ") == 3  # oracle: 8
     assert (
-        est(
+        _est_tokens(
             "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."  # noqa E501
         )
         == 54
     )  # oracle: 44
     assert (
-        est(
+        _est_tokens(
             "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."  # noqa: E501
         )
         == 33
     )  # oracle: 33
     assert (
-        est(
+        _est_tokens(
             "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
             "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
             "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
@@ -985,7 +985,7 @@ def test_est_tokens():
 
     # Expected to be a disparity since our assumption is based on english words
     assert (
-        est(
+        _est_tokens(
             """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
  maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
  vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
@@ -998,7 +998,7 @@ def test_est_tokens():
     )  # oracle 281
 
     assert (
-        est(
+        _est_tokens(
             "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"  # noqa: E501
         )
         == 97

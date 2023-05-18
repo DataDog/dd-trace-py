@@ -132,7 +132,7 @@ class _CompletionHook(_BaseCompletionHook):
             elif prompt:
                 for idx, p in enumerate(prompt):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(p))
-        if "stream" in kwargs and kwargs["stream"]:
+        if kwargs.get("stream"):
             prompt = kwargs.get("prompt", "")
             num_prompt_tokens = 0
             if isinstance(prompt, str):
@@ -144,30 +144,31 @@ class _CompletionHook(_BaseCompletionHook):
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        if resp and not kwargs.get("stream"):
-            if "choices" in resp:
-                choices = resp["choices"]
-                span.set_tag("openai.response.choices.num", len(choices))
-                for choice in choices:
-                    idx = choice["index"]
-                    if "finish_reason" in choice:
-                        span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
-                    if "logprobs" in choice:
-                        span.set_tag_str("openai.response.choices.%d.logprobs" % idx, "returned")
-                    if integration.is_pc_sampled_span(span):
-                        span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
-            integration.record_usage(span, resp.get("usage"))
-            if integration.is_pc_sampled_log(span):
-                prompt = kwargs.get("prompt", "")
-                integration.log(
-                    span,
-                    "info" if error is None else "error",
-                    "sampled %s" % self._default_name,
-                    attrs={
-                        "prompt": prompt,
-                        "choices": resp["choices"] if resp and "choices" in resp else [],
-                    },
-                )
+        if not resp or kwargs.get("stream"):
+            return self._handle_response(pin, span, integration, resp)
+        if "choices" in resp:
+            choices = resp["choices"]
+            span.set_tag("openai.response.choices.num", len(choices))
+            for choice in choices:
+                idx = choice["index"]
+                if "finish_reason" in choice:
+                    span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
+                if "logprobs" in choice:
+                    span.set_tag_str("openai.response.choices.%d.logprobs" % idx, "returned")
+                if integration.is_pc_sampled_span(span):
+                    span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
+        integration.record_usage(span, resp.get("usage"))
+        if integration.is_pc_sampled_log(span):
+            prompt = kwargs.get("prompt", "")
+            integration.log(
+                span,
+                "info" if error is None else "error",
+                "sampled %s" % self._default_name,
+                attrs={
+                    "prompt": prompt,
+                    "choices": resp["choices"] if resp and "choices" in resp else [],
+                },
+            )
         return self._handle_response(pin, span, integration, resp)
 
 
@@ -187,14 +188,14 @@ class _ChatCompletionHook(_BaseCompletionHook):
     _default_name = "chat.completions"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        messages = kwargs.get("messages")
-        if messages and integration.is_pc_sampled_span(span):
+        messages = kwargs.get("messages", [])
+        if integration.is_pc_sampled_span(span):
             for idx, m in enumerate(messages):
                 content = integration.trunc(m.get("content", ""))
                 role = integration.trunc(m.get("role", ""))
                 span.set_tag_str("openai.request.messages.%d.content" % idx, content)
                 span.set_tag_str("openai.request.messages.%d.role" % idx, role)
-        if "stream" in kwargs and kwargs["stream"]:
+        if kwargs.get("stream"):
             # streamed responses do not have a usage field, so we have to
             # estimate the number of tokens returned.
             est_num_message_tokens = 0
@@ -204,33 +205,34 @@ class _ChatCompletionHook(_BaseCompletionHook):
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        if resp and not kwargs.get("stream"):
-            choices = resp.get("choices", [])
-            for choice in choices:
-                idx = choice["index"]
-                span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                if integration.is_pc_sampled_span(span) and choice.get("message"):
-                    span.set_tag(
-                        "openai.response.choices.%d.message.content" % idx,
-                        integration.trunc(choice.get("message").get("content")),
-                    )
-                    span.set_tag(
-                        "openai.response.choices.%d.message.role" % idx,
-                        integration.trunc(choice.get("message").get("role")),
-                    )
-            integration.record_usage(span, resp.get("usage"))
-
-            if integration.is_pc_sampled_log(span):
-                messages = kwargs.get("messages")
-                integration.log(
-                    span,
-                    "info" if error is None else "error",
-                    "sampled %s" % self._default_name,
-                    attrs={
-                        "messages": messages,
-                        "completion": choices,
-                    },
+        if not resp or kwargs.get("stream"):
+            return self._handle_response(pin, span, integration, resp)
+        choices = resp.get("choices", [])
+        for choice in choices:
+            idx = choice["index"]
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
+            if integration.is_pc_sampled_span(span) and choice.get("message"):
+                span.set_tag(
+                    "openai.response.choices.%d.message.content" % idx,
+                    integration.trunc(choice.get("message").get("content")),
                 )
+                span.set_tag(
+                    "openai.response.choices.%d.message.role" % idx,
+                    integration.trunc(choice.get("message").get("role")),
+                )
+        integration.record_usage(span, resp.get("usage"))
+
+        if integration.is_pc_sampled_log(span):
+            messages = kwargs.get("messages")
+            integration.log(
+                span,
+                "info" if error is None else "error",
+                "sampled %s" % self._default_name,
+                attrs={
+                    "messages": messages,
+                    "completion": choices,
+                },
+            )
         return self._handle_response(pin, span, integration, resp)
 
 
@@ -623,5 +625,4 @@ class _FineTuneCreateHook(_EndpointHook):
                 span.set_tag("openai.response.validation_files.%d.%s" % (idx, k), v)
         span.set_tag("openai.response.created_at", resp.get("created_at", ""))
         span.set_tag("openai.response.updated_at", resp.get("updated_at", ""))
-
         return resp
