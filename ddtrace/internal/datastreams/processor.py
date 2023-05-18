@@ -11,6 +11,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
+from typing import NamedTuple
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
@@ -72,6 +73,7 @@ class Bucket(NamedTuple):
     latest_produce_offsets: DefaultDict[PartitionKey, int]
     latest_commit_offsets: DefaultDict[ConsumerPartitionKey, int]
 
+
 class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
@@ -86,7 +88,9 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
+        self._buckets = defaultdict(
+            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
+        )  # type: DefaultDict[int, Bucket]
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
@@ -132,8 +136,9 @@ class DataStreamsProcessor(PeriodicService):
         key = PartitionKey(topic, partition)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(offset, self._buckets[bucket_time_ns].latest_produce_offsets[key])
-
+            self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(
+                offset, self._buckets[bucket_time_ns].latest_produce_offsets[key]
+            )
 
     def track_kafka_commit(self, group, topic, partition, offset, now_sec):
         print("tracking kafka commit", group, topic, partition, offset, now_sec)
@@ -141,7 +146,9 @@ class DataStreamsProcessor(PeriodicService):
         key = ConsumerPartitionKey(group, topic, partition)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(offset, self._buckets[bucket_time_ns].latest_commit_offsets[key])
+            self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(
+                offset, self._buckets[bucket_time_ns].latest_commit_offsets[key]
+            )
 
     def _serialize_buckets(self):
         # type: () -> List[Dict]
@@ -166,14 +173,19 @@ class DataStreamsProcessor(PeriodicService):
             for key, offset in bucket.latest_commit_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": ["type:kafka_commit", "consumer_group:"+key.group, "topic:"+key.topic, "partition:"+str(key.partition)],
+                        u"Tags": [
+                            "type:kafka_commit",
+                            "consumer_group:" + key.group,
+                            "topic:" + key.topic,
+                            "partition:" + str(key.partition),
+                        ],
                         u"Value": offset,
                     }
                 )
             for key, offset in bucket.latest_produce_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": ["type:kafka_produce", "topic:"+key.topic, "partition:"+str(key.partition)],
+                        u"Tags": ["type:kafka_produce", "topic:" + key.topic, "partition:" + str(key.partition)],
                         u"Value": offset,
                     }
                 )

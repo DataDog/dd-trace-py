@@ -102,17 +102,20 @@ def traced_produce(func, instance, args, kwargs):
         headers = kwargs.get("headers", {})
         pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
         headers[PROPAGATION_KEY] = pathway.encode()
-        kwargs['headers'] = headers
-        on_delivery = kwargs.get("callback", None)
+        kwargs["headers"] = headers
+        on_delivery = kwargs.get("on_delivery", None)
 
         def wrapped_callback(err, msg):
             print("callback called")
             if err is None:
-                pin.tracer.data_streams_processor.track_kafka_produce(msg.topic(), msg.partition(), msg.offset() or -1, time.time())
+                pin.tracer.data_streams_processor.track_kafka_produce(
+                    msg.topic(), msg.partition(), msg.offset() or -1, time.time()
+                )
             if on_delivery is not None:
                 on_delivery(err, msg)
+
         print("setting callback")
-        kwargs['callback'] = wrapped_callback
+        kwargs["on_delivery"] = wrapped_callback
 
     with pin.tracer.trace(
         kafkax.PRODUCE,
@@ -183,5 +186,7 @@ def traced_commit(func, instance, args, kwargs):
         if message is not None:
             offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
         for offset in offsets:
-            pin.tracer.data_streams_processor.track_kafka_commit(instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time())
+            pin.tracer.data_streams_processor.track_kafka_commit(
+                instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
+            )
     return func(*args, **kwargs)
