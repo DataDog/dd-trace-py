@@ -224,9 +224,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
-    @property
-    def _intake_endpoint(self):
-        return "{}/{}".format(self.intake_url, self._endpoint)
+    def _intake_endpoint(self, client=None):
+        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
 
     @property
     def _endpoint(self):
@@ -235,6 +234,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     @property
     def _encoder(self):
         return self._clients[0].encoder
+
+    def _intake_url(self, client=None):
+        if client and hasattr(client, "_intake_url"):
+            return client._intake_url
+        return self.intake_url
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -281,7 +285,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
-                self._conn = get_connection(self.intake_url, self._timeout)
+                self._conn = get_connection(self._intake_url(client), self._timeout)
             try:
                 log.debug("Sending request: %s %s %s %s", self.HTTP_METHOD, client.ENDPOINT, data, headers)
                 self._conn.request(
@@ -297,7 +301,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -330,7 +334,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
             log_args = (
-                self._intake_endpoint,
+                self._intake_endpoint(client),
                 response.status,
                 response.reason,
             )
@@ -432,7 +436,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.error(
                     "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
                     n_traces,
-                    self._intake_endpoint,
+                    self._intake_endpoint(client),
                     e.last_attempt.attempt_number,
                     e.last_attempt.exception(),
                 )
@@ -590,7 +594,7 @@ class AgentWriter(HTTPWriter):
 
     @property
     def _agent_endpoint(self):
-        return self._intake_endpoint
+        return self._intake_endpoint(client=None)
 
     def _downgrade(self, payload, response, client):
         if client.ENDPOINT == "v0.5/traces":
