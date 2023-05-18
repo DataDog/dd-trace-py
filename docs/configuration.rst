@@ -396,7 +396,7 @@ The following environment variables for the tracer are supported:
      type: String
      description:
          Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
-         each item can take fnmatch-style wildcards, for example: "*ssn*,*personalid*,*idcard*,*creditcard*".
+         each item can take fnmatch-style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
    DD_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
