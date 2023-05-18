@@ -44,7 +44,7 @@ class CIVisibilityCoverageClient(WriterClientBase):
 
     def __init__(self, intake_url):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
-        self.intake_url = intake_url
+        self._intake_url = intake_url
         super(CIVisibilityCoverageClient, self).__init__(encoder)
 
 
