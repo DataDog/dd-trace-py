@@ -10,8 +10,9 @@ from typing import cast
 
 
 if typing.TYPE_CHECKING:
+    from types import ModuleType
     from typing import Any
-    from typing import Callabe
+    from typing import Callable
     from typing import DefaultDict
     from typing import Dict
     from typing import Iterator
@@ -32,7 +33,6 @@ from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
-
 
 
 _run_code = None

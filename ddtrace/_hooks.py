@@ -9,10 +9,11 @@ import attr
 
 from .internal.logger import get_logger
 
+
 try:
     from typing import DefaultDict
 except ImportError:
-    from typing import Dict as DefaultDict
+    from collections import defaultdict as DefaultDict
 
 log = get_logger(__name__)
 
