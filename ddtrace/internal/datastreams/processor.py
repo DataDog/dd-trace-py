@@ -92,8 +92,9 @@ class DataStreamsProcessor(PeriodicService):
         )
         self.start()
 
-    def on_checkpoint_creation(self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec,
-                               full_pathway_latency_sec):
+    def on_checkpoint_creation(
+        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec
+    ):
         # type: (int, int, List[str], float, float, float) -> None
         if not self._enabled:
             return
@@ -110,8 +111,7 @@ class DataStreamsProcessor(PeriodicService):
 
     def _serialize_buckets(self):
         # type: () -> List[Dict]
-        """Serialize and update the buckets.
-        """
+        """Serialize and update the buckets."""
         serialized_buckets = []
         serialized_bucket_keys = []
         for bucket_time_ns, bucket in self._buckets.items():
@@ -153,9 +153,7 @@ class DataStreamsProcessor(PeriodicService):
             raise
         else:
             if resp.status == 404:
-                log.error(
-                    "Datadog agent does not support data streams monitoring, disabling, please upgrade your agent to 7.34+"
-                )
+                log.error("Datadog agent does not support data streams monitoring. Upgrade to 7.34+")
                 self._enabled = False
                 return
             elif resp.status >= 400:
@@ -205,7 +203,7 @@ class DataStreamsProcessor(PeriodicService):
     def decode_pathway(self, data):
         # type: (bytes) -> DataStreamsCtx
         try:
-            hash_value = struct.unpack('<Q', data[:8])[0]
+            hash_value = struct.unpack("<Q", data[:8])[0]
             data = data[8:]
             pathway_start_ms, data = decode_var_int_64(data)
             current_edge_start_ms, data = decode_var_int_64(data)
@@ -213,12 +211,12 @@ class DataStreamsProcessor(PeriodicService):
             # reset context of current thread everytime we decode
             self._current_context.value = ctx
             return ctx
-        except:
+        except EOFError:
             return self.new_pathway()
 
     def new_pathway(self):
         # type: () -> DataStreamsCtx
-        now_sec=time.time()
+        now_sec = time.time()
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
@@ -229,6 +227,7 @@ class DataStreamsProcessor(PeriodicService):
             self._current_context.value = ctx
         ctx.set_checkpoint(tags)
         return ctx
+
 
 class DataStreamsCtx:
     def __init__(self, processor, hash_value, pathway_start_sec, current_edge_start_sec):
@@ -242,9 +241,11 @@ class DataStreamsCtx:
 
     def encode(self):
         # type: () -> bytes
-        return struct.pack('<Q', self.hash) + \
-            encode_var_int_64(int(self.pathway_start_sec * 1e3)) + \
-            encode_var_int_64(int(self.current_edge_start_sec * 1e3))
+        return (
+            struct.pack("<Q", self.hash)
+            + encode_var_int_64(int(self.pathway_start_sec * 1e3))
+            + encode_var_int_64(int(self.current_edge_start_sec * 1e3))
+        )
 
     def set_checkpoint(self, tags):
         # type: (List[str]) -> None
@@ -260,5 +261,6 @@ class DataStreamsCtx:
         pathway_latency_sec = now_sec - self.pathway_start_sec
         self.hash = hash_value
         self.current_edge_start_sec = now_sec
-        self.processor.on_checkpoint_creation(hash_value, parent_hash, tags, now_sec, edge_latency_sec,
-                                              pathway_latency_sec)
+        self.processor.on_checkpoint_creation(
+            hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec
+        )

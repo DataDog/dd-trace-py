@@ -1017,7 +1017,7 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
             if config._data_streams_enabled:
-                self.data_streams_processor.shutdown()
+                self.data_streams_processor.shutdown(timeout)
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
