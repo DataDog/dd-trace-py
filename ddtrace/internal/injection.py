@@ -53,7 +53,7 @@ def _inject_hook(code, hook, lineno, arg):
                 Instr("POP_TOP", lineno=lineno),
             ]
         )
-    elif sys.version_info[:2] > (3, 11):
+    elif PY > (3, 11):
         code[i:i] = Bytecode(
             [
                 Instr("PUSH_NULL", lineno=lineno),
