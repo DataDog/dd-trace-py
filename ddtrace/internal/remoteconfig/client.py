@@ -34,6 +34,7 @@ from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Callable
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
@@ -221,6 +222,16 @@ class RemoteConfigClient(object):
             self._products[product_name] = pubsub_instance
         else:
             self._products.pop(product_name, None)
+
+    def update_product_callback(self, product_name, callback):
+        # type: (str, Callable) -> bool
+        pubsub_instance = self._products.get(product_name)
+        if pubsub_instance:
+            pubsub_instance._subscriber._callback = callback
+            if not self.is_subscriber_running(pubsub_instance):
+                pubsub_instance.start_subscriber()
+            return True
+        return False
 
     def unregister_product(self, product_name):
         # type: (str) -> None

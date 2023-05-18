@@ -157,6 +157,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
+    def update_product_callback(self, product, callback):
+        return self._client.update_product_callback(product, callback)
+
     def register(self, product, pubsub_instance, skip_enabled=False):
         # type: (str, PubSub, bool) -> None
         try:
