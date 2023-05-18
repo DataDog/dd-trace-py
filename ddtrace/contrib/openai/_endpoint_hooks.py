@@ -23,7 +23,6 @@ class _EndpointHook:
         self._pre_response(pin, integration, span, args, kwargs)
         self._record_request(span, kwargs)
         resp, error = yield
-        span.set_tag("openai.response.object", self._default_name)
         return self._post_response(pin, integration, span, args, kwargs, resp, error)
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -159,6 +158,7 @@ class _CompletionHook(_BaseCompletionHook):
                         span.set_tag_str("openai.response.choices.%d.logprobs" % idx, "returned")
                     if integration.is_pc_sampled_span(span):
                         span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
+            span.set_tag("openai.response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
             if integration.is_pc_sampled_log(span):
                 prompt = kwargs.get("prompt", "")
@@ -224,6 +224,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                         "openai.response.choices.%d.message.role" % idx,
                         integration.trunc(choice.get("message").get("role")),
                     )
+            span.set_tag("openai.response.object", resp["object"])
             integration.record_usage(span, resp.get("usage"))
 
             if integration.is_pc_sampled_log(span):
