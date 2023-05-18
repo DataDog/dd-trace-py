@@ -6,6 +6,7 @@ from os.path import isfile
 from os.path import join
 import sys
 import typing
+from typing import cast
 
 
 if typing.TYPE_CHECKING:

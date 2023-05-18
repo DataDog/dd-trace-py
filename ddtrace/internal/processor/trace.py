@@ -1,7 +1,6 @@
 import abc
 from collections import defaultdict
 import threading
-from typing import DefaultDict
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -25,6 +24,11 @@ from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
 
+
+try:
+    from typing import DefaultDict
+except ImportError:
+    from typing import Dict as DefaultDict
 
 log = get_logger(__name__)
 
