@@ -4,6 +4,7 @@ See http://isthe.com/chongo/tech/comp/fnv/
 """
 import sys
 
+
 FNV_64_PRIME = 0x100000001B3
 FNV1_64_INIT = 0xCBF29CE484222325
 

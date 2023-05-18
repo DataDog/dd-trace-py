@@ -1,11 +1,16 @@
 # coding: utf-8
-import gzip
-import threading
 from collections import defaultdict
+import gzip
 import os
-import typing
-import time
 import struct
+import threading
+import time
+import typing
+from typing import DefaultDict
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
@@ -14,10 +19,9 @@ import tenacity
 
 import ddtrace
 from ddtrace import config
-from .encoding import decode_var_int_64, encode_var_int_64
+
 from .._encoding import packb
 from ..agent import get_connection
-from .fnv import fnv1_64
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..forksafe import Lock
@@ -25,11 +29,10 @@ from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
-from typing import DefaultDict
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Union
+from .encoding import decode_var_int_64
+from .encoding import encode_var_int_64
+from .fnv import fnv1_64
+
 
 log = get_logger(__name__)
 

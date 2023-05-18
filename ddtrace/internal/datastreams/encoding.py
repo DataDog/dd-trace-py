@@ -1,6 +1,7 @@
 import struct
 from typing import Tuple
 
+
 MAX_VAR_LEN_64 = 9
 
 

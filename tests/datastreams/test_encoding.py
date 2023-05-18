@@ -1,4 +1,5 @@
-from ddtrace.internal.datastreams.encoding import encode_var_int_64, decode_var_int_64
+from ddtrace.internal.datastreams.encoding import decode_var_int_64
+from ddtrace.internal.datastreams.encoding import encode_var_int_64
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
 

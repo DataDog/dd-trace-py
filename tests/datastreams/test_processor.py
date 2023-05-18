@@ -1,5 +1,6 @@
-from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 import time
+
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
 
 def test_data_streams_processor():
