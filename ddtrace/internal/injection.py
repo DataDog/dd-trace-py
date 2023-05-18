@@ -8,6 +8,8 @@ from typing import Tuple
 from bytecode import Bytecode
 from bytecode import Instr
 
+from .compat import PYTHON_VERSION_INFO as PY
+
 
 HookType = Callable[[Any], Any]
 HookInfoType = Tuple[HookType, int, Any]
@@ -44,7 +46,7 @@ def _inject_hook(code, hook, lineno, arg):
     # >>> hook(arg)
     # Additionally, we must discard the return value (top of the stack) to
     # restore the stack to the state prior to the call.
-    if sys.version_info[:2] < (3, 11):
+    if PY < (3, 11):
         code[i:i] = Bytecode(
             [
                 Instr("LOAD_CONST", hook, lineno=lineno),
@@ -79,13 +81,13 @@ def _inject_hook(code, hook, lineno, arg):
 
 # Default to Python 3.11 opcodes
 _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
-if sys.version_info[:2] < (3, 11):
+if PY < (3, 11):
     _INJECT_HOOK_OPCODES = ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-elif sys.version_info[:2] > (3, 11):
+elif PY > (3, 11):
     _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "CALL", "POP_TOP"]
 
-_INJECT_HOOK_OPCODE_POS = 0 if sys.version_info < (3, 11) else 1
-_INJECT_ARG_OPCODE_POS = 1 if sys.version_info < (3, 11) else 2
+_INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
+_INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
 
 
 def _eject_hook(code, hook, line, arg):
