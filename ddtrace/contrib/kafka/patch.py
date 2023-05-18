@@ -17,6 +17,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 
 
@@ -46,6 +47,8 @@ class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config):
         super(TracedConsumer, self).__init__(config)
         self._group_id = config["group.id"]
+        # By default, auto commits are enabled.
+        self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
     def poll(self, timeout=1):
         return super(TracedConsumer, self).poll(timeout)
@@ -160,6 +163,13 @@ def traced_poll(func, instance, args, kwargs):
                 ctx.set_checkpoint(
                     ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
                 )
+                if instance._auto_commit:
+                    # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
+                    # when it's read.
+                    pin.tracer.data_streams_processor.track_kafka_commit(
+                        instance._group_id, message.topic(), message.partition(), message.offset() or -1, time.time()
+                    )
+
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
