@@ -16,6 +16,7 @@ from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_BASE_URL
+from .constants import AGENTLESS_COV_BASE_URL
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import AGENTLESS_ENDPOINT
 from .constants import EVP_PROXY_AGENT_ENDPOINT
@@ -41,8 +42,9 @@ class CIVisibilityEventClient(WriterClientBase):
 class CIVisibilityCoverageClient(WriterClientBase):
     ENDPOINT = "api/v2/citestcov"
 
-    def __init__(self):
+    def __init__(self, intake_url):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
+        self._intake_url = intake_url
         super(CIVisibilityCoverageClient, self).__init__(encoder)
 
 
@@ -76,14 +78,16 @@ class CIVisibilityWriter(HTTPWriter):
     ):
         if config._ci_visibility_agentless_url:
             intake_url = config._ci_visibility_agentless_url
+            intake_cov_url = config._ci_visibility_agentless_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+            intake_cov_url = "%s.%s" % (AGENTLESS_COV_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
         if coverage_enabled():
-            clients.append(CIVisibilityCoverageClient())
+            clients.append(CIVisibilityCoverageClient(intake_url=intake_cov_url))
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,

@@ -3,6 +3,7 @@ import base64
 from datetime import datetime
 import hashlib
 import json
+import os
 import re
 import sys
 from typing import Any
@@ -28,6 +29,7 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 
+from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
 
 
@@ -205,6 +207,9 @@ class RemoteConfigClient(object):
         self.agent_url = agent_url = agent.get_trace_url()
         self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
         self._headers = {"content-type": "application/json"}
+        additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
         container_info = container.get_container_info()
         if container_info is not None:
