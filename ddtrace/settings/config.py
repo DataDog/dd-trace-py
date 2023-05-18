@@ -278,6 +278,8 @@ class Config(object):
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
         except (TypeError, ValueError):
             pass
+        wildcards = os.getenv("DD_APPSEC_SUBPROCESS_EXEC_SENSITIVE_WILDCARDS", None)
+        self._subexec_sensitive_user_wildcards = wildcards.split(",") if wildcards else []
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT

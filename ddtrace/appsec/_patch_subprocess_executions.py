@@ -122,7 +122,7 @@ class SubprocessCmdLine(object):
         "md5",
     }
 
-    SENSITIVE_WORDS_WILDCARDS = (
+    SENSITIVE_WORDS_WILDCARDS = [
         "*password*",
         "*passwd*",
         "*mysql_pwd*",
@@ -133,7 +133,7 @@ class SubprocessCmdLine(object):
         "*secret*",
         "*credentials*",
         "stripetoken",
-    )
+    ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
     def __init__(self, shell_args, shell=False):
@@ -205,7 +205,7 @@ class SubprocessCmdLine(object):
         deque_args = collections.deque(self.arguments)
         while deque_args:
             current = deque_args[0]
-            for sensitive in self.SENSITIVE_WORDS_WILDCARDS:
+            for sensitive in self.SENSITIVE_WORDS_WILDCARDS + config._subexec_sensitive_user_wildcards:
                 if fnmatch(current, sensitive):
                     is_sensitive = True
                     break

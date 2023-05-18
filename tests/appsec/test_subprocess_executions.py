@@ -13,7 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
-from tests.utils import override_global_config
+from tests.utils import override_global_config, override_env
 
 
 @pytest.fixture(autouse=True)
@@ -142,11 +142,30 @@ def test_argument_scrubing(cmdline_obj, arguments):
     assert cmdline_obj.arguments == arguments
 
 
+def test_argument_scrubing_user():
+    with override_global_config({"_subexec_sensitive_user_wildcards": ["*custom_scrub*", "*myscrub*"]}):
+        cmdline_obj = SubprocessCmdLine(
+            [
+                "binary",
+                "-passwd",
+                "SCRUB",
+                "-d bar",
+                "--custom_scrubed",
+                "SCRUB",
+                "--foomyscrub",
+                "SCRUB",
+            ],
+            shell=False,
+        )
+        assert cmdline_obj.arguments == ["-passwd", "?", "-d bar", "--custom_scrubed",
+                                         "?", "--foomyscrub", "?"]
+
+
 @pytest.mark.parametrize(
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
+                SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
             'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
             ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
             True,
