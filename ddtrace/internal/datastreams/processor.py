@@ -224,8 +224,9 @@ class DataStreamsProcessor(PeriodicService):
         return ctx
 
     def set_checkpoint(self, tags):
-        ctx = self._current_context.value
-        if ctx is None:
+        if hasattr(self._current_context, "value"):
+            ctx = self._current_context.value
+        else:
             ctx = self.new_pathway()
             self._current_context.value = ctx
         ctx.set_checkpoint(tags)
