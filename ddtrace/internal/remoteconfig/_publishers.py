@@ -42,8 +42,8 @@ class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
 
 
 class RemoteConfigPublisher(RemoteConfigPublisherBase):
-    """Standard Remote Config Publisher: each time Remote Config Client receives a new payload, RemoteConfigPublisher
-    shared it to all process.
+    """Standard Remote Config Publisher: each time Remote Config Client receives new payloads, RemoteConfigPublisher
+    shared them to all process. Dynamic Instrumentation uses this class
     """
 
     def __init__(self, data_connector, preprocess_func=None):
@@ -59,7 +59,9 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         # type: (Optional[Any]) -> None
         from attr import asdict
 
-        # if self._preprocess_results_func:
+        # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
+        #  lines if a new product need it
+        #  if self._preprocess_results_func:
         #     config = self._preprocess_results_func(config, pubsub_instance)
 
         log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), self._config_and_metadata)
@@ -71,15 +73,15 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         self._config_and_metadata = []
 
 
-class RemoteConfigPublisherMergeFirst(RemoteConfigPublisherBase):
+class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
     """Each time Remote Config Client receives a new payload, Publisher stores the target file path and its payload.
     When the Client finishes to update/add the configuration, Client calls to `publisher.dispatch` which merges all
-    payloads and send it to the subscriber
+    payloads and send it to the subscriber. ASM uses this class
     """
 
     def __init__(self, data_connector, preprocess_func):
         # type: (PublisherSubscriberConnector, PreprocessFunc) -> None
-        super(RemoteConfigPublisherMergeFirst, self).__init__(data_connector, preprocess_func)
+        super(RemoteConfigPublisherMergeDicts, self).__init__(data_connector, preprocess_func)
         self._configs = {}  # type: Dict[str, Any]
 
     def append(self, config_content, target, config_metadata=None):

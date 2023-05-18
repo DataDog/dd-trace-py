@@ -102,8 +102,9 @@ class PubSub(object):
         # type: () -> None
         self._publisher.dispatch(self)
 
-    def append_and_publish(self, config_content=None, target="", config_metadata=None, test_tracer=None):
-        # type: (Optional[Any], str, Optional[Any], Optional[Tracer]) -> None
+    def append_and_publish(self, config_content=None, target="", config_metadata=None):
+        # type: (Optional[Any], str, Optional[Any]) -> None
+        """Append data to publisher and send the data to subscriber. It's a shortcut for testing propose"""
         self.append(config_content, target, config_metadata)
         self.publish()
 

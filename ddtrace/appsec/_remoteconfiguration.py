@@ -8,7 +8,7 @@ from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -34,7 +34,7 @@ log = get_logger(__name__)
 
 class AppSecRC(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
-    __publisher_class__ = RemoteConfigPublisherMergeFirst
+    __publisher_class__ = RemoteConfigPublisherMergeDicts
     __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):

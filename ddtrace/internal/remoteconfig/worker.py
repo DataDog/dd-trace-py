@@ -99,17 +99,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def start_subscribers(self):
         # type: () -> None
-        """
-        Disable the remote config service and drop, remote config can be re-enabled
-        by calling ``enable`` again.
-        """
+        """Subscribers need to be restarted when application forks"""
         self._enable = False
-        log.debug(
-            "[%s][P: %s][P2: %s]  Remote Config Poller fork. Starting Pubsub services",
-            os.getpid(),
-            os.getppid(),
-            self._parent_id,
-        )
+        log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
         for pubsub in self._client.get_pubsubs():
             pubsub.restart_subscriber()
 
@@ -145,9 +137,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         self.stop()
 
-    # def on_shutdown(self):
-    #     self.disable()
-
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
         self.stop_subscribers()
@@ -158,6 +147,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
     def update_product_callback(self, product, callback):
+        """Some Products fork and restart their instances when application creates new process. In that case,
+        we need to update the callback instance to ensure the instance of the child process receives correctly the
+        Remote Configuration payloads.
+        """
         return self._client.update_product_callback(product, callback)
 
     def register(self, product, pubsub_instance, skip_enabled=False):
