@@ -39,8 +39,8 @@ class TracedProducer(confluent_kafka.Producer):
 
 
 class TracedConsumer(confluent_kafka.Consumer):
-    def __init__(self, config):
-        super(TracedConsumer, self).__init__(config)
+    def __init__(self, config, *args, **kwargs):
+        super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config["group.id"]
 
     def poll(self, timeout=1):
