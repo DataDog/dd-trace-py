@@ -1,10 +1,14 @@
 import collections
 import logging
 import os
-from typing import Any
-from typing import DefaultDict
-from typing import Tuple
+import typing
 from typing import cast
+
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+    from typing import DefaultDict
+    from typing import Tuple
 
 
 def get_logger(name):
