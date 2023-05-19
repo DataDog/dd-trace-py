@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "createImageEdit",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/images/edits",
+      "openai.request.image": "/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/tests/contrib/openai/images/image.png",
+      "openai.request.mask": "/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/tests/contrib/openai/images/mask.png",
+      "openai.request.method": "POST",
+      "openai.request.prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
+      "openai.request.response_format": "b64_json",
+      "openai.request.size": "1024x1024",
+      "openai.response.images.0.b64_json": "returned",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "1e20680c6c124519a112b92375d2e73b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.request.n": 1,
+      "openai.response.created": 1684522177,
+      "openai.response.images_count": 1,
+      "process_id": 82016
+    },
+    "duration": 12352490000,
+    "start": 1684522165657483000
+  }]]

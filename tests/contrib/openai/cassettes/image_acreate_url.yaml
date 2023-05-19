@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: '{"prompt": "sleepy capybara with monkey on top", "n": 1, "size": "256x256",
+      "response_format": "url"}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.6
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.6", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/images/generations
+  response:
+    body:
+      string: "{\n  \"created\": 1684510331,\n  \"data\": [\n    {\n      \"url\":
+        \"https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-CYVZaUekCSZIu5I1pTwCNYF3.png?st=2023-05-19T14%3A32%3A11Z&se=2023-05-19T16%3A32%3A11Z&sp=r&sv=2021-08-06&sr=b&rscd=inline&rsct=image/png&skoid=6aaadede-4fb3-4698-a8f6-684d7786b067&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2023-05-18T20%3A53%3A01Z&ske=2023-05-19T20%3A53%3A01Z&sks=b&skv=2021-08-06&sig=P3e81t81Id6G30s%2BtXBpdbybgH4ac8e6DyKReIbMf3U%3D\"\n
+        \   }\n  ]\n}\n"
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7c9d63ffb9f48c41-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 19 May 2023 15:32:11 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '5407'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - f610014dd7634a8cef8839fab4283eea
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/images/generations
+version: 1

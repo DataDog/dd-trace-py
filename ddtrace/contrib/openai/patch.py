@@ -21,13 +21,10 @@ from ...pin import Pin
 from ._logging import V2LogWriter
 from .utils import _format_openai_api_key
 
-
 if TYPE_CHECKING:
     from ddtrace import Span
 
-
 log = get_logger(__name__)
-
 
 config._add(
     "openai",
@@ -119,13 +116,17 @@ class _OpenAIIntegration:
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.model:%s,openai.organization.name:%s,openai.user.api_key:%s" % (
-            (config.env or ""),
-            (config.version or ""),
-            (span.get_tag("openai.request.endpoint") or ""),
-            (span.get_tag("openai.request.model") or ""),
-            (span.get_tag("openai.organization.name") or ""),
-            (span.get_tag("openai.user.api_key") or ""),
+        tags = (
+            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.model:%s,openai.organization.name:%s,"
+            "openai.user.api_key:%s"
+            % (
+                (config.env or ""),
+                (config.version or ""),
+                (span.get_tag("openai.request.endpoint") or ""),
+                (span.get_tag("openai.request.model") or ""),
+                (span.get_tag("openai.organization.name") or ""),
+                (span.get_tag("openai.user.api_key") or ""),
+            )
         )
 
         log = {
@@ -531,23 +532,23 @@ def _patched_convert(openai, integration):
         if val.get("x-ratelimit-limit-requests"):
             v = val.get("x-ratelimit-limit-requests")
             if v is not None:
-                integration.metric(span, "gauge", "ratelimit.requests", v)
+                integration.metric(span, "gauge", "ratelimit.requests", int(v))
         if val.get("x-ratelimit-limit-tokens"):
             v = val.get("x-ratelimit-limit-tokens")
             if v is not None:
-                integration.metric(span, "gauge", "ratelimit.tokens", v)
+                integration.metric(span, "gauge", "ratelimit.tokens", int(v))
 
         # Gauge and set span info for remaining requests and tokens
         if val.get("x-ratelimit-remaining-requests"):
             v = val.get("x-ratelimit-remaining-requests")
             if v is not None:
-                integration.metric(span, "gauge", "ratelimit.remaining.requests", v)
-                span.set_tag("openai.organization.ratelimit.requests.remaining", v)
+                integration.metric(span, "gauge", "ratelimit.remaining.requests", int(v))
+                span.set_metric("openai.organization.ratelimit.requests.remaining", int(v))
         if val.get("x-ratelimit-remaining-tokens"):
             v = val.get("x-ratelimit-remaining-tokens")
             if v is not None:
-                integration.metric(span, "gauge", "ratelimit.remaining.tokens", v)
-                span.set_tag("openai.organization.ratelimit.tokens.remaining", v)
+                integration.metric(span, "gauge", "ratelimit.remaining.tokens", int(v))
+                span.set_metric("openai.organization.ratelimit.tokens.remaining", int(v))
         return func(*args, **kwargs)
 
     return patched_convert

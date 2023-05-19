@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: '{"prompt": "sleepy capybara with monkey on top", "n": 1, "size": "256x256",
+      "response_format": "url"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '101'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.6
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.6", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/images/generations
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1yRS2vbQBSF9/4Vg8BadfQcjUYGUew4rXHqPJBbRyldzMvyRIokZka2m5D/HpRN
+        cTcfF76zOIf7NgHA4VpSK4UzAyEmKAmDMEi+jEJQS50Z+D0BAIC3TwLgDLpxZsA5WNubme93VAna
+        NJL2qtedMHwwHms65vFOS++kWtGdjNdK6/daHamVfqcreFegV26Wt8R8I9fkShzO1aZe/EL+YKSG
+        Q7le/tjdF/bqYcXLto6vH7fr4/faVy8VLO75oz3f7PoH9cw250LeNj+D53rt9W311dg8CqIYBgkM
+        s22IpvE8IiOSJ9fIC4cvXJ9r1xzHQAgDAgPsGp0zVxsuctU2qpXjbXP1Qivp923lmrpTIseUUiGF
+        hGjPYohwRiAlewwxQSJNCWYBTl1TWyVyigjnNMFQYkEhIkhCSkIEM05QhpOIcRaP0X8tyTYKpvE8
+        SUZET66pLyb8L03OXFNfjlBVnu7lolR0v2hXp9dot8sOHSpLNo0W7SqNhEyX87/DhneFzk5oGi+d
+        z0+/TwD4M3mffAAAAP//AwAG3XDqIwIAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7c9d5e832f020c95-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 19 May 2023 15:28:26 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '4982'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - bd08f4c9128d1c797b94f5b234b957d8
+    status:
+      code: 200
+      message: OK
+version: 1
