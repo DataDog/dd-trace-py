@@ -2,8 +2,8 @@ from typing import AsyncGenerator
 from typing import Generator
 
 from ..trace_utils import set_flattened_tags
-from .utils import _format_bool
 from .utils import _est_tokens
+from .utils import _format_bool
 from .utils import _format_openai_api_key
 
 
