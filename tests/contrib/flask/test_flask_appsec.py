@@ -753,6 +753,171 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
 
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.cookie.value", "name": "test-cookie1", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 769
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
+            cur.execute(add_aspect("SELECT 1 FROM ", key))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.cookie.name", "name": "sqlite_master", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 851
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
+            cur.execute(add_aspect("SELECT 1 FROM ", key))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
+
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")
         def test_route():

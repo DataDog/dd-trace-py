@@ -907,6 +907,32 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
             openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(
+            input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
