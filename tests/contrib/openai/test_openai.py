@@ -6,10 +6,10 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
+from PIL import Image
 import mock
 import pytest
 import vcr
-from PIL import Image
 
 import ddtrace
 from ddtrace import Pin

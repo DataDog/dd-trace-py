@@ -21,6 +21,7 @@ from ...pin import Pin
 from ._logging import V2LogWriter
 from .utils import _format_openai_api_key
 
+
 if TYPE_CHECKING:
     from ddtrace import Span
 
