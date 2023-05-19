@@ -88,6 +88,14 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._self_parent_span.finish()
             self._self_span_finished = True
 
+    def __getattribute__(self, name):
+        if name == "__len__":
+            # __len__ is defined by the parent class, wrapt.ObjectProxy.
+            # However this attribute should not be defined for iterables.
+            # By definition, iterables should not support len(...).
+            raise AttributeError("__len__ is not supported")
+        return super(_TracedIterable, self).__getattribute__(name)
+
 
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
