@@ -106,7 +106,7 @@ config._add(
                         "measured": False,
                     },
                     "nextset": {
-                        "operation_name": "vertica.nextset",
+                        "operation_name": schematize_database_operation("vertica.nextset", database_provider="vertica"),
                         "span_type": SpanTypes.SQL,
                         "span_end": fetch_span_end,
                         "measured": False,
