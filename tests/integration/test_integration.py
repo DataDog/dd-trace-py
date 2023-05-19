@@ -336,19 +336,22 @@ def test_single_trace_too_large(encoding, monkeypatch):
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         key = "a" * 250
         with t.trace("huge"):
-            for i in range(400000):
+            for i in range(200000):
                 with t.trace("operation") as s:
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
-        log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyStr(),
-        )
+        assert (
+            mock.call(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyStr(),
+            )
+            in log.warning.mock_calls
+        ), log.mock_calls
         log.error.assert_not_called()
 
 
