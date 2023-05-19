@@ -687,7 +687,7 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 6
     steps:
       - run_test:
           pattern: "gunicorn"
