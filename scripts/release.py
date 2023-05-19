@@ -251,11 +251,16 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             )
             return
 
-    commit_hashes = subprocess.check_output(
-        "git log {last_version}..1.x --oneline | cut -d \" \" -f 1".format(last_version=last_version),
-        shell=True,
-        cwd=os.pardir,
-    ).decode("utf8").strip("\n").split("\n")
+    commit_hashes = (
+        subprocess.check_output(
+            'git log {last_version}..1.x --oneline | cut -d " " -f 1'.format(last_version=last_version),
+            shell=True,
+            cwd=os.pardir,
+        )
+        .decode("utf8")
+        .strip("\n")
+        .split("\n")
+    )
 
     commits = []
     # get the commit objects
