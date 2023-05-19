@@ -648,19 +648,12 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 6
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent
-      - run:
-          environment:
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+          docker_services: 'ddagent'
 
   httplib:
     <<: *machine_executor
