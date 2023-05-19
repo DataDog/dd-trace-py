@@ -328,14 +328,15 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     # setting writer interval to 5 seconds so that buffer can fit larger traces
-    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", 1 << 20)  # max_size = 1 MB
 
     t = Tracer()
     assert t._partial_flush_enabled is True
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         key = "a" * 250
         with t.trace("huge"):
-            for i in range(200000):
+            for i in range(400000):
                 with t.trace("operation") as s:
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
                     s.set_tag(key + str(i), key + str(i))
