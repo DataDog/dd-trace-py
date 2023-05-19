@@ -19,8 +19,8 @@ from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
@@ -536,7 +536,8 @@ def test_civisibility_intake_with_evp_available():
             assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
             assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
             assert (
-                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_HEADER_VALUE
+                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
+                == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
             )
             CIVisibility.disable()
 

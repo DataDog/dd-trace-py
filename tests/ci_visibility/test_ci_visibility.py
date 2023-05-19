@@ -9,6 +9,7 @@ import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE_AGENTLESS_EVENTS
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
@@ -198,7 +199,9 @@ def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
-    backend_commits = CIVisibilityGitClient._search_commits("", remote_url, latest_commits, serializer, DUMMY_RESPONSE)
+    backend_commits = CIVisibilityGitClient._search_commits(
+        REQUESTS_MODE_AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
+    )
     assert latest_commits[0] in backend_commits
 
 
@@ -235,13 +238,16 @@ def test_git_client_upload_packfiles(git_repo):
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient.retry_request") as rr:
-            CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serializer, None, cwd=git_repo)
+            CIVisibilityGitClient._upload_packfiles(
+                REQUESTS_MODE_AGENTLESS_EVENTS, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
+            )
             assert rr.call_count == 1
             call_args = rr.call_args_list[0][0]
             call_kwargs = rr.call_args.kwargs
-            assert call_args[0] == ""
-            assert call_args[1] == "/packfile"
-            assert call_args[2].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
+            assert call_args[0] == REQUESTS_MODE_AGENTLESS_EVENTS
+            assert call_args[1] == ""
+            assert call_args[2] == "/packfile"
+            assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
             assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
 
 
