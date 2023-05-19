@@ -394,7 +394,7 @@ The following environment variables for the tracer are supported:
 
    DD_APPSEC_SUBPROCESS_EXEC_SENSITIVE_WILDCARDS:
      type: String
-     description:
+     description: |
          Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
          each item can take fnmatch-style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
