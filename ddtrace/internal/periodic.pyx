@@ -1,12 +1,25 @@
 # -*- encoding: utf-8 -*-
 import threading
-import typing
+import typing  # noqa
 
 import attr
 
 from ddtrace.internal import service
 
 from . import forksafe
+
+
+IF UNAME_SYSNAME == "Linux" and (PY_MAJOR_VERSION < 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION < 8)):
+    from cpython cimport PyLong_FromLong
+
+    cdef extern from "<sys/syscall.h>" nogil:
+        int __NR_gettid
+        long syscall(long number, ...)
+
+    # We assume that this module is imported by the main thread. We get this
+    # chance to add the native ID to the main thread.
+    main_thread = threading.current_thread()
+    main_thread.native_id = PyLong_FromLong(syscall(__NR_gettid))
 
 
 class PeriodicThread(threading.Thread):
@@ -24,6 +37,7 @@ class PeriodicThread(threading.Thread):
         interval,  # type: float
         target,  # type: typing.Callable[[], typing.Any]
         name=None,  # type: typing.Optional[str]
+        on_startup=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
         on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
     ):
         # type: (...) -> None
@@ -36,6 +50,7 @@ class PeriodicThread(threading.Thread):
         """
         super(PeriodicThread, self).__init__(name=name)
         self._target = target
+        self._on_startup = on_startup
         self._on_shutdown = on_shutdown
         self.interval = interval
         self.quit = forksafe.Event()
@@ -52,8 +67,18 @@ class PeriodicThread(threading.Thread):
 
     def run(self):
         """Run the target function periodically."""
+        IF UNAME_SYSNAME == "Linux" and (PY_MAJOR_VERSION < 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION < 8)):
+            # Earlier versions of Python don't have a native_id field. We make
+            # sure that our threads do get it, as it might be needed for general
+            # observability.
+            self.native_id = PyLong_FromLong(syscall(__NR_gettid))
+
+        if self._on_startup is not None:
+            self._on_startup()
+
         while not self.quit.wait(self.interval):
             self._target()
+        
         if self._on_shutdown is not None:
             self._on_shutdown()
 
@@ -130,6 +155,7 @@ class PeriodicService(service.Service):
             self.interval,
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            on_startup=self.on_startup,
             on_shutdown=self.on_shutdown,
         )
         self._worker.start()
@@ -149,6 +175,9 @@ class PeriodicService(service.Service):
 
     @staticmethod
     def on_shutdown():
+        pass
+
+    def on_startup(self):
         pass
 
     def periodic(self):

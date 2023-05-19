@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+import os
 import sys
 import typing
 
@@ -59,6 +60,8 @@ IF UNAME_SYSNAME == "Linux":
             return int(tp.tv_nsec + tp.tv_sec * 10e8)
         PyErr_SetFromErrno(OSError)
 
+    from ddtrace.profiling.collector.procfs import thread_is_running as thread__is_running
+
     cdef class _ThreadTime(object):
         cdef dict _last_thread_time
 
@@ -110,6 +113,11 @@ IF UNAME_SYSNAME == "Linux":
             return pthread_cpu_time
 ELSE:
     from libc cimport stdint
+
+    cdef int thread__is_running(tid):
+        # TODO: Not implemented yet. We assume that every thread is running.
+        return 1
+
 
     cdef class _ThreadTime(object):
         cdef stdint.int64_t _last_process_time
@@ -351,7 +359,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 nframes=nframes,
                 frames=frames,
                 wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
+                cpu_time_ns=cpu_time * thread__is_running(thread_native_id),
                 sampling_period=int(interval * 1e9),
             )
             event.set_trace_info(span, collect_endpoint)
@@ -470,6 +478,16 @@ class StackCollector(collector.PeriodicCollector):
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
         return max(interval / 1e9, self.min_interval_time)
+
+    def on_startup(self):
+        # type: (...) -> None
+        from ddtrace.profiling.collector.procfs import start
+        start()
+
+    def on_shutdown(self):
+        # type: (...) -> None
+        from ddtrace.profiling.collector.procfs import stop
+        stop()
 
     def collect(self):
         # Compute wall time

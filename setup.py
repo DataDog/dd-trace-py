@@ -294,6 +294,16 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
 else:
     ext_modules = []
 
+if CURRENT_OS == "Linux":
+    ext_modules.append(
+        Extension(
+            "ddtrace.profiling.collector.procfs",
+            sources=[
+                "ddtrace/profiling/collector/procfs.c",
+            ],
+            extra_compile_args=debug_compile_args,
+        )
+    )
 
 bytecode = [
     "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
@@ -413,6 +423,11 @@ setup(
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal.periodic",
+                sources=["ddtrace/internal/periodic.pyx"],
+                language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector.stack",

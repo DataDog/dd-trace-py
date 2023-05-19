@@ -195,7 +195,7 @@ class TelemetryBase(PeriodicService):
         Returns true if the the telemetry writer is running and was enabled using
         telemetry_writer.enable(start_worker_thread=True)
         """
-        return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
+        return self.status is ServiceStatus.RUNNING and self._worker is not None and self._worker.is_alive()
 
     def reset_queues(self):
         # type: () -> None
