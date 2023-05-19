@@ -30,6 +30,7 @@ from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -1482,6 +1483,91 @@ def test_service_can_be_overridden(client, test_spans):
 
     span = spans[0]
     assert span.service == "test-service"
+
+
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "django",
+        "v0": global_service_name or "django",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
+        schema_version
+    ]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 @pytest.mark.django_db

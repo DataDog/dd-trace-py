@@ -30,6 +30,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
@@ -293,7 +294,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
                             Defaults to using the request method and url in the resource.
     """
 
-    _request_span_name = "wsgi.request"
+    _request_span_name = schematize_url_operation("wsgi.request", protocol="http", direction="inbound")
     _application_span_name = "wsgi.application"
     _response_span_name = "wsgi.response"
 
