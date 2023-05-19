@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
     libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
     git ca-certificates
+
 ENV PYENV_ROOT "/pyenv"
 WORKDIR "$PYENV_ROOT"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
@@ -20,7 +21,6 @@ COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
-
 ARG SCENARIO=base
 
 ENV PYTHONUNBUFFERED 1
@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
+
+RUN pip install rust-0.1.0-cp39-cp39-macosx_11_0_arm64.whl
 
 # Add base common files used by all scenarios
 COPY ./base/ /app/
