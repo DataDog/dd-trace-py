@@ -37,6 +37,7 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...appsec import utils
+from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
 from ...internal import _context
 
@@ -173,7 +174,7 @@ class _DDWSGIMiddlewareBase(object):
 
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
-                if _context.get_item("http.request.blocked", span=req_span):
+                if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     start_response("403 FORBIDDEN", [("content-type", ctype)])
                     closing_iterator = [content]
@@ -208,7 +209,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
+                if self.tracer._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                     # [Suspicious Request Blocking on request or response]
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]

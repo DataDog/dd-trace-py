@@ -9,6 +9,7 @@ from werkzeug.exceptions import abort
 import xmltodict
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
@@ -149,10 +150,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and not _context.get_item("http.request.blocked", span=req_span):
+        if config._appsec_enabled and not _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
-            if _context.get_item("http.request.blocked", span=req_span):
+            if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                 # response code must be set here, or it will be too late
                 ctype = (
                     "text/html"
@@ -647,7 +648,7 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    _context.set_item("http.request.blocked", True, span=span)
+    _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
@@ -678,7 +679,7 @@ def request_tracer(name):
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            if config._appsec_enabled and _context.get_item("http.request.blocked", span=span):
+            if config._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                 _asm_request_context.block_request()
             return wrapped(*args, **kwargs)
 
