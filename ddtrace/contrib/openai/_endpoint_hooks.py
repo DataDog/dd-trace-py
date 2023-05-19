@@ -306,7 +306,7 @@ class _EmbeddingHook(_EndpointHook):
         text_input = kwargs.get("input")
         if isinstance(text_input, list):
             for idx, inp in enumerate(text_input):
-                span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
+                span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
         else:
             span.set_tag("openai.request.input", text_input)
         return

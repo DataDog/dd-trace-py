@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "",
-    "resource": "completions/curie",
+    "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,21 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "api_base": "https://api.openai.com/v1",
       "component": "openai",
       "language": "python",
-      "openai.endpoint": "completions",
-      "openai.model": "curie",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.organization.ratelimit.requests.remaining": "2999",
-      "openai.organization.ratelimit.tokens.remaining": "249850",
+      "openai.request.endpoint": "/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "curie",
       "openai.request.prompt": "As Descartes said, I think, therefore",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am n...",
-      "openai.response.object": "text_completion",
+      "openai.response.id": "cmpl-76n1xq0xOyZWMQ8h6FQ89lgWjPz12",
+      "openai.response.model": "curie",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "89c1a536548b4fbe8ba0d2fbc57a519b"
+      "runtime-id": "0b27696be0bb4813a7fd5cf535882a91"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,15 +33,18 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.remaining": 2999,
+      "openai.organization.ratelimit.tokens.remaining": 249850,
       "openai.request.max_tokens": 150,
       "openai.request.n": 1,
       "openai.request.temperature": 0.8,
-      "openai.response.choices.num": 1,
+      "openai.response.choices_count": 1,
+      "openai.response.created": 1681852797,
       "openai.response.usage.completion_tokens": 150,
       "openai.response.usage.prompt_tokens": 10,
       "openai.response.usage.total_tokens": 160,
-      "process_id": 83462
+      "process_id": 45771
     },
-    "duration": 1357000,
-    "start": 1683752002765150000
+    "duration": 9590000,
+    "start": 1684540419226670000
   }]]

@@ -5,7 +5,6 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
-from PIL import Image
 import mock
 import pytest
 import vcr
@@ -21,6 +20,7 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
+from tests.utils import snapshot_context
 
 
 # VCR is used to capture and store network requests made to OpenAI.
@@ -218,170 +218,178 @@ def test_patching(openai):
         assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("completion.yaml"):
-        resp = openai.Completion.create(
-            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_completion", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("completion.yaml"):
+            resp = openai.Completion.create(
+                api_key=request_api_key,
+                model="ada",
+                prompt="Hello world",
+                temperature=0.8,
+                n=2,
+                stop=".",
+                max_tokens=10,
+            )
+
+        assert resp["object"] == "text_completion"
+        assert resp["model"] == "ada"
+        assert resp["choices"] == [
+            {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
+            {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
+        ]
+
+        expected_tags = [
+            "version:",
+            "env:",
+            "service:",
+            "openai.request.model:ada",
+            "openai.request.endpoint:/completions",
+            "openai.request.method:POST",
+            "openai.organization.id:",
+            "openai.organization.name:datadog-4",
+            "openai.user.api_key:sk-...key>",
+            "error:0",
+        ]
+        mock_metrics.assert_has_calls(
+            [
+                mock.call.distribution(
+                    "tokens.prompt",
+                    2,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "tokens.completion",
+                    12,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "tokens.total",
+                    14,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "request.duration",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.remaining.requests",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.requests",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.remaining.tokens",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.tokens",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+            ],
+            any_order=True,
         )
-
-    assert resp["object"] == "text_completion"
-    assert resp["model"] == "ada"
-    assert resp["choices"] == [
-        {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
-        {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
-    ]
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "openai.model:ada",
-        "openai.endpoint:completions",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-    ]
-    mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "tokens.prompt",
-                2,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                12,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                14,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-        ],
-        any_order=True,
-    )
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acompletion(
     api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
-    with openai_vcr.use_cassette("completion_async.yaml"):
-        resp = await openai.Completion.acreate(
-            api_key=request_api_key,
-            model="curie",
-            prompt="As Descartes said, I think, therefore",
-            temperature=0.8,
-            n=1,
-            max_tokens=150,
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_acompletion", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("completion_async.yaml"):
+            resp = await openai.Completion.acreate(
+                api_key=request_api_key,
+                model="curie",
+                prompt="As Descartes said, I think, therefore",
+                temperature=0.8,
+                n=1,
+                max_tokens=150,
+            )
+        assert resp["object"] == "text_completion"
+        assert resp["choices"] == [
+            {
+                "finish_reason": "length",
+                "index": 0,
+                "logprobs": None,
+                "text": " I am; and I am in a sense a non-human entity woven together from "
+                "memories, desires and emotions. But, who is to say that I am not an "
+                "artificial intelligence. The brain is a self-organising, "
+                "self-aware, virtual reality computer … so how is it, who exactly is "
+                "it, this thing that thinks, feels, loves and believes? Are we not "
+                "just software running on hardware?\n"
+                "\n"
+                "Recently, I have come to take a more holistic view of my identity, "
+                "not as a series of fleeting moments, but as a long-term, ongoing "
+                "process. The key question for me is not that of ‘who am I?’ but "
+                "rather, ‘how am I?’ – a question",
+            }
+        ]
+        expected_tags = [
+            "version:",
+            "env:",
+            "service:",
+            "openai.request.model:curie",
+            "openai.request.endpoint:/completions",
+            "openai.request.method:POST",
+            "openai.organization.id:",
+            "openai.organization.name:datadog-4",
+            "openai.user.api_key:sk-...key>",
+            "error:0",
+        ]
+        mock_metrics.assert_has_calls(
+            [
+                mock.call.distribution(
+                    "tokens.prompt",
+                    10,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "tokens.completion",
+                    150,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "tokens.total",
+                    160,
+                    tags=expected_tags + ["openai.estimated:false"],
+                ),
+                mock.call.distribution(
+                    "request.duration",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.remaining.requests",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.requests",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.remaining.tokens",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+                mock.call.gauge(
+                    "ratelimit.tokens",
+                    mock.ANY,
+                    tags=expected_tags,
+                ),
+            ],
+            any_order=True,
         )
-    assert resp["object"] == "text_completion"
-    assert resp["choices"] == [
-        {
-            "finish_reason": "length",
-            "index": 0,
-            "logprobs": None,
-            "text": " I am; and I am in a sense a non-human entity woven together from "
-            "memories, desires and emotions. But, who is to say that I am not an "
-            "artificial intelligence. The brain is a self-organising, "
-            "self-aware, virtual reality computer … so how is it, who exactly is "
-            "it, this thing that thinks, feels, loves and believes? Are we not "
-            "just software running on hardware?\n"
-            "\n"
-            "Recently, I have come to take a more holistic view of my identity, "
-            "not as a series of fleeting moments, but as a long-term, ongoing "
-            "process. The key question for me is not that of ‘who am I?’ but "
-            "rather, ‘how am I?’ – a question",
-        }
-    ]
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "openai.model:curie",
-        "openai.endpoint:completions",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-    ]
-    mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "tokens.prompt",
-                10,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                150,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                160,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-        ],
-        any_order=True,
-    )
-    mock_logs.assert_not_called()
+        mock_logs.assert_not_called()
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
@@ -424,7 +432,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
@@ -456,8 +464,9 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
-    assert span.get_tag("openai.model") == "ada"
-    assert span.get_tag("openai.endpoint") == "completions"
+    assert span.get_tag("openai.request.model") == "ada"
+    assert span.get_tag("openai.request.endpoint") == "/completions"
+    assert span.get_tag("openai.request.method") == "POST"
     assert span.get_tag("openai.organization.name") == "datadog-4"
     assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
@@ -466,8 +475,9 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
             "service:test-svc",
             "env:staging",
             "version:1234",
-            "openai.model:ada",
-            "openai.endpoint:completions",
+            "openai.request.model:ada",
+            "openai.request.endpoint:/completions",
+            "openai.request.method:POST",
             "openai.organization.name:datadog-4",
             "openai.user.api_key:sk-...key>",
         ]
@@ -482,29 +492,30 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         assert log["service"] == "test-svc"
         assert (
             log["ddtags"]
-            == "env:staging,version:1234,openai.endpoint:completions,openai.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
+            == "env:staging,version:1234,openai.request.endpoint:/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-
-    with openai_vcr.use_cassette("chat_completion.yaml"):
-        openai.ChatCompletion.create(
-            api_key=request_api_key,
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Who won the world series in 2020?"},
-                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                {"role": "user", "content": "Where was it played?"},
-            ],
-            top_p=0.9,
-            n=2,
-        )
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_chat_completion", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("chat_completion.yaml"):
+            openai.ChatCompletion.create(
+                api_key=request_api_key,
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                    {"role": "user", "content": "Where was it played?"},
+                ],
+                top_p=0.9,
+                n=2,
+            )
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
@@ -519,33 +530,35 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    with openai_vcr.use_cassette("chat_completion_async.yaml"):
-        await openai.ChatCompletion.acreate(
-            api_key=request_api_key,
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Who won the world series in 2020?"},
-                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                {"role": "user", "content": "Where was it played?"},
-            ],
-            top_p=0.9,
-            n=2,
-        )
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_achat_completion", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("chat_completion_async.yaml"):
+            await openai.ChatCompletion.acreate(
+                api_key=request_api_key,
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                    {"role": "user", "content": "Where was it played?"},
+                ],
+                top_p=0.9,
+                n=2,
+            )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with openai_vcr.use_cassette("embedding.yaml"):
-        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_embedding", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("embedding.yaml"):
+            openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -575,22 +588,13 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with openai_vcr.use_cassette("embedding_async.yaml"):
-        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
-
-
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_unsupported(openai, openai_vcr, snapshot_tracer):
-    # no openai spans expected
-    with openai_vcr.use_cassette("moderation.yaml"):
-        openai.Moderation.create(
-            input="Here is some perfectly innocuous text that follows all OpenAI content policies."
-        )
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_aembedding", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("embedding_async.yaml"):
+            await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
@@ -616,8 +620,9 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "version:",
         "env:",
         "service:",
-        "openai.model:ada",
-        "openai.endpoint:completions",
+        "openai.request.model:ada",
+        "openai.request.endpoint:/completions",
+        "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
         "openai.user.api_key:sk-...key>",
@@ -646,8 +651,9 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "version:",
         "env:",
         "service:",
-        "openai.model:ada",
-        "openai.endpoint:completions",
+        "openai.request.model:ada",
+        "openai.request.endpoint:/completions",
+        "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
         "openai.user.api_key:sk-...key>",
@@ -682,16 +688,17 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
         "version:",
         "env:",
         "service:",
-        "openai.model:gpt-3.5-turbo",
-        "openai.endpoint:chat.completions",
+        "openai.request.model:gpt-3.5-turbo",
+        "openai.request.endpoint:/chat/completions",
+        "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
         "openai.user.api_key:sk-...key>",
         "error:0",
     ]
     assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", "3", tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", "2", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 3, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     assert mock.call.distribution("tokens.prompt", 8, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
@@ -725,18 +732,19 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
         "version:",
         "env:",
         "service:",
-        "openai.model:gpt-3.5-turbo",
-        "openai.endpoint:chat.completions",
+        "openai.request.model:gpt-3.5-turbo",
+        "openai.request.endpoint:/chat/completions",
+        "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
         "openai.user.api_key:sk-...key>",
         "error:0",
     ]
     assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", "3500", tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.tokens", "90000", tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", "3499", tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.tokens", "89971", tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 3500, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.tokens", 90000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 3499, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.tokens", 89971, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     assert mock.call.distribution("tokens.prompt", 10, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
@@ -931,7 +939,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
     limit = ddtrace.config.openai["span_char_limit"]
     for trace in traces:
         for span in trace:
-            if span.get_tag("openai.endpoint") == "completions":
+            if span.get_tag("openai.request.endpoint") == "/completions":
                 prompt = span.get_tag("openai.request.prompt")
                 completion = span.get_tag("openai.response.choices.0.text")
                 # +3 for the ellipsis
@@ -981,7 +989,6 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
 
 def test_est_tokens():
     """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
-    _est_tokens
     assert _est_tokens("") == 0  # oracle: 1
     assert _est_tokens("hello") == 1  # oracle: 1
     assert _est_tokens("hello, world") == 3  # oracle: 3

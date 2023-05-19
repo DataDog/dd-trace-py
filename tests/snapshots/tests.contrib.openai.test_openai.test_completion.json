@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "",
-    "resource": "completions/ada",
+    "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,14 +10,14 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "api_base": "https://api.openai.com/v1",
       "component": "openai",
       "language": "python",
-      "openai.endpoint": "completions",
-      "openai.model": "ada",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.organization.ratelimit.requests.remaining": "2999",
-      "openai.organization.ratelimit.tokens.remaining": "249979",
+      "openai.request.endpoint": "/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "ada",
       "openai.request.prompt": "Hello world",
       "openai.request.stop": ".",
       "openai.response.choices.0.finish_reason": "length",
@@ -26,9 +26,10 @@
       "openai.response.choices.1.finish_reason": "stop",
       "openai.response.choices.1.logprobs": "returned",
       "openai.response.choices.1.text": " (1",
-      "openai.response.object": "text_completion",
+      "openai.response.id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
+      "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "63662f4332ba432294d87e4a7b5611fb"
+      "runtime-id": "5ecca0bfd4fa41c9a01fead1549af9c0"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -36,15 +37,18 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.remaining": 2999,
+      "openai.organization.ratelimit.tokens.remaining": 249979,
       "openai.request.max_tokens": 10,
       "openai.request.n": 2,
       "openai.request.temperature": 0.8,
-      "openai.response.choices.num": 2,
+      "openai.response.choices_count": 2,
+      "openai.response.created": 1681852797,
       "openai.response.usage.completion_tokens": 12,
       "openai.response.usage.prompt_tokens": 2,
       "openai.response.usage.total_tokens": 14,
-      "process_id": 69859
+      "process_id": 40020
     },
-    "duration": 3171000,
-    "start": 1683747761171953000
+    "duration": 17383000,
+    "start": 1684538620518099000
   }]]

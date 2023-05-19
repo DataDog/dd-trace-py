@@ -119,17 +119,14 @@ class _OpenAIIntegration:
     def log(self, span, level, msg, attrs):
         if not self._config.logs_enabled:
             return
-        tags = (
-            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.model:%s,openai.organization.name:%s,"
-            "openai.user.api_key:%s"
-            % (
-                (config.env or ""),
-                (config.version or ""),
-                (span.get_tag("openai.request.endpoint") or ""),
-                (span.get_tag("openai.request.model") or ""),
-                (span.get_tag("openai.organization.name") or ""),
-                (span.get_tag("openai.user.api_key") or ""),
-            )
+        tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s," "openai.user.api_key:%s" % (  # noqa: E501
+            (config.env or ""),
+            (config.version or ""),
+            (span.get_tag("openai.request.endpoint") or ""),
+            (span.get_tag("openai.request.method") or ""),
+            (span.get_tag("openai.request.model") or ""),
+            (span.get_tag("openai.organization.name") or ""),
+            (span.get_tag("openai.user.api_key") or ""),
         )
         log = {
             "timestamp": time.time() * 1000,
@@ -153,6 +150,7 @@ class _OpenAIIntegration:
             "service:%s" % (span.service or ""),
             "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
             "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
+            "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
             "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
             "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
