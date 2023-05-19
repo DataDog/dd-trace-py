@@ -10,6 +10,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE_AGENTLESS_EVENTS
+from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE_EVP_PROXY_EVENTS
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
@@ -308,6 +309,24 @@ def test_civisibilitywriter_coverage_agentless_url():
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
 
+def test_civisibilitywriter_coverage_evp_proxy_url():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
+        dummy_writer = DummyCIVisibilityWriter(use_evp=True)
+
+        test_client = dummy_writer._clients[0]
+        assert test_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcycle"
+        cov_client = dummy_writer._clients[1]
+        assert cov_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcov"
+
+        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            dummy_writer._put("", {}, cov_client)
+            _get_connection.assert_called_once_with("http://localhost:8126", 2.0)
+
+
 def test_civisibilitywriter_agentless_url_envvar():
     with override_env(
         dict(
@@ -320,4 +339,18 @@ def test_civisibilitywriter_agentless_url_envvar():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
         assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
+        CIVisibility.disable()
+
+
+def test_civisibilitywriter_evp_proxy_url():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+        assert CIVisibility._instance._requests_mode == REQUESTS_MODE_EVP_PROXY_EVENTS
+        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:8126"
         CIVisibility.disable()

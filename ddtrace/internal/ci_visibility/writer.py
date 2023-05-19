@@ -88,7 +88,10 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
     ):
-        if config._ci_visibility_agentless_url:
+        if use_evp:
+            intake_url = agent.get_trace_url()
+            intake_cov_url = agent.get_trace_url()
+        elif config._ci_visibility_agentless_url:
             intake_url = config._ci_visibility_agentless_url
             intake_cov_url = config._ci_visibility_agentless_url
         if not intake_url:
