@@ -57,7 +57,13 @@ def _patch_dummy_writer():
 
 
 def test_ci_visibility_service_enable():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
@@ -74,7 +80,13 @@ def test_ci_visibility_service_enable():
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
         _do_request.return_value = Response(
             status=200,
             body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
@@ -89,7 +101,14 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
 
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar", DD_CIVISIBILITY_ITR_ENABLED="1")):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
@@ -104,7 +123,13 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_request):
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
         _do_request.return_value = Response(
             status=404,
             body='{"errors": ["Not found"]}',
@@ -165,7 +190,14 @@ def test_git_client_worker(_do_request, git_repo):
         body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
         '{"code_coverage":true,"tests_skipping":true}}}',
     )
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana", DD_CIVISIBILITY_ITR_ENABLED="1")):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APPLICATION_KEY="banana",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
@@ -259,9 +291,12 @@ def test_civisibilitywriter_agentless_url():
 
 
 def test_civisibilitywriter_coverage_agentless_url():
-    with override_env(dict(DD_API_KEY="foobar.baz")), mock.patch(
-        "ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True
-    ):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
         dummy_writer = DummyCIVisibilityWriter()
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
