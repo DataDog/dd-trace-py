@@ -1,5 +1,6 @@
 import asyncio
 from functools import wraps
+import sys
 
 from ddtrace.contrib.asyncio import context_provider
 from tests.utils import TracerTestCase
@@ -40,10 +41,16 @@ def mark_asyncio(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):
-        coro = asyncio.coroutine(f)
-        future = coro(*args, **kwargs)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(future)
-        loop.close()
+        if sys.version_info >= (3, 11):
+            future = f(*args, **kwargs)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(future)
+            loop.close()
+        else:
+            coro = asyncio.coroutine(f)
+            future = coro(*args, **kwargs)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(future)
+            loop.close()
 
     return wrapper

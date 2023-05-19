@@ -49,7 +49,12 @@ class TracedCursor(wrapt.ObjectProxy):
             if cfg and "_dbapi_span_name_prefix" in cfg
             else config.dbapi2["_dbapi_span_name_prefix"]
         )
-        self._self_datadog_name = "{}.query".format(span_name_prefix)
+        span_name = (
+            cfg["_dbapi_span_operation_name"]
+            if cfg and "_dbapi_span_operation_name" in cfg
+            else "{}.query".format(span_name_prefix)
+        )
+        self._self_datadog_name = span_name
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)

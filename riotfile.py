@@ -192,6 +192,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"bandit": latest},
+            venvs=[
+                Venv(
+                    name="bandit",
+                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},
             venvs=[
                 Venv(
@@ -230,6 +240,9 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -2237,7 +2250,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
-                        "sanic": ["~=21.3", "~=21.12"],
+                        "sanic": [
+                            "~=21.3",
+                            "~=21.12",
+                        ],
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2252,7 +2268,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12"],
+                        "sanic": ["~=22.3", "~=22.12", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2260,7 +2276,7 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": "~=22.12.0",
+                        "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2412,7 +2428,7 @@ venv = Venv(
         Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
-            pys=select_pys(min_version="3.5"),
+            pys=select_pys(min_version="3.6"),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
@@ -2421,7 +2437,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                    pys=["3.6", "3.8", "3.9", "3.10"],
                 ),
                 Venv(pys=["3.11"], pkgs={"attrs": latest}),
             ],
