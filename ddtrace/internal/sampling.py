@@ -19,7 +19,6 @@ from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 
 from .rate_limiter import RateLimiter
-import matcher
 
 
 log = get_logger(__name__)
@@ -217,23 +216,19 @@ class SpanSamplingRule:
             if service is None:
                 return False
             else:
-                # service_match = self._service_matcher.match(service)
-                service_match = matcher.match_subject(service, self._service_matcher.pattern)
+                service_match = self._service_matcher.match(service)
 
         if self._name_matcher:
             if name is None:
                 return False
             else:
-                # name_match = self._name_matcher.match(name)
-                name_match = matcher.match_subject(name, self._name_matcher.pattern)
+                name_match = self._name_matcher.match(name)
 
         if self._resource_matcher:
             if resource is None:
                 return False
             else:
-                # resource_match = self._resource_matcher.match(resource)
-                resource_match = matcher.match_subject(resource, self._resource_matcher.pattern)
-
+                resource_match = self._resource_matcher.match(resource)
         if self._tag_matchers:
             if tags is None:
                 return False
