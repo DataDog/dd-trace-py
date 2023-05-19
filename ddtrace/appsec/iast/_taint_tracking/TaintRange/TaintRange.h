@@ -11,8 +11,8 @@
 
 struct TaintRange {
     PyObject_HEAD
-    long start = -1;
-    long length = -1;
+    int start;
+    int length;
     Source* source = nullptr;
 
     TaintRange() = default;
@@ -41,12 +41,8 @@ struct TaintRange {
 static void
 TaintRange_dealloc(TaintRange *self)
 {
-    Py_XDECREF(self->start);
-    Py_XDECREF(self->length);
     if (self->source) {
         Py_XDECREF(self->source);
-        delete self->source;
-        self->source = nullptr;
     }
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
@@ -57,7 +53,7 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     TaintRange *self;
     self = (TaintRange *) type->tp_alloc(type, 0);
-    if (self != nullptr) {
+    if (self != NULL) {
         self->source = new Source();
         if (self->source == nullptr) {
             Py_DECREF(self);
@@ -73,12 +69,11 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"start", "length", "source", nullptr};
+    static char *kwlist[] = {"start", "length", "source", NULL};
     PyObject *pysource = nullptr;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", kwlist,
-                                     &self->start, &self->length,
-                                     &pysource))
+                                     &self->start, &self->length, &pysource))
         return -1;
 
     if (pysource) {
@@ -101,6 +96,7 @@ TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
         return nullptr;
     }
     return PyUnicode_FromFormat("%S", self->toString());
+    return PyUnicode_FromFormat("%S", "ss");
 }
 
 
@@ -122,7 +118,7 @@ static PyMethodDef TaintRange_methods[] = {
 };
 
 static PyTypeObject TaintRangeType = {
-        PyVarObject_HEAD_INIT(nullptr, 0)
+        PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = PY_MODULE_NAME_TAINTRANGES,
         .tp_basicsize = sizeof(TaintRange),
         .tp_itemsize = 0,

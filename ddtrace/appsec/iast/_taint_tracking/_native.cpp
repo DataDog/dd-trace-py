@@ -23,20 +23,23 @@ PyMODINIT_FUNC PyInit__native(void) {
   if (PyType_Ready(&TaintRangeType) < 0)
     return NULL;
 
+  if (PyType_Ready(&SourceType) < 0)
+    return NULL;
+
   m = PyModule_Create(&taint_tracking);
   if (m == NULL)
     return NULL;
 
-  Py_INCREF(&SourceType);
-  if (PyModule_AddObject(m, "Source", (PyObject *)&SourceType) < 0) {
-    Py_DECREF(&SourceType);
+  Py_INCREF(&TaintRangeType);
+  if (PyModule_AddObject(m, "TaintRange", (PyObject *)&TaintRangeType) < 0) {
+    Py_DECREF(&TaintRangeType);
     Py_DECREF(m);
     return NULL;
   }
 
-  Py_INCREF(&TaintRangeType);
-  if (PyModule_AddObject(m, "TaintRange", (PyObject *)&TaintRangeType) < 0) {
-    Py_DECREF(&TaintRangeType);
+  Py_INCREF(&SourceType);
+  if (PyModule_AddObject(m, "Source", (PyObject *)&SourceType) < 0) {
+    Py_DECREF(&SourceType);
     Py_DECREF(m);
     return NULL;
   }

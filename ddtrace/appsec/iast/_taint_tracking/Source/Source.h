@@ -11,10 +11,11 @@
 using namespace std;
 
 struct Source {
-    string name;
-    string value;
+    PyObject_HEAD
+    const char * name;
+    const char * value;
     // TODO: make origin an enum
-    string origin;
+    const char * origin;
 
     [[nodiscard]] const char* toString() const;
 
@@ -54,6 +55,7 @@ static int
 Source_init(Source *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"name", "value", "origin", NULL};
+
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sss", kwlist,
                                      &self->name, &self->value, &self->origin))
         return -1;
@@ -68,11 +70,11 @@ Source_to_string(Source *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyMemberDef Source_members[] = {
-        {"name", T_OBJECT_EX, offsetof(Source, name), 0,
+        {"name", T_STRING, offsetof(Source, name), 0,
                 "Source.name"},
-        {"value", T_OBJECT_EX, offsetof(Source, value), 0,
+        {"value", T_STRING, offsetof(Source, value), 0,
                 "Source.value"},
-        {"origin", T_OBJECT_EX, offsetof(Source, origin), 0,
+        {"origin", T_STRING, offsetof(Source, origin), 0,
                 "Source.origin"},
         {NULL}  /* Sentinel */
 };
