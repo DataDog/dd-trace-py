@@ -232,7 +232,10 @@ class Tracer(object):
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
-        self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
+        if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
+            self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
+        else:
+            self._priority_sampler = None
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
@@ -513,6 +516,9 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
+        self._generate_diagnostic_logs()
+
+    def _generate_diagnostic_logs(self):
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
