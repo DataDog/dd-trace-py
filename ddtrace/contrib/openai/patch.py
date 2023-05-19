@@ -630,7 +630,7 @@ class _EmbeddingHook(_EndpointHook):
                 if kw_attr == "input" and integration.is_pc_sampled_span(span):
                     if isinstance(kwargs["input"], list):
                         for idx, inp in enumerate(kwargs["input"]):
-                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
+                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
                     else:
                         span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
                 else:
