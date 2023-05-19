@@ -2513,7 +2513,6 @@ venv = Venv(
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
-                "pillow": latest,
             },
         ),
         Venv(

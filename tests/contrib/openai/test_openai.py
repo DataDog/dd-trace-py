@@ -1,4 +1,3 @@
-from io import BytesIO
 import os
 import sys
 from typing import AsyncGenerator
@@ -22,7 +21,6 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
-from tests.utils import snapshot_context
 
 
 # VCR is used to capture and store network requests made to OpenAI.
@@ -220,176 +218,170 @@ def test_patching(openai):
         assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_completion", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("completion.yaml"):
-            resp = openai.Completion.create(
-                api_key=request_api_key,
-                model="ada",
-                prompt="Hello world",
-                temperature=0.8,
-                n=2,
-                stop=".",
-                max_tokens=10,
-            )
-
-        assert resp["object"] == "text_completion"
-        assert resp["model"] == "ada"
-        assert resp["choices"] == [
-            {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
-            {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
-        ]
-
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:",
-            "openai.request.model:ada",
-            "openai.request.endpoint:/completions",
-            "openai.organization.id:",
-            "openai.organization.name:datadog-4",
-            "openai.user.api_key:sk-...DnFw",
-            "error:0",
-        ]
-        mock_metrics.assert_has_calls(
-            [
-                mock.call.distribution(
-                    "tokens.prompt",
-                    2,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.completion",
-                    12,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.total",
-                    14,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "request.duration",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-            ],
-            any_order=True,
+    with openai_vcr.use_cassette("completion.yaml"):
+        resp = openai.Completion.create(
+            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
         )
+
+    assert resp["object"] == "text_completion"
+    assert resp["model"] == "ada"
+    assert resp["choices"] == [
+        {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
+        {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
+    ]
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.model:ada",
+        "openai.endpoint:completions",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                2,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                12,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                14,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
 
 
 @pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acompletion(
     api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_acompletion", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("completion_async.yaml"):
-            resp = await openai.Completion.acreate(
-                api_key=request_api_key,
-                model="curie",
-                prompt="As Descartes said, I think, therefore",
-                temperature=0.8,
-                n=1,
-                max_tokens=150,
-            )
-        assert resp["object"] == "text_completion"
-        assert resp["choices"] == [
-            {
-                "finish_reason": "length",
-                "index": 0,
-                "logprobs": None,
-                "text": " I am; and I am in a sense a non-human entity woven together from "
-                "memories, desires and emotions. But, who is to say that I am not an "
-                "artificial intelligence. The brain is a self-organising, "
-                "self-aware, virtual reality computer … so how is it, who exactly is "
-                "it, this thing that thinks, feels, loves and believes? Are we not "
-                "just software running on hardware?\n"
-                "\n"
-                "Recently, I have come to take a more holistic view of my identity, "
-                "not as a series of fleeting moments, but as a long-term, ongoing "
-                "process. The key question for me is not that of ‘who am I?’ but "
-                "rather, ‘how am I?’ – a question",
-            }
-        ]
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:",
-            "openai.request.model:curie",
-            "openai.request.endpoint:/completions",
-            "openai.organization.id:",
-            "openai.organization.name:datadog-4",
-            "openai.user.api_key:sk-...key>",
-            "error:0",
-        ]
-        mock_metrics.assert_has_calls(
-            [
-                mock.call.distribution(
-                    "tokens.prompt",
-                    10,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.completion",
-                    150,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.total",
-                    160,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "request.duration",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-            ],
-            any_order=True,
+    with openai_vcr.use_cassette("completion_async.yaml"):
+        resp = await openai.Completion.acreate(
+            api_key=request_api_key,
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
         )
-        mock_logs.assert_not_called()
+    assert resp["object"] == "text_completion"
+    assert resp["choices"] == [
+        {
+            "finish_reason": "length",
+            "index": 0,
+            "logprobs": None,
+            "text": " I am; and I am in a sense a non-human entity woven together from "
+            "memories, desires and emotions. But, who is to say that I am not an "
+            "artificial intelligence. The brain is a self-organising, "
+            "self-aware, virtual reality computer … so how is it, who exactly is "
+            "it, this thing that thinks, feels, loves and believes? Are we not "
+            "just software running on hardware?\n"
+            "\n"
+            "Recently, I have come to take a more holistic view of my identity, "
+            "not as a series of fleeting moments, but as a long-term, ongoing "
+            "process. The key question for me is not that of ‘who am I?’ but "
+            "rather, ‘how am I?’ – a question",
+        }
+    ]
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.model:curie",
+        "openai.endpoint:completions",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                10,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                150,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                160,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
@@ -464,6 +456,8 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
+    assert span.get_tag("openai.model") == "ada"
+    assert span.get_tag("openai.endpoint") == "completions"
     assert span.get_tag("openai.organization.name") == "datadog-4"
     assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
@@ -492,78 +486,25 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         )
 
 
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Model"):
-        pytest.skip("Model not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("model_list.yaml"):
-            openai.Model.list(
-                api_key=request_api_key,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Model"):
-        pytest.skip("Model not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_alist", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("model_list_async.yaml"):
-            await openai.Model.alist(
-                api_key=request_api_key,
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Model"):
-        pytest.skip("Model not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("model_retrieve.yaml"):
-            openai.Model.retrieve(
-                "curie",
-                api_key=request_api_key,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Model"):
-        pytest.skip("Model not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_model_aretrieve", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("model_retrieve_async.yaml"):
-            await openai.Model.aretrieve(
-                "curie",
-                api_key=request_api_key,
-            )
-
-
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_chat_completion", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("chat_completion.yaml"):
-            openai.ChatCompletion.create(
-                api_key=request_api_key,
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
-                top_p=0.9,
-                n=2,
-            )
+
+    with openai_vcr.use_cassette("chat_completion.yaml"):
+        openai.ChatCompletion.create(
+            api_key=request_api_key,
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Who won the world series in 2020?"},
+                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                {"role": "user", "content": "Where was it played?"},
+            ],
+            top_p=0.9,
+            n=2,
+        )
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
@@ -578,333 +519,33 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 
 
 @pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_achat_completion", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("chat_completion_async.yaml"):
-            await openai.ChatCompletion.acreate(
-                api_key=request_api_key,
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
-                top_p=0.9,
-                n=2,
-            )
+    with openai_vcr.use_cassette("chat_completion_async.yaml"):
+        await openai.ChatCompletion.acreate(
+            api_key=request_api_key,
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Who won the world series in 2020?"},
+                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                {"role": "user", "content": "Where was it played?"},
+            ],
+            top_p=0.9,
+            n=2,
+        )
 
 
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Edit"):
-        pytest.skip("edit not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_edit", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("edit.yaml"):
-            openai.Edit.create(
-                api_key=request_api_key,
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Edit"):
-        pytest.skip("edit not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_aedit", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("aedit.yaml"):
-            await openai.Edit.acreate(
-                api_key=request_api_key,
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_url", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("image_create_url.yaml"):
-            openai.Image.create(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                prompt="sleepy capybara with monkey on top",
-                n=1,
-                size="256x256",
-                response_format="url",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_b64_json", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("image_create_b64_json.yaml"):
-            openai.Image.create(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                prompt="cartoon dog munching on some data",
-                n=1,
-                size="256x256",
-                response_format="b64_json",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_url", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("image_acreate_url.yaml"):
-            await openai.Image.acreate(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                prompt="sleepy capybara with monkey on top",
-                n=1,
-                size="256x256",
-                response_format="url",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_b64_json", ignores=["meta.http.useragent"]
-    ):
-        with openai_vcr.use_cassette("image_acreate_b64_json.yaml"):
-            await openai.Image.acreate(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                prompt="cartoon dog munching on some data",
-                n=1,
-                size="256x256",
-                response_format="b64_json",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_edit_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_edit_url",
-        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
-    ):
-        with openai_vcr.use_cassette("image_create_edit_url.yaml"):
-            openai.Image.create_edit(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                mask=open(os.path.join(os.path.dirname(__file__), "images/mask.png"), "rb"),
-                n=1,
-                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
-                size="1024x1024",
-                response_format="url",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_edit_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_edit_b64_json",
-        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
-    ):
-        with openai_vcr.use_cassette("image_create_edit_b64_json.yaml"):
-            openai.Image.create_edit(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                mask=open(os.path.join(os.path.dirname(__file__), "images/mask.png"), "rb"),
-                n=1,
-                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
-                size="1024x1024",
-                response_format="b64_json",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_edit_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_edit_url",
-        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
-    ):
-        with openai_vcr.use_cassette("image_acreate_edit_url.yaml"):
-            await openai.Image.acreate_edit(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                mask=open(os.path.join(os.path.dirname(__file__), "images/mask.png"), "rb"),
-                n=1,
-                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
-                size="1024x1024",
-                response_format="url",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_edit_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_edit_b64_json",
-        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
-    ):
-        with openai_vcr.use_cassette("image_acreate_edit_b64_json.yaml"):
-            await openai.Image.acreate_edit(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                mask=open(os.path.join(os.path.dirname(__file__), "images/mask.png"), "rb"),
-                n=1,
-                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
-                size="1024x1024",
-                response_format="b64_json",
-            )
-
-
-def test_image_create_edit_with_bytearrays_not_files(openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    image_byte_stream = BytesIO()
-    mask_byte_stream = BytesIO()
-    image = Image.open(os.path.join(os.path.dirname(__file__), "images/image.png"))
-    mask = Image.open(os.path.join(os.path.dirname(__file__), "images/mask.png"))
-    image.save(image_byte_stream, format="PNG")
-    mask.save(mask_byte_stream, format="PNG")
-
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_edit_with_bytearrays_not_files",
-        ignores=["meta.http.useragent"],
-    ):
-        with openai_vcr.use_cassette("image_create_edit_url.yaml"):
-            openai.Image.create_edit(
-                image=image_byte_stream.getvalue(),
-                mask=mask_byte_stream.getvalue(),
-                n=1,
-                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
-                size="1024x1024",
-                response_format="url",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_variation_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_variation_url",
-        ignores=["meta.http.useragent", "meta.openai.request.image"],
-    ):
-        with openai_vcr.use_cassette("image_create_variation_url.yaml"):
-            openai.Image.create_variation(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                n=1,
-                size="1024x1024",
-                response_format="url",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_image_create_variation_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_variation_b64_json",
-        ignores=["meta.http.useragent", "meta.openai.request.image"],
-    ):
-        with openai_vcr.use_cassette("image_create_variation_b64_json.yaml"):
-            openai.Image.create_variation(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                n=1,
-                size="1024x1024",
-                response_format="b64_json",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_variation_url(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_variation_url",
-        ignores=["meta.http.useragent", "meta.openai.request.image"],
-    ):
-        with openai_vcr.use_cassette("image_acreate_variation_url.yaml"):
-            await openai.Image.acreate_variation(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                n=1,
-                size="1024x1024",
-                response_format="url",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_image_acreate_variation_b64_json(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_acreate_variation_b64_json",
-        ignores=["meta.http.useragent", "meta.openai.request.image"],
-    ):
-        with openai_vcr.use_cassette("image_acreate_variation_b64_json.yaml"):
-            await openai.Image.acreate_variation(
-                api_key=request_api_key,
-                image=open(os.path.join(os.path.dirname(__file__), "images/image.png"), "rb"),
-                n=1,
-                size="1024x1024",
-                response_format="b64_json",
-            )
-
-
-def test_image_create_variation_with_bytearrays_not_files(openai, openai_vcr, snapshot_tracer):
-    if not hasattr(openai, "Image"):
-        pytest.skip("image not supported for this version of openai")
-    image_byte_stream = BytesIO()
-    image = Image.open(os.path.join(os.path.dirname(__file__), "images/image.png"))
-    image.save(image_byte_stream, format="PNG")
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create_variation_with_bytearrays_not_files",
-        ignores=["meta.http.useragent"],
-    ):
-        with openai_vcr.use_cassette("image_create_variation_url.yaml"):
-            openai.Image.create_variation(
-                image=image_byte_stream.getvalue(), n=1, size="1024x1024", response_format="url"
-            )
-
-
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_embedding", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("embedding.yaml"):
-            openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -934,13 +575,22 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_aembedding", ignores=["meta.http.useragent"]):
-        with openai_vcr.use_cassette("embedding_async.yaml"):
-            await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+    with openai_vcr.use_cassette("embedding_async.yaml"):
+        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_unsupported(openai, openai_vcr, snapshot_tracer):
+    # no openai spans expected
+    with openai_vcr.use_cassette("moderation.yaml"):
+        openai.Moderation.create(
+            input="Here is some perfectly innocuous text that follows all OpenAI content policies."
+        )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])

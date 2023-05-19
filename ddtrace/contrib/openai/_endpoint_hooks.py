@@ -17,10 +17,9 @@ class _EndpointHook:
     OPERATION_ID = ""
 
     def _record_request(self, span, integration, args, kwargs):
-        """Set base-level openai tags, as well as request params from args and kwargs."""
-        endpoint = self.ENDPOINT_NAME
-        if endpoint is None:
-            endpoint = "/%s" % args[0].OBJECT_NAME
+        endpoint = getattr(args[0], "OBJECT_NAME", self.ENDPOINT_NAME)
+        if not endpoint.startswith("/"):
+            endpoint = "/%s" % endpoint
         span.set_tag_str("openai.request.endpoint", endpoint)
         span.set_tag_str("openai.request.method", self.REQUEST_TYPE)
 
@@ -39,10 +38,8 @@ class _EndpointHook:
             elif (
                 self._prompt_completion is True and integration.is_pc_sampled_span
             ) or self._prompt_completion is False:
-                if hasattr(args[idx], "name"):  # For file pointer args
+                if hasattr(args[idx], "name"):  # For file args
                     span.set_tag_str("openai.request.%s" % arg, integration.trunc(args[idx].name))
-                elif isinstance(args[idx], bytes):  # For binary file data
-                    span.set_tag_str("openai.request.%s" % arg, "")
                 else:
                     span.set_tag("openai.request.%s" % arg, integration.trunc(args[idx]))
         for kw_attr in self._request_kwarg_params:
@@ -327,12 +324,12 @@ class _EmbeddingHook(_EndpointHook):
 
 class _ListHook(_EndpointHook):
     """
-    Hook for openai.ListableAPIResource, which is used by Model.list, File.list, and FineTune.list.
+    Hook for openai.ListableAPIResource, which is used by Model.list, Files.list, and FineTunes.list.
     """
 
     _request_arg_params = ["cls", "api_key", "request_id", "api_version", "organization", "api_base", "api_type"]
     _prompt_completion = False
-    ENDPOINT_NAME = None
+    ENDPOINT_NAME = "/list"
     REQUEST_TYPE = "GET"
     OPERATION_ID = "list"
 
@@ -353,11 +350,11 @@ class _ListHook(_EndpointHook):
 
 
 class _RetrieveHook(_EndpointHook):
-    """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTune.retrieve."""
+    """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTunes.retrieve."""
 
     _request_arg_params = ["cls", "id", "api_key", "request_id", "request_timeout"]
     _prompt_completion = False
-    ENDPOINT_NAME = None
+    ENDPOINT_NAME = "/retrieve"
     REQUEST_TYPE = "GET"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -389,9 +386,13 @@ class _RetrieveHook(_EndpointHook):
             if resp_attr in resp:
                 span.set_tag("openai.response.%s" % resp_attr, resp.get(resp_attr, ""))
         if resp.get("permission"):
-            for k, v in resp.get("permission", [])[0].items():
-                if k != "object":
-                    span.set_tag("openai.response.permission.%s" % k, _format_bool(v))
+            set_flattened_tags(
+                span,
+                [
+                    ("openai.response.permission.%s" % k, _format_bool(v))
+                    for k, v in resp.get("permission", {})[0].items()
+                ],
+            )
         if resp.get("hyperparams"):
             set_flattened_tags(
                 span, [("openai.response.hyperparams.%s" % k, v) for k, v in resp.get("hyperparams", {}).items()]
@@ -399,27 +400,6 @@ class _RetrieveHook(_EndpointHook):
         for resp_attr in ("result_files", "training_files", "validation_files"):
             if resp_attr in resp:
                 span.set_tag("openai.response.%s_count" % resp_attr, len(resp.get(resp_attr, [])))
-        return resp
-
-
-class _FileDeleteHook(_EndpointHook):
-    """Hook for openai.DeletableAPIResource, which is used by File.delete, and FineTune.delete."""
-
-    _request_arg_params = ["cls", "sid", "api_type", "api_version"]
-    _prompt_completion = False
-    ENDPOINT_NAME = "/files"
-    REQUEST_TYPE = "DELETE"
-    OPERATION_ID = "deleteFile"
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        return
-
-    def _post_response(self, pin, integration, span, args, kwargs, resp, error):
-        if not resp:
-            return
-        for k, v in resp.data.items():
-            # TODO: NEED TO IGNORE "object" field
-            span.set_tag("openai.response.%s" % k, v)
         return resp
 
 
@@ -650,13 +630,8 @@ class _FileCreateHook(_BaseFileHook):
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag_str("openai.response.id", resp.get("id", ""))
-        span.set_tag("openai.response.bytes", resp.get("bytes", ""))
-        span.set_tag("openai.response.created_at", resp.get("created_at", ""))
-        span.set_tag_str("openai.response.filename", integration.trunc(resp.get("filename", "")))
-        span.set_tag_str("openai.response.purpose", resp.get("purpose", ""))
-        span.set_tag_str("openai.response.status", resp.get("status", ""))
-        span.set_tag("openai.response.status_details", resp.get("status_details", ""))
+        for k, v in resp.items():
+            span.set_tag("openai.response.%s" % k, v if v else "")
         return resp
 
 
@@ -669,6 +644,25 @@ class _FileDownloadHook(_BaseFileHook):
         if not resp:
             return
         span.set_tag("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
+        return resp
+
+
+class _FileDeleteHook(_EndpointHook):
+    # TODO: This will probably conflict with fine-tune delete model
+    _request_arg_params = ["cls", "sid", "api_type", "api_version"]
+    _prompt_completion = False
+    ENDPOINT_NAME = "/files"
+    REQUEST_TYPE = "DELETE"
+    OPERATION_ID = "deleteFile"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        return
+
+    def _post_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return
+        for k, v in resp.data.items():
+            span.set_tag("openai.response.%s" % k, v)
         return resp
 
 
