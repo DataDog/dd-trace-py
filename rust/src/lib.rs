@@ -1,4 +1,4 @@
-use pyo3::{prelude::*, types::PyBool};
+use pyo3::{prelude::*};
 use std::collections::HashMap;
 
 /// Formats the sum of two numbers as string.

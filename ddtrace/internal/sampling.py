@@ -145,7 +145,7 @@ class SpanSamplingRule:
         "_service_matcher",
         "_name_matcher",
         "_resource_matcher",
-        "_tags_matcher",
+        "_tag_matchers",
         "_sample_rate",
         "_max_per_second",
         "_sampling_id_threshold",
@@ -267,6 +267,7 @@ def get_span_sampling_rules():
         sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
+        tags = rule.get("tags")
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
@@ -276,7 +277,7 @@ def get_span_sampling_rules():
 
         try:
             sampling_rule = SpanSamplingRule(
-                sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
+                sample_rate=sample_rate, service=service, name=name, tags=tags, max_per_second=max_per_second
             )
         except Exception as e:
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
