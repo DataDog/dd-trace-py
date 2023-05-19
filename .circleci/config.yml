@@ -632,6 +632,7 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - attach_workspace:
           at: .
