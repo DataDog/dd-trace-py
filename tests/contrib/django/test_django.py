@@ -492,6 +492,30 @@ def test_request_view(client, test_spans):
     )
 
 
+def test_class_views_resource_names(client, test_spans):
+    """
+    When making a request to a Django app and DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=True
+        The resource name of the django.request span should contain the name of the view
+    """
+    with override_config("django", dict(use_handler_resource_format=True)):
+        # Send a request to a endpoint with a class based view
+        resp = client.get("/simple/")
+        assert resp.status_code == 200
+        assert resp.content == b""
+
+    view_spans = list(test_spans.filter_spans(name="django.view"))
+    assert len(view_spans) == 1
+    # Assert span properties
+    view_span = view_spans[0]
+    view_span.assert_matches(
+        name="django.view", service="django", resource="tests.contrib.django.views.BasicView", error=0
+    )
+    # Get request span
+    request_span = list(test_spans.filter_spans(name="django.request"))[0]
+    # Ensure resource name contains the view
+    assert view_span.resource in request_span.resource
+
+
 def test_lambda_based_view(client, test_spans):
     # ensures that the internals are properly traced when using a function view
     assert client.get("/lambda-view/").status_code == 200

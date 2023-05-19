@@ -1,5 +1,6 @@
 from ddtrace import config
 import ddtrace.appsec._asm_request_context as _asmrc
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
@@ -49,7 +50,7 @@ def wrap_view(instance, func, name=None, resource=None):
                 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
                 for k, v in kwargs.items():
-                    kwargs[k] = taint_pyobject(v, Input_info(k, v, "http.request.path.parameter"))
+                    kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
 
             return wrapped(*args, **kwargs)
 
