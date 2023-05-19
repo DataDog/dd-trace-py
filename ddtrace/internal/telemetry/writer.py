@@ -219,15 +219,16 @@ class TelemetryBase(PeriodicService):
             return
 
         atexit.unregister(self.stop)
-        self.stop()
+        self.stop(join=False)
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
 
-    def _stop_service(self, *args, **kwargs):
+    def _stop_service(self, join=True, *args, **kwargs):
         # type: (...) -> None
         super(TelemetryBase, self)._stop_service(*args, **kwargs)
-        self.join(timeout=2)
+        if join:
+            self.join(timeout=2)
 
 
 class TelemetryLogsMetricsWriter(TelemetryBase):
