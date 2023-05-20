@@ -360,11 +360,11 @@ def patch():
         )
         _wrap_classmethod(
             openai.api_resources.file.File.delete,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FileDeleteHook),
+            _patched_endpoint(openai, integration, _endpoint_hooks._DeleteHook),
         )
         _wrap_classmethod(
             openai.api_resources.file.File.adelete,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._FileDeleteHook),
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._DeleteHook),
         )
         _wrap_classmethod(
             openai.api_resources.file.File.download,
@@ -378,6 +378,7 @@ def patch():
     if hasattr(openai.api_resources, "fine_tune"):
         # FineTune.list()/retrieve() share the same underlying classmethod as Model.list() and Model.retrieve()
         # this means they are already wrapped.
+        # FineTune.delete() share the same underlying classmethod as File.delete(), this means they are already wrapped.
         _wrap_classmethod(
             openai.api_resources.fine_tune.FineTune.create,
             _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneCreateHook),

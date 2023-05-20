@@ -219,6 +219,50 @@ def test_patching(openai):
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("model_list.yaml"):
+            openai.Model.list(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("model_alist.yaml"):
+            await openai.Model.alist(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("model_retrieve.yaml"):
+            openai.Model.retrieve(
+                "curie",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("model_aretrieve.yaml"):
+            await openai.Model.aretrieve(
+                "curie",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(token="tests.contrib.openai.test_openai.test_completion", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("completion.yaml"):

@@ -359,6 +359,7 @@ class _RetrieveHook(_EndpointHook):
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "GET"
+    OPERATION_ID = "retrieve"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         if span.get_tag("openai.request.endpoint") == "/models":
@@ -375,6 +376,7 @@ class _RetrieveHook(_EndpointHook):
         response_attrs = (
             "id",
             "owned_by",
+            "parent",
             "root",
             "bytes",
             "created_at",
@@ -402,24 +404,27 @@ class _RetrieveHook(_EndpointHook):
         return resp
 
 
-class _FileDeleteHook(_EndpointHook):
-    """Hook for openai.DeletableAPIResource, which is used by File.delete, and FineTune.delete."""
+class _DeleteHook(_EndpointHook):
+    """Hook for openai.DeletableAPIResource, which is used by File.delete, and Model.delete."""
 
     _request_arg_params = ["cls", "sid", "api_type", "api_version"]
     _prompt_completion = False
-    ENDPOINT_NAME = "/files"
+    ENDPOINT_NAME = None
     REQUEST_TYPE = "DELETE"
-    OPERATION_ID = "deleteFile"
+    OPERATION_ID = "delete"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
+        if span.get_tag("openai.request.endpoint") == "/models":
+            span.resource = "deleteModel"
+        elif span.get_tag("openai.request.endpoint") == "/files":
+            span.resource = "deleteFile"
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        for k, v in resp.data.items():
-            # TODO: NEED TO IGNORE "object" field
-            span.set_tag("openai.response.%s" % k, v)
+        span.set_tag_str("openai.response.id", resp.get("id", ""))
+        span.set_tag_str("openai.response.deleted", resp.get("deleted", ""))
         return resp
 
 
