@@ -1,8 +1,17 @@
-#ifndef _TAINT_TRACKING_TAINTEDOBJECT_H
-#define _TAINT_TRACKING_TAINTEDOBJECT_H
-#include <Python.h>
+//
+// Created by alberto.vara on 22/05/23.
+//
 
-PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args);
+#ifndef _NATIVE_TAINTEDOBJECT_H
+#define _NATIVE_TAINTEDOBJECT_H
 
-PyObject *new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args);
-#endif //_TAINT_TRACKING_TAINTEDOBJECT_H
+
+class TaintedObject {
+
+public:
+    constexpr static int TAINT_RANGE_LIMIT = 100;
+    constexpr static int RANGES_INITIAL_RESERVE = 16;
+
+};
+
+#endif //_NATIVE_TAINTEDOBJECT_H

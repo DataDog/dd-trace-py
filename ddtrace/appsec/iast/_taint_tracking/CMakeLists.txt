@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.15...3.22)
+include(FetchContent)
+
 set(APP_NAME _native)
 
 project(${APP_NAME})
@@ -16,15 +18,25 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 
+add_compile_options(-fPIC -fexceptions -fvisibility=hidden -pthread -Wall -Wno-unknown-pragmas)
+
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 
+add_link_options(-ldl)
+
+FetchContent_Declare(
+        absl
+        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
+)
+FetchContent_MakeAvailable(absl)
+
 
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-file(GLOB SOURCE_FILES "*.cpp" "TaintedObject/*.cpp" "Source/*.cpp" "TaintRange/*.cpp")
-file(GLOB HEADER_FILES "*.h" "TaintedObject/*.h" "Source/*.h" "TaintRange/*.h")
+file(GLOB SOURCE_FILES "*.cpp" "Aspects/*.cpp" "Source/*.cpp" "TaintedObject/*.cpp" "TaintedOps/*.cpp" "TaintRange/*.cpp" )
+file(GLOB HEADER_FILES "*.h" "Aspects/*.h"  "Source/*.h" "TaintedObject/*.cpp" "TaintedOps/*.h" "TaintRange/*.h")
 
 
 add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp Constants.h)
@@ -36,4 +48,4 @@ set_target_properties(
         PREFIX ""
 )
 
-target_link_libraries(${APP_NAME} ${PYTHON_LIBRARIES})
+target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map ${PYTHON_LIBRARIES} )
