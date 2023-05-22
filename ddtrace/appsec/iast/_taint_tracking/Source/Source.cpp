@@ -3,7 +3,7 @@
 string Source::toString() const {
     ostringstream ret;
     ret << "Source at " << this << " "
-        << "[name=" << string(name) << ", value=" << string(value) << " origin=" << string(origin)
+        << "[name=" << string(name) << ", value=" << string(value) << ", origin=" << string(origin)
         << "]";
     return ret.str();
 }

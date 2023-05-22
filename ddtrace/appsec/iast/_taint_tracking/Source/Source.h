@@ -30,7 +30,6 @@ struct Source {
     [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
 
     explicit operator std::string() const;
-
     bool eq(Source* other) const;
 };
 
@@ -93,14 +92,31 @@ static PyMethodDef Source_methods[] = {
         {"to_string", (PyCFunction) Source_to_string, METH_NOARGS,
                 "Return representation of a Source"
         },
-        {"__repr__", (PyCFunction) Source_to_string, METH_NOARGS,
-                "Return representation of a Source"
-        },
-        {"__eq__", (PyCFunction) Source_equals, METH_VARARGS,
-                "Check if the passed object is equal to this one"
-        },
         {nullptr, nullptr, 0, nullptr}  /* Sentinel */
 };
+
+static PyObject *
+Source_richcompare(PyObject *self, PyObject *other, int op)
+{
+    PyObject *result = NULL;
+
+    switch (op) {
+        case Py_EQ:
+            result = reinterpret_cast<Source*>(self)->eq(reinterpret_cast<Source*>(other)) ? Py_True : Py_False;
+            break;
+        default:
+            result = Py_NotImplemented;
+            break;
+    }
+
+    Py_XINCREF(result);
+}
+
+static PyObject *
+Source_repr(PyObject *self)
+{
+    return Source_to_string(reinterpret_cast<Source*>(self), nullptr);
+}
 
 static PyTypeObject SourceType = {
         PyVarObject_HEAD_INIT(nullptr, 0)
@@ -108,32 +124,14 @@ static PyTypeObject SourceType = {
         .tp_basicsize = sizeof(Source),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor) Source_dealloc,
+        .tp_repr = Source_repr,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_doc = PyDoc_STR("Source objects"),
+        .tp_richcompare = Source_richcompare,
         .tp_methods = Source_methods,
         .tp_members = Source_members,
         .tp_init = (initproc) Source_init,
         .tp_new = Source_new,
 };
-
-// Has to be declared later to have access to the PyTypeObject
-static PyObject *
-Source_equals(Source *self, PyObject *args)
-{
-    PyObject* other;
-    if (PyArg_ParseTuple(args, "O", &other)) {
-        if (PyObject_IsInstance(other, reinterpret_cast<PyObject*>(&SourceType))) {
-            if (self->eq(reinterpret_cast<Source *>(other))) return Py_True;
-        }
-    }
-
-    if (PyErr_Occurred()) {
-        PyErr_Clear();
-        PyErr_Format(PyExc_TypeError, "__eq__ needs one parameter to compare");
-        return nullptr;
-    }
-
-    return Py_False;
-}
 
 #endif //_TAINT_TRACKING_SOURCE_H
