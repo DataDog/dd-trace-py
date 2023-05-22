@@ -1,3 +1,6 @@
+from enum import IntEnum
+
+
 EVENT_TYPE = "type"
 
 
@@ -34,6 +37,8 @@ AGENTLESS_COVERAGE_BASE_URL = "https://citestcov-intake"
 AGENTLESS_DEFAULT_SITE = "datadoghq.com"
 GIT_API_BASE_PATH = "/api/v2/git"
 
-REQUESTS_MODE_AGENTLESS_EVENTS = 0
-REQUESTS_MODE_EVP_PROXY_EVENTS = 1
-REQUESTS_MODE_TRACES = 2
+
+class REQUESTS_MODE(IntEnum):
+    AGENTLESS_EVENTS = 0
+    EVP_PROXY_EVENTS = 1
+    TRACES = 2

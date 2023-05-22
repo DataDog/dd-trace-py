@@ -22,8 +22,7 @@ from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import GIT_API_BASE_PATH
-from .constants import REQUESTS_MODE_AGENTLESS_EVENTS
-from .constants import REQUESTS_MODE_EVP_PROXY_EVENTS
+from .constants import REQUESTS_MODE
 
 
 log = get_logger(__name__)
@@ -42,7 +41,7 @@ class CIVisibilityGitClient(object):
         self,
         api_key,
         app_key,
-        requests_mode=REQUESTS_MODE_AGENTLESS_EVENTS,
+        requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
         base_url="",
     ):
         # type: (str, str, int, str) -> None
@@ -50,9 +49,9 @@ class CIVisibilityGitClient(object):
         self._worker = None  # type: Optional[Process]
         self._response = RESPONSE
         self._requests_mode = requests_mode
-        if self._requests_mode == REQUESTS_MODE_EVP_PROXY_EVENTS:
+        if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             self._base_url = EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
-        elif self._requests_mode == REQUESTS_MODE_AGENTLESS_EVENTS:
+        elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
 
     def start(self, cwd=None):
@@ -107,7 +106,7 @@ class CIVisibilityGitClient(object):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
-        if requests_mode == REQUESTS_MODE_EVP_PROXY_EVENTS:
+        if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
         if headers is not None:
             _headers.update(headers)

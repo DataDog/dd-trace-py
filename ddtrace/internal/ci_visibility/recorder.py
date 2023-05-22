@@ -29,9 +29,7 @@ from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
-from .constants import REQUESTS_MODE_AGENTLESS_EVENTS
-from .constants import REQUESTS_MODE_EVP_PROXY_EVENTS
-from .constants import REQUESTS_MODE_TRACES
+from .constants import REQUESTS_MODE
 from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
@@ -94,12 +92,12 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
-        self._requests_mode = REQUESTS_MODE_AGENTLESS_EVENTS
+        self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
         if not ddconfig._ci_visibility_agentless_enabled:
             if self._agent_evp_proxy_is_available():
-                self._requests_mode = REQUESTS_MODE_EVP_PROXY_EVENTS
+                self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             else:
-                self._requests_mode = REQUESTS_MODE_TRACES
+                self._requests_mode = REQUESTS_MODE.TRACES
 
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
@@ -108,7 +106,7 @@ class CIVisibility(Service):
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
-            elif self._requests_mode == REQUESTS_MODE_TRACES:
+            elif self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
                 self._git_client = CIVisibilityGitClient(
@@ -135,10 +133,10 @@ class CIVisibility(Service):
         endpoint = "/api/v2/libraries/tests/services/setting"
         _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
 
-        if self._requests_mode == REQUESTS_MODE_EVP_PROXY_EVENTS:
+        if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = EVP_PROXY_AGENT_BASE_PATH + endpoint
             _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
-        elif self._requests_mode == REQUESTS_MODE_AGENTLESS_EVENTS:
+        elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + endpoint
         else:
             log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
