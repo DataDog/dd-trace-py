@@ -60,10 +60,6 @@ from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
 
-# testing out rust code
-import matcher
-result = matcher.count_words("this is the best sentence maybe maybe")
-print(result)
 
 
 if TYPE_CHECKING:  # pragma: no cover
