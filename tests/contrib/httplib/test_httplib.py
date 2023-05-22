@@ -12,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
@@ -597,6 +598,182 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), "http://DNE:80/status/500")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematization_httplib_service_name_default(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematization_urlib_service_name_default(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_httplib_service_name_v0(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_urllib_service_name_v0(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_httplib_service_name_v1(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_urllib_service_name_v1(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, "mysvc", msg=span.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematization_httplib_unspecified_service_name_default(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.service, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematization_urllib_unspecified_service_name_default(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.service, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_httplib_unspecified_service_name_v0(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.service, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_urllib_unspecified_service_name_v0(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.service, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_httplib_unspecified_service_name_v1(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_urllib_unspecified_service_name_v1(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME, msg=span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_httplib_unspecified_operation_name_v0(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.name, self.SPAN_NAME)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_urllib_unspecified_operation_name_v0(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.name, self.SPAN_NAME)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_httplib_unspecified_operation_name_v1(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.name, "http.client.request")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_urllib_unspecified_operation_name_v1(self):
+        with override_global_tracer(self.tracer):
+            urlopen(URL_200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.name, "http.client.request")
 
 
 # Additional Python2 test cases for urllib
