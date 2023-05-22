@@ -12,12 +12,12 @@ void TaintRange::reset() {
   }
 };
 
-const char *TaintRange::toString() const {
-  ostringstream ret;
-  ret << "TaintRange at " << this << " "
-      << " [start=" << start << ", length=" << length
+string TaintRange::toString() const {
+    ostringstream ret;
+    ret << "TaintRange at " << this << " "
+      << "[start=" << start << ", length=" << length
       << " source=" << source->toString() << "]";
-  return ret.str().c_str();
+    return ret.str();
 }
 
 TaintRange::operator std::string() const { return toString(); }

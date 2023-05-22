@@ -1,12 +1,12 @@
 #include "Source.h"
 
-const char *Source::toString() const {
+string Source::toString() const {
   ostringstream ret;
   ret << "Source at " << this << " "
-      << " [name=" << name << ", value=" << value << " origin=" << origin
+      << "[name=" << string(name) << ", value=" << string(value) << " origin=" << string(origin)
       << "]";
-  return ret.str().c_str();
-}
+  return ret.str();
+};
 
 Source::operator std::string() const { return toString(); }
 

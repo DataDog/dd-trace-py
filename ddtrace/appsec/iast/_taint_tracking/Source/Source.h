@@ -17,7 +17,7 @@ struct Source {
     // TODO: make origin an enum
     const char * origin;
 
-    [[nodiscard]] const char* toString() const;
+    [[nodiscard]] string toString() const;
 
     [[nodiscard]] size_t get_hash() const;
 
@@ -65,7 +65,7 @@ Source_init(Source *self, PyObject *args, PyObject *kwds)
 static PyObject *
 Source_to_string(Source *self, PyObject *Py_UNUSED(ignored))
 {
-    return PyUnicode_FromFormat("%S", self->toString());
+  return PyUnicode_FromFormat("%s", self->toString().c_str());
 }
 
 
