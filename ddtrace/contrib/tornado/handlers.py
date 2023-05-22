@@ -9,6 +9,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal.schema import schematize_url_operation
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ..trace_utils import set_http_meta
@@ -36,7 +37,7 @@ def execute(func, handler, args, kwargs):
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(
-            "tornado.request",
+            schematize_url_operation("tornado.request", protocol="http", direction="inbound"),
             service=service,
             span_type=SpanTypes.WEB,
         )
