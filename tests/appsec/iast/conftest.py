@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec.iast.taint_sinks.weak_hash import patch as weak_hash_patch
@@ -15,6 +16,7 @@ def iast_span(tracer, env, request_sampling="100"):
         with tracer.trace("test") as span:
             weak_hash_patch()
             weak_cipher_patch()
+            path_traversal_patch()
             oce.acquire_request(span)
             yield span
             oce.release_request()
