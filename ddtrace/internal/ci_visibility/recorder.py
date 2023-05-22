@@ -56,7 +56,7 @@ def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
         conn = get_connection(url)
-        log.debug("Sending request: %s %s %s %s", (method, url, payload, headers))
+        log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)

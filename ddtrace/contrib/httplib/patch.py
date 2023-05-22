@@ -16,6 +16,7 @@ from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -23,6 +24,7 @@ from ..trace_utils import unwrap as _u
 
 
 span_name = "httplib.request" if PY2 else "http.client.request"
+span_name = schematize_url_operation(span_name, protocol="http", direction="outbound")
 
 log = get_logger(__name__)
 
