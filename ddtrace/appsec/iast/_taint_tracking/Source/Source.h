@@ -3,6 +3,7 @@
 #include <sstream>
 #include <Python.h>
 #include <string.h>
+#include <iostream>
 #include "structmember.h"
 #include "../Constants.h"
 
@@ -29,8 +30,9 @@ struct Source {
     [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
 
     explicit operator std::string() const;
-};
 
+    bool eq(Source* other) const;
+};
 
 static void
 Source_dealloc(Source *self)
@@ -76,7 +78,6 @@ Source_to_string(Source *self, PyObject *Py_UNUSED(ignored))
   return PyUnicode_FromFormat("%s", self->toString().c_str());
 }
 
-
 static PyMemberDef Source_members[] = {
         {"name", T_STRING, offsetof(Source, name), 0,
                 "Source.name"},
@@ -87,9 +88,16 @@ static PyMemberDef Source_members[] = {
         {nullptr}  /* Sentinel */
 };
 
+static PyObject *Source_equals(Source *self, PyObject *args);
 static PyMethodDef Source_methods[] = {
         {"to_string", (PyCFunction) Source_to_string, METH_NOARGS,
                 "Return representation of a Source"
+        },
+        {"__repr__", (PyCFunction) Source_to_string, METH_NOARGS,
+                "Return representation of a Source"
+        },
+        {"__eq__", (PyCFunction) Source_equals, METH_VARARGS,
+                "Check if the passed object is equal to this one"
         },
         {nullptr, nullptr, 0, nullptr}  /* Sentinel */
 };
@@ -107,5 +115,25 @@ static PyTypeObject SourceType = {
         .tp_init = (initproc) Source_init,
         .tp_new = Source_new,
 };
+
+// Has to be declared later to have access to the PyTypeObject
+static PyObject *
+Source_equals(Source *self, PyObject *args)
+{
+    PyObject* other;
+    if (PyArg_ParseTuple(args, "O", &other)) {
+        if (PyObject_IsInstance(other, reinterpret_cast<PyObject*>(&SourceType))) {
+            if (self->eq(reinterpret_cast<Source *>(other))) return Py_True;
+        }
+    }
+
+    if (PyErr_Occurred()) {
+        PyErr_Clear();
+        PyErr_Format(PyExc_TypeError, "__eq__ needs one parameter to compare");
+        return nullptr;
+    }
+
+    return Py_False;
+}
 
 #endif //_TAINT_TRACKING_SOURCE_H

@@ -16,3 +16,9 @@ size_t Source::get_hash() const {
   size_t horigin = hash<string>()(this->origin);
   return hname ^ hvalue ^ horigin;
 };
+
+bool Source::eq(Source* other) const {
+    return (strcmp(name, other->name) == 0) and
+            (strcmp(value, other->value) == 0) and
+            (strcmp(origin, other->origin) == 0);
+}
