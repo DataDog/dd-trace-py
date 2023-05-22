@@ -31,6 +31,10 @@ from ...ext import aws
 from ...ext import http
 from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_cloud_faas_operation
+from ...internal.schema import schematize_cloud_messaging_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
@@ -353,8 +357,13 @@ def patched_api_call(original_func, instance, args, kwargs):
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
+    trace_operation = schematize_cloud_api_operation(
+        "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+    )
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
+        trace_operation,
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -375,18 +384,43 @@ def patched_api_call(original_func, instance, args, kwargs):
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
+                        span.name = schematize_cloud_faas_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="lambda"
+                        )
                     if endpoint_name == "sqs" and operation == "SendMessage":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="outbound"
+                        )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="outbound"
+                        )
+                    if endpoint_name == "sqs" and operation == "ReceiveMessage":
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="inbound"
+                        )
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="events", direction="outbound"
+                        )
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="kinesis", direction="outbound"
+                        )
                     if endpoint_name == "sns" and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction="outbound"
+                        )
                     if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction="outbound"
+                        )
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 

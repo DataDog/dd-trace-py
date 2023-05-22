@@ -36,6 +36,25 @@ def cloud_api_operation_v1(v0_operation, cloud_provider=None, cloud_service=None
     return "{}.{}.request".format(cloud_provider, cloud_service)
 
 
+def cloud_faas_operation_v0(v0_operation, cloud_provider=None, cloud_service=None):
+    return v0_operation
+
+
+def cloud_faas_operation_v1(v0_operation, cloud_provider=None, cloud_service=None):
+    return "{}.{}.invoke".format(cloud_provider, cloud_service)
+
+
+def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
+    return v0_operation
+
+
+def cloud_messaging_operation_v1(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
+    if direction == "inbound":
+        return "{}.{}.receive".format(cloud_provider, cloud_service)
+    else:
+        return "{}.{}.send".format(cloud_provider, cloud_service)
+
+
 def url_operation_v0(v0_operation, protocol=None, direction=None):
     return v0_operation
 
@@ -60,6 +79,8 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
         "database_operation": database_operation_v0,
         "cache_operation": cache_operation_v0,
         "cloud_api_operation": cloud_api_operation_v0,
+        "cloud_faas_operation": cloud_faas_operation_v0,
+        "cloud_messaging_operation": cloud_messaging_operation_v0,
         "url_operation": url_operation_v0,
     },
     "v1": {
@@ -67,6 +88,8 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
         "database_operation": database_operation_v1,
         "cache_operation": cache_operation_v1,
         "cloud_api_operation": cloud_api_operation_v1,
+        "cloud_faas_operation": cloud_faas_operation_v1,
+        "cloud_messaging_operation": cloud_messaging_operation_v1,
         "url_operation": url_operation_v1,
     },
 }
