@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
-from ddtrace.appsec.utils import _appsec_rc_file_is_not_fixed
+from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
@@ -55,7 +55,7 @@ def enable_appsec_rc(test_tracer=None):
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
 
-    if tracer._appsec_enabled and _appsec_rc_file_is_not_fixed():
+    if tracer._appsec_enabled and _appsec_rc_file_is_not_static():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
@@ -139,20 +139,22 @@ class RCAppSecFeaturesCallBack(RemoteConfigCallBack):
             log.debug("Updating ASM Remote Configuration ASM_FEATURES: %s", rc_appsec_enabled)
 
             if rc_appsec_enabled:
-                asm_dd_callback = RCASMDDCallBack(self.tracer)
-                asm_callback = RCAppSecCallBack(self.tracer)
-                RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
-                RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
-                RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
+                if _appsec_rc_file_is_not_static():
+                    asm_dd_callback = RCASMDDCallBack(self.tracer)
+                    asm_callback = RCAppSecCallBack(self.tracer)
+                    RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+                    RemoteConfig.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+                    RemoteConfig.register(PRODUCTS.ASM_DD, asm_dd_callback)  # DD Rules
                 if not self.tracer._appsec_enabled:
                     self.tracer.configure(appsec_enabled=True)
                 else:
                     config._appsec_enabled = True
 
             else:
-                RemoteConfig.unregister(PRODUCTS.ASM_DATA)
-                RemoteConfig.unregister(PRODUCTS.ASM)
-                RemoteConfig.unregister(PRODUCTS.ASM_DD)
+                if _appsec_rc_file_is_not_static():
+                    RemoteConfig.unregister(PRODUCTS.ASM_DATA)
+                    RemoteConfig.unregister(PRODUCTS.ASM)
+                    RemoteConfig.unregister(PRODUCTS.ASM_DD)
                 if self.tracer._appsec_enabled:
                     self.tracer.configure(appsec_enabled=False)
                 else:
