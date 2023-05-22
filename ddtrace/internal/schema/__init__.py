@@ -25,6 +25,7 @@ schematize_service_name = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["service
 schematize_database_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["database_operation"]
 schematize_cache_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["cache_operation"]
 schematize_cloud_api_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["cloud_api_operation"]
+schematize_url_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["url_operation"]
 
 __all__ = [
     "DEFAULT_SPAN_SERVICE_NAME",
@@ -32,4 +33,5 @@ __all__ = [
     "schematize_database_operation",
     "schematize_cache_operation",
     "schematize_cloud_api_operation",
+    "schematize_url_operation",
 ]
