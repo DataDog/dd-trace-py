@@ -2,6 +2,7 @@
 #define _TAINT_TRACKING_SOURCE_H
 #include <sstream>
 #include <Python.h>
+#include <string.h>
 #include "structmember.h"
 #include "../Constants.h"
 
@@ -17,7 +18,7 @@ struct Source {
     // TODO: make origin an enum
     const char * origin;
 
-    [[nodiscard]] const char* toString() const;
+    [[nodiscard]] string toString() const;
 
     [[nodiscard]] size_t get_hash() const;
 
@@ -34,6 +35,7 @@ struct Source {
 static void
 Source_dealloc(Source *self)
 {
+    // JJJ: free the members?
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -54,18 +56,22 @@ Source_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 Source_init(Source *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"name", "value", "origin", NULL};
+    static char *kwlist[] = {"name", "value", "origin", nullptr};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sss", kwlist,
-                                     &self->name, &self->value, &self->origin))
+    char *name, *value, *origin;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sss", kwlist, &name, &value, &origin))
         return -1;
+
+    if (name) self->name = strdup(name);
+    if (value) self->value = strdup(value);
+    if (origin) self->origin = strdup(origin);
     return 0;
 }
 
 static PyObject *
 Source_to_string(Source *self, PyObject *Py_UNUSED(ignored))
 {
-    return PyUnicode_FromFormat("%S", self->toString());
+  return PyUnicode_FromFormat("%s", self->toString().c_str());
 }
 
 
@@ -76,18 +82,18 @@ static PyMemberDef Source_members[] = {
                 "Source.value"},
         {"origin", T_STRING, offsetof(Source, origin), 0,
                 "Source.origin"},
-        {NULL}  /* Sentinel */
+        {nullptr}  /* Sentinel */
 };
 
 static PyMethodDef Source_methods[] = {
         {"to_string", (PyCFunction) Source_to_string, METH_NOARGS,
                 "Return representation of a Source"
         },
-        {NULL}  /* Sentinel */
+        {nullptr, nullptr, 0, nullptr}  /* Sentinel */
 };
 
 static PyTypeObject SourceType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
+        PyVarObject_HEAD_INIT(nullptr, 0)
         .tp_name = PY_MODULE_NAME_SOURCE,
         .tp_basicsize = sizeof(Source),
         .tp_itemsize = 0,

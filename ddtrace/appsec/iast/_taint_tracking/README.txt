@@ -1,6 +1,7 @@
 # Compile extension with Cmake
 
 ```bash
+sh clean.sh
 cmake -DPYTHON_EXECUTABLE:FILEPATH=FILEPATH=/usr/bin/python3.11 . && \
  make -j _native && \
  mv lib_native.so _native.so
