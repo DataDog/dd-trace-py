@@ -1,11 +1,11 @@
 #include "Source.h"
 
 string Source::toString() const {
-  ostringstream ret;
-  ret << "Source at " << this << " "
-      << " [name=" << name << ", value=" << value << " origin=" << origin
-      << "]";
-  return ret.str();
+    ostringstream ret;
+    ret << "Source at " << this << " "
+        << "[name=" << string(name) << ", value=" << string(value) << " origin=" << string(origin)
+        << "]";
+    return ret.str();
 }
 
 Source::operator std::string() const { return toString(); }

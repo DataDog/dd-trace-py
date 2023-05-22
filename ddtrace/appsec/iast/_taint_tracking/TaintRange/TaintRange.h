@@ -24,7 +24,7 @@ struct TaintRange {
 
     void reset();
 
-    [[nodiscard]] const char* toString() const;
+    [[nodiscard]] string toString() const;
 
     [[nodiscard]] size_t get_hash() const;
 
@@ -95,8 +95,7 @@ TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
         PyErr_SetString(PyExc_AttributeError, "length");
         return nullptr;
     }
-    return PyUnicode_FromFormat("%S", self->toString());
-    return PyUnicode_FromFormat("%S", "ss");
+    return PyUnicode_FromFormat("%s", self->toString().c_str());
 }
 
 
