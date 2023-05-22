@@ -128,8 +128,9 @@ _MODULES_FOR_CONTRIB = {
 }
 
 IAST_PATCH = {
-    "weak_hash": True,
+    "path_traversal": True,
     "weak_cipher": True,
+    "weak_hash": True,
 }
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
