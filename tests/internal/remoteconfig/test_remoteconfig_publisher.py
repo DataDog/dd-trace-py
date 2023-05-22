@@ -14,7 +14,11 @@ def test_remoteconfig_publisher_dispatch():
     publisher = RemoteConfigPublisher(mock_connector, mock_preprocess_results)
     publisher.append({"config": "data"}, "", {})
     publisher.dispatch()
-    # mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
+    # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
+    #  lines if a new product need it
+    #  if self._preprocess_results_func:
+    #     config = self._preprocess_results_func(config, pubsub_instance)
+    #  mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
 
     assert mock_connector.data == [{"config": "data"}]
     assert mock_connector.metadata == [None]
