@@ -148,7 +148,8 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
-    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"} | env_rules
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    env.update(env_rules)
     with override_env(env), override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
         rc_config = {"asm": {"enabled": True}}
 
@@ -180,7 +181,8 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     tracer, remote_config_worker, env_rules, expected
 ):
-    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"} | env_rules
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    env.update(env_rules)
     with override_env(env), override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
