@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec.utils import _appsec_rc_file_is_not_fixed
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigCallBack
@@ -54,7 +55,7 @@ def enable_appsec_rc(test_tracer=None):
 
         RemoteConfig.register(PRODUCTS.ASM_FEATURES, asm_features_callback)
 
-    if tracer._appsec_enabled:
+    if tracer._appsec_enabled and _appsec_rc_file_is_not_fixed():
         from ddtrace.internal.remoteconfig import RemoteConfig
 
         RemoteConfig.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
