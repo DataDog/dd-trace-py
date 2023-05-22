@@ -6,6 +6,8 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.utils import TracerTestCase
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -117,6 +119,76 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert span.parent_id != 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
         assert span.get_tag(ORIGIN_KEY) != "synthetics"
+
+
+class TestSchematization(PyramidBase):
+    instrument = True
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "mysvc", "Expected 'mysvc' and got {}".format(s.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' and got {}".format(
+            DEFAULT_SPAN_SERVICE_NAME, s.service
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == "pyramid.request", "Expected 'pyramid.request' and got {}".format(s.name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        self.app.get("/", status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == "http.server.request", "Expected 'http.server.request' and got {}".format(s.name)
 
 
 @pytest.fixture
