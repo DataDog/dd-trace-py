@@ -45,7 +45,7 @@ Source_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     Source *self;
     self = (Source *) type->tp_alloc(type, 0);
-    if (self != NULL) {
+    if (self != nullptr) {
         self->name = "";
         self->value = "";
         self->origin = "";
@@ -58,7 +58,9 @@ Source_init(Source *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"name", "value", "origin", nullptr};
 
-    char *name, *value, *origin;
+    char *name = nullptr;
+    char *value = nullptr;
+    char *origin = nullptr;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sss", kwlist, &name, &value, &origin))
         return -1;
 
