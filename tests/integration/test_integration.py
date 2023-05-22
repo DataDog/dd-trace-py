@@ -329,7 +329,6 @@ def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     # setting writer interval to 5 seconds so that buffer can fit larger traces
     monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
-    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", 1 << 20)  # max_size = 1 MB
 
     t = Tracer()
     assert t._partial_flush_enabled is True
