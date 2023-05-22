@@ -184,7 +184,7 @@ DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_git_client_worker(_do_request, git_repo):
+def test_git_client_worker_agentless(_do_request, git_repo):
     _do_request.return_value = Response(
         status=200,
         body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
@@ -209,6 +209,43 @@ def test_git_client_worker(_do_request, git_repo):
                 CIVisibility.enable(tracer=dummy_tracer, service="test-service")
                 assert CIVisibility._instance._git_client is not None
                 assert CIVisibility._instance._git_client._worker is not None
+                assert CIVisibility._instance._git_client._base_url == "https://api.datadoghq.com/api/v2/git"
+                CIVisibility.disable()
+    shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
+    assert (
+        time.time() - start_time <= shutdown_timeout + 0.1
+    ), "CIVisibility.disable() should not block for longer than tracer timeout"
+    ddtrace.internal.ci_visibility.git_client.RESPONSE = original
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_git_client_worker_evp_proxy(_do_request, git_repo):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+        '{"code_coverage":true,"tests_skipping":true}}}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APPLICATION_KEY="banana",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+    ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        with _patch_dummy_writer():
+            dummy_tracer = DummyTracer()
+            start_time = time.time()
+            with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+                original = ddtrace.internal.ci_visibility.git_client.RESPONSE
+                ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
+                ggr.return_value = git_repo
+                CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+                assert CIVisibility._instance._git_client is not None
+                assert CIVisibility._instance._git_client._worker is not None
+                assert CIVisibility._instance._git_client._base_url == "evp_proxy/v2/api/v2/git"
                 CIVisibility.disable()
     shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
     assert (
@@ -235,6 +272,40 @@ def test_git_client_search_commits():
         REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
     )
     assert latest_commits[0] in backend_commits
+
+
+def test_get_client_do_request_agentless_headers():
+    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    response = mock.MagicMock()
+    setattr(response, "status", 200)
+
+    with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
+        "ddtrace.internal.compat.get_connection_response", return_value=response
+    ):
+        CIVisibilityGitClient._do_request(
+            REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
+        )
+
+    _request.assert_called_once_with(
+        "POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo", "dd-application-key": "bar"}
+    )
+
+
+def test_get_client_do_request_evp_proxy_headers():
+    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    response = mock.MagicMock()
+    setattr(response, "status", 200)
+
+    with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
+        "ddtrace.internal.compat.get_connection_response", return_value=response
+    ):
+        CIVisibilityGitClient._do_request(
+            REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
+        )
+
+    _request.assert_called_once_with(
+        "POST", "http://base_url/repository/endpoint", "payload", {"X-Datadog-EVP-Subdomain": "api"}
+    )
 
 
 def test_git_client_get_filtered_revisions(git_repo):
@@ -337,6 +408,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
+        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS
         assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
@@ -349,5 +421,17 @@ def test_civisibilitywriter_evp_proxy_url():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+        assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:8126"
+        CIVisibility.disable()
+
+
+def test_civisibilitywriter_only_traces():
+    with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+        assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
         assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:8126"
         CIVisibility.disable()
