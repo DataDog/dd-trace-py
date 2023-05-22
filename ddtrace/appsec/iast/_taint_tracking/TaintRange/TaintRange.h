@@ -2,12 +2,17 @@
 #define _TAINT_TRACKING_TAINTRANGE_H
 #include <Python.h>
 #include "structmember.h"
+#include "absl/container/node_hash_map.h"
 
 #include "../Constants.h"
 #include "../Source/Source.h"
+#include "../TaintedObject/TaintedObject.h"
 
 #define PY_MODULE_NAME_TAINTRANGES PY_MODULE_NAME "." "TaintRange"
 
+// Alias
+using TaintedObjectPtr = TaintedObject*;
+using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 
 struct TaintRange {
     PyObject_HEAD

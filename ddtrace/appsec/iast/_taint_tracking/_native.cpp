@@ -2,14 +2,17 @@
 #include "Source/Source.h"
 #include "TaintRange/TaintRange.h"
 #include "TaintedObject/TaintedObject.h"
+#include "TaintedOps/TaintedOps.h"
+#include "Aspects/AspectOperatorAdd.h"
 
 static PyMethodDef TaintTrackingMethods[] = {
     // We are using  METH_VARARGS because we need compatibility with
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7
     {"setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module"},
-    {"new_pyobject_id", (PyCFunction)new_pyobject_id, METH_VARARGS,
+    {"new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS,
      "new_pyobject_id"},
+    {"add_aspect", ((PyCFunction) add_aspect), METH_FASTCALL, "aspect add"},
     {nullptr, nullptr, 0, nullptr}};
 
 static struct PyModuleDef taint_tracking = {
