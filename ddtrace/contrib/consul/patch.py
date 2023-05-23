@@ -10,7 +10,12 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
+<<<<<<< HEAD
 from ...ext import net
+=======
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
+>>>>>>> 0fa36fe95 (chore(service naming): multiple contribs - consul)
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
@@ -24,7 +29,7 @@ def patch():
         return
     setattr(consul, "__datadog_patch", True)
 
-    pin = Pin(service=consulx.SERVICE)
+    pin = Pin(service=schematize_service_name(consulx.SERVICE))
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
@@ -53,7 +58,12 @@ def wrap_function(name):
         path = get_argument_value(args, kwargs, 0, "key")
         resource = name.upper()
 
-        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
+        with pin.tracer.trace(
+            schematize_url_operation(consulx.CMD, protocol="http", direction="outbound"),
+            service=pin.service,
+            resource=resource,
+            span_type=SpanTypes.HTTP,
+        ) as span:
             span.set_tag_str(COMPONENT, config.consul.integration_name)
 
             span.set_tag_str(net.TARGET_HOST, instance.agent.http.host)
