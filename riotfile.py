@@ -94,6 +94,7 @@ venv = Venv(
         "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
+        "typing_extensions": "<4.6.0",
     },
     env={
         "DD_TESTING_RAISE": "1",
