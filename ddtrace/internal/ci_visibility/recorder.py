@@ -30,6 +30,7 @@ from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import EVP_SUBDOMAIN_HEADER_VALUE
+from .constants import SKIPPABLE_ENDPOINT
 from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
@@ -223,9 +224,8 @@ class CIVisibility(Service):
             }
         }
         payload["data"]["attributes"]["configurations"] = ci._get_runtime_and_os_metadata()
-        endpoint = "api/v2/ci/tests/skippable"
-        url = "https://api.{}/{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), endpoint)
-        headers = {"dd-api-key": os.getenv("DD_API_KEY"), "dd-application-key": os.getenv("DD_APP_KEY")}
+        url = "https://api.{}/{}".format(self._dd_site, SKIPPABLE_ENDPOINT)
+        headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
         response = _do_request("POST", url, json.dumps(payload), headers)
 
         if response.status >= 400:
