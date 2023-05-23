@@ -328,7 +328,7 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     # setting writer interval to 5 seconds so that buffer can fit larger traces
-    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
 
     t = Tracer()
     assert t._partial_flush_enabled is True
@@ -340,14 +340,17 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
-        log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyStr(),
-        )
+        assert (
+            mock.call(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyStr(),
+            )
+            in log.warning.mock_calls
+        ), log.mock_calls
         log.error.assert_not_called()
 
 
