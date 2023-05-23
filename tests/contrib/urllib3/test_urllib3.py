@@ -10,6 +10,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.urllib3 import patch
 from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -236,6 +237,102 @@ class TestUrllib3(BaseUrllib3TestCase):
         s = spans[0]
 
         assert s.service == "clients"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "urllib3.request"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "http.client.request"
 
     def test_parent_service_name_split_by_domain(self):
         """

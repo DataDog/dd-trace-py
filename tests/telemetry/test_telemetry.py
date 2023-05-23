@@ -199,7 +199,7 @@ tracer.trace("hello").finish()
     assert events[2]["request_type"] == "app-started"
     assert events[2]["payload"]["error"]["code"] == 1
     assert (
-        "ddtrace/internal/processor/trace.py/trace.py:221: error applying processor FailingFilture()"
+        "ddtrace/internal/processor/trace.py/trace.py:225: error applying processor FailingFilture()"
         in events[2]["payload"]["error"]["message"]
     )
 
