@@ -25,7 +25,7 @@ pluggy==1.0.0
 pytest==7.3.1
 pytest-cov==4.0.0
 pytest-mock==3.10.0
-requests==2.29.0
+requests==2.31.0
 sortedcontainers==2.4.0
 urllib3==1.26.15
 werkzeug==2.3.0

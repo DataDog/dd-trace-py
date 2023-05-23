@@ -21,7 +21,7 @@ pyparsing==3.0.9
 pytest==7.0.1
 pytest-cov==4.0.0
 pytest-mock==3.6.1
-requests==2.27.1
+requests==2.31.0
 requests-mock==1.10.0
 six==1.16.0
 sortedcontainers==2.4.0
