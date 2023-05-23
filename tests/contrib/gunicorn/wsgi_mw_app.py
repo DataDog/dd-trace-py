@@ -2,8 +2,13 @@
 This app exists to replicate and report on failures and degraded behavior that can arise when using ddtrace with
 gunicorn
 """
-import json
 import os
+
+
+if os.getenv("_DD_TEST_IMPORT_AUTO"):
+    import ddtrace.auto  # noqa: F401  # isort: skip
+
+import json
 
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
@@ -11,9 +16,6 @@ from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa
 from tests.webclient import PingFilter
 
-
-if os.getenv("_DD_TEST_IMPORT_AUTO"):
-    import ddtrace.auto  # noqa: F401  # isort: skip
 
 tracer.configure(
     settings={

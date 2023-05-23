@@ -32,7 +32,7 @@
   }],
 [
   {
-    "name": "postgres.query",
+    "name": "postgresql.query",
     "service": "global-service-name",
     "resource": "SELECT 1",
     "trace_id": 1,

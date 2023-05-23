@@ -54,7 +54,7 @@ def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
         conn = get_connection(url)
-        log.debug("Sending request: %s %s %s %s", (method, url, payload, headers))
+        log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)
@@ -80,15 +80,6 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
-        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
-
-        self._git_client = None
-
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if self._app_key is None:
-                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
-            else:
-                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
 
         int_service = None
         if self.config is not None:
@@ -99,6 +90,15 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
+        self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
+
+        self._git_client = None
+
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            if self._app_key is None:
+                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            else:
+                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -112,6 +112,11 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
             return False, False
+
+        # DEV: Remove this ``if`` once ITR is in GA
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
         url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
         _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
         payload = {

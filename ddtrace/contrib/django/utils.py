@@ -11,7 +11,6 @@ import six
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec.utils import parse_form_params
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
@@ -20,7 +19,6 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
-from ...appsec import _asm_request_context
 from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
@@ -188,7 +186,13 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-        handler = func_name(resolver_match[0])
+
+        if hasattr(resolver_match[0], "view_class"):
+            # In django==4.0, view.__name__ defaults to <module>.views.view
+            # Accessing view.view_class is equired for django>4.0 to get the name of underlying view
+            handler = func_name(resolver_match[0].view_class)
+        else:
+            handler = func_name(resolver_match[0])
 
         route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern
@@ -258,11 +262,16 @@ def _before_request_tags(pin, span, request):
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if config._appsec_enabled and request.method in _BODY_METHODS:
+        from ddtrace.appsec.utils import parse_form_multipart
+        from ddtrace.appsec.utils import parse_form_params
+
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
+            elif content_type == "multipart/form-data":
+                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/json", "text/json"):
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
@@ -356,6 +365,8 @@ def _after_request_tags(pin, span, request, response):
 
             request_headers = None
             if config._appsec_enabled:
+                from ddtrace.appsec import _asm_request_context
+
                 request_headers = _asm_request_context.get_headers()
 
             if not request_headers:

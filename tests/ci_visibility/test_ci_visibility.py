@@ -72,8 +72,24 @@ def test_ci_visibility_service_enable():
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_ci_visibility_service_enable_with_app_key(_do_request):
+def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
     with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar")):
+        _do_request.return_value = Response(
+            status=200,
+            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+            '{"code_coverage":true,"tests_skipping":true}}}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
+
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APP_KEY="foobar", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
             body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
@@ -194,7 +210,7 @@ def test_git_client_get_filtered_revisions(git_repo):
 
 def test_git_client_build_packfiles(git_repo):
     found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -217,7 +233,7 @@ def test_git_client_build_packfiles(git_repo):
 def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     remote_url = "git@github.com:test-repo-url.git"
-    with CIVisibilityGitClient._build_packfiles(b"%s\n" % TEST_SHA.encode("utf-8"), cwd=git_repo) as packfiles_path:
+    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient.retry_request") as rr:
             CIVisibilityGitClient._upload_packfiles("", remote_url, packfiles_path, serializer, None, cwd=git_repo)
             assert rr.call_count == 1
@@ -234,6 +250,21 @@ def test_civisibilitywriter_agentless_url():
         with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
             dummy_writer = DummyCIVisibilityWriter()
             assert dummy_writer.intake_url == "https://foo.bar"
+
+
+def test_civisibilitywriter_coverage_agentless_url():
+    with override_env(dict(DD_API_KEY="foobar.baz")), mock.patch(
+        "ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True
+    ):
+        dummy_writer = DummyCIVisibilityWriter()
+        assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
+
+        cov_client = dummy_writer._clients[1]
+        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+
+        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            dummy_writer._put("", {}, cov_client)
+            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
