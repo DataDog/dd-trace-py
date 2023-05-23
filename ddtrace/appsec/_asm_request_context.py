@@ -43,6 +43,9 @@ _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
 
 
+GLOBAL_CALLBACKS = {}  # type: dict[str, Any]
+
+
 class ASM_Environment:
     """
     an object of this class contains all asm data (waf and telemetry)
@@ -122,7 +125,7 @@ class _DataHandler:
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get(_CONTEXT_CALL)
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function()
@@ -138,6 +141,55 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
         asm_context_attr[address] = value
+
+
+def set_body_response(body_response):
+    import json
+
+    import xmltodict
+
+    from ddtrace.appsec.utils import parse_form_multipart
+    from ddtrace.appsec.utils import parse_form_params
+    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+
+    if not body_response:
+        return
+
+    if isinstance(body_response, dict):
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, body_response)
+        return
+
+    content_type = _get_header_value_case_insensitive(
+        dict(get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)),
+        "content-type",
+    )
+    if not content_type:
+        return
+
+    def access_body(bd):
+        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
+            bd = bd[0][:0].join(bd)
+        if getattr(bd, "decode", False):
+            bd = bd.decode("UTF-8", errors="ignore")
+        if len(bd) >= 0x1000000:
+            raise ValueError("response body larger than 16MB")
+
+    req_body = None
+    try:
+        if content_type == "application/x-www-form-urlencoded":
+            req_body = parse_form_params(access_body(body_response))
+        elif content_type == "multipart/form-data":
+            req_body = parse_form_multipart(access_body(body_response))
+        elif content_type in ("application/json", "text/json"):
+            req_body = json.loads(access_body(body_response))
+        elif content_type in ("application/xml", "text/xml"):
+            req_body = xmltodict.parse(access_body(body_response))
+        else:  # text/plain, others: don't use them
+            req_body = None
+    except BaseException:
+        log.debug("Failed to parse response body", exc_info=True)
+    if req_body:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, req_body)
 
 
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
@@ -163,10 +215,30 @@ def get_waf_address(address, default=None):  # type: (str, Any) -> Any
     return get_value(_WAF_ADDRESSES, address, default=default)
 
 
-def add_context_callback(function):  # type: (Any) -> None
-    callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+def get_waf_addresses(default=None):  # type: (Any) -> Any
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting WAF addresses with no active asm context")
+        return default
+    return env.waf_addresses
+
+
+def add_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
     if callbacks is not None:
         callbacks.append(function)
+
+
+def remove_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+    if callbacks:
+        callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_callback(value):  # type: (Any) -> None

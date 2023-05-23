@@ -219,6 +219,8 @@ class _DDWSGIMiddlewareBase(object):
             resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
             self._response_span_modifier(resp_span, closing_iterator)
+            if getattr(closing_iterator, "__len__", False):
+                _asm_request_context.set_body_response(closing_iterator)
 
             return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
