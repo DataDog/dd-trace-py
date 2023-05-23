@@ -105,9 +105,10 @@ class CIVisibilityGitClient(object):
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
             log.debug("Response status: %s", resp.status)
-            return Response.from_http_response(resp)
+            result = Response.from_http_response(resp)
         finally:
             conn.close()
+        return result
 
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, cwd=None):

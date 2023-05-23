@@ -61,9 +61,10 @@ def _do_request(method, url, payload, headers):
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)
-        return Response.from_http_response(resp)
+        result = Response.from_http_response(resp)
     finally:
         conn.close()
+    return result
 
 
 class CIVisibility(Service):
