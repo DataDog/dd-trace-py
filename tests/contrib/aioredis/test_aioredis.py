@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import aioredis
 import pytest
@@ -45,6 +46,12 @@ async def traced_aioredis(redis_client):
     finally:
         unpatch()
     await redis_client.flushall()
+
+    if hasattr(redis_client, "wait_closed"):
+        redis_client.close()
+        await redis_client.wait_closed()
+    else:
+        await redis_client.close()
 
 
 def test_patching():
@@ -178,6 +185,47 @@ async def test_override_service_name(redis_client):
         if isinstance(val, bytes):
             val = val.decode()
         assert val == "my-cheese"
+
+
+@pytest.mark.parametrize("service", [None, "mysvc"])
+@pytest.mark.parametrize("schema", [None, "v0", "v1"])
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+def test_schematization_of_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema):
+    code = """
+import asyncio
+import pytest
+import sys
+from tests.contrib.aioredis.test_aioredis import traced_aioredis
+from tests.contrib.aioredis.test_aioredis import redis_client
+from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+@pytest.mark.asyncio
+async def test(redis_client):
+    # Works for 3.6
+    if sys.version_info < (3, 7):
+        client = await redis_client
+        await client.set("cheese", "my-cheese")
+    else:
+        redis_client = await get_redis_instance(10)
+        await redis_client.set("cheese", "my-cheese")
+        await redis_client.flushall()
+        if hasattr(redis_client, "wait_closed"):
+            redis_client.close()
+            await redis_client.wait_closed()
+        else:
+            await redis_client.close()
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 @pytest.mark.asyncio
