@@ -82,10 +82,9 @@ PyObject* api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t narg
         // Empty result cannot have taint ranges
         return result;
     }
-    TaintRangeMapType ctx_map{};
-//    auto ctx_map = initializer->get_tainting_map();
-//    if (not ctx_map or ctx_map->empty()) {
-//        return result;
-//    }
+    auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
+    return result;
+    }
     return aspect_join(sep, result, arg0, ctx_map);
 }

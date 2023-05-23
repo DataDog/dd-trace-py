@@ -1,6 +1,6 @@
 #include "AspectOperatorAdd.h"
 
-PyObject* operation_add_native_str(PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map) {
+PyObject* add_aspect(PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map) {
     auto result_o = PyUnicode_Concat(candidate_text, text_to_add);
 
     size_t len_candidate_text = PyUnicode_GET_LENGTH(candidate_text);
@@ -44,22 +44,21 @@ PyObject* operation_add_native_str(PyObject* candidate_text, PyObject* text_to_a
 
 PyObject* api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
     if (nargs != 2) {
-        // TODO: any other more sane error handling?
-        return nullptr;
+    // TODO: any other more sane error handling?
+    return nullptr;
     }
     PyObject* candidate_text = args[0];
     PyObject* text_to_add = args[1];
 
     if (!could_be_tainted(candidate_text) && !could_be_tainted(text_to_add)) {
-        return PyUnicode_Concat(candidate_text, text_to_add);
+    return PyUnicode_Concat(candidate_text, text_to_add);
     }
 
 
-    TaintRangeMapType ctx_map{};
-//    if (not ctx_map or ctx_map->empty()) {
-//        return PyUnicode_Concat(candidate_text, text_to_add);
-//    }
+    auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
+    return PyUnicode_Concat(candidate_text, text_to_add);
+    }
 
-//    return operation_add_native_str(candidate_text, text_to_add, &ctx_map);
-    return candidate_text;
+    return add_aspect(candidate_text, text_to_add, ctx_map);
 }

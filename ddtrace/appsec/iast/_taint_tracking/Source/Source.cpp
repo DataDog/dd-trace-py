@@ -1,9 +1,13 @@
 #include "Source.h"
 
+
+Source::Source(string name, string value, OriginType origin)
+: name(move(name)), value(move(value)), origin(origin) {}
+
 string Source::toString() const {
     ostringstream ret;
     ret << "Source at " << this << " "
-        << "[name=" << string(name) << ", value=" << string(value) << ", origin=" << string(origin)
+        << "[name=" << name << ", value=" << string(value) << ", origin=" << origin_to_str(origin)
         << "]";
     return ret.str();
 }
@@ -11,14 +15,11 @@ string Source::toString() const {
 Source::operator std::string() const { return toString(); }
 
 size_t Source::get_hash() const {
-  size_t hname = hash<string>()(this->name);
-  size_t hvalue = hash<string>()(this->value);
-  size_t horigin = hash<string>()(this->origin);
-  return hname ^ hvalue ^ horigin;
+    return std::hash<size_t>()(std::hash<string>()(name) ^ (long) origin ^ std::hash<string>()(value));
 };
 
 bool Source::eq(Source* other) const {
-    return (strcmp(name, other->name) == 0) and
-            (strcmp(value, other->value) == 0) and
-            (strcmp(origin, other->origin) == 0);
+    return name == other->name and
+            value == other->value and
+            origin == other->origin;
 }

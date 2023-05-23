@@ -32,8 +32,26 @@ FetchContent_MakeAvailable(absl)
 
 include_directories(".")
 # get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-file(GLOB SOURCE_FILES "*.cpp" "Aspects/*.cpp" "Source/*.cpp" "TaintedObject/*.cpp" "TaintedOps/*.cpp" "TaintRange/*.cpp" "HeaderLibs/*.cpp")
-file(GLOB HEADER_FILES "*.h" "Aspects/*.h" "Source/*.h" "TaintedObject/*.cpp" "TaintedOps/*.h" "TaintRange/*.h" "HeaderLibs/*.hpp")
+file(GLOB SOURCE_FILES "*.cpp"
+        "Aspects/*.cpp"
+        "Context/*.cpp"
+        "Exceptions/*.cpp"
+        "Initializer/*.cpp"
+        "Source/*.cpp"
+        "TaintedObject/*.cpp"
+        "TaintedOps/*.cpp"
+        "TaintRange/*.cpp"
+        "HeaderLibs/*.cpp")
+file(GLOB HEADER_FILES "*.h"
+        "Aspects/*.h"
+        "Context/*.h"
+        "Exceptions/*.h"
+        "Initializer/*.h"
+        "Source/*.h"
+        "TaintedObject/*.h"
+        "TaintedOps/*.h"
+        "TaintRange/*.h"
+        "HeaderLibs/*.hpp")
 
 set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)

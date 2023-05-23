@@ -19,17 +19,25 @@ using TaintedObjectPtr = TaintedObject*;
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 
 struct TaintRange {
-    PyObject_HEAD
     int start;
     int length;
     Source* source = nullptr;
 
     TaintRange() = default;
 
-    TaintRange(long start, long length, Source* source)
+    TaintRange(int start, int length, SourcePtr source)
             : start(start),
               length(length),
               source(source){}
+
+    TaintRange(int start, int length, const Source& source);
+
+    inline void set_values(int start_, int length_, SourcePtr source_) {
+        start = start_;
+        length = length_;
+        source = source_;
+    }
+
 
     void reset();
 

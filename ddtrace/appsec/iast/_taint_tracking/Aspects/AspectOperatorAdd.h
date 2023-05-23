@@ -1,6 +1,7 @@
 #ifndef _NATIVE_ASPECTOPERATORADD_H
 #define _NATIVE_ASPECTOPERATORADD_H
 #include <Python.h>
+#include "Initializer/Initializer.h"
 #include "TaintedObject/TaintedObject.h"
 #include "TaintRange/TaintRange.h"
 #include "TaintedOps/TaintedOps.h"

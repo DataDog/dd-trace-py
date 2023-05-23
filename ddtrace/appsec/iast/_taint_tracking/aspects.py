@@ -11,10 +11,10 @@ from ddtrace.appsec.iast._source import _Source
 # from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 
-
 add_aspect = aspects.add_aspect
 
-__all__ = ["add_aspect", "str_aspect", "decode_aspect", "encode_aspect"]
+__all__ = ["add_aspect", "str_aspect"]
+
 
 def str_aspect(*args, **kwargs):
     result = builtin_str(*args, **kwargs)
