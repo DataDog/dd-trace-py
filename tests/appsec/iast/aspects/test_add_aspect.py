@@ -27,7 +27,7 @@ def setup():
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_successful(obj1, obj2):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
     assert ddtrace_aspects.add_aspect(obj1, obj2) == obj1 + obj2
 

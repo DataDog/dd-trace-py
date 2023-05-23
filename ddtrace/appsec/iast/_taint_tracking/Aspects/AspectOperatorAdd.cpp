@@ -1,7 +1,3 @@
-//
-// Created by alberto.vara on 22/05/23.
-//
-
 #include "AspectOperatorAdd.h"
 
 PyObject* operation_add_native_str(PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map) {
@@ -19,23 +15,23 @@ PyObject* operation_add_native_str(PyObject* candidate_text, PyObject* text_to_a
     }
 
     const auto& to_initial = get_tainted_object(candidate_text, tx_taint_map);
-//    if (to_initial and to_initial->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
-//        const auto& res_new_id = new_pyobject_id(result_o);
-//        // If left side is already at the maximum taint ranges, we just reuse its ranges,
-//        // we don't need to look at left side.
-//        set_tainted_object(res_new_id, to_initial, tx_taint_map);
-//        return res_new_id;
-//    }
+    if (to_initial and to_initial->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
+        const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
+        // If left side is already at the maximum taint ranges, we just reuse its ranges,
+        // we don't need to look at left side.
+        //set_tainted_object(res_new_id, to_initial, tx_taint_map);
+        return res_new_id;
+    }
 
-//    const auto& to_to_add = get_tainted_object(text_to_add, tx_taint_map);
-//    if (!to_initial and !to_to_add) {
-//        return result_o;
-//    }
-//    if (!to_to_add) {
-//        const auto& res_new_id = new_pyobject_id(result_o);
-//        set_tainted_object(res_new_id, to_initial, tx_taint_map);
-//        return res_new_id;
-//    }
+    const auto& to_to_add = get_tainted_object(text_to_add, tx_taint_map);
+    if (!to_initial and !to_to_add) {
+        return result_o;
+    }
+    if (!to_to_add) {
+        const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
+        //set_tainted_object(res_new_id, to_initial, tx_taint_map);
+        return res_new_id;
+    }
 
 //    auto to = initializer->allocate_tainted_object(to_initial);
 //    to->add_ranges_shifted(to_to_add, (long) len_candidate_text);
@@ -46,7 +42,7 @@ PyObject* operation_add_native_str(PyObject* candidate_text, PyObject* text_to_a
     return res_new_id;
 }
 
-PyObject* add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
+PyObject* api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
     if (nargs != 2) {
         // TODO: any other more sane error handling?
         return nullptr;

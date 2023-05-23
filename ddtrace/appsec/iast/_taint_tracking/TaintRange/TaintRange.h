@@ -1,14 +1,18 @@
 #ifndef _TAINT_TRACKING_TAINTRANGE_H
 #define _TAINT_TRACKING_TAINTRANGE_H
-#include <Python.h>
-#include "structmember.h"
-#include "absl/container/node_hash_map.h"
+#include <pybind11/stl.h>
 
-#include "../Constants.h"
-#include "../Source/Source.h"
-#include "../TaintedObject/TaintedObject.h"
+#include "absl/container/node_hash_map.h"
+#include "structmember.h"
+
+#include "Constants.h"
+#include "Source/Source.h"
 
 #define PY_MODULE_NAME_TAINTRANGES PY_MODULE_NAME "." "TaintRange"
+
+
+// Forward declarations
+class TaintedObject;
 
 // Alias
 using TaintedObjectPtr = TaintedObject*;
@@ -41,6 +45,13 @@ struct TaintRange {
 
     explicit operator std::string() const;
 };
+
+using TaintRangePtr = shared_ptr<TaintRange>;
+using TaintRangeRefs = vector<TaintRangePtr>;
+
+inline auto operator<(const TaintRange& left, const TaintRange& right) {
+    return left.start < right.start;
+}
 
 
 static void

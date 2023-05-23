@@ -1,8 +1,9 @@
 #ifndef _TAINT_TRACKING_TAINTEDOBJECT_H
 #define _TAINT_TRACKING_TAINTEDOBJECT_H
 #include <Python.h>
-#include "../TaintedObject/TaintedObject.h"
-#include "../TaintRange/TaintRange.h"
+#include "TaintRange/TaintRange.h"
+#include "TaintedObject/TaintedObject.h"
+
 
 PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args);
 
