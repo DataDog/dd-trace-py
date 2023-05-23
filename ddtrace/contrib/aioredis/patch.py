@@ -126,7 +126,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
     parent = pin.tracer.current_span()
     span = pin.tracer.start_span(
-        redisx.CMD,
+        schematize_cache_operation(redisx.CMD, cache_provider="redis"),
         service=trace_utils.ext_service(pin, config.aioredis),
         span_type=SpanTypes.REDIS,
         activate=False,
