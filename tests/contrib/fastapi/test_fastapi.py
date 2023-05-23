@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 from fastapi.testclient import TestClient
@@ -649,3 +650,48 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
     with TestClient(snapshot_app_with_middleware) as test_client:
         r = test_client.get("/", headers={"sleep": "False"})
         assert r.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "schema_tuples",
+    [
+        (None, None, "fastapi", "fastapi.request"),
+        (None, "v0", "fastapi", "fastapi.request"),
+        (None, "v1", "unnamed-python-service", "http.server.request"),
+        ("mysvc", None, "mysvc", "fastapi.request"),
+        ("mysvc", "v0", "mysvc", "fastapi.request"),
+        ("mysvc", "v1", "mysvc", "http.server.request"),
+    ],
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
+    service_override, schema_version, expected_service, expected_operation = schema_tuples
+    code = """
+import pytest
+import sys
+from tests.contrib.fastapi.test_fastapi import client
+from tests.contrib.fastapi.test_fastapi import test_spans
+from tests.contrib.fastapi.test_fastapi import tracer
+from tests.contrib.fastapi.test_fastapi import application
+
+def test_read_homepage(client, tracer, test_spans):
+    response = client.get("/", headers={{"sleep": "False"}})
+    assert response.status_code == 200
+    spans = test_spans.pop_traces()
+
+    request_span, serialize_span = spans[0]
+    assert serialize_span.service == "{}"
+    assert serialize_span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service, expected_operation
+    )
+    env = os.environ.copy()
+    if service_override:
+        env["DD_SERVICE"] = service_override
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()
