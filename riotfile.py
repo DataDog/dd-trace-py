@@ -94,7 +94,6 @@ venv = Venv(
         "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
-        "typing_extensions": "<4.6.0",
     },
     env={
         "DD_TESTING_RAISE": "1",
@@ -494,6 +493,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "typing_extensions": "<4.6.0",
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -747,6 +747,7 @@ venv = Venv(
                     pkgs={
                         "cherrypy": [">=18.0,<19", latest],
                         "more_itertools": "<8.11.0",
+                        "typing_extensions": "<4.6.0",
                     },
                 ),
             ],
@@ -2352,6 +2353,7 @@ venv = Venv(
                     "~=1.3.0",
                     latest,
                 ],
+                "typing_extensions": "<4.6.0",
             },
         ),
         Venv(
