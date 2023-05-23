@@ -1,3 +1,5 @@
+import os
+
 import aiobotocore
 from botocore.errorfactory import ClientError
 import pytest
@@ -414,6 +416,97 @@ async def test_user_specified_service(tracer):
         span = traces[0][0]
 
         assert span.service == "mysvc"
+
+
+@pytest.mark.parametrize(
+    "schema_params",
+    [
+        (None, None, "aws.{}", "{}.command"),
+        (None, "v0", "aws.{}", "{}.command"),
+        (None, "v1", "unnamed-python-service", "aws.{}.request"),
+        ("mysvc", None, "mysvc", "{}.command"),
+        ("mysvc", "v0", "mysvc", "{}.command"),
+        ("mysvc", "v1", "mysvc", "aws.{}.request"),
+    ],
+)
+def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess, schema_params):
+    """
+    v0: use 'aws.<INTEGRATION>" for service name
+    v1: use the env-specified service (if specified) else "unnamed-python-service"
+    """
+    service_name, schema_version, expected_service_name, expected_operation_name = schema_params
+    code = """
+import asyncio
+from ddtrace.contrib.aiobotocore.patch import patch
+from ddtrace.contrib.aiobotocore.patch import unpatch
+from tests.contrib.aiobotocore.utils import *
+from tests.conftest import *
+
+@pytest.fixture(autouse=True)
+def patch_aiobotocore():
+    patch()
+    yield
+    unpatch()
+
+def test(tracer):
+    async def async_test(tracer):
+        unpatch()
+        patch()
+        async with aiobotocore_client("ec2", tracer) as ec2:
+            await ec2.describe_instances()
+        async with aiobotocore_client("s3", tracer) as s3:
+            await s3.list_buckets()
+        async with aiobotocore_client("sqs", tracer) as sqs:
+            await sqs.list_queues()
+        async with aiobotocore_client("kinesis", tracer) as kinesis:
+            await kinesis.list_streams()
+        async with aiobotocore_client("lambda", tracer) as lambda_client:
+            await lambda_client.list_functions(MaxItems=5)
+        async with aiobotocore_client("kms", tracer) as kms:
+            await kms.list_keys(Limit=21)
+
+        traces = tracer.pop_traces()
+        assert len(traces) == 6
+        assert len(traces[0]) == 1
+        ec2_span = traces[0][0]
+        s3_span = traces[1][0]
+        sqs_span = traces[2][0]
+        kinesis_span = traces[3][0]
+        lambda_span = traces[4][0]
+        kms_span = traces[5][0]
+
+        service_format = "{}"
+        operation_format = "{}"
+        for (aws_service, aws_span) in [
+            ("ec2", ec2_span),
+            ("s3", s3_span),
+            ("sqs", sqs_span),
+            ("kinesis", kinesis_span),
+            ("lambda", lambda_span),
+            ("kms", kms_span),
+        ]:
+            operation_name = operation_format.format(aws_service)
+            service_name = service_format.format(aws_service)
+            assert aws_span.service == service_name
+            assert aws_span.name == operation_name
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(async_test(tracer))
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name, expected_operation_name
+    )
+    env = os.environ.copy()
+    if service_name:
+        env["DD_SERVICE"] = service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert err == b"", err.decode()
+    assert status == 0, out.decode()
 
 
 @pytest.mark.asyncio
