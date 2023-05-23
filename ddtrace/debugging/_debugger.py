@@ -52,7 +52,6 @@ from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
@@ -67,6 +66,7 @@ from ddtrace.internal.wrapping import Wrapper
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace.internal.module import ModuleHookType
     from ddtrace.tracer import Tracer
 
 

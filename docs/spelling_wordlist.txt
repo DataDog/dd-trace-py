@@ -134,6 +134,7 @@ mysqlclient
 mysqldb
 namespace
 obfuscator
+openai
 opensearch
 opentracer
 opentracing

@@ -15,6 +15,8 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import urlencode
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
@@ -32,7 +34,7 @@ MOLTEN_VERSION = parse_version(molten.__version__)
 config._add(
     "molten",
     dict(
-        _default_service="molten",
+        _default_service=schematize_service_name("molten"),
         distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
@@ -87,7 +89,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     )
 
     with pin.tracer.trace(
-        "molten.request",
+        schematize_url_operation("molten.request", protocol="http", direction="inbound"),
         service=trace_utils.int_service(pin, config.molten),
         resource=resource,
         span_type=SpanTypes.WEB,
