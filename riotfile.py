@@ -1158,9 +1158,6 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=3.0",
-                        "pytest-mock": "==2.0.0",
-                        "pytest-cov": "==2.1.0",
                         "Jinja2": "~=2.11.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
