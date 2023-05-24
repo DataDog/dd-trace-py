@@ -38,14 +38,17 @@ file(GLOB SOURCE_FILES "*.cpp"
         "Exceptions/*.cpp"
         "Initializer/*.cpp"
         "TaintedOps/*.cpp"
-        "TaintTracking/*.cpp")
+        "TaintTracking/*.cpp"
+        "Utils/*.cpp")
 file(GLOB HEADER_FILES "*.h"
         "Aspects/*.h"
         "Context/*.h"
         "Exceptions/*.h"
         "Initializer/*.h"
         "TaintedOps/*.h"
-        "TaintTracking/*.h")
+        "TaintTracking/*.h"
+        "Utils/*.h"
+        )
 
 set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)

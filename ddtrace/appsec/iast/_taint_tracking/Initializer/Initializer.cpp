@@ -147,7 +147,7 @@ TaintRangePtr Initializer::allocate_taint_range(int start, int lenght, SourcePtr
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
         available_ranges_stack.pop();
-        rptr->set_values(start, lenght, reuse_taint_origin(origin));
+        rptr->set_values(start, lenght, reuse_taint_source(origin));
         return rptr;
     }
 
@@ -170,8 +170,8 @@ void Initializer::release_taint_range(TaintRangePtr rangeptr) {
     rangeptr.reset();
 }
 
-SourcePtr Initializer::allocate_taint_origin(string name, OriginType origin, string value) {
-    auto source_hash = Source::hash(name, origin, value);
+SourcePtr Initializer::allocate_taint_source(string name, string value, OriginType origin) {
+    auto source_hash = Source::hash(name, value, origin);
 
     auto it = allocated_sources_map.find(source_hash);
     if (it != allocated_sources_map.end()) {
@@ -198,31 +198,31 @@ SourcePtr Initializer::allocate_taint_origin(string name, OriginType origin, str
     return toptr;
 }
 
-SourcePtr Initializer::reuse_taint_origin(SourcePtr origin) {
-    if (!origin)
+SourcePtr Initializer::reuse_taint_source(SourcePtr source) {
+    if (!source)
         return nullptr;
 
-    ++(origin->refcount);
-    return origin;
+    ++(source->refcount);
+    return source;
 }
 
-void Initializer::release_taint_origin(SourcePtr originptr) {
-    if (!originptr)
+void Initializer::release_taint_source(SourcePtr sourceptr) {
+    if (!sourceptr)
         return;
 
     //assert(hash);
 
-    if (--(originptr->refcount) == 0) {
+    if (--(sourceptr->refcount) == 0) {
         // No more references pointing to this origin; move it back from the map
         // to the stack (or delete it if the stack is full)
         if (available_source_stack.size() < SOURCE_STACK_SIZE) {
             // Move the range to the allocated origins stack
-            available_source_stack.push(originptr);
+            available_source_stack.push(sourceptr);
             return;
         }
 
         // Stack full or initializer already cleared (interpreter finishing), just delte the object
-        delete originptr;
+        delete sourceptr;
     }
 
     // else: still references to this origin exist so it remains in the map

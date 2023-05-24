@@ -138,16 +138,16 @@ public:
 
     // IMPORTANT: if the returned object is not assigned to the map, you have responsibility of
     // calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(int start, int lenght, SourcePtr origin);
-    static SourcePtr reuse_taint_origin(SourcePtr origin);
+    TaintRangePtr allocate_taint_range(int start, int lenght, SourcePtr source);
+    static SourcePtr reuse_taint_source(SourcePtr source);
 
     void release_taint_range(TaintRangePtr rangeptr);
 
     // IMPORTANT: if the returned object is not assigned to a range, you have responsibility of
-    // calling release_taint_origin on it or you'll have a leak.
-    SourcePtr allocate_taint_origin(string, OriginType, string);
+    // calling release_taint_source on it or you'll have a leak.
+    SourcePtr allocate_taint_source(string, string, OriginType);
 
-    void release_taint_origin(SourcePtr);
+    void release_taint_source(SourcePtr);
 };
 
 extern unique_ptr<Initializer> initializer;

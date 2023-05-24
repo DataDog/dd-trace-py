@@ -23,6 +23,19 @@ class TaintedObject;
 using TaintedObjectPtr = TaintedObject*;
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 
+inline uintptr_t get_unique_id_pyo(const PyObject* pyo) {
+    return uintptr_t(pyo);
+}
+
+inline static uintptr_t get_unique_id(const PyObject* pyo) {
+    return uintptr_t(pyo);
+}
+
+inline static uintptr_t get_unique_id(const py::object& pyo) {
+    return uintptr_t(pyo.ptr());
+}
+
+
 struct TaintRange {
     int start;
     int length;
@@ -66,95 +79,42 @@ inline auto operator<(const TaintRange& left, const TaintRange& right) {
     return left.start < right.start;
 }
 
+TaintRangePtr shift_taint_range(const TaintRangePtr& source_taint_range, int offset);
 
-static void
-TaintRange_dealloc(TaintRange *self)
-{
-    if (self->source) {
-        Py_XDECREF(self->source);
-    }
-    Py_TYPE(self)->tp_free((PyObject *) self);
-}
+TaintRangeRefs shift_taint_ranges(const TaintRangeRefs&, long offset);
 
+// FIXME: do the same (use a template argument) for the other wrappers in this file to remove the _obj, _pyobject, etc
+template <class TaintableType>
+TaintRangeRefs get_ranges_impl(const TaintableType& string_input, TaintRangeMapType* tx_map=nullptr);
 
-static PyObject *
-TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-    TaintRange *self;
-    self = (TaintRange *) type->tp_alloc(type, 0);
-    if (self != NULL) {
-        self->source = new Source();
-        if (self->source == nullptr) {
-            Py_DECREF(self);
-            return nullptr;
-        }
+template <class StrType>
+void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges);
+template <class StrType>
+void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
-        self->start = 0;
-        self->length = 0;
-    }
-    return (PyObject *) self;
-}
+void set_ranges_impl_obj(const py::object& str, const TaintRangeRefs& ranges);
+void set_ranges_impl_obj(const py::object& str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
-static int
-TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
-{
-    static const char *kwlist[] = {"start", "length", "source", NULL};
-    PyObject *pysource = nullptr;
+TaintRangeRefs get_ranges_dispatcher(const py::object& string_input, TaintRangeMapType* tx_map);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", const_cast<char **>(kwlist),
-                                     &self->start, &self->length, &pysource))
-        return -1;
+// Returns a tuple with (all ranges, ranges of candidate_text)
+template <class StrType>
+std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const StrType& candidate_text,
+                                                                   const py::object& parameter_list);
 
-    if (pysource) {
-        self->source = (Source*)pysource;
-        Py_INCREF(self->source);
-    }
+template <class StrType>
+TaintRangeRefs is_some_text_and_get_ranges(const StrType& candidate_text, TaintRangeMapType* tx_map);
+template <class StrType>
+TaintRangeRefs is_some_text_and_get_ranges(const StrType& candidate_text);
 
-    return 0;
-}
+TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
-static PyObject *
-TaintRange_to_string(TaintRange *self, PyObject *Py_UNUSED(ignored))
-{
-    if (self->start == -1) {
-        PyErr_SetString(PyExc_AttributeError, "start");
-        return nullptr;
-    }
-    if (self->length == -1) {
-        PyErr_SetString(PyExc_AttributeError, "length");
-        return nullptr;
-    }
-    return PyUnicode_FromFormat("%s", self->toString().c_str());
-}
+bool could_be_tainted(const PyObject* op);
 
+void set_could_be_tainted(PyObject* op);
 
-static PyMemberDef TaintRange_members[] = {
-        {"length", T_INT, offsetof(TaintRange, length), 0,
-                "TaintRange last name"},
-        {"start", T_INT, offsetof(TaintRange, start), 0,
-                "TaintRange start"},
-        {"source", T_OBJECT, offsetof(TaintRange, source), 0,
-                "TaintRange source"},
-        {nullptr}  /* Sentinel */
-};
+TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
 
-static PyMethodDef TaintRange_methods[] = {
-        {"to_string", (PyCFunction) TaintRange_to_string, METH_NOARGS,
-                "Return representation of a TaintRange"
-        },
-        {nullptr}  /* Sentinel */
-};
+void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
 
-static PyTypeObject TaintRangeType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = PY_MODULE_NAME_TAINTRANGES,
-        .tp_basicsize = sizeof(TaintRange),
-        .tp_itemsize = 0,
-        .tp_dealloc = (destructor) TaintRange_dealloc,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-        .tp_doc = PyDoc_STR("TaintRange objects"),
-        .tp_methods = TaintRange_methods,
-        .tp_members = TaintRange_members,
-        .tp_init = (initproc) TaintRange_init,
-        .tp_new = TaintRange_new,
-};
+void pyexport_taintrange(py::module& m);

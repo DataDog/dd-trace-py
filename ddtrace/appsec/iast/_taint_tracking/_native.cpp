@@ -11,7 +11,7 @@
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectJoin.h"
 #include "Context/_context.h"
-#include "_taint_tracking.h"
+#include "TaintTracking/_taint_tracking.h"
 
 #define PY_MODULE_NAME_ASPECTS PY_MODULE_NAME "." "aspects"
 
