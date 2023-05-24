@@ -128,7 +128,7 @@ class _DataHandler:
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
-                    function()
+                    function(env)
                 _ASM.reset(self.token)
             self.active = False
 
