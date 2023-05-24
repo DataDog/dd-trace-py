@@ -159,8 +159,11 @@ def set_body_response(body_response):
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, body_response)
         return
 
+    headers = get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+    if not headers:
+        return
     content_type = _get_header_value_case_insensitive(
-        dict(get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)),
+        dict(headers),
         "content-type",
     )
     if not content_type:
