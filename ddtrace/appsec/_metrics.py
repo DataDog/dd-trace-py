@@ -59,7 +59,7 @@ def _set_waf_init_metric(info):
         log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
 
-def _set_waf_request_metrics():
+def _set_waf_request_metrics(*args):
     try:
         list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results()
         if any((list_results, list_result_info, list_is_blocked)):
