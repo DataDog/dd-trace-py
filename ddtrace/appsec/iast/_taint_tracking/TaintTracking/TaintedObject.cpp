@@ -1,16 +1,14 @@
 #include <pybind11/pybind11.h>
-
-#include "TaintedObject.h"
+#include "Initializer/Initializer.h"
+#include "TaintTracking/TaintedObject.h"
 #include "TaintTracking/TaintRange.h"
 
 namespace py = pybind11;
 
 TaintRangePtr shift_taint_range(const TaintRangePtr& source_taint_range, long offset) {
-    TaintRangePtr tptr = nullptr;
-//    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,  // start
-//                                                  source_taint_range->end + offset,    // end
-//                                                  source_taint_range->origin,          // origin
-//                                                  source_taint_range->secure_marks);   // secure_marks
+    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,  // start
+                                                  source_taint_range->length,    // length
+                                                  source_taint_range->source);   // source
     return tptr;
 }
 
