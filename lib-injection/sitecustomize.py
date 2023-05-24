@@ -38,7 +38,9 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         try:
             pkgs_path = os.path.join(os.path.dirname(__file__), "ddtrace_pkgs")
             subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--find-links", pkgs_path, "ddtrace"], env=env, check=True
+                [sys.executable, "-m", "pip", "install", "--no-index", "--find-links", pkgs_path, "ddtrace"],
+                env=env,
+                check=True,
             )
         except BaseException as e:
             print("datadog autoinstrumentation: failed to install python package %s" % str(e))

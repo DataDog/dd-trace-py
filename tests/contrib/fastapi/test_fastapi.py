@@ -629,7 +629,7 @@ def test_background_task(client, tracer, test_spans):
     assert request_span.resource == "GET /asynctask"
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
-    assert request_span.duration < 1.1
+    assert request_span.duration < 1
 
 
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])

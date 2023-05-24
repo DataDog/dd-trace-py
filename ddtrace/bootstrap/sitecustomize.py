@@ -7,8 +7,6 @@ from ddtrace import LOADED_MODULES  # isort:skip
 import logging  # noqa
 import os  # noqa
 import sys
-from typing import Any  # noqa
-from typing import Dict  # noqa
 import warnings  # noqa
 
 from ddtrace import config  # noqa
@@ -70,26 +68,6 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
         )
 
 
-EXTRA_PATCHED_MODULES = {
-    "bottle": True,
-    "django": True,
-    "falcon": True,
-    "flask": True,
-    "pylons": True,
-    "pyramid": True,
-}
-
-
-def update_patched_modules():
-    modules_to_patch = os.getenv("DD_PATCH_MODULES")
-    if not modules_to_patch:
-        return
-
-    modules = parse_tags_str(modules_to_patch)
-    for module, should_patch in modules.items():
-        EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
-
-
 if PY2:
     _unloaded_modules = []
 
@@ -128,6 +106,7 @@ def cleanup_loaded_modules():
             "asyncio",
             "concurrent",
             "typing",
+            "re",  # referenced by the typing module
             "logging",
             "attr",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
@@ -174,7 +153,6 @@ def cleanup_loaded_modules():
 try:
     from ddtrace import tracer
 
-    priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
     profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
 
     if profiling:
@@ -203,31 +181,18 @@ try:
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
-    opts = {}  # type: Dict[str, Any]
-
-    dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
-    if asbool(dd_trace_enabled):
-        trace_enabled = True
-    else:
-        trace_enabled = False
-        opts["enabled"] = False
-
-    if priority_sampling:
-        opts["priority_sampling"] = asbool(priority_sampling)
-
-    if not opts:
-        tracer.configure(**opts)
-
-    if trace_enabled:
-        update_patched_modules()
+    tracer._generate_diagnostic_logs()
+    if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
         # We need to clean up after we have imported everything we need from
         # ddtrace, but before we register the patch-on-import hooks for the
         # integrations.
         cleanup_loaded_modules()
-
-        patch_all(**EXTRA_PATCHED_MODULES)
+        modules_to_patch = os.getenv("DD_PATCH_MODULES")
+        modules_to_str = parse_tags_str(modules_to_patch)
+        modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
+        patch_all(**modules_to_bool)
     else:
         cleanup_loaded_modules()
 

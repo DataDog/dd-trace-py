@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from functools import partial
 import sys
 import typing
 import weakref
@@ -21,7 +20,7 @@ IF UNAME_SYSNAME == "Linux":
         int __NR_gettid
         long syscall(long number, ...)
 
-    @partial(ModuleWatchdog.register_module_hook, "threading")
+    @ModuleWatchdog.after_module_imported("threading")
     def native_id_hook(threading):
         def bootstrap_wrapper(f, args, kwargs):
             try:

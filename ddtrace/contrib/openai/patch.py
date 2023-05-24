@@ -1,9 +1,7 @@
 import os
-import re
 import sys
 import time
-from typing import AsyncGenerator
-from typing import Generator
+from typing import Optional
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -17,9 +15,9 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 from ddtrace.sampler import RateSampler
 
+from . import _endpoint_hooks
 from .. import trace_utils
 from ...pin import Pin
-from ..trace_utils import set_flattened_tags
 from ._logging import V2LogWriter
 
 
@@ -76,15 +74,18 @@ class _OpenAIIntegration:
 
     @property
     def _user_api_key(self):
-        # type: () -> str
+        # type: () -> Optional[str]
         """Get a representation of the user API key for tagging."""
         # Match the API key representation that OpenAI uses in their UI.
+        if self._openai.api_key is None:
+            return
         return "sk-...%s" % self._openai.api_key[-4:]
 
     def set_base_span_tags(self, span):
         # type: (Span) -> None
         span.set_tag_str(COMPONENT, self._config.integration_name)
-        span.set_tag_str("openai.user.api_key", self._user_api_key)
+        if self._user_api_key is not None:
+            span.set_tag_str("openai.user.api_key", self._user_api_key)
 
         # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
@@ -242,31 +243,31 @@ def patch():
     if hasattr(openai.api_resources, "completion"):
         _wrap_classmethod(
             openai.api_resources.completion.Completion.create,
-            _patched_endpoint(openai, integration, _CompletionHook),
+            _patched_endpoint(openai, integration, _endpoint_hooks._CompletionHook),
         )
         _wrap_classmethod(
             openai.api_resources.completion.Completion.acreate,
-            _patched_endpoint_async(openai, integration, _CompletionHook),
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._CompletionHook),
         )
 
     if hasattr(openai.api_resources, "chat_completion"):
         _wrap_classmethod(
             openai.api_resources.chat_completion.ChatCompletion.create,
-            _patched_endpoint(openai, integration, _ChatCompletionHook),
+            _patched_endpoint(openai, integration, _endpoint_hooks._ChatCompletionHook),
         )
         _wrap_classmethod(
             openai.api_resources.chat_completion.ChatCompletion.acreate,
-            _patched_endpoint_async(openai, integration, _ChatCompletionHook),
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._ChatCompletionHook),
         )
 
     if hasattr(openai.api_resources, "embedding"):
         _wrap_classmethod(
             openai.api_resources.embedding.Embedding.create,
-            _patched_endpoint(openai, integration, _EmbeddingHook),
+            _patched_endpoint(openai, integration, _endpoint_hooks._EmbeddingHook),
         )
         _wrap_classmethod(
             openai.api_resources.embedding.Embedding.acreate,
-            _patched_endpoint_async(openai, integration, _EmbeddingHook),
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._EmbeddingHook),
         )
 
     setattr(openai, "__datadog_patch", True)
@@ -292,6 +293,10 @@ def _patched_make_session(func, args, kwargs):
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     span = integration.trace(pin, args[0].OBJECT_NAME, kwargs.get("model"))
+    openai_api_key = kwargs.get("api_key")
+    if openai_api_key:
+        # API key can either be set on the import or per request
+        span.set_tag_str("openai.user.api_key", "sk-...%s" % openai_api_key[-4:])
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
@@ -367,277 +372,6 @@ def _patched_endpoint_async(openai, integration, patch_hook):
                     return e.value
 
     return patched_endpoint
-
-
-_punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
-
-
-def _est_tokens(s):
-    # type: (str) -> int
-    """Provide a very rough estimate of the number of tokens.
-
-    Approximate using the following assumptions:
-        * English text
-        * 1 token ~= 4 chars
-        * 1 token ~= ¾ words
-
-    Note that this function is 3x faster than tiktoken's encoding.
-    """
-    est1 = len(s) / 4
-    est2 = len(_punc_regex.findall(s)) * 0.75
-    est = round((1.5 * est1 + 0.5 * est2) / 2)
-    return est
-
-
-class _EndpointHook:
-    def handle_request(self, pin, integration, span, args, kwargs):
-        raise NotImplementedError
-
-
-class _BaseCompletionHook(_EndpointHook):
-    """Share common logic between Completion and ChatCompletion endpoints
-    related to span processing and recording metrics.
-    """
-
-    _request_tag_attrs = []
-
-    def _record_request(self, span, kwargs):
-        for kw_attr in self._request_tag_attrs:
-            if kw_attr in kwargs:
-                if isinstance(kwargs[kw_attr], dict):
-                    set_flattened_tags(
-                        span, [("openai.request.{}.{}".format(kw_attr, k), v) for k, v in kwargs[kw_attr].items()]
-                    )
-                else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-
-    def _handle_response(self, pin, span, integration, resp):
-        """Handle the response object returned from endpoint calls.
-
-        This method helps with streamed responses by wrapping the generator returned with a
-        generator that traces the reading of the response.
-        """
-
-        def shared_gen():
-            try:
-                num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
-                num_completion_tokens = yield
-
-                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-                total_tokens = num_prompt_tokens + num_completion_tokens
-                span.set_metric("openai.response.usage.total_tokens", total_tokens)
-                integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
-                integration.metric(
-                    span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
-                )
-                integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
-            finally:
-                span.finish()
-                integration.metric(span, "dist", "request.duration", span.duration_ns)
-
-        # A chunk corresponds to a token:
-        #  https://community.openai.com/t/how-to-get-total-tokens-from-a-stream-of-completioncreaterequests/110700
-        #  https://community.openai.com/t/openai-api-get-usage-tokens-in-response-when-set-stream-true/141866
-        if isinstance(resp, AsyncGenerator):
-
-            async def traced_streamed_response():
-                g = shared_gen()
-                g.send(None)
-                num_completion_tokens = 0
-                try:
-                    async for chunk in resp:
-                        num_completion_tokens += 1
-                        yield chunk
-                finally:
-                    try:
-                        g.send(num_completion_tokens)
-                    except StopIteration:
-                        pass
-
-            return traced_streamed_response()
-
-        elif isinstance(resp, Generator):
-
-            def traced_streamed_response():
-                g = shared_gen()
-                g.send(None)
-                num_completion_tokens = 0
-                try:
-                    for chunk in resp:
-                        num_completion_tokens += 1
-                        yield chunk
-                finally:
-                    try:
-                        g.send(num_completion_tokens)
-                    except StopIteration:
-                        pass
-
-            return traced_streamed_response()
-
-        return resp
-
-
-class _CompletionHook(_BaseCompletionHook):
-    _request_tag_attrs = [
-        "suffix",
-        "max_tokens",
-        "temperature",
-        "top_p",
-        "n",
-        "stream",
-        "logprobs",
-        "echo",
-        "stop",
-        "presence_penalty",
-        "frequency_penalty",
-        "best_of",
-        "logit_bias",
-        "user",
-    ]
-
-    def handle_request(self, pin, integration, span, args, kwargs):
-        sample_pc_span = integration.is_pc_sampled_span(span)
-
-        if sample_pc_span:
-            prompt = kwargs.get("prompt", "")
-            if isinstance(prompt, str):
-                span.set_tag_str("openai.request.prompt", integration.trunc(prompt))
-            elif prompt:
-                for idx, p in enumerate(prompt):
-                    span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(p))
-
-        if "stream" in kwargs and kwargs["stream"]:
-            prompt = kwargs.get("prompt", "")
-            num_prompt_tokens = 0
-            if isinstance(prompt, str):
-                num_prompt_tokens += _est_tokens(prompt)
-            else:
-                for p in prompt:
-                    num_prompt_tokens += _est_tokens(p)
-            span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-
-        self._record_request(span, kwargs)
-
-        resp, error = yield
-
-        if resp and not kwargs.get("stream"):
-            if "choices" in resp:
-                choices = resp["choices"]
-                span.set_tag("openai.response.choices.num", len(choices))
-                for choice in choices:
-                    idx = choice["index"]
-                    if "finish_reason" in choice:
-                        span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice["finish_reason"]))
-                    if "logprobs" in choice:
-                        span.set_tag_str("openai.response.choices.%d.logprobs" % idx, "returned")
-                    if sample_pc_span:
-                        span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
-            span.set_tag("openai.response.object", resp["object"])
-            integration.record_usage(span, resp.get("usage"))
-            if integration.is_pc_sampled_log(span):
-                prompt = kwargs.get("prompt", "")
-                integration.log(
-                    span,
-                    "info" if error is None else "error",
-                    "sampled completion",
-                    attrs={
-                        "prompt": prompt,
-                        "choices": resp["choices"] if resp and "choices" in resp else [],
-                    },
-                )
-        return self._handle_response(pin, span, integration, resp)
-
-
-class _ChatCompletionHook(_BaseCompletionHook):
-    _request_tag_attrs = [
-        "temperature",
-        "top_p",
-        "n",
-        "stream",
-        "stop",
-        "max_tokens",
-        "presence_penalty",
-        "frequency_penalty",
-        "logit_bias",
-        "user",
-    ]
-
-    def handle_request(self, pin, integration, span, args, kwargs):
-        sample_pc_span = integration.is_pc_sampled_span(span)
-        messages = kwargs.get("messages")
-        if sample_pc_span and messages:
-            for idx, m in enumerate(messages):
-                content = integration.trunc(m.get("content", ""))
-                role = integration.trunc(m.get("role", ""))
-                span.set_tag_str("openai.request.messages.%d.content" % idx, content)
-                span.set_tag_str("openai.request.messages.%d.role" % idx, role)
-
-        if "stream" in kwargs and kwargs["stream"]:
-            # streamed responses do not have a usage field, so we have to
-            # estimate the number of tokens returned.
-            est_num_message_tokens = 0
-            for m in messages:
-                est_num_message_tokens += _est_tokens(m.get("content", ""))
-            span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
-
-        self._record_request(span, kwargs)
-
-        resp, error = yield
-
-        if resp and not kwargs.get("stream"):
-            choices = resp.get("choices", [])
-            for choice in choices:
-                idx = choice["index"]
-                span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-                if sample_pc_span and choice.get("message"):
-                    span.set_tag(
-                        "openai.response.choices.%d.message.content" % idx,
-                        integration.trunc(choice.get("message").get("content")),
-                    )
-                    span.set_tag(
-                        "openai.response.choices.%d.message.role" % idx,
-                        integration.trunc(choice.get("message").get("role")),
-                    )
-            span.set_tag("openai.response.object", resp["object"])
-            integration.record_usage(span, resp.get("usage"))
-
-            if integration.is_pc_sampled_log(span):
-                messages = kwargs.get("messages")
-                integration.log(
-                    span,
-                    "info" if error is None else "error",
-                    "sampled chat completion",
-                    attrs={
-                        "messages": messages,
-                        "completion": choices,
-                    },
-                )
-        return self._handle_response(pin, span, integration, resp)
-
-
-class _EmbeddingHook(_EndpointHook):
-    def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "user"]:
-            if kw_attr in kwargs:
-                if kw_attr == "input" and integration.is_pc_sampled_span(span):
-                    if isinstance(kwargs["input"], list):
-                        for idx, inp in enumerate(kwargs["input"]):
-                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(inp))
-                    else:
-                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-                else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-
-        resp, error = yield
-
-        if resp:
-            if "data" in resp:
-                span.set_tag("openai.response.data.num-embeddings", len(resp["data"]))
-                span.set_tag("openai.response.data.embedding-length", len(resp["data"][0]["embedding"]))
-            if "object" in kwargs:
-                span.set_tag("openai.response.%s" % kw_attr, kwargs[kw_attr])
-            integration.record_usage(span, resp.get("usage"))
-        return resp
 
 
 def _patched_convert(openai, integration):
