@@ -41,7 +41,9 @@
 
 ## Other
 Data structure and mechanism that we had in Hdiv to define what functions would be wrapped
-and what would be the wrapping function? Check existing mechanism.
+and what would be the wrapping function? Existing data structure in
+`core/ast/aspects_spec/spec_fullvar/aspects_spec.py`, used in
+`core/ast/ast_visitor/ast_visitor.py`.
 
 
 ## C++ unittests
