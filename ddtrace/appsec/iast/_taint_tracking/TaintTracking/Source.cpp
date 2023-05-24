@@ -1,0 +1,62 @@
+#include <pybind11/pybind11.h>
+
+#include <sstream>
+#include <string>
+#include <utility>
+
+#include "Source.h"
+
+using namespace std;
+namespace py = pybind11;
+using namespace pybind11::literals;
+
+Source::Source(string name, string value, OriginType origin)
+: name(move(name)), value(move(value)), origin(origin) {}
+
+string Source::toString() const {
+    ostringstream ret;
+    ret << "Source at " << this << " "
+        << "[name=" << name << ", value=" << string(value) << ", origin=" << origin_to_str(origin)
+        << "]";
+    return ret.str();
+}
+
+Source::operator std::string() const { return toString(); }
+
+size_t Source::get_hash() const {
+    return std::hash<size_t>()(std::hash<string>()(name) ^ (long) origin ^ std::hash<string>()(value));
+};
+
+void pyexport_source(py::module& m) {
+    py::enum_<OriginType>(m, "OriginType")
+            .value("PARAMETER", OriginType::PARAMETER)
+            .value("PARAMETER_NAME", OriginType::PARAMETER_NAME)
+            .value("HEADER", OriginType::HEADER)
+            .value("HEADER_NAME", OriginType::HEADER_NAME)
+            .value("PATH", OriginType::PATH)
+            .value("BODY", OriginType::BODY)
+            .value("QUERY", OriginType::QUERY)
+            .value("PATH_PARAMETER", OriginType::PATH_PARAMETER)
+            .value("COOKIE", OriginType::COOKIE)
+            .value("COOKIE_NAME", OriginType::COOKIE_NAME)
+            .export_values();
+
+    py::class_<Source>(m, "Source")
+            .def(py::init<string, string, const OriginType>(), "parameter_name"_a = "", "parameter_type"_a,
+                 "value"_a = "")
+            .def_readonly("name", &Source::name)
+            .def_readonly("origin", &Source::origin)
+            .def_readonly("value", &Source::value)
+            .def("__hash__",
+                 [](const Source& self) {
+                     return hash<string>{}(self.name + self.value) * (33 + int(self.origin));
+                 })
+            .def("__str__", &Source::toString)
+            .def("__repr__", &Source::toString)
+            .def("__eq__", [](const Source* self, const Source* other) {
+                if (other == nullptr)
+                    return false;
+                return self->name == other->name && self->origin == other->origin &&
+                       self->value == other->value;
+            });
+}

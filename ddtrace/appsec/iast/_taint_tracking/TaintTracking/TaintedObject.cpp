@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 
 #include "TaintedObject.h"
+#include "TaintTracking/TaintRange.h"
 
 namespace py = pybind11;
 

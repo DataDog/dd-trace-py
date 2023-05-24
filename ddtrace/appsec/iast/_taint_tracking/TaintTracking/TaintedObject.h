@@ -1,7 +1,7 @@
 #ifndef _NATIVE_TAINTEDOBJECT_H
 #define _NATIVE_TAINTEDOBJECT_H
 #include <Python.h>
-#include "TaintRange/TaintRange.h"
+#include "TaintTracking/TaintRange.h"
 
 class TaintedObject {
     friend class Initializer;

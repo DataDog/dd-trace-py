@@ -1,15 +1,20 @@
-#ifndef _TAINT_TRACKING_TAINTRANGE_H
-#define _TAINT_TRACKING_TAINTRANGE_H
+#pragma once
+#include <iostream>
+#include <sstream>
+#include <utility>
+
 #include <pybind11/stl.h>
 
 #include "absl/container/node_hash_map.h"
 #include "structmember.h"
 
 #include "Constants.h"
-#include "Source/Source.h"
+#include "TaintTracking/Source.h"
 
 #define PY_MODULE_NAME_TAINTRANGES PY_MODULE_NAME "." "TaintRange"
 
+using namespace std;
+namespace py = pybind11;
 
 // Forward declarations
 class TaintedObject;
@@ -21,7 +26,7 @@ using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 struct TaintRange {
     int start;
     int length;
-    Source* source = nullptr;
+    SourcePtr source = nullptr;
 
     TaintRange() = default;
 
@@ -93,10 +98,10 @@ TaintRange_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 TaintRange_init(TaintRange *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"start", "length", "source", NULL};
+    static const char *kwlist[] = {"start", "length", "source", NULL};
     PyObject *pysource = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiO", const_cast<char **>(kwlist),
                                      &self->start, &self->length, &pysource))
         return -1;
 
@@ -153,5 +158,3 @@ static PyTypeObject TaintRangeType = {
         .tp_init = (initproc) TaintRange_init,
         .tp_new = TaintRange_new,
 };
-
-#endif //_TAINT_TRACKING_TAINTRANGE_H

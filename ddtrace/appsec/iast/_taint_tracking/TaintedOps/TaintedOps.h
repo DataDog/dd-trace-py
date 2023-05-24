@@ -1,9 +1,12 @@
 #ifndef _TAINT_TRACKING_TAINTEDOBJECT_H
 #define _TAINT_TRACKING_TAINTEDOBJECT_H
 #include <Python.h>
-#include "TaintRange/TaintRange.h"
-#include "TaintedObject/TaintedObject.h"
+#include <pybind11/pybind11.h>
+#include "TaintTracking/TaintRange.h"
+#include "TaintTracking/TaintedObject.h"
 
+using namespace std;
+namespace py = pybind11;
 
 PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args);
 
@@ -28,6 +31,10 @@ inline uintptr_t get_unique_id_pyo(const PyObject* pyo) {
 
 inline static uintptr_t get_unique_id(const PyObject* pyo) {
     return uintptr_t(pyo);
+}
+
+inline static uintptr_t get_unique_id(const py::object& pyo) {
+    return uintptr_t(pyo.ptr());
 }
 
 bool could_be_tainted(const PyObject* op);

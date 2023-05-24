@@ -1,14 +1,17 @@
 #include <pybind11/pybind11.h>
+#include <memory>
 
 #include "Constants.h"
 #include "Initializer/_initializer.h"
-#include "Source/Source.h"
+#include "TaintTracking/Source.h"
 #include "Exceptions/_exceptions.h"
-#include "TaintRange/TaintRange.h"
-#include "TaintedObject/TaintedObject.h"
+#include "TaintTracking/TaintRange.h"
+#include "TaintTracking/TaintedObject.h"
 #include "TaintedOps/TaintedOps.h"
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectJoin.h"
+#include "Context/_context.h"
+#include "_taint_tracking.h"
 
 #define PY_MODULE_NAME_ASPECTS PY_MODULE_NAME "." "aspects"
 
@@ -61,6 +64,8 @@ PYBIND11_MODULE(_native, m) {
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);
+    pyexport_m_taint_tracking(m);
+    pyexport_m_context(m);
     pyexport_m_exceptions(m, m_initializer);
 
     // Note: the order of these definitions matter. For example,

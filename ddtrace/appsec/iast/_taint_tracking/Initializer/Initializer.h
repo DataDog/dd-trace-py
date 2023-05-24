@@ -6,8 +6,8 @@
 #include "Context/Context.h"
 #include "Context/GlobalContext.h"
 #include "Exceptions/exceptions.h"
-#include "TaintedObject/TaintedObject.h"
-#include "TaintRange/TaintRange.h"
+#include "TaintTracking/TaintedObject.h"
+#include "TaintTracking/TaintRange.h"
 #include "absl/container/node_hash_map.h"
 
 #include <stack>
