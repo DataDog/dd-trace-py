@@ -64,6 +64,16 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
+def extract_from_urlparse(parse_result):
+    if parse_result.netloc:
+        netloc = parse_result.netloc
+    # RFC1808: netloc is only recognized if introduced by `//`
+    else:
+        netloc = parse_result.path.split("/")[0]
+    netloc = netloc.split("@")[-1]  # eliminate auth info
+    return netloc.split(":")[0]
+
+
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
     method = get_argument_value(args, kwargs, 0, "method")  # type: str
@@ -94,6 +104,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             config.aiohttp_client,
             method=method,
             url=str(url),
+            target_host=extract_from_urlparse(parsed_url),
             query=parsed_url.query,
             request_headers=headers,
         )
