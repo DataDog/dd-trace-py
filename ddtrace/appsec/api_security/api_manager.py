@@ -1,5 +1,6 @@
 import os
 
+from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -8,24 +9,27 @@ from .schema import get_json_schema
 
 
 COLLECTED = [
-    SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES,
-    SPAN_DATA_NAMES.REQUEST_QUERY,
-    SPAN_DATA_NAMES.REQUEST_PATH_PARAMS,
-    SPAN_DATA_NAMES.REQUEST_BODY,
-    SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES,
-    SPAN_DATA_NAMES.RESPONSE_BODY,
+    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "_dd.schema.req.headers"),
+    (SPAN_DATA_NAMES.REQUEST_QUERY, "_dd.schema.req.query"),
+    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, "_dd.schema.req.params"),
+    (SPAN_DATA_NAMES.REQUEST_BODY, "_dd.schema.req.body"),
+    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.schema.res.headers"),
+    (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.schema.res.body"),
 ]
 
 
 def flask_api_schema_callback(env):
     waf_content = env.waf_addresses
-    api_content = {}
-    for addresses in COLLECTED:
+    root = env.span._local_root or env.span
+    if not root:
+        return
+    for addresses, meta_name in COLLECTED:
         value = waf_content.get(addresses, None)
         if value:
-            api_content[addresses] = get_json_schema(value)
-    root = env.span._local_root or env.span
-    root._meta["_dd.api_security"] = str(api_content)
+            json_serialized = get_json_schema(value)
+            if len(json_serialized) >= MAX_SPAN_META_VALUE_LEN:
+                json_serialized = "schema too large"
+            root._meta[meta_name] = get_json_schema(value)
 
 
 def enable_api_security():
