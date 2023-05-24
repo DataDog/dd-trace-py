@@ -24,7 +24,8 @@ def flask_api_schema_callback(env):
         value = waf_content.get(addresses, None)
         if value:
             api_content[addresses] = get_json_schema(value)
-    env.span._meta["api_security"] = api_content
+    root = env.span._local_root or env.span
+    root._meta["_dd.api_security"] = str(api_content)
 
 
 def enable_api_security():
