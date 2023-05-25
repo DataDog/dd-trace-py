@@ -111,7 +111,7 @@ void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges, TaintRang
     auto hash = get_unique_id(str);
     auto it = tx_map->find(hash);
     auto new_tainted_object = initializer->allocate_tainted_object(ranges);
-    // TODO: set_could_be_tainted(str);
+    set_could_be_tainted(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second->decref();
@@ -120,35 +120,6 @@ void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges, TaintRang
     }
 
     tx_map->insert({hash, new_tainted_object});
-}
-
-// FIXME: templatize these two
-void set_ranges_impl_obj(const py::object& str, const TaintRangeRefs& ranges, TaintRangeMapType* taint_map) {
-    if (not taint_map or ranges.empty()) {
-        return;
-    }
-
-    auto tx_id = initializer->context_id();
-    if (tx_id == 0) {
-        return;
-    }
-
-    auto hash = get_unique_id(str);
-    auto it = taint_map->find(hash);
-    auto new_tainted_object = initializer->allocate_tainted_object(ranges);
-    set_could_be_tainted(str.ptr());
-    new_tainted_object->incref();
-    if (it != taint_map->end()) {
-        it->second->decref();
-        it->second = new_tainted_object;
-        return;
-    }
-
-    taint_map->insert({hash, new_tainted_object});
-}
-
-void set_ranges_impl_obj(const py::object& str, const TaintRangeRefs& ranges) {
-    set_ranges_impl(str, ranges, initializer->get_tainting_map());
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
@@ -207,35 +178,40 @@ typedef struct _PyASCIIObject_State_Hidden {
     unsigned int hidden : 24;
 } PyASCIIObject_State_Hidden;
 
-__attribute__((flatten)) bool could_be_tainted(const PyObject* op) {
-    if (op == nullptr) {
+template <class StrType>
+__attribute__((flatten)) bool could_be_tainted(const StrType str) {
+    auto objptr = py::cast<py::object>(str).ptr();
+    if (objptr == nullptr) {
         return false;
     }
-    if (!PyUnicode_Check(op)) {
+    if (!PyUnicode_Check(objptr)) {
         return true;
     }
-    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
+    if (PyUnicode_CHECK_INTERNED(objptr) != SSTATE_NOT_INTERNED) {
         return false;
     }
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*) op)->state);
+    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*)objptr)->state);
     return e->hidden == 1;
 }
 
-__attribute__((flatten)) void set_could_be_tainted(PyObject* op) {
-    if (op == nullptr) {
+template <class StrType>
+__attribute__((flatten)) void set_could_be_tainted(const StrType str) {
+    auto objptr = py::cast<py::object>(str).ptr();
+    if (objptr == nullptr) {
         return;
     }
-    if (!PyUnicode_Check(op)) {
+    if (!PyUnicode_Check(objptr)) {
         return;
     }
-    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
+    if (PyUnicode_CHECK_INTERNED(objptr) != SSTATE_NOT_INTERNED) {
         return;
     }
-    PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*) op)->state);
+    PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*) objptr)->state);
     e->hidden = 1;
 }
 
-TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map) {
+template <class StrType>
+TaintedObject* get_tainted_object(const StrType str, TaintRangeMapType* tx_taint_map) {
     if (!could_be_tainted(str) or !tx_taint_map or tx_taint_map->empty()) {
         return nullptr;
     }
@@ -244,7 +220,8 @@ TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_tai
     return it == tx_taint_map->end() ? nullptr : it->second;
 }
 
-void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map) {
+template <class StrType>
+void set_tainted_object(StrType str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map) {
     if (not tx_taint_map)
         return;
 
@@ -268,7 +245,6 @@ void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRan
 
 void pyexport_taintrange(py::module& m) {
     // TODO OPT: check all the py::return_value_policy
-    // TODO: uncomment
     m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytes>, "candidate_text"_a, "parameter_list"_a);
     m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::str>, "candidate_text"_a, "parameter_list"_a,
           py::return_value_policy::move);
@@ -286,9 +262,9 @@ void pyexport_taintrange(py::module& m) {
             "is_some_text_and_get_ranges",
             [](const py::bytearray& s) { return is_some_text_and_get_ranges<py::bytearray>(s); },
             py::return_value_policy::move);
-//    m.def(
-//            "is_some_text_and_get_ranges", [](const py::object& s) { return is_some_text_and_get_ranges_object(s); },
-//            py::return_value_policy::move);
+    m.def(
+            "is_some_text_and_get_ranges", [](const py::object& s) { return is_some_text_and_get_ranges<py::object>(s); },
+            py::return_value_policy::move);
 
     m.def("shift_taint_range", &shift_taint_range, py::return_value_policy::move, "source_taint_range"_a, "offset"_a);
 
@@ -302,11 +278,8 @@ void pyexport_taintrange(py::module& m) {
         return set_ranges_impl<py::bytearray>(s, r);
     });
     m.def("set_ranges", [](const py::object& str, const TaintRangeRefs& ranges) {
-        return set_ranges_impl_obj(str, ranges);
+        return set_ranges_impl<py::object>(str, ranges);
     });
-//    m.def("set_ranges_pyo", [](const py::object& pyo, const TaintRangeRefs& ranges) {
-//        return set_ranges_for_python(pyo, ranges);
-//    });
     m.def("get_ranges", [](const py::bytes& s) {
         return get_ranges_impl<py::bytes>(s, nullptr);
     }, "string_input"_a, py::return_value_policy::take_ownership);
@@ -319,11 +292,6 @@ void pyexport_taintrange(py::module& m) {
     m.def("get_ranges", [](const py::object& s) {
         return get_ranges_impl<py::object>(s, nullptr);
     }, "string_input"_a, py::return_value_policy::take_ownership);
-    // FIXME: duplicate??
-    m.def("get_ranges_pyo", [](const py::object& s) {
-        return get_ranges_impl<py::object>(s, nullptr);
-    }, "string_input"_a, py::return_value_policy::take_ownership);
-
     m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a);
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange")
