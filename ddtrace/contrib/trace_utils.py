@@ -534,6 +534,9 @@ def set_http_meta(
         for k, v in addresses.items():
             set_waf_address(k, v, span)
 
+    if route is not None:
+        span.set_tag_str(http.ROUTE, route)
+
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
     # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
