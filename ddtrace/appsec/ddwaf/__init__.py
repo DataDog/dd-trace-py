@@ -25,7 +25,6 @@ try:
     from .ddwaf_types import ddwaf_object
     from .ddwaf_types import ddwaf_object_free
     from .ddwaf_types import ddwaf_result
-    from .ddwaf_types import ddwaf_ruleset_info
     from .ddwaf_types import ddwaf_run
     from .ddwaf_types import py_ddwaf_context_init
     from .ddwaf_types import py_ddwaf_init
@@ -82,17 +81,18 @@ if _DDWAF_LOADED:
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
-            self._info = ddwaf_ruleset_info()
+            self._info = ddwaf_object()
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(self._info))
-            if not self._handle or self._info.failed:
+            info = self.info
+            if not self._handle or info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
                 # at the same time some invalid ones are rejected
                 LOGGER.debug(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
                     ruleset_map_object.struct,
-                    self._info.loaded,
-                    self.info.errors,
+                    info.failed,
+                    info.errors,
                 )
             ddwaf_object_free(ctypes.byref(ruleset_map_object))
 
@@ -104,10 +104,11 @@ if _DDWAF_LOADED:
         @property
         def info(self):
             # type: (DDWaf) -> DDWaf_info
-            errors_result = self._info.errors.struct if self._info.failed > 0 else {}
-            version = self._info.version
-            version = "" if version is None else version.decode("UTF-8")
-            return DDWaf_info(self._info.loaded, self._info.failed, errors_result, version)
+            info_struct = self._info.struct
+            rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
+            errors_result = rules.get("errors", {})
+            version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore
+            return DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
 
         def update_rules(self, new_rules):
             # type: (dict[text_type, DDWafRulesType]) -> bool
@@ -155,8 +156,8 @@ if _DDWAF_LOADED:
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
-                result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
-                [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
+                result.events.struct,
+                result.actions.struct,
                 result.total_runtime / 1e3,
                 (time.time() - start) * 1e6,
                 result.timeout,
@@ -166,7 +167,6 @@ if _DDWAF_LOADED:
     def version():
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
