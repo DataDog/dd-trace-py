@@ -53,7 +53,7 @@ parse_pg_dsn = _dd_parse_pg_dsn
 
 @ModuleWatchdog.after_module_imported("psycopg2")
 def use_psycopg2_parse_dsn(psycopg_module):
-    """Replaces parse_pg_dsn with the helper function defined in psycopg 2 library"""
+    """Replaces parse_pg_dsn with the helper function defined in psycopg2"""
     global parse_pg_dsn
 
     try:
