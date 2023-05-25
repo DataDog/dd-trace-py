@@ -36,8 +36,9 @@ def _dd_parse_pg_dsn(dsn):
     """
     dsn_dict = dict()
     try:
-        # dsn strings with the following format raise a TypeError:
-        # dsn="db=moon user=ears options='-c statement_timeout=1000 -c lock_timeout=250'"
+        # Provides a default implementation for parsing DSN strings.
+        # The following is an example of a valid DSN string that fails to be parsed:
+        # "db=moon user=ears options='-c statement_timeout=1000 -c lock_timeout=250'"
         dsn_dict = dict(_.split("=", 1) for _ in dsn.split())
     except Exception:
         log.debug("Failed to parse dsn string", exc_info=True)
