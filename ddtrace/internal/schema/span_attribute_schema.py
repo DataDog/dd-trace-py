@@ -61,7 +61,7 @@ def url_operation_v0(v0_operation, protocol=None, direction=None):
 
 def url_operation_v1(v0_operation, protocol=None, direction=None):
     acceptable_directions = {"inbound", "outbound"}
-    acceptable_protocols = {"http", "grpc"}
+    acceptable_protocols = {"http", "grpc", "graphql"}
     assert direction in acceptable_directions, "You must specify a direction as one of {}. You specified {}".format(
         acceptable_directions, direction
     )
