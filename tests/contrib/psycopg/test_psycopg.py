@@ -141,8 +141,7 @@ class PsycopgCore(TracerTestCase):
         # Regression test for DataDog/dd-trace-py/issues/5926
         configs_arr = ["{}={}".format(k, v) for k, v in POSTGRES_CONFIG.items()]
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
-        configs_str = " ".join(configs_arr)
-        conn = psycopg.connect(configs_str)
+        conn = psycopg.connect(" ".join(configs_arr))
 
         Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
