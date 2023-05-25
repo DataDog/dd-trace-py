@@ -40,7 +40,7 @@ def _dd_parse_pg_dsn(dsn):
         # dsn="db=moon user=ears options='-c statement_timeout=1000 -c lock_timeout=250'"
         dsn_dict = dict(_.split("=", 1) for _ in dsn.split())
     except Exception as e:
-        log.debug("Failed to parse dsn string: %s", str(e))
+        log.debug("Failed to parse dsn string", exc_info=True)
     return dsn_dict
 
 
