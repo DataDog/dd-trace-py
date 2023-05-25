@@ -30,6 +30,9 @@ def flask_api_schema_callback(env):
             if len(json_serialized) >= MAX_SPAN_META_VALUE_LEN:
                 json_serialized = "schema too large"
             root._meta[meta_name] = get_json_schema(value)
+    route = waf_content.get(SPAN_DATA_NAMES.REQUEST_ROUTE, None) or ""
+    if route is not None:
+        root._meta[SPAN_DATA_NAMES.REQUEST_ROUTE] = route
 
 
 def enable_api_security():
