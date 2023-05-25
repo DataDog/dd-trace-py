@@ -12,7 +12,7 @@ from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
 
 try:
-    from ddtrace.appsec.iast._ast.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 except ImportError:
     # Python 2 compatibility
     from operator import add as add_aspect
@@ -100,7 +100,7 @@ def sqli_http_request_header_value(request):
 
 
 def sqli_http_path_parameter(request, q_http_path_parameter):
-    from ddtrace.appsec.iast._ast.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
     with connection.cursor() as cursor:
         query = add_aspect("SELECT 1 from ", q_http_path_parameter)

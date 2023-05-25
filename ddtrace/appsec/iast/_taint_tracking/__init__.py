@@ -12,14 +12,14 @@ if TYPE_CHECKING:
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.iast._source import _Source
-
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
 
-__all__ = ["new_pyobject_id", "setup"]
+__all__ = ["new_pyobject_id", "setup", "Source", "OriginType"]
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
@@ -40,7 +40,7 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
     return pyobject
 
 
-def taint_pyobject(pyobject, source):  # type: (Any, _Source) -> Any
+def taint_pyobject(pyobject, source):  # type: (Any, Source) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject

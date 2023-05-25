@@ -1,8 +1,10 @@
 import pytest
-# try:
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source, OriginType
-# except (ImportError, AttributeError):
-#     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+
+try:
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def test_all_params_and_tostring():

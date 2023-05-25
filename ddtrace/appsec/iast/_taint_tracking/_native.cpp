@@ -71,7 +71,6 @@ PYBIND11_MODULE(_native, m) {
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
     // classes inheriting from it.
-    m.def("setup", &setup, "A function that adds two numbers");
     PyObject* hm_aspects = PyModule_Create(&aspects);
     m.add_object("aspects", hm_aspects);
 

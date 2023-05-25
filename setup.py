@@ -241,8 +241,9 @@ class LibDDWaf_Download(BuildPyCommand):
 
     def run(self):
         CleanLibraries.remove_dynamic_library()
-        # LibDDWaf_Download.download_dynamic_library()
-        LibDDWaf_Download.compile_iast()
+        LibDDWaf_Download.download_dynamic_library()
+        if sys.version_info >= (3, 6, 0):
+            LibDDWaf_Download.compile_iast()
         BuildPyCommand.run(self)
 
 
@@ -351,35 +352,6 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args
             )
         )
-        if sys.version_info >= (3, 6, 0):
-            pass
-            # ext_modules.append(
-            #     Pybind11Extension(
-            #         "ddtrace.appsec.iast._taint_tracking._native",
-            #         # Sort source files for reproducibility
-            #         sources=sorted(
-            #             glob.glob("ddtrace/appsec/iast/_taint_tracking/*.cpp")
-            #             + glob.glob("ddtrace/appsec/iast/_taint_tracking/Aspects/*.cpp")
-            #             + glob.glob("ddtrace/appsec/iast/_taint_tracking/Source/*.cpp")
-            #             + glob.glob("ddtrace/appsec/iast/_taint_tracking/TaintedObject/*.cpp")
-            #             + glob.glob("ddtrace/appsec/iast/_taint_tracking/TaintedOps/*.cpp")
-            #             + glob.glob("ddtrace/appsec/iast/_taint_tracking/TaintRange/*.cpp")
-            #         ),
-            #         include_dirs=["ddtrace/appsec/iast/_taint_tracking"],
-            #         extra_compile_args=debug_compile_args,
-            #         # Uncomment this to debug
-            #         # undef_macros=['NDEBUG'],
-            #         cxx_std=17,
-            #     ),
-            # )
-            # ext_modules.append(
-            #     Extension(
-            #         "ddtrace.appsec.iast._taint_tracking._native",
-            #         # Sort source files for reproducibility
-            #         sources=glob.glob("ddtrace/appsec/iast/_taint_tracking/*.cpp"),
-            #         extra_compile_args=debug_compile_args + ["-std=c++17"],
-            #     )
-            # )
 
 else:
     ext_modules = []
