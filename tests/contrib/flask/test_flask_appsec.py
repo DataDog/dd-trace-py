@@ -362,7 +362,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             import sqlite3
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -406,7 +406,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -453,7 +453,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -491,7 +491,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -538,7 +538,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -576,7 +576,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -621,7 +621,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -761,7 +761,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -807,7 +807,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -843,7 +843,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -889,7 +889,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()

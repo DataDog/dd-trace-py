@@ -38,7 +38,7 @@ def test_add_aspect_successful(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_type_error(obj1, obj2):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
     with pytest.raises(TypeError) as e_info1:
         obj1 + obj2
@@ -68,7 +68,7 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -106,7 +106,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
