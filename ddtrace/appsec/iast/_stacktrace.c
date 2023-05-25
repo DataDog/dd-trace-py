@@ -52,22 +52,22 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
     PyObject *cwd_obj = Py_None, *cwd_bytes;
     char* cwd;
     if (!PyArg_ParseTuple(args, "O", &cwd_obj))
-        return nullptr;
+        return  NULL;
     if (cwd_obj != Py_None) {
         if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes))
-            return nullptr;
+            return  NULL;
         cwd = PyBytes_AsString(cwd_bytes);
     } else {
-        return nullptr;
+        return  NULL;
     }
 
-    if (nullptr != tstate && nullptr != GET_FRAME(tstate)) {
+    if ( NULL != tstate &&  NULL != GET_FRAME(tstate)) {
         frame = GET_FRAME(tstate);
-        while (nullptr != frame) {
+        while ( NULL != frame) {
             filename_o = GET_FILENAME(frame);
             filename = PyBytes_AsString(PyUnicode_AsEncodedString(filename_o, "utf-8", "surrogatepass"));
-            if ((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != nullptr && strstr(filename, TESTS_PREFIX) == nullptr) ||
-                strstr(filename, SITE_PACKAGES_PREFIX) != nullptr || strstr(filename, cwd) == nullptr) {
+            if ((strstr(filename, DD_TRACE_INSTALLED_PREFIX) !=  NULL && strstr(filename, TESTS_PREFIX) ==  NULL) ||
+                strstr(filename, SITE_PACKAGES_PREFIX) !=  NULL || strstr(filename, cwd) ==  NULL) {
                 frame = GET_PREVIOUS(frame);
                 continue;
             }
@@ -90,7 +90,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
 
 static PyMethodDef StacktraceMethods[] = {
     { "get_info_frame", (PyCFunction)get_file_and_line, METH_VARARGS, "stacktrace functions" },
-    { nullptr, nullptr, 0, nullptr }
+    {  NULL,  NULL, 0,  NULL }
 };
 
 static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
@@ -104,7 +104,7 @@ PyInit__stacktrace(void)
 {
     PyObject* m;
     m = PyModule_Create(&stacktrace);
-    if (m == nullptr)
-        return nullptr;
+    if (m ==  NULL)
+        return  NULL;
     return m;
 }

@@ -327,6 +327,7 @@ class CMakeExtension(Extension):
         super().__init__(name, sources=[])
         self.sourcedir = os.fspath(Path(sourcedir).resolve())
 
+
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -345,9 +346,9 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 "ddtrace.appsec.iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
-                    "ddtrace/appsec/iast/_stacktrace.cpp",
+                    "ddtrace/appsec/iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args,
+                extra_compile_args=debug_compile_args
             )
         )
         if sys.version_info >= (3, 6, 0):

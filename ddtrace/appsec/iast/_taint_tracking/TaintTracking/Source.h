@@ -37,7 +37,7 @@ struct Source {
 
     [[nodiscard]] string toString() const;
 
-    inline void set_values(string name, string value, OriginType origin) {
+    inline void set_values(string name = "", string value = "", OriginType origin = OriginType()) {
         this->name = move(name);
         this->value = move(value);
         this->origin = origin;

@@ -42,11 +42,12 @@ void pyexport_source(py::module& m) {
             .export_values();
 
     py::class_<Source>(m, "Source")
-            .def(py::init<string, string, const OriginType>(), "parameter_name"_a = "", "parameter_type"_a,
-                 "value"_a = "")
+            .def(py::init<string, string, const OriginType>(), "name"_a = "", "value"_a  = "",
+                 "origin"_a = OriginType())
             .def_readonly("name", &Source::name)
             .def_readonly("origin", &Source::origin)
             .def_readonly("value", &Source::value)
+            .def("to_string", &Source::toString)
             .def("__hash__",
                  [](const Source& self) {
                      return hash<string>{}(self.name + self.value) * (33 + int(self.origin));

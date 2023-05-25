@@ -110,7 +110,7 @@ class AstVisitor(ast.NodeTransformer):
             return True
 
         if PY38_PLUS and (
-            isinstance(node, Constant)  # type: ignore[name-defined]
+            isinstance(node, ast.Constant)  # type: ignore[name-defined]
             and isinstance(node.value, (int, float))
         ):
             return True
@@ -118,7 +118,7 @@ class AstVisitor(ast.NodeTransformer):
         return False
 
     def _is_node_constant_or_binop(self, node):  # type: (Any) -> bool
-        return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, BinOp)
+        return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
 
     def _is_call_excluded(self, func_name_node):  # type: (str) -> bool
         if not self.excluded_functions:
