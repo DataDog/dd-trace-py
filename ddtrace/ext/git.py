@@ -245,6 +245,9 @@ def build_git_packfiles(revisions, cwd=None):
         # This workaround is intended to be temporary.
         #
         # TODO: fix issue and remove workaround.
+        if not cwd:
+            cwd = os.getcwd()
+
         prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
         _git_subprocess_cmd(
             "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
