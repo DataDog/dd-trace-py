@@ -5,6 +5,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.vendor.debtcollector import deprecate
 
+
 log = get_logger(__name__)
 
 # tags
