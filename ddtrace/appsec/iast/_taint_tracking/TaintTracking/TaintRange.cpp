@@ -268,11 +268,13 @@ void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRan
 
 void pyexport_taintrange(py::module& m) {
     // TODO OPT: check all the py::return_value_policy
-    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytes>, "candidate_text"_a, "parameter_list"_a);
-    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::str>, "candidate_text"_a, "parameter_list"_a,
-          py::return_value_policy::move);
-    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytearray>, "candidate_text"_a, "parameter_list"_a,
-          py::return_value_policy::move);
+    // TODO: uncomment
+//    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytes>, "candidate_text"_a, "parameter_list"_a);
+//    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::str>, "candidate_text"_a, "parameter_list"_a,
+//          py::return_value_policy::move);
+//    m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytearray>, "candidate_text"_a, "parameter_list"_a,
+//          py::return_value_policy::move);
+
 //    m.def("are_all_text_all_ranges", &are_all_text_all_ranges_object, "candidate_text"_a, "parameter_list"_a,
 //          py::return_value_policy::move);
 

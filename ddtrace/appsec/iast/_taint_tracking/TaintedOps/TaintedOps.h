@@ -1,5 +1,4 @@
-#ifndef _TAINT_TRACKING_TAINTEDOBJECT_H
-#define _TAINT_TRACKING_TAINTEDOBJECT_H
+#pragma once
 #include <Python.h>
 #include <pybind11/pybind11.h>
 #include "TaintTracking/TaintRange.h"
@@ -21,11 +20,3 @@ PyObject *api_new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args);
 //void api_set_tainted_ranges(PyObject* pyobject, TaintRangeRefs ranges);
 //TaintRangeRefs api_get_tainted_ranges(PyObject* pyobject); // can be already implemented
 //XXX (Tuple[List[Dict[str, Union[Any, int]]], list[_Source]]) api_taint_ranges_as_evidence_info(PyObject* pyobject);
-
-
-TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
-
-bool could_be_tainted(const PyObject* op);
-
-void set_could_be_tainted(PyObject* op);
-#endif //_TAINT_TRACKING_TAINTEDOBJECT_H
