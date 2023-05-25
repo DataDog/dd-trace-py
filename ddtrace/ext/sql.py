@@ -3,7 +3,6 @@ from typing import Dict
 from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.vendor.debtcollector import deprecate
-from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
