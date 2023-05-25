@@ -250,6 +250,10 @@ void pyexport_taintrange(py::module& m) {
           py::return_value_policy::move);
     m.def("are_all_text_all_ranges", &are_all_text_all_ranges<py::bytearray>, "candidate_text"_a, "parameter_list"_a,
           py::return_value_policy::move);
+    // TODO: check return value policy
+    m.def("get_tainted_object", &get_tainted_object<py::bytes>, "str"_a, "tx_taint_map"_a);
+    m.def("get_tainted_object", &get_tainted_object<py::str>, "str"_a, "tx_taint_map"_a);
+    m.def("get_tainted_object", &get_tainted_object<py::bytearray>, "str"_a, "tx_taint_map"_a);
 
     // Changed to lambdas because PyBind11 doesn't seem to find the right overload automatically
     m.def(

@@ -105,7 +105,7 @@ template <class StrType>
 void set_could_be_tainted(StrType);
 
 template <class StrType>
-TaintedObject* get_tainted_object(const StrType str, TaintRangeMapType* tx_taint_map);
+TaintedObject* get_tainted_object(StrType str, TaintRangeMapType* tx_taint_map);
 
 template <class StrType>
 void set_tainted_object(StrType str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
