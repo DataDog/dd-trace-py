@@ -1,4 +1,5 @@
 import os
+import typing
 
 from yarl import URL
 
@@ -64,14 +65,18 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
-def extract_from_urlparse(parse_result):
-    if parse_result.netloc:
-        netloc = parse_result.netloc
-    # RFC1808: netloc is only recognized if introduced by `//`
-    else:
-        netloc = parse_result.path.split("/")[0]
-    netloc = netloc.split("@")[-1]  # eliminate auth info
-    return netloc.split(":")[0]
+def extract_info_from_url(url):
+    # type: (str) -> typing.Tuple[str, str]
+    parse_result = parse.urlparse(url)
+    query = parse_result.query
+
+    # Relative URLs don't have a netloc, so we force them
+    if not parse_result.netloc:
+        parse_result = parse.urlparse("//{url}".format(url=url))
+
+    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
+    netloc = netloc.split(":", 1)[0]  # Discard port information
+    return netloc, query
 
 
 @with_traced_module
@@ -98,14 +103,14 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
         url_str = str(url.update_query(params) if params else url)
-        parsed_url = parse.urlparse(url_str)
+        host, query = extract_info_from_url(url_str)
         set_http_meta(
             span,
             config.aiohttp_client,
             method=method,
             url=str(url),
-            target_host=extract_from_urlparse(parsed_url),
-            query=parsed_url.query,
+            target_host=host,
+            query=query,
             request_headers=headers,
         )
         resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse
