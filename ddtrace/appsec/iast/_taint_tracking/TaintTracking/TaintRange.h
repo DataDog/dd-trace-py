@@ -100,7 +100,7 @@ TaintRangeRefs get_ranges_dispatcher(const py::object& string_input, TaintRangeM
 // Returns a tuple with (all ranges, ranges of candidate_text)
 template <class StrType>
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const StrType& candidate_text,
-                                                                   const py::object& parameter_list);
+                                                                   const py::tuple& parameter_list);
 
 template <class StrType>
 TaintRangeRefs is_some_text_and_get_ranges(const StrType& candidate_text, TaintRangeMapType* tx_map);
