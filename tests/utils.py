@@ -1098,6 +1098,9 @@ def call_program(*args, **kwargs):
         stdout, stderr = subp.communicate()
     else:
         stdout, stderr = subp.communicate(timeout=timeout)
+
+    print("subprocess std out: ".encode() + stdout)
+    print("subprocess std err: ".encode() + stderr)
     return stdout, stderr, subp.wait(), subp.pid
 
 
