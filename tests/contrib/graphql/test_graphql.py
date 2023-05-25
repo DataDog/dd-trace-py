@@ -1,4 +1,5 @@
 import os
+
 import graphql
 import pytest
 
@@ -147,6 +148,7 @@ def test_graphql_execute_sync_with_middlware_manager(
         res2 = graphql.execution.execute_sync(test_schema, ast, middleware=middleware_manager)
         assert res1.data == {"hello": "friend"}
         assert res2.data == {"hello": "friend"}
+
 
 @pytest.mark.snapshot
 @pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT suppoerted in v2.0")
