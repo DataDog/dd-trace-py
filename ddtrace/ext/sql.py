@@ -45,8 +45,9 @@ def _dd_parse_pg_dsn(dsn):
     return dsn_dict
 
 
-# Do not import from psycopg directly! This reference will be updated at runtime if we can
-# import psycopg 2 or psycopg 3 and use a better implementation.
+# Do not import from psycopg directly! This reference will be updated at runtime to use
+# a better implementation that is provided by the psycopg library.
+# This is done to avoid circular imports.
 parse_pg_dsn = _dd_parse_pg_dsn
 
 
