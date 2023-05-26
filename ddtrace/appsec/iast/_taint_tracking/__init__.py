@@ -19,6 +19,7 @@ from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (Source, 
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
+is_pyobject_tainted = ops.is_tainted
 
 __all__ = ["new_pyobject_id", "setup", "Source", "OriginType", "TaintRange", "get_ranges", "set_ranges",
            "are_all_text_all_ranges", "shift_taint_range", "shift_taint_ranges",
@@ -43,27 +44,30 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
     return pyobject
 
 
-def taint_pyobject(pyobject, source):  # type: (Any, Source) -> Any
+def taint_pyobject(pyobject, source=None):  # type: (Any, Source) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
-
     # Pyobject must be Text with len > 1
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
     if source is None:
         return pyobject
+    # source = Source("key", "value", OriginType.PARAMETER)
+    set_ranges(pyobject, [TaintRange(0, len(pyobject), source)])
+    #
 
-    len_pyobject = len(pyobject)
-    pyobject = new_pyobject_id(pyobject, len_pyobject)
-    taint_dict = get_taint_dict()
-    taint_dict[id(pyobject)] = ((source, 0, len_pyobject),)
+    #
+    # len_pyobject = len(pyobject)
+    # pyobject = new_pyobject_id(pyobject, len_pyobject)
+    # taint_dict = get_taint_dict()
+    # taint_dict[id(pyobject)] = ((source, 0, len_pyobject),)
     return pyobject
 
 
-def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
-    return id(pyobject) in get_taint_dict()
+# def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
+#     return id(pyobject) in get_taint_dict()
 
 
 def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
@@ -73,7 +77,7 @@ def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
 
 
 def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
-    return get_taint_dict().get(id(pyobject), tuple())
+    return get_ranges(pyobject)
 
 
 def taint_ranges_as_evidence_info(pyobject):

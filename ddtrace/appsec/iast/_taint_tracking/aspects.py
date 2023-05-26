@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 TEXT_TYPES = (Text, binary_type, bytearray)
 
-# add_aspect = aspects.add_aspect
+_add_aspect = aspects.add_aspect
 
 
 
@@ -36,10 +36,7 @@ __all__ = ["add_aspect", "str_aspect", "decode_aspect", "encode_aspect"]
 def add_aspect(op1, op2):
     if not isinstance(op1, TEXT_TYPES):
         return op1 + op2
-    res = getattr(op1.__class__, "__add__")(op1, op2)
-    if res is op1 or res is op2:
-        return res
-    return add_taint_pyobject(res, op1, op2)
+    return _add_aspect(op1, op2)
 
 
 def str_aspect(*args, **kwargs):

@@ -81,3 +81,7 @@ void TaintedObject::release() {
     assert(rc_ == 0);
     //initializer->release_tainted_object(this);
 }
+
+void pyexport_taintedobject(py::module& m) {
+    py::class_<TaintedObject>(m, "TaintedObject").def(py::init<>());
+}

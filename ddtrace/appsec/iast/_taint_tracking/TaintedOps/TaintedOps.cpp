@@ -49,3 +49,24 @@ PyObject *api_new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args) {
   PyArg_ParseTuple(args, "On", &tainted_object, &object_length);
   return new_pyobject_id(tainted_object, object_length);
 }
+
+bool is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map){
+    const auto& to_initial = get_tainted_object(tainted_object, tx_taint_map);
+    if (to_initial and to_initial->get_ranges().size()){
+        return true;
+    }
+    return false;
+}
+
+PyObject* api_is_tainted(PyObject *Py_UNUSED(module), PyObject *args) {
+    PyObject *tainted_object;
+    PyArg_ParseTuple(args, "O", &tainted_object);
+    auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
+        return Py_False;
+    }
+    if (is_tainted(tainted_object, ctx_map)){
+        return Py_True;
+    }
+    return Py_False;
+}
