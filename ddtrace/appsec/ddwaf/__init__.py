@@ -121,7 +121,7 @@ if _DDWAF_LOADED:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
-            result = py_ddwaf_update(self._handle, rules, ctypes.byref(diagnostics))
+            result = py_ddwaf_update(self._handle, rules, diagnostics)
             self._set_info(diagnostics)
             ddwaf_object_free(rules)
             if result:
