@@ -120,10 +120,11 @@ class LibraryDownload:
     url_root = None
     available_releases = None
     expected_checksums = None
+    translate_suffix = None
 
     @classmethod
     def download_artifacts(cls):
-        suffixes = cls.get_suffixes(CURRENT_OS)
+        suffixes = cls.translate_suffix[CURRENT_OS]
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
@@ -198,6 +199,10 @@ class LibraryDownload:
 
             os.remove(filename)
 
+    @classmethod
+    def run(cls):
+        cls.download_artifacts()
+
 
 class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
@@ -209,20 +214,12 @@ class LibDDWafDownload(LibraryDownload):
         "Darwin": ["arm64", "x86_64"],
         "Linux": ["aarch64", "x86_64"],
     }
+    translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
     def get_package_name(cls, arch, os):
         archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
         return archive_dir
-
-    @classmethod
-    def get_suffixes(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
-        return TRANSLATE_SUFFIX[os]
-
-    @classmethod
-    def run(cls):
-        LibDDWaf_Download.download_artifacts()
 
 
 class LibDatadogDownload(LibraryDownload):
@@ -240,6 +237,7 @@ class LibDatadogDownload(LibraryDownload):
         "Darwin": [],
         "Linux": ["x86_64"],
     }
+    translate_suffix = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
 
     @classmethod
     def get_package_name(cls, arch, os):
@@ -249,11 +247,6 @@ class LibDatadogDownload(LibraryDownload):
         tar_osname = osnames[os]
         archive_dir = "lib%s-%s-%s" % (cls.name, arch, tar_osname)
         return archive_dir
-
-    @classmethod
-    def get_suffixes(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
-        return TRANSLATE_SUFFIX[os]
 
     @staticmethod
     def get_extra_objects():
@@ -274,10 +267,6 @@ class LibDatadogDownload(LibraryDownload):
                 "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
             ]
         return []
-
-    @classmethod
-    def run(cls):
-        LibDatadog_Download.download_artifacts()
 
 
 class LibraryDownloader(BuildPyCommand):
