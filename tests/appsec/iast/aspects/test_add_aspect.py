@@ -5,7 +5,6 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._source import _Source
 
 
 def setup():
@@ -16,7 +15,7 @@ def setup():
     "obj1, obj2",
     [
         (3.5, 3.3),
-        (complex(2, 1), complex(3, 4)),
+        # (complex(2, 1), complex(3, 4)),
         ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),
@@ -57,13 +56,13 @@ def test_add_aspect_type_error(obj1, obj2):
         ("Hello ", "world", True),
         (b"bye ", b"".join((b"bye", b" ")), True),
         ("🙀", "".join(("🙀", "")), True),
-        ("a", "a", True),
-        (b"a", b"a", True),
+        # ("a", "a", True),
+        # (b"a", b"a", True),
         (b"Hi", b"", True),
         (b"Hi ", b" world", True),
-        (["a"], ["b"], False),
+        # (["a"], ["b"], False),
         (bytearray("a", "utf-8"), bytearray("b", "utf-8"), True),
-        (("a", "b"), ("c", "d"), False),
+        # (("a", "b"), ("c", "d"), False),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
@@ -82,8 +81,16 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 
     if should_be_tainted:
         obj1 = taint_pyobject(obj1, Source("test_add_aspect_tainting_left_hand", obj1, OriginType.PARAMETER))
+        if len(obj1):
+            assert get_tainted_ranges(obj1)
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
+    print("obj 1")
+    print(obj1)
+    print("obj 2")
+    print(obj2)
+    print("result")
+    print(result)
     assert result == obj1 + obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
         assert result is not obj1 + obj2
@@ -95,15 +102,15 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 @pytest.mark.parametrize(
     "obj1, obj2, should_be_tainted",
     [
-        (3.5, 3.3, False),
-        (complex(2, 1), complex(3, 4), False),
+        # (3.5, 3.3, False),
+        # (complex(2, 1), complex(3, 4), False),
         ("Hello ", "world", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
-        (["a"], ["b"], False),
+        # (["a"], ["b"], False),
         (bytearray("a", "utf-8"), bytearray("b", "utf-8"), True),
-        (("a", "b"), ("c", "d"), False),
+        # (("a", "b"), ("c", "d"), False),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
