@@ -51,8 +51,23 @@ def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_servic
 def cloud_messaging_operation_v1(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
     if direction == "inbound":
         return "{}.{}.receive".format(cloud_provider, cloud_service)
-    else:
+    elif direction == "outbound":
         return "{}.{}.send".format(cloud_provider, cloud_service)
+    elif direction == "processing":
+        return "{}.{}.process".format(cloud_provider, cloud_service)
+
+
+def messaging_operation_v0(v0_operation, provider=None, service=None, direction=None):
+    return v0_operation
+
+
+def messaging_operation_v1(v0_operation, provider=None, direction=None):
+    if direction == "inbound":
+        return "{}.receive".format(provider)
+    elif direction == "outbound":
+        return "{}.send".format(provider)
+    elif direction == "process":
+        return "{}.process".format(provider)
 
 
 def url_operation_v0(v0_operation, protocol=None, direction=None):
@@ -75,21 +90,23 @@ def url_operation_v1(v0_operation, protocol=None, direction=None):
 
 _SPAN_ATTRIBUTE_TO_FUNCTION = {
     "v0": {
-        "service_name": service_name_v0,
-        "database_operation": database_operation_v0,
         "cache_operation": cache_operation_v0,
         "cloud_api_operation": cloud_api_operation_v0,
         "cloud_faas_operation": cloud_faas_operation_v0,
         "cloud_messaging_operation": cloud_messaging_operation_v0,
+        "database_operation": database_operation_v0,
+        "messaging_operation": messaging_operation_v0,
+        "service_name": service_name_v0,
         "url_operation": url_operation_v0,
     },
     "v1": {
-        "service_name": service_name_v1,
-        "database_operation": database_operation_v1,
         "cache_operation": cache_operation_v1,
         "cloud_api_operation": cloud_api_operation_v1,
         "cloud_faas_operation": cloud_faas_operation_v1,
         "cloud_messaging_operation": cloud_messaging_operation_v1,
+        "database_operation": database_operation_v1,
+        "messaging_operation": messaging_operation_v1,
+        "service_name": service_name_v1,
         "url_operation": url_operation_v1,
     },
 }

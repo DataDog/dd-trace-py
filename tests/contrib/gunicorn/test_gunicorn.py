@@ -72,7 +72,7 @@ def _gunicorn_settings_factory(
     if dd_service is not None:
         env["DD_SERVICE"] = dd_service
     if schema_version is not None:
-        env['DD_TRACE_SPAN_ATTRIBUTE_SCHEMA'] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -184,6 +184,7 @@ def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
     assert response.status_code == 200
     payload = parse_payload(response.content)
     assert payload["profiler"]["is_active"] is True
+
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])

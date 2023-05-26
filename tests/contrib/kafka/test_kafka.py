@@ -1,9 +1,13 @@
 import logging
 import time
+import os
 
 import confluent_kafka
 import pytest
 import six
+from tenacity import Retrying
+from tenacity import stop_after_attempt
+from tenacity import wait_random
 
 from ddtrace import Pin
 from ddtrace import tracer as dd_tracer
@@ -29,7 +33,8 @@ class KafkaConsumerPollFilter(TraceFilter):
         # Filter out all poll spans that have no received message
         return (
             None
-            if trace[0].name == "kafka.consume" and trace[0].get_tag("kafka.received_message") == "False"
+            if trace[0].name in {"kafka.consume", "kafka.process"}
+            and trace[0].get_tag("kafka.received_message") == "False"
             else trace
         )
 
@@ -106,54 +111,6 @@ def test_service_override_config(producer, consumer):
             message = consumer.poll(1.0)
 
 
-@pytest.mark.subprocess(env=dict(DD_KAFKA_SERVICE="my-custom-service-name"), err=None)
-@pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
-)
-def test_service_override_env_var():
-    import six
-
-    import ddtrace
-    from ddtrace.contrib.kafka.patch import patch
-    from ddtrace.contrib.kafka.patch import unpatch
-    from ddtrace.filters import TraceFilter
-
-    PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8") if six.PY3 else bytes("hueh hueh hueh")
-
-    class KafkaConsumerPollFilter(TraceFilter):
-        def process_trace(self, trace):
-            # Filter out all poll spans that have no received message
-            return (
-                None
-                if trace[0].name == "kafka.consume" and trace[0].get_tag("kafka.received_message") == "False"
-                else trace
-            )
-
-    ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
-    patch()
-    import confluent_kafka
-
-    producer = confluent_kafka.Producer({"bootstrap.servers": "localhost:29092"})
-    consumer = confluent_kafka.Consumer(
-        {
-            "bootstrap.servers": "localhost:29092",
-            "group.id": "test_group",
-            "auto.offset.reset": "earliest",
-        }
-    )
-    ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
-    ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
-    consumer.subscribe(["test_topic"])
-
-    producer.produce("test_topic", PAYLOAD, key="test_key")
-    producer.flush()
-    message = None
-    while message is None:
-        message = consumer.poll(1.0)
-    unpatch()
-    consumer.close()
-
-
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_analytics_with_rate(producer, consumer):
     with override_config("kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
@@ -211,3 +168,108 @@ def test_data_streams_kafka(consumer, producer):
         ].edge_latency._count
         >= 1
     )
+
+def _generate_in_subprocess(topic):
+    import six
+
+    import ddtrace
+    from ddtrace.contrib.kafka.patch import patch
+    from ddtrace.contrib.kafka.patch import unpatch
+    from ddtrace.filters import TraceFilter
+
+    PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8") if six.PY3 else bytes("hueh hueh hueh")
+
+    class KafkaConsumerPollFilter(TraceFilter):
+        def process_trace(self, trace):
+            # Filter out all poll spans that have no received message
+            return (
+                None
+                if trace[0].name in {"kafka.consume", "kafka.process"}
+                and trace[0].get_tag("kafka.received_message") == "False"
+                else trace
+            )
+
+    ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    patch()
+
+    producer = None
+    consumer = None
+    published = False
+    subscribed = False
+    # Retry the Kafka commands several times, as Kafka may return connection refused
+    for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_random(min=1, max=2)):
+        with attempt:
+            producer = producer or confluent_kafka.Producer({"bootstrap.servers": "localhost:29092"})
+            consumer = confluent_kafka.Consumer(
+                {
+                    "bootstrap.servers": "localhost:29092",
+                    "group.id": "test_group",
+                    "auto.offset.reset": "earliest",
+                }
+            )
+            ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
+            ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
+            if not subscribed:
+                consumer.subscribe([topic])
+                subscribed = True
+            if not published:
+                producer.produce(topic, PAYLOAD, key="test_key")
+                producer.flush()
+                published = True
+            message = None
+            while message is None:
+                message = consumer.poll(1.0)
+            unpatch()
+            consumer.close()
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
+)
+@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
+def test_service_override_env_var(ddtrace_run_python_code_in_subprocess):
+    code = """
+import sys
+import pytest
+from tests.contrib.kafka.test_kafka import _generate_in_subprocess
+
+def test():
+    _generate_in_subprocess('test_topic')
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
+@pytest.mark.parametrize("service", [None, "mysvc"])
+@pytest.mark.parametrize("schema", [None, "v0", "v1"])
+def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema):
+    code = """
+import sys
+import pytest
+from tests.contrib.kafka.test_kafka import _generate_in_subprocess
+
+def test():
+    _generate_in_subprocess('test-schema.{}.{}')
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        service, schema
+    )
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()
+

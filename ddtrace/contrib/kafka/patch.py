@@ -12,6 +12,8 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.pin import Pin
@@ -23,7 +25,9 @@ _Consumer = confluent_kafka.Consumer
 
 config._add(
     "kafka",
-    dict(_default_service="kafka"),
+    dict(
+        _default_service=schematize_service_name("kafka"),
+    ),
 )
 
 
@@ -95,7 +99,7 @@ def traced_produce(func, instance, args, kwargs):
         kwargs["headers"] = headers
 
     with pin.tracer.trace(
-        kafkax.PRODUCE,
+        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction="outbound"),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
@@ -119,7 +123,7 @@ def traced_poll(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        kafkax.CONSUME,
+        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction="process"),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
