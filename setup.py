@@ -225,7 +225,7 @@ class LibDDWafDownload(LibraryDownload):
         LibDDWaf_Download.download_artifacts()
 
 
-class LibDatadog_Download(Library_Download):
+class LibDatadogDownload(LibraryDownload):
     name = "datadog"
     download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
     version = LIBDATADOG_PROF_VERSION
