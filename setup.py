@@ -131,11 +131,11 @@ class BuildExtWithUpx(BuildExtCommand):
         upx_address = None
         upx_sha = None
         if get_build_platform().endswith("x86_64"):
-          upx_address = upx_addresses["x86_64"]
-          upx_sha = upx_shas["x86_64"]
+          upx_address = self.upx_addresses["x86_64"]
+          upx_sha = self.upx_shas["x86_64"]
         elif get_build_platform().endswith("aarch64"):
-          upx_address = upx_addresses["aarch64"]
-          upx_sha = upx_shas["aarch64"]
+          upx_address = self.upx_addresses["aarch64"]
+          upx_sha = self.upx_shas["aarch64"]
         else:
             return False
 
