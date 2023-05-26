@@ -81,9 +81,10 @@ if _DDWAF_LOADED:
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
-            self._info = ddwaf_object()
+            diagnostics = ddwaf_object()
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
-            self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(self._info))
+            self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
+            self._set_info(diagnostics)
             info = self.info
             if not self._handle or info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
@@ -101,20 +102,27 @@ if _DDWAF_LOADED:
             # type: (DDWaf) -> list[text_type]
             return py_ddwaf_required_addresses(self._handle) if self._handle else []
 
-        @property
-        def info(self):
-            # type: (DDWaf) -> DDWaf_info
-            info_struct = self._info.struct
+        def _set_info(self, diagnostics):
+            # type: (DDWaf, ddwaf_object) -> None
+            info_struct = diagnostics.struct
             rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
             errors_result = rules.get("errors", {})
             version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore
-            return DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
+            self._info = DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
+            ddwaf_object_free(diagnostics)
+
+        @property
+        def info(self):
+            # type: (DDWaf) -> DDWaf_info
+            return self._info
 
         def update_rules(self, new_rules):
             # type: (dict[text_type, DDWafRulesType]) -> bool
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
-            result = py_ddwaf_update(self._handle, rules, self._info)
+            diagnostics = ddwaf_object()
+            result = py_ddwaf_update(self._handle, rules, ctypes.byref(diagnostics))
+            self._set_info(diagnostics)
             ddwaf_object_free(rules)
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
@@ -163,13 +171,6 @@ if _DDWAF_LOADED:
                 result.timeout,
                 observator.truncation,
             )
-
-        def __del__(self):
-            try:
-                # free diagnostic ddwaf object when this python object is collected
-                ddwaf_object_free(self._info)
-            except TypeError:
-                pass
 
     def version():
         # type: () -> text_type
