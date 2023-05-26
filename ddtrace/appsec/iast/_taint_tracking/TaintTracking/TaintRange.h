@@ -52,14 +52,15 @@ struct TaintRange {
 
     [[nodiscard]] string toString() const;
 
-    [[nodiscard]] size_t get_hash() const;
+    [[nodiscard]] uint get_hash() const;
 
-    struct hash_fn {
-        size_t operator()(const TaintRange &range) const { return range.get_hash(); }
-    };
-
-    [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
-
+// FIXME: unneeded?
+//    struct hash_fn {
+//        size_t operator()(const TaintRange &range) const { return range.get_hash(); }
+//    };
+//
+//    [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
+//
     explicit operator std::string() const;
 };
 
@@ -96,12 +97,6 @@ std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObjec
 inline std::tuple<TaintRangeRefs, TaintRangeRefs> api_are_all_text_all_ranges(const py::object candidate_text,
                                                                    const py::tuple& parameter_list) {
     return are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
-}
-
-TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text, TaintRangeMapType* tx_map);
-TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text);
-inline TaintRangeRefs api_is_some_text_and_get_ranges(py::object candidate_text) {
-    return is_some_text_and_get_ranges(candidate_text.ptr());
 }
 
 TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);

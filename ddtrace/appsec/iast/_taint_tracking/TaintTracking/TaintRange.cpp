@@ -35,10 +35,11 @@ string TaintRange::toString() const {
 
 TaintRange::operator std::string() const { return toString(); }
 
-size_t TaintRange::get_hash() const {
-  size_t hstart = hash<size_t>()(this->start);
-  size_t hlength = hash<size_t>()(this->length);
-  size_t hsource = hash<size_t>()(this->source->get_hash());
+// Note: don't use size_t or long, if the hash is bigger than an int, Python will re-hash it!
+uint TaintRange::get_hash() const {
+  uint hstart = hash<uint>()(this->start);
+  uint hlength = hash<uint>()(this->length);
+  uint hsource = hash<uint>()(this->source->get_hash());
   return hstart ^ hlength ^ hsource;
 };
 
@@ -59,15 +60,9 @@ TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     return new_ranges;
 }
 
+
+// FIXME: add check that str is really some kind of string
 static TaintRangeRefs get_ranges_for_string(const PyObject* str, TaintRangeMapType* tx_map) {
-    if (not tx_map) {
-        tx_map = initializer->get_tainting_map();
-    }
-
-    if (tx_map->empty()) {
-        return {};
-    }
-
     const auto it = tx_map->find(get_unique_id(str));
     if (it == tx_map->end()) {
         return {};
@@ -86,6 +81,8 @@ TaintRangeRefs get_ranges(const PyObject* string_input, TaintRangeMapType* tx_ma
     return get_ranges_for_string(string_input, tx_map);
 }
 
+
+// FIXME: add check that str is really some kind of string
 void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map) {
     if (ranges.empty())
         return;
@@ -114,9 +111,10 @@ void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMap
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
+// FIXME: add check that candidate_text is really some kind of string
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
                                                                    const py::tuple& parameter_list) {
-    // TODO: pass tx_map to the function (currently not used in the benchmark)
+    // TODO: pass tx_map to the function
     auto tx_map = initializer->get_tainting_map();
     TaintRangeRefs candidate_text_ranges{get_ranges(candidate_text, tx_map)};
     TaintRangeRefs all_ranges;
@@ -133,25 +131,6 @@ std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObjec
 
     all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
     return {all_ranges, candidate_text_ranges};
-}
-
-TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text, TaintRangeMapType* tx_map) {
-    if (!is_text(candidate_text)) {
-        return {};
-    }
-    if (not tx_map) {
-        tx_map = initializer->get_tainting_map();
-    }
-    if (tx_map->empty()) {
-        return {};
-    }
-
-    return get_ranges(candidate_text, tx_map);
-}
-
-TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text) {
-    auto tx_map = initializer->get_tainting_map();
-    return is_some_text_and_get_ranges(candidate_text, tx_map);
 }
 
 TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges) {
@@ -246,11 +225,6 @@ void pyexport_taintrange(py::module& m) {
     // TODO: check return value policy
     m.def("get_tainted_object", &get_tainted_object, "str"_a, "tx_taint_map"_a);
 
-    m.def("is_some_text_and_get_ranges", py::overload_cast<PyObject*>(&is_some_text_and_get_ranges), "str"_a,
-          py::return_value_policy::move);
-    m.def("is_some_text_and_get_ranges", &api_is_some_text_and_get_ranges, "str"_a,
-            py::return_value_policy::move);
-
     m.def("shift_taint_range", &api_shift_taint_range, py::return_value_policy::move,
           "source_taint_range"_a, "offset"_a);
     m.def("shift_taint_ranges", &api_shift_taint_ranges, py::return_value_policy::move,
@@ -273,7 +247,7 @@ void pyexport_taintrange(py::module& m) {
             .def_readonly("source", &TaintRange::source)
             .def("__str__", &TaintRange::toString)
             .def("__repr__", &TaintRange::toString)
-            .def("__hash__", &TaintRange::hash_)
+            .def("__hash__", &TaintRange::get_hash)
             .def("get_hash", &TaintRange::get_hash)
             // FIXME: check source to for these two?
             .def("__eq__",

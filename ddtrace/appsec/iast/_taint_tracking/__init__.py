@@ -13,13 +13,16 @@ if TYPE_CHECKING:
     from typing import Union
 
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (Source, OriginType, TaintRange,
+    get_ranges, set_ranges, are_all_text_all_ranges, shift_taint_range,
+    shift_taint_ranges, get_range_by_hash)  # noqa: F401
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
 
-__all__ = ["new_pyobject_id", "setup", "Source", "OriginType"]
+__all__ = ["new_pyobject_id", "setup", "Source", "OriginType", "TaintRange", "get_ranges", "set_ranges",
+           "are_all_text_all_ranges", "shift_taint_range", "shift_taint_ranges",
+           "get_range_by_hash"]
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any

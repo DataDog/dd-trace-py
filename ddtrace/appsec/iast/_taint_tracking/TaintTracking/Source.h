@@ -43,7 +43,7 @@ struct Source {
         this->origin = origin;
     }
 
-    [[nodiscard]] size_t get_hash() const;
+    [[nodiscard]] uint get_hash() const;
 
     static inline size_t hash(const string& name, const string& value, const OriginType origin) {
         return std::hash<size_t>()(std::hash<string>()(name) ^ (long) origin ^ std::hash<string>()(value));

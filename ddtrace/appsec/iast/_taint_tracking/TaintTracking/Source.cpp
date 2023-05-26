@@ -23,7 +23,8 @@ string Source::toString() const {
 
 Source::operator std::string() const { return toString(); }
 
-size_t Source::get_hash() const {
+// Note: don't use size_t or long, if the hash is bigger than an int, Python will re-hash it!
+uint Source::get_hash() const {
     return std::hash<size_t>()(std::hash<string>()(name) ^ (long) origin ^ std::hash<string>()(value));
 };
 

@@ -16,7 +16,7 @@ inline bool str2bool(string_view s) {
     return lowered == "yes" or lowered == "1" or lowered == "true";
 }
 
-// TODO: find a faster way directly with conversion with PyObject*
+// TODO: find a faster way directly with the C API (PyUnicode_Check and friends)
 inline bool is_text(PyObject* pyptr) {
     // TODO: this makes a copy
     auto element = py::reinterpret_borrow<py::object>(pyptr);
