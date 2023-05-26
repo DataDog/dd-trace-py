@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -68,7 +69,7 @@ def enable_appsec_rc(test_tracer=None):
     if _appsec_rc_features_is_enabled():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
-    if tracer._appsec_enabled:
+    if tracer._appsec_enabled and _appsec_rc_file_is_not_static():
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
@@ -151,7 +152,7 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             if rc_appsec_enabled is not None:
                 from ddtrace.appsec._constants import PRODUCTS
 
-                if rc_appsec_enabled:
+                if rc_appsec_enabled and _appsec_rc_file_is_not_static():
                     remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
                     remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
                     remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules

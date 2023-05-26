@@ -316,6 +316,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # type: (int, WriterClientBase) -> dict
         headers = self._headers.copy()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        if hasattr(client, "_headers"):
+            headers.update(client._headers)
         return headers
 
     def _send_payload(self, payload, count, client):
