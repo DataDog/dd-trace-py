@@ -8,7 +8,7 @@ class TaintedObject {
 
 private:
     TaintRangeRefs ranges_;
-    size_t rc_;
+    size_t rc_{};
 
 public:
     constexpr static int TAINT_RANGE_LIMIT = 100;
@@ -48,5 +48,7 @@ public:
 
     void release();
 };
+
+void pyexport_taintedobject(py::module& m);
 
 #endif //_NATIVE_TAINTEDOBJECT_H

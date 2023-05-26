@@ -74,12 +74,14 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import OriginType
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj1 = taint_pyobject(obj1, _Source("test_add_aspect_tainting_left_hand", obj1, 0))
+        obj1 = taint_pyobject(obj1, Source("test_add_aspect_tainting_left_hand", obj1, OriginType.PARAMETER))
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert result == obj1 + obj2
@@ -112,12 +114,15 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import TaintRange
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj2 = taint_pyobject(obj2, _Source("test_add_aspect_tainting_right_hand", repr(obj2), 0))
+        obj2 = taint_pyobject(obj2, Source("test_add_aspect_tainting_right_hand", repr(obj2), OriginType.PARAMETER))
         if len(obj2):
             assert get_tainted_ranges(obj2)
 
@@ -128,8 +133,8 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     assert is_pyobject_tainted(result) == should_be_tainted
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
         tainted_ranges = get_tainted_ranges(result)
-        assert type(tainted_ranges) is tuple
-        assert all(type(c) is tuple for c in tainted_ranges)
+        assert type(tainted_ranges) is list
+        assert all(type(c) is TaintRange for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
             assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
