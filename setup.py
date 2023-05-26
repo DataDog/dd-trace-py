@@ -199,7 +199,7 @@ class LibraryDownload:
             os.remove(filename)
 
 
-class LibDDWaf_Download(Library_Download):
+class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
