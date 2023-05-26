@@ -1,4 +1,6 @@
 import math
+import platform
+import sys
 import typing as t
 
 from envier import En
@@ -35,6 +37,11 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     max_samples = 2 ** 16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
+
+
+def _is_glibc_linux_x86_64():
+    # type: () -> bool
+    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]
 
 
 class ProfilingConfig(En):
@@ -186,6 +193,28 @@ class ProfilingConfig(En):
             help="",
         )
         sample_size = En.d(int, _derive_default_heap_sample_size)
+
+    class Export(En):
+        __item__ = __prefix__ = "export"
+
+        _libdd_enabled = En.v(
+            bool,
+            "libdd_enabled",
+            default=True,
+            help_type="Boolean",
+            help="Enables collection and export using the experimental exporter",
+        )
+
+        # For now, only allow libdd to be enabled if the user asks for it
+        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
+
+        py_enabled = En.v(
+            bool,
+            "py_enabled",
+            default=True,
+            help_type="Boolean",
+            help="Enables collection and export using the classic Python exporter",
+        )
 
 
 config = ProfilingConfig()

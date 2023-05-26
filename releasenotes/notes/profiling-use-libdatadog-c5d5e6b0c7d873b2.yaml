@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Allows the use of a new backend for storing and exporting profiling data.
+    This feature can be enabled for now by setting the
+    DD_PROFILING_EXPORT_LIBDD_ENABLED environment variable to true. This
+    should improve performance while decreasing memory overhead. 

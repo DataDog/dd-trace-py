@@ -14,6 +14,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
@@ -111,6 +112,8 @@ class _ProfilerInstance(service.Service):
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
@@ -168,19 +171,31 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        return [
-            http.PprofHTTPExporter(
-                service=self.service,
+        if self.export_libdd_enabled:
+            ddup.init(
                 env=self.env,
-                tags=self.tags,
+                service=self.service,
                 version=self.version,
-                api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            ),
-        ]
+                tags=self.tags,
+                max_nframes=config.max_frames,
+                url=endpoint,
+            )
+
+        if self.export_py_enabled:
+            return [
+                http.PprofHTTPExporter(
+                    service=self.service,
+                    env=self.env,
+                    tags=self.tags,
+                    version=self.version,
+                    api_key=self.api_key,
+                    endpoint=endpoint,
+                    endpoint_path=endpoint_path,
+                    enable_code_provenance=self.enable_code_provenance,
+                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                )
+            ]
+        return []
 
     def __attrs_post_init__(self):
         # type: (...) -> None
@@ -202,7 +217,11 @@ class _ProfilerInstance(service.Service):
 
         self._collectors = [
             stack.StackCollector(
-                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
+                r,
+                tracer=self.tracer,
+                endpoint_collection_enabled=self.endpoint_collection_enabled,
+                export_libdd_enabled=self.export_libdd_enabled,
+                export_py_enabled=self.export_py_enabled,
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
@@ -232,12 +251,18 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters:
+        if exporters or self.export_libdd_enabled:
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
                 scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+            self._scheduler = scheduler_class(
+                recorder=r,
+                exporters=exporters,
+                before_flush=self._collectors_snapshot,
+                export_libdd_enabled=self.export_libdd_enabled,
+                export_py_enabled=self.export_py_enabled,
+            )
 
     def _collectors_snapshot(self):
         for c in self._collectors:
@@ -304,3 +329,6 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
+
+    def visible_events(self):
+        return self.export_py_enabled
