@@ -141,21 +141,13 @@ class BuildExtWithUpx(BuildExtCommand):
             print("actual filename: %s" % filename)
             return False
 
-        # Decompress (two seeks because compressed streams are irreversible)
-        upx_member = None
-        with tarfile.open(filename, "r|xz", errorlevel=2) as tar:
-            for m in tar.getmembers():
-                if m.name.endswith("upx"):
-                    upx_member = m
-                    m.name = os.path.basename(m.name)  # drop tarball dir during extraction
-                    break
-
-        if not upx_member:
-            print("Error finding upx binary in tarfile")
+        # Decompress.  Use subprocess because xz isn't well-supported through
+        # tarfile on 2.7
+        try:
+            subprocess.check_call(["tar", "-xJf", self.upx_filename, "-C", self.upx_dir])
+        except subprocess.CalledProcessError:
+            print("Error extracting upx binary from tarfile")
             return False
-
-        with tarfile.open(filename, "r|xz", errorlevel=2) as tar:
-            tar.extract(upx_member, path=self.upx_dir)
 
         # upx is +x in tarball, so we can cleanup now--done
         os.remove(filename)
