@@ -280,7 +280,7 @@ class LibDatadogDownload(LibraryDownload):
         LibDatadog_Download.download_artifacts()
 
 
-class Library_Downloader(BuildPyCommand):
+class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
         LibDatadog_Download.run()
