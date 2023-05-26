@@ -171,9 +171,9 @@ class BuildExtWithUpx(BuildExtCommand):
             try:
                 # -f because some sofiles may be non-exec at this point
                 subprocess.check_call([self.upx_loc, "--lzma", "-t", "-f", so])
-                print(f"Compressed {so} with upx")
+                print("Compressed " + so + " with upx")
             except subprocess.CalledProcessError:
-                print(f"Failed to compress {so} with upx")
+                print("Failed to compress " + so + " with upx")
 
     def run(self):
         BuildExtCommand.run(self)
