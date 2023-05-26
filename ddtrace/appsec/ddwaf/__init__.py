@@ -164,10 +164,16 @@ if _DDWAF_LOADED:
                 observator.truncation,
             )
 
+        def __del__(self):
+            try:
+                # free diagnostic ddwaf object when this python object is collected
+                ddwaf_object_free(self._info)
+            except TypeError:
+                pass
+
     def version():
         # type: () -> text_type
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
