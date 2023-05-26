@@ -228,7 +228,7 @@ class CIVisibility(Service):
         if not cls.enabled:
             return False
 
-        return test in cls._instance._get_tests_to_skip(suite, module)
+        return cls._instance and test in cls._instance._get_tests_to_skip(suite, module)
 
     def _fetch_tests_to_skip(self):
         # Make sure git uploading has finished
