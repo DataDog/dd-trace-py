@@ -476,7 +476,7 @@ setup(
     tests_require=["flake8"],
     cmdclass={
         "build_ext": BuildExtCommand,
-        "build_py": Library_Downloader,
+        "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
     entry_points={
