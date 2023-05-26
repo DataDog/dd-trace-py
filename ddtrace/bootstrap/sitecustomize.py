@@ -4,7 +4,6 @@ Add all monkey-patching that needs to run by default here
 """
 from ddtrace import LOADED_MODULES  # isort:skip
 
-from functools import partial  # noqa
 import logging  # noqa
 import os  # noqa
 import sys
@@ -148,7 +147,7 @@ def cleanup_loaded_modules():
     # to the newly imported threading module to allow it to retrieve the correct
     # thread object information, like the thread name. We register a post-import
     # hook on the threading module to perform this update.
-    @partial(ModuleWatchdog.register_module_hook, "threading")
+    @ModuleWatchdog.after_module_imported("threading")
     def _(threading):
         logging.threading = threading
 
