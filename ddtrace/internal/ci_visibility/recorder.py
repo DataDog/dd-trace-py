@@ -245,11 +245,10 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": {},
+                    "configurations": ci._get_runtime_and_os_metadata(),
                 },
             }
         }
-        payload["data"]["attributes"]["configurations"] = ci._get_runtime_and_os_metadata()
 
         _headers = {
             "dd-api-key": self._api_key,
