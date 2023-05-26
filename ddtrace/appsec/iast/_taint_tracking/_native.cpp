@@ -57,6 +57,7 @@ PYBIND11_MODULE(_native, m) {
     initializer->load_modules();
     initializer->load_local_settings(true);
     initializer->get_paths();
+    initializer->create_context();
     // Cleanup code to be run at the end of the interpreter lifetime:
     auto atexit = py::module::import("atexit");
     atexit.attr("register")(py::cpp_function([] { initializer.reset(); }));

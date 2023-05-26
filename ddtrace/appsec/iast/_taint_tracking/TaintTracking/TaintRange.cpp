@@ -3,6 +3,7 @@
 #include "Utils/StringUtils.h"
 
 #include <sstream>
+#include <iostream> // JJJ remove
 
 using namespace pybind11::literals;
 
@@ -58,13 +59,17 @@ TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     return new_ranges;
 }
 
-static TaintRangeRefs get_ranges_for_string(const PyObject* str, TaintRangeMapType* tx_taint_map) {
-    if (not tx_taint_map or tx_taint_map->empty()) {
+static TaintRangeRefs get_ranges_for_string(const PyObject* str, TaintRangeMapType* tx_map) {
+    if (not tx_map) {
+        tx_map = initializer->get_tainting_map();
+    }
+
+    if (tx_map->empty()) {
         return {};
     }
 
-    const auto it = tx_taint_map->find(get_unique_id(str));
-    if (it == tx_taint_map->end()) {
+    const auto it = tx_map->find(get_unique_id(str));
+    if (it == tx_map->end()) {
         return {};
     }
 
@@ -75,12 +80,18 @@ TaintRangeRefs get_ranges(const PyObject* string_input, TaintRangeMapType* tx_ma
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
     }
+    if (tx_map->empty()) {
+        return {};
+    }
     return get_ranges_for_string(string_input, tx_map);
 }
 
 void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map) {
-    if (not tx_map or ranges.empty()) {
+    if (ranges.empty())
         return;
+
+    if (not tx_map) {
+        tx_map = initializer->get_tainting_map();
     }
 
     auto tx_id = initializer->context_id();
@@ -128,6 +139,13 @@ TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text, TaintRangeM
     if (!is_text(candidate_text)) {
         return {};
     }
+    if (not tx_map) {
+        tx_map = initializer->get_tainting_map();
+    }
+    if (tx_map->empty()) {
+        return {};
+    }
+
     return get_ranges(candidate_text, tx_map);
 }
 
@@ -183,18 +201,22 @@ __attribute__((flatten)) void set_could_be_tainted(const PyObject* objptr) {
     e->hidden = 1;
 }
 
-TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map) {
-    if (!could_be_tainted(str) or !tx_taint_map or tx_taint_map->empty()) {
+TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map) {
+    if (!tx_map) {
+        tx_map = initializer->get_tainting_map();
+    }
+    if (!could_be_tainted(str) or tx_map->empty()) {
         return nullptr;
     }
 
-    auto it = tx_taint_map->find(get_unique_id(str));
-    return it == tx_taint_map->end() ? nullptr : it->second;
+    auto it = tx_map->find(get_unique_id(str));
+    return it == tx_map->end() ? nullptr : it->second;
 }
 
 void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map) {
-    if (not tx_taint_map)
-        return;
+    if (not tx_taint_map) {
+        tx_taint_map = initializer->get_tainting_map();
+    }
 
     auto hash = get_unique_id(str);
     auto it = tx_taint_map->find(hash);

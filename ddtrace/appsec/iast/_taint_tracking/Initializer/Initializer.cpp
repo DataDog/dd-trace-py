@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <thread>
+#include <iostream> // FIXME: debug, remove
 
 using namespace std;
 using namespace pybind11::literals;
@@ -230,7 +231,7 @@ void Initializer::release_taint_source(SourcePtr sourceptr) {
 
 recursive_mutex contexts_mutex;  // NOLINT(cert-err58-cpp)
 
-// TODO (next PR): also return the tx_id so it can be reused on aspects or calls
+// TODO: also return the tx_id so it can be reused on aspects or calls
 // to get/set_ranges without accessing the ThreadLocal struct
 shared_ptr<Context> Initializer::create_context() {
     if (ThreadContextCache.tx_id != 0) {

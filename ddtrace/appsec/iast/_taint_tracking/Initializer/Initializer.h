@@ -82,7 +82,7 @@ public:
 
     void free_tainting_map(TaintRangeMapType* tx_map);
 
-    TaintRangeMapType* get_tainting_map();
+    static TaintRangeMapType* get_tainting_map();
 
     void clear_tainting_maps();
 
