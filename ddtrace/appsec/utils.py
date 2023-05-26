@@ -31,6 +31,10 @@ def _appsec_rc_features_is_enabled():
     return False
 
 
+def _appsec_rc_file_is_not_static():
+    return "DD_APPSEC_RULES" not in os.environ
+
+
 def _appsec_rc_capabilities(test_tracer=None):
     # type: (Optional[Tracer]) -> str
     r"""return the bit representation of the composed capabilities in base64
@@ -58,7 +62,7 @@ def _appsec_rc_capabilities(test_tracer=None):
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
-        if tracer._appsec_processor:
+        if tracer._appsec_processor and _appsec_rc_file_is_not_static():
             value |= 1 << 2  # Enable ASM_IP_BLOCKING
             value |= 1 << 3  # Enable ASM_DD_RULES
             value |= 1 << 4  # Enable ASM_EXCLUSIONS

@@ -143,6 +143,15 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
 
+    def test_psycopg2_connection_with_string(self):
+        # Regression test for DataDog/dd-trace-py/issues/5926
+        configs_arr = ["{}={}".format(k, v) for k, v in POSTGRES_CONFIG.items()]
+        configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
+        conn = psycopg2.connect(" ".join(configs_arr))
+
+        Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
+        self.assert_conn_is_traced(conn, "postgres")
+
     def test_opentracing_propagation(self):
         # ensure OpenTracing plays well with our integration
         query = """SELECT 'tracing'"""
