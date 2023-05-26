@@ -221,7 +221,7 @@ class CIVisibility(Service):
     def test_skipping_enabled(cls):
         if not cls.enabled:
             return False
-        return getattr(cls._instance, "_test_skipping_enabled_by_api", False)
+        return cls._instance and cls._instance._test_skipping_enabled_by_api
 
     @classmethod
     def should_skip(cls, test, suite, module):
