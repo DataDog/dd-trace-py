@@ -113,8 +113,8 @@ class BuildExtWithUpx(BuildExtCommand):
     }
     upx_filename = "upx.tar.xz"
     upx_shas = {
-      "x86_64": "c6274d23944608fb5db5b07b478c09fbe29b7a11dab2484f61e07f5195dddc3c",
-      "aarch64": "2aae3cf0104d1494237603206a7a220a20067c5b25b43626513bfb9f5fdffe78",
+        "x86_64": "c6274d23944608fb5db5b07b478c09fbe29b7a11dab2484f61e07f5195dddc3c",
+        "aarch64": "2aae3cf0104d1494237603206a7a220a20067c5b25b43626513bfb9f5fdffe78",
     }
     upx_dir = "/tmp"
     upx_loc = upx_dir + "/upx"
@@ -131,11 +131,11 @@ class BuildExtWithUpx(BuildExtCommand):
         upx_address = None
         upx_sha = None
         if get_build_platform().endswith("x86_64"):
-          upx_address = self.upx_addresses["x86_64"]
-          upx_sha = self.upx_shas["x86_64"]
+            upx_address = self.upx_addresses["x86_64"]
+            upx_sha = self.upx_shas["x86_64"]
         elif get_build_platform().endswith("aarch64"):
-          upx_address = self.upx_addresses["aarch64"]
-          upx_sha = self.upx_shas["aarch64"]
+            upx_address = self.upx_addresses["aarch64"]
+            upx_sha = self.upx_shas["aarch64"]
         else:
             return False
 
