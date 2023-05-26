@@ -113,7 +113,7 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-class Library_Download:
+class LibraryDownload:
     name = None
     download_dir = None
     version = None
