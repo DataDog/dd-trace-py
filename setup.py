@@ -283,8 +283,8 @@ class LibDatadogDownload(LibraryDownload):
 class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
-        LibDatadog_Download.run()
-        LibDDWaf_Download.run()
+        LibDatadogDownload.run()
+        LibDDWafDownload.run()
         BuildPyCommand.run(self)
 
 
