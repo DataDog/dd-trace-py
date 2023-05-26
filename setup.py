@@ -398,7 +398,7 @@ else:
 def get_ddup_ext():
     ddup_ext = []
     if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
-        LibDatadog_Download.run()
+        LibDatadogDownload.run()
         ddup_ext.extend(
             cythonize(
                 [
@@ -409,8 +409,8 @@ def get_ddup_ext():
                             "ddtrace/internal/datadog/profiling/src/interface.cpp",
                             "ddtrace/internal/datadog/profiling/ddup.pyx",
                         ],
-                        include_dirs=LibDatadog_Download.get_include_dirs(),
-                        extra_objects=LibDatadog_Download.get_extra_objects(),
+                        include_dirs=LibDatadogDownload.get_include_dirs(),
+                        extra_objects=LibDatadogDownload.get_extra_objects(),
                         extra_compile_args=["-std=c++17"],
                         language="c++",
                     )
