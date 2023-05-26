@@ -70,26 +70,39 @@ inline auto operator<(const TaintRange& left, const TaintRange& right) {
     return left.start < right.start;
 }
 
-TaintRangePtr shift_taint_range(const TaintRangePtr& source_taint_range, int offset);
+TaintRangePtr api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset);
 
-TaintRangeRefs shift_taint_ranges(const TaintRangeRefs&, long offset);
+TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs&, long offset);
 
-TaintRangeRefs get_ranges_impl(const PyObject* string_input, TaintRangeMapType* tx_map);
-inline TaintRangeRefs get_ranges_impl(const PyObject* string_input) {
-    return get_ranges_impl(string_input, nullptr);
+TaintRangeRefs get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map);
+inline TaintRangeRefs get_ranges(const PyObject* string_input) {
+    return get_ranges(string_input, nullptr);
+}
+inline TaintRangeRefs api_get_ranges(const py::object string_input) {
+    return get_ranges(string_input.ptr());
 }
 
-void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
-inline void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges) {
-    set_ranges_impl(str, ranges, nullptr);
+void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
+inline void set_ranges(const PyObject* str, const TaintRangeRefs& ranges) {
+    set_ranges(str, ranges, nullptr);
+}
+inline void api_set_ranges(const py::object str, const TaintRangeRefs& ranges) {
+    set_ranges(str.ptr(), ranges);
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
                                                                    const py::tuple& parameter_list);
+inline std::tuple<TaintRangeRefs, TaintRangeRefs> api_are_all_text_all_ranges(const py::object candidate_text,
+                                                                   const py::tuple& parameter_list) {
+    return are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
+}
 
 TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text, TaintRangeMapType* tx_map);
 TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text);
+inline TaintRangeRefs api_is_some_text_and_get_ranges(py::object candidate_text) {
+    return is_some_text_and_get_ranges(candidate_text.ptr());
+}
 
 TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
