@@ -5,6 +5,7 @@ import shutil
 import sys
 import tarfile
 import glob
+import subprocess
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext as BuildExtCommand
@@ -103,6 +104,81 @@ class CleanLibraries(CleanCommand):
     def run(self):
         CleanLibraries.remove_dynamic_library()
         CleanCommand.run(self)
+
+
+class BuildExtWithUpx(BuildExtCommand):
+    upx_address = "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-amd64_linux.tar.xz"
+    upx_filename = "upx.tar.xz"
+    upx_sha = "c6274d23944608fb5db5b07b478c09fbe29b7a11dab2484f61e07f5195dddc3c"
+    upx_dir = "/tmp"
+    upx_loc = upx_dir + "/upx"
+
+    def download_upx(self):
+        if os.path.isfile(self.upx_loc):
+            # If the file exists, no need to get it
+            return True
+
+        # Don't even try on unsupported platforms
+        if CURRENT_OS != "Linux" or not get_build_platform().endswith("x86_64"):
+            return False
+
+        try:
+            filename, http_response = urlretrieve(self.upx_address, self.upx_filename)
+        except HTTPError:
+            print("No UPX binary found at : " + self.upx_address)
+            return False
+
+        # Check the file's checksum
+        actual_sha = hashlib.sha256(open(self.upx_filename, "rb").read()).hexdigest()
+        try:
+            assert self.upx_filename.endswith(filename)
+            assert self.upx_sha == actual_sha
+        except AssertionError:
+            print("self.upx checksum verification error: Checksum and/or filename don't match:")
+            print("expected checksum: %s" % self.upx_sha)
+            print("actual checksum: %s" % actual_sha)
+            print("expected filename: %s" % self.upx_filename)
+            print("actual filename: %s" % filename)
+            return False
+
+        # Decompress (two seeks because compressed streams are irreversible)
+        upx_member = None
+        with tarfile.open(filename, "r|xz", errorlevel=2) as tar:
+            for m in tar.getmembers():
+                if m.name.endswith("upx"):
+                    upx_member = m
+                    m.name = os.path.basename(m.name)  # drop tarball dir during extraction
+                    break
+
+        if not upx_member:
+            print("Error finding upx binary in tarfile")
+            return False
+
+        with tarfile.open(filename, "r|xz", errorlevel=2) as tar:
+            tar.extract(upx_member, path=self.upx_dir)
+
+        # upx is +x in tarball, so we can cleanup now--done
+        os.remove(filename)
+
+        if not os.path.isfile(self.upx_loc):
+            print("Error getting upx")
+            return False
+        return True
+
+    def compress_shared_objects(self):
+        sofiles = glob.glob("**/*.so", recursive=True)
+        for so in sofiles:
+            try:
+                # -f because some sofiles may be non-exec at this point
+                subprocess.check_call([self.upx_loc, "--lzma", "-t", "-f", so])
+                print(f"Compressed {so} with upx")
+            except subprocess.CalledProcessError:
+                print(f"Failed to compress {so} with upx")
+
+    def run(self):
+        BuildExtCommand.run(self)
+        if self.download_upx():
+            self.compress_shared_objects()
 
 
 class LibDDWaf_Download(BuildPyCommand):
@@ -365,7 +441,7 @@ setup(
     },
     tests_require=["flake8"],
     cmdclass={
-        "build_ext": BuildExtCommand,
+        "build_ext": BuildExtWithUpx,
         "build_py": LibDDWaf_Download,
         "clean": CleanLibraries,
     },

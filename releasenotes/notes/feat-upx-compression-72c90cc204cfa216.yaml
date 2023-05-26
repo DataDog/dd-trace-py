@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Uses upx compression (LZMA) to minimize the distributable and on-disk size of ELF-based dynamic libraries.  This should have the effect of reducing real overall package size by about 30-50%.
