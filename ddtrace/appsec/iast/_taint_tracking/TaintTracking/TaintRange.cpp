@@ -101,6 +101,9 @@ void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges, TaintRan
 
     tx_map->insert({hash, new_tainted_object});
 }
+void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges) {
+    set_ranges_impl(str, ranges, nullptr);
+}
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
