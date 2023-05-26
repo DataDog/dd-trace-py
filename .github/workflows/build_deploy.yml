@@ -237,7 +237,7 @@ jobs:
             shasum.txt
       - name: Upload files to release
         run: |
-          gh release upload ${{ github.ref_name }} *.all.tar.gz shasum.txt
+          gh release upload ${{ github.ref_name }} *-all.tar.gz shasum.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
