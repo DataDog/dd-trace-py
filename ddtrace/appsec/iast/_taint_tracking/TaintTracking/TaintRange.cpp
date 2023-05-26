@@ -101,9 +101,6 @@ void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges, TaintRan
 
     tx_map->insert({hash, new_tainted_object});
 }
-void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges) {
-    set_ranges_impl(str, ranges, nullptr);
-}
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
@@ -221,24 +218,14 @@ void pyexport_taintrange(py::module& m) {
     // TODO OPT: check all the py::return_value_policy
     m.def("are_all_text_all_ranges", &are_all_text_all_ranges, "candidate_text"_a, "parameter_list"_a,
           py::return_value_policy::move);
-
     // TODO: check return value policy
     m.def("get_tainted_object", &get_tainted_object, "str"_a, "tx_taint_map"_a);
-    m.def(
-            "is_some_text_and_get_ranges", [](PyObject* s) { return is_some_text_and_get_ranges(s); },
+    m.def("is_some_text_and_get_ranges", py::overload_cast<PyObject*>(&is_some_text_and_get_ranges), "str"_a,
             py::return_value_policy::move);
-
     m.def("shift_taint_range", &shift_taint_range, py::return_value_policy::move, "source_taint_range"_a, "offset"_a);
-
-    // FIXME: no need to be a lambda now
-    m.def("set_ranges", [](const PyObject* str, const TaintRangeRefs& ranges) {
-        return set_ranges_impl(str, ranges);
-    });
-
-    m.def("get_ranges", [](const PyObject* s) {
-        return get_ranges_impl(s, nullptr);
-    }, "string_input"_a, py::return_value_policy::take_ownership);
-
+    m.def("set_ranges", py::overload_cast<const PyObject*, const TaintRangeRefs&>(&set_ranges_impl), "str"_a, "ranges"_a);
+    m.def("get_ranges", py::overload_cast<const PyObject*>(&get_ranges_impl), "string_input"_a,
+            py::return_value_policy::take_ownership);
     m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a);
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange")

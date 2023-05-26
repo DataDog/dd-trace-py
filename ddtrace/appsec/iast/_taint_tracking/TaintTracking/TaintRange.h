@@ -74,10 +74,15 @@ TaintRangePtr shift_taint_range(const TaintRangePtr& source_taint_range, int off
 
 TaintRangeRefs shift_taint_ranges(const TaintRangeRefs&, long offset);
 
-TaintRangeRefs get_ranges_impl(const PyObject* string_input, TaintRangeMapType* tx_map=nullptr);
+TaintRangeRefs get_ranges_impl(const PyObject* string_input, TaintRangeMapType* tx_map);
+inline TaintRangeRefs get_ranges_impl(const PyObject* string_input) {
+    return get_ranges_impl(string_input, nullptr);
+}
 
-void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges);
 void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
+inline void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges) {
+    set_ranges_impl(str, ranges, nullptr);
+}
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
