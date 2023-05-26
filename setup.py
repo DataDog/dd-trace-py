@@ -140,19 +140,19 @@ class BuildExtWithUpx(BuildExtCommand):
             return False
 
         try:
-            filename, http_response = urlretrieve(self.upx_address, self.upx_filename)
+            filename, http_response = urlretrieve(upx_address, self.upx_filename)
         except HTTPError:
-            print("No UPX binary found at : " + self.upx_address)
+            print("No UPX binary found at : " + upx_address)
             return False
 
         # Check the file's checksum
         actual_sha = hashlib.sha256(open(self.upx_filename, "rb").read()).hexdigest()
         try:
             assert self.upx_filename.endswith(filename)
-            assert self.upx_sha == actual_sha
+            assert upx_sha == actual_sha
         except AssertionError:
             print("self.upx checksum verification error: Checksum and/or filename don't match:")
-            print("expected checksum: %s" % self.upx_sha)
+            print("expected checksum: %s" % upx_sha)
             print("actual checksum: %s" % actual_sha)
             print("expected filename: %s" % self.upx_filename)
             print("actual filename: %s" % filename)
