@@ -1,4 +1,5 @@
 import contextlib
+import json
 import os
 import time
 
@@ -100,7 +101,6 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
-
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -108,7 +108,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="1",
         )
-    ):
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
@@ -202,7 +202,9 @@ def test_git_client_worker_agentless(_do_request, git_repo):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             start_time = time.time()
-            with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+                "ddtrace.internal.ci_visibility.recorder._get_git_repo"
+            ) as ggr:
                 original = ddtrace.internal.ci_visibility.git_client.RESPONSE
                 ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
                 ggr.return_value = git_repo
@@ -238,7 +240,9 @@ def test_git_client_worker_evp_proxy(_do_request, git_repo):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             start_time = time.time()
-            with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
+            with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+                "ddtrace.internal.ci_visibility.recorder._get_git_repo"
+            ) as ggr:
                 original = ddtrace.internal.ci_visibility.git_client.RESPONSE
                 ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
                 ggr.return_value = git_repo
@@ -434,4 +438,191 @@ def test_civisibilitywriter_only_traces():
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
         assert CIVisibility._instance.tracer._writer.intake_url == "http://localhost:8126"
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        _do_request.assert_not_called()
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        _do_request.assert_not_called()
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+        '{"code_coverage":true,"tests_skipping":true}}}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_ENV="staging",
+            DD_GIT_COMMIT_SHA="fffffff",
+            DD_GIT_BRANCH="main",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
+    ) as git_start, mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.uuid4"
+    ) as _uuid4:
+        _uuid4.return_value = "111-111-111"
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+
+        _do_request.assert_called_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+            json.dumps(
+                {
+                    "data": {
+                        "id": "111-111-111",
+                        "type": "ci_app_test_service_libraries_settings",
+                        "attributes": {
+                            "service": "test-service",
+                            "env": "staging",
+                            "repository_url": "git@github.com:DataDog/dd-trace-py.git",
+                            "sha": "fffffff",
+                            "branch": "main",
+                        },
+                    }
+                }
+            ),
+            {"dd-api-key": "foo.bar", "dd-application-key": "foobar.baz", "Content-Type": "application/json"},
+        )
+        assert CIVisibility._instance._code_coverage_enabled_by_api is True
+        assert CIVisibility._instance._test_skipping_enabled_by_api is True
+
+        # Git client is started
+        assert git_start.call_count == 1
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"errors":["Not found"]}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        _do_request.assert_called()
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_request):
+    _do_request.return_value = Response(
+        status=404,
+        body="",
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        code_cov_enabled, itr_enabled = CIVisibility._instance._check_enabled_features()
+
+        _do_request.assert_called()
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body="}",
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.log") as mock_log, mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
+    ) as git_start:
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+
+        _do_request.assert_called()
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
+        # Git client is started
+        assert git_start.call_count == 1
+
+        mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
