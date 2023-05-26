@@ -26,8 +26,10 @@ from ddtrace.settings import IntegrationConfig
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
+from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
+from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
-from .constants import EVP_SUBDOMAIN_HEADER_VALUE
+from .constants import REQUESTS_MODE
 from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
@@ -75,7 +77,6 @@ class CIVisibility(Service):
         self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
@@ -90,6 +91,19 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
+        self._requests_mode = REQUESTS_MODE.TRACES
+        if ddconfig._ci_visibility_agentless_enabled:
+            if not self._api_key:
+                raise EnvironmentError(
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                    "cannot be initialized."
+                )
+            self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+        elif self._agent_evp_proxy_is_available():
+            self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+
+        self._configure_writer()
+
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._git_client = None
@@ -97,8 +111,12 @@ class CIVisibility(Service):
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            elif self._requests_mode == REQUESTS_MODE.TRACES:
+                log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
-                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
+                self._git_client = CIVisibilityGitClient(
+                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
+                )
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -117,8 +135,18 @@ class CIVisibility(Service):
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
-        url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
+        endpoint = "/api/v2/libraries/tests/services/setting"
         _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
+
+        if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
+            url = EVP_PROXY_AGENT_BASE_PATH + endpoint
+            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+        elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+            url = "https://api." + self._dd_site + endpoint
+        else:
+            log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
+            return False, False
+
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -146,23 +174,20 @@ class CIVisibility(Service):
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
-    def _configure_writer(self):
+    def _configure_writer(self, requests_mode=None):
         writer = None
-        if ddconfig._ci_visibility_agentless_enabled:
+        if requests_mode is None:
+            requests_mode = self._requests_mode
+
+        if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             headers = {"dd-api-key": self._api_key}
-            if headers["dd-api-key"]:
-                writer = CIVisibilityWriter(
-                    headers=headers,
-                )
-            else:
-                raise EnvironmentError(
-                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
-                    "cannot be initialized."
-                )
-        elif self._agent_evp_proxy_is_available():
+            writer = CIVisibilityWriter(
+                headers=headers,
+            )
+        elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
-                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
             )
         if writer is not None:
