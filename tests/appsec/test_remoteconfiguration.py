@@ -179,8 +179,8 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is expected
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
 
         _preprocess_results_appsec_1click_activation({})
