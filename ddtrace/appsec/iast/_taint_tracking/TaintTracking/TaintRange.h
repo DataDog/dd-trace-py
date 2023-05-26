@@ -23,10 +23,8 @@ class TaintedObject;
 using TaintedObjectPtr = TaintedObject*;
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 
-template <class StrType>
-inline static uintptr_t get_unique_id(const StrType str) {
-    PyObject* pyo = py::cast<py::object>(str).ptr();
-    return uintptr_t(pyo);
+inline static uintptr_t get_unique_id(const PyObject* str) {
+    return uintptr_t(str);
 }
 
 struct TaintRange {
@@ -76,38 +74,26 @@ TaintRangePtr shift_taint_range(const TaintRangePtr& source_taint_range, int off
 
 TaintRangeRefs shift_taint_ranges(const TaintRangeRefs&, long offset);
 
-template <class TaintableType>
-TaintRangeRefs get_ranges_impl(const TaintableType& string_input, TaintRangeMapType* tx_map=nullptr);
+TaintRangeRefs get_ranges_impl(const PyObject* string_input, TaintRangeMapType* tx_map=nullptr);
 
-template <class StrType>
-void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges);
-template <class StrType>
-void set_ranges_impl(const StrType& str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
-
-TaintRangeRefs get_ranges_dispatcher(const py::object& string_input, TaintRangeMapType* tx_map);
+void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges);
+void set_ranges_impl(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
-template <class StrType>
-std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const StrType& candidate_text,
+std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
                                                                    const py::tuple& parameter_list);
 
-template <class StrType>
-TaintRangeRefs is_some_text_and_get_ranges(const StrType& candidate_text, TaintRangeMapType* tx_map);
-template <class StrType>
-TaintRangeRefs is_some_text_and_get_ranges(const StrType& candidate_text);
+TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text, TaintRangeMapType* tx_map);
+TaintRangeRefs is_some_text_and_get_ranges(PyObject* candidate_text);
 
 TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
-template <class StrType>
-bool could_be_tainted(const StrType);
+bool could_be_tainted(const PyObject*);
 
-template <class StrType>
-void set_could_be_tainted(StrType);
+void set_could_be_tainted(const PyObject*);
 
-template <class StrType>
-TaintedObject* get_tainted_object(StrType str, TaintRangeMapType* tx_taint_map);
+TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
 
-template <class StrType>
-void set_tainted_object(StrType str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
+void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
 
 void pyexport_taintrange(py::module& m);

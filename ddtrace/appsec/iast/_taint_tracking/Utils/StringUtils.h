@@ -16,7 +16,10 @@ inline bool str2bool(string_view s) {
     return lowered == "yes" or lowered == "1" or lowered == "true";
 }
 
-inline bool is_text(const py::object& element) {
+// TODO: find a faster way directly with conversion with PyObject*
+inline bool is_text(PyObject* pyptr) {
+    // TODO: this makes a copy
+    auto element = py::reinterpret_borrow<py::object>(pyptr);
     return py::isinstance<py::str>(element) || py::isinstance<py::bytes>(element) ||
            py::isinstance<py::bytearray>(element);
 }
