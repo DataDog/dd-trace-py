@@ -113,21 +113,22 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-class Library_Download:
+class LibraryDownload:
     name = None
     download_dir = None
     version = None
     url_root = None
     available_releases = None
     expected_checksums = None
+    translate_suffix = None
 
     @classmethod
     def download_artifacts(cls):
-        suffixes = cls.get_suffixes(CURRENT_OS)
+        suffixes = cls.translate_suffix[CURRENT_OS]
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
-        if os.path.isdir(cls.download_dir) and len(os.listdir(cls.download_dir)):
+        if os.path.isdir(cls.download_dir) and os.listdir(cls.download_dir):
             return
 
         if not os.path.isdir(cls.download_dir):
@@ -198,8 +199,12 @@ class Library_Download:
 
             os.remove(filename)
 
+    @classmethod
+    def run(cls):
+        cls.download_artifacts()
 
-class LibDDWaf_Download(Library_Download):
+
+class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
@@ -209,23 +214,15 @@ class LibDDWaf_Download(Library_Download):
         "Darwin": ["arm64", "x86_64"],
         "Linux": ["aarch64", "x86_64"],
     }
+    translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
     def get_package_name(cls, arch, os):
         archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
         return archive_dir
 
-    @classmethod
-    def get_suffixes(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
-        return TRANSLATE_SUFFIX[os]
 
-    @classmethod
-    def run(cls):
-        LibDDWaf_Download.download_artifacts()
-
-
-class LibDatadog_Download(Library_Download):
+class LibDatadogDownload(LibraryDownload):
     name = "datadog"
     download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
     version = LIBDATADOG_PROF_VERSION
@@ -240,6 +237,7 @@ class LibDatadog_Download(Library_Download):
         "Darwin": [],
         "Linux": ["x86_64"],
     }
+    translate_suffix = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
 
     @classmethod
     def get_package_name(cls, arch, os):
@@ -249,11 +247,6 @@ class LibDatadog_Download(Library_Download):
         tar_osname = osnames[os]
         archive_dir = "lib%s-%s-%s" % (cls.name, arch, tar_osname)
         return archive_dir
-
-    @classmethod
-    def get_suffixes(cls, os):
-        TRANSLATE_SUFFIX = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
-        return TRANSLATE_SUFFIX[os]
 
     @staticmethod
     def get_extra_objects():
@@ -275,16 +268,12 @@ class LibDatadog_Download(Library_Download):
             ]
         return []
 
-    @classmethod
-    def run(cls):
-        LibDatadog_Download.download_artifacts()
 
-
-class Library_Downloader(BuildPyCommand):
+class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
-        LibDatadog_Download.run()
-        LibDDWaf_Download.run()
+        LibDatadogDownload.run()
+        LibDDWafDownload.run()
         BuildPyCommand.run(self)
 
 
@@ -508,7 +497,7 @@ setup(
     tests_require=["flake8"],
     cmdclass={
         "build_ext": BuildExtCommand,
-        "build_py": Library_Downloader,
+        "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
     entry_points={
