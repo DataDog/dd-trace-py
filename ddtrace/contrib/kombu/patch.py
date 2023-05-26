@@ -5,6 +5,8 @@ import kombu
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor import wrapt
 
 # project
@@ -67,10 +69,10 @@ def patch():
         prod_service = os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
 
     Pin(
-        service=prod_service,
+        service=schematize_service_name(prod_service),
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=config.kombu["service_name"]).onto(kombu.messaging.Consumer)
+    Pin(service=schematize_service_name(config.kombu["service_name"])).onto(kombu.messaging.Consumer)
 
 
 def unpatch():
@@ -95,7 +97,11 @@ def traced_receive(func, instance, args, kwargs):
 
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
-    with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+    with pin.tracer.trace(
+        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction="process"),
+        service=pin.service,
+        span_type=SpanTypes.WORKER,
+    ) as s:
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -119,7 +125,11 @@ def traced_publish(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+    with pin.tracer.trace(
+        schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction="outbound"),
+        service=pin.service,
+        span_type=SpanTypes.WORKER,
+    ) as s:
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
