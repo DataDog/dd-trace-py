@@ -405,6 +405,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
 else:
     ext_modules = []
 
+
 def get_ddup_ext():
     ddup_ext = []
     if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
@@ -435,7 +436,6 @@ def get_ddup_ext():
             )
         )
     return ddup_ext
-
 
 
 bytecode = [
