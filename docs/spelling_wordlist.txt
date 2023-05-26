@@ -72,6 +72,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dsn
 elasticsearch
 elasticsearch1
 elasticsearch7
