@@ -127,7 +127,7 @@ class LibraryDownload:
 
         # If the directory exists and it is not empty, assume the right files are there.
         # Use `python setup.py clean` to remove it.
-        if os.path.isdir(cls.download_dir) and len(os.listdir(cls.download_dir)):
+        if os.path.isdir(cls.download_dir) and os.listdir(cls.download_dir):
             return
 
         if not os.path.isdir(cls.download_dir):
