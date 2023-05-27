@@ -1,3 +1,5 @@
+import os
+
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
@@ -42,6 +44,62 @@ async def test_handler(app_tracer, aiohttp_client):
     assert_span_http_status_code(span, 200)
     assert 0 == span.error
     assert span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+    """
+    vO/None:
+        operation: module_name.request
+        service name: DD_SERVICE
+    v1:
+        operation: http.server.request
+        service name: DD_SERVICE
+    """
+    expected_service_name = {
+        None: "aiohttp-web",
+        "v0": "aiohttp-web",
+        "v1": None,  # causes a fallback in the test to DEFAULT_SPAN_SERVICE_NAME
+    }[schema_version]
+    expected_span_name = {None: "aiohttp.request", "v0": "aiohttp.request", "v1": "http.server.request"}[schema_version]
+    code = """
+import pytest
+import asyncio
+from tests.conftest import *
+from tests.contrib.aiohttp.conftest import *
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+def test(app_tracer, loop, aiohttp_client):
+    async def async_test(app_tracer, aiohttp_client):
+        app, tracer = None, None
+        if asyncio.iscoroutine(app_tracer):
+            app, tracer = await app_tracer
+        else:
+            app, tracer =  app_tracer
+        client = await aiohttp_client(app)
+        request = await client.request("GET", "/")
+        assert 200 == request.status
+        text = await request.text()
+        traces = tracer.pop_traces()
+        span = traces[0][0]
+        assert span.service == "{}" or DEFAULT_SPAN_SERVICE_NAME
+        assert span.name == "{}"
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop.run_until_complete(async_test(app_tracer, aiohttp_client))
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name, expected_span_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b""
 
 
 @pytest.mark.parametrize(

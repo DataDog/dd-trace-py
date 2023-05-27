@@ -19,6 +19,7 @@ from ddtrace.contrib.requests import unpatch
 from ddtrace.contrib.requests.connection import _extract_hostname
 from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -445,6 +446,62 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "override"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematization_service_name_default(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_service_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_service_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematization_unspecified_service_name_default(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_unspecified_service_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_unspecified_service_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_operation_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].name == "requests.request"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_operation_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].name == "http.client.request"
 
     def test_global_config_service(self):
         with self.override_config("requests", dict(service="override")):
