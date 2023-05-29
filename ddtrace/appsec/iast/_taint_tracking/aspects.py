@@ -10,14 +10,14 @@ from typing import Text
 from six import StringIO
 from six import binary_type
 
-from ddtrace.appsec.iast._source import _Source
-from ddtrace.appsec.iast._taint_tracking import add_taint_pyobject
+from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import set_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
+
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
@@ -28,7 +28,6 @@ TEXT_TYPES = (Text, binary_type, bytearray)
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
-
 
 
 __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
@@ -44,7 +43,7 @@ def str_aspect(*args, **kwargs):
     # type: (Any, Any) -> str
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, _Source("str_aspect", result, 0))
+        result = taint_pyobject(result, Source("str_aspect", result, 0))
 
     return result
 
@@ -60,7 +59,7 @@ def bytes_aspect(*args, **kwargs):
     # type: (Any, Any) -> bytes
     result = builtin_bytes(*args, **kwargs)
     if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, _Source("bytes_aspect", result, 0))
+        result = taint_pyobject(result, Source("bytes_aspect", result, 0))
 
     return result
 
@@ -69,7 +68,7 @@ def bytearray_aspect(*args, **kwargs):
     # type: (Any, Any) -> str
     result = builtin_bytearray(*args, **kwargs)
     if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, _Source("bytearray_aspect", result, 0))
+        result = taint_pyobject(result, Source("bytearray_aspect", result, 0))
 
     return result
 
@@ -90,9 +89,7 @@ def modulo_aspect(candidate_text, candidate_tuple):
         else:
             parameter_list = (candidate_tuple,)  # type: ignore
 
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
-            candidate_text, parameter_list
-        )
+        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
         if not ranges_orig:
             return candidate_text % candidate_tuple
 
@@ -156,7 +153,7 @@ def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any)
         return candidate_text.format_map(*args, **kwargs)
 
     try:
-        mapping = parse_params(0, 'mapping', None, *args, **kwargs)
+        mapping = parse_params(0, "mapping", None, *args, **kwargs)
         mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
             candidate_text,
@@ -203,7 +200,7 @@ def format_value_aspect(
 
     if format_spec:
         # Apply formatting
-        new_text = aspect_format('{:%s}' % format_spec, new_text)  # type:ignore
+        new_text = aspect_format("{:%s}" % format_spec, new_text)  # type:ignore
     else:
         new_text = str(new_text)
 

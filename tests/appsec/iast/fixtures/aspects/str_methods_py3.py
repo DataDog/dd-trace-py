@@ -3,23 +3,23 @@ from hdiv_agent.commons.project_types import Any, List, Optional, Tuple
 
 
 def do_fmt_value(a):  # type: (str) -> str
-    return f'{a:<8s}bar'
+    return f"{a:<8s}bar"
 
 
 def do_repr_fstring(a):  # type: (Any) -> str
-    return f'{a!r}'
+    return f"{a!r}"
 
 
 def do_repr_fstring_twice(a):  # type: (Any) -> str
-    return f'{a!r} {a!r}'
+    return f"{a!r} {a!r}"
 
 
 def do_repr_fstring_twice_different_objects(a, b):  # type: (Any, Any) -> str
-    return f'{a!r} {b!r}'
+    return f"{a!r} {b!r}"
 
 
 def do_repr_fstring_with_format(a):  # type: (Any) -> str
-    return f'{a!r:10}'
+    return f"{a!r:10}"
 
 
 class Resolver404(Exception):
@@ -46,7 +46,7 @@ class URLPattern:
         self.url_patterns = [self.pattern]
 
     def _join_route(self, current_route, sub_match_route):
-        return ''.join([current_route, sub_match_route])
+        return "".join([current_route, sub_match_route])
 
     def match(self, path):  # type: (str) -> Optional[Tuple[str, str, str], bool]
         global COUNTER
@@ -66,7 +66,7 @@ class URLPattern:
                 try:
                     sub_match = pattern.resolve(new_path)
                 except Resolver404 as e:
-                    sub_tried = e.args[0].get('tried')
+                    sub_tried = e.args[0].get("tried")
                     if sub_tried is not None:
                         tried.extend([pattern] + t for t in sub_tried)
                     else:
@@ -82,9 +82,7 @@ class URLPattern:
                         sub_match_args = sub_match.args
                         if not sub_match_dict:
                             sub_match_args = args + sub_match.args
-                        current_route = (
-                            '' if isinstance(pattern, URLPattern) else str(pattern.pattern)
-                        )
+                        current_route = "" if isinstance(pattern, URLPattern) else str(pattern.pattern)
                         return ResolverMatch(
                             sub_match.func,
                             sub_match_args,
@@ -95,5 +93,5 @@ class URLPattern:
                             self._join_route(current_route, sub_match.route),
                         )
                     tried.append([pattern])
-            raise Resolver404({'tried': tried, 'path': new_path})
-        raise Resolver404({'path': path})
+            raise Resolver404({"tried": tried, "path": new_path})
+        raise Resolver404({"path": path})

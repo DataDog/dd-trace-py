@@ -13,18 +13,39 @@ if TYPE_CHECKING:
     from typing import Union
 
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (Source, OriginType, TaintRange,
-    get_ranges, set_ranges, are_all_text_all_ranges, shift_taint_range,
-    shift_taint_ranges, get_range_by_hash, is_notinterned_notfasttainted_unicode,
-    set_fast_tainted_if_notinterned_unicode)  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
+    Source,
+    OriginType,
+    TaintRange,
+    get_ranges,
+    set_ranges,
+    are_all_text_all_ranges,
+    shift_taint_range,
+    shift_taint_ranges,
+    get_range_by_hash,
+    is_notinterned_notfasttainted_unicode,
+    set_fast_tainted_if_notinterned_unicode,
+)  # noqa: F401
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
 is_pyobject_tainted = ops.is_tainted
 
-__all__ = ["new_pyobject_id", "setup", "Source", "OriginType", "TaintRange", "get_ranges", "set_ranges",
-           "are_all_text_all_ranges", "shift_taint_range", "shift_taint_ranges",
-           "get_range_by_hash", "is_notinterned_notfasttainted_unicode", "set_fast_tainted_if_notinterned_unicode"]
+__all__ = [
+    "new_pyobject_id",
+    "setup",
+    "Source",
+    "OriginType",
+    "TaintRange",
+    "get_ranges",
+    "set_ranges",
+    "are_all_text_all_ranges",
+    "shift_taint_range",
+    "shift_taint_ranges",
+    "get_range_by_hash",
+    "is_notinterned_notfasttainted_unicode",
+    "set_fast_tainted_if_notinterned_unicode",
+]
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
@@ -85,12 +106,14 @@ def taint_ranges_as_evidence_info(pyobject):
     for _range in tainted_ranges:
         # _source, _pos, _length = _range
         if _range.start > current_pos:
-            value_parts.append({"value": pyobject[current_pos:_range.start]})
+            value_parts.append({"value": pyobject[current_pos : _range.start]})
 
         if _range.source not in sources:
             sources.append(_range.source)
 
-        value_parts.append({"value": pyobject[_range.start : _range.start + _range.length], "source": sources.index(_range.source)})
+        value_parts.append(
+            {"value": pyobject[_range.start : _range.start + _range.length], "source": sources.index(_range.source)}
+        )
         current_pos = _range.start + _range.length
 
     if current_pos < len(pyobject):

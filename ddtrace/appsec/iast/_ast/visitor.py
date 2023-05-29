@@ -34,25 +34,25 @@ class AstVisitor(ast.NodeTransformer):
                 "bytes": "ddtrace_aspects.bytes_aspect",
                 "bytearray": "ddtrace_aspects.bytearray_aspect",
             },
-            'stringalike_methods': {
+            "stringalike_methods": {
                 "decode": "ddtrace_aspects.decode_aspect",
                 "encode": "ddtrace_aspects.encode_aspect",
             },
             # Replacement functions for modules
-            'module_functions': {
-                'BytesIO': "ddtrace_aspects.stringio_aspect",
-                'StringIO': "ddtrace_aspects.stringio_aspect",
-                'format': 'ddtrace_aspects.format_aspect',
-                'format_map': 'ddtrace_aspects.format_map_aspect',
+            "module_functions": {
+                "BytesIO": "ddtrace_aspects.stringio_aspect",
+                "StringIO": "ddtrace_aspects.stringio_aspect",
+                "format": "ddtrace_aspects.format_aspect",
+                "format_map": "ddtrace_aspects.format_map_aspect",
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
-                'FORMAT_VALUE': 'ddtrace_aspects.format_value_aspect',
+                "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
             },
-            'excluded_from_patching': {
+            "excluded_from_patching": {
                 # Key: module being patched
                 # Value: dict with more info
-                'django.utils.formats': {
+                "django.utils.formats": {
                     # Key: called functions that won't be patched. E.g.: for this module
                     # not a single call for format on any function will be patched.
                     #
@@ -60,15 +60,13 @@ class AstVisitor(ast.NodeTransformer):
                     # the iter_format_modules(). If we, for example, had 'foo': ('bar', 'baz')
                     # it would mean that we wouldn't patch any call to foo() done inside the
                     # bar() or baz() function definitions.
-                    'format': ('',),
-                    '': ('iter_format_modules',),
+                    "format": ("",),
+                    "": ("iter_format_modules",),
                 },
-                'django.utils.log': {
-                    '': ('',),
+                "django.utils.log": {
+                    "": ("",),
                 },
-                'django.utils.html': {
-                    '': ('format_html', 'format_html_join')
-                }
+                "django.utils.html": {"": ("format_html", "format_html_join")},
             },
         }
         self.ast_modified = False
@@ -77,9 +75,9 @@ class AstVisitor(ast.NodeTransformer):
 
         self._aspect_functions = self._aspects_spec["functions"]
         self._aspect_operators = self._aspects_spec["operators"]
-        self._aspect_methods = self._aspects_spec['stringalike_methods']
-        self._aspect_modules = self._aspects_spec['module_functions']
-        self.excluded_functions = self._aspects_spec['excluded_from_patching'].get(self.module_name, {})
+        self._aspect_methods = self._aspects_spec["stringalike_methods"]
+        self._aspect_modules = self._aspects_spec["module_functions"]
+        self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
         for k, v in iteritems(self.excluded_functions):
@@ -92,9 +90,7 @@ class AstVisitor(ast.NodeTransformer):
         self.replacements_disabled_for_functiondef = False
 
     def _is_string_node(self, node):  # type: (Any) -> bool
-        if PY3 and (
-            isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))
-        ):
+        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
             return True
 
         if PY27_37 and isinstance(node, ast.Str):
@@ -110,8 +106,7 @@ class AstVisitor(ast.NodeTransformer):
             return True
 
         if PY38_PLUS and (
-            isinstance(node, ast.Constant)  # type: ignore[name-defined]
-            and isinstance(node.value, (int, float))
+            isinstance(node, ast.Constant) and isinstance(node.value, (int, float))  # type: ignore[name-defined]
         ):
             return True
 
@@ -123,16 +118,16 @@ class AstVisitor(ast.NodeTransformer):
     def _is_call_excluded(self, func_name_node):  # type: (str) -> bool
         if not self.excluded_functions:
             return False
-        excluded_for_caller = self.excluded_functions.get(
-            func_name_node, tuple()
-        ) + self.excluded_functions.get('', tuple())
-        return '' in excluded_for_caller or self._current_function_name in excluded_for_caller
+        excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
+            "", tuple()
+        )
+        return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
 
     def _is_string_format_with_literals(self, call_node):
         # type: (ast.Call) -> bool
         return (
             self._is_string_node(call_node.func.value)  # type: ignore[attr-defined]
-            and call_node.func.attr == 'format'  # type: ignore[attr-defined]
+            and call_node.func.attr == "format"  # type: ignore[attr-defined]
             and all(map(self._is_node_constant_or_binop, call_node.args))
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
@@ -244,9 +239,7 @@ class AstVisitor(ast.NodeTransformer):
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
-        self.replacements_disabled_for_functiondef = (
-            def_node.name in self.dont_patch_these_functionsdefs
-        )
+        self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         self.generic_visit(def_node)
         self._current_function_name = None
@@ -295,7 +288,7 @@ class AstVisitor(ast.NodeTransformer):
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = True
 
-            elif hasattr(func_member.value, 'id') or hasattr(func_member.value, 'attr'):
+            elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
                 aspect = self._aspect_modules.get(method_name, None)
                 if aspect:
                     # Move the Function to 'args'

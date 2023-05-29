@@ -37,9 +37,7 @@ try:
     # Import this after setuptools or it will fail
     from pybind11.setup_helpers import Pybind11Extension
 except ImportError:
-    raise ImportError(
-        "Failed to import pybind11 modules"
-    )
+    raise ImportError("Failed to import pybind11 modules")
 
 
 if sys.version_info >= (3, 0):
@@ -349,7 +347,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args
+                extra_compile_args=debug_compile_args,
             )
         )
 

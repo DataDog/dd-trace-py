@@ -1,15 +1,21 @@
 import sys
 import pytest
 
-from ddtrace.appsec.iast._taint_tracking import (Source, OriginType, TaintRange,
-                                                 set_ranges, get_ranges)
+from ddtrace.appsec.iast._taint_tracking import Source, OriginType, TaintRange, set_ranges, get_ranges
 
 try:
     from ddtrace.appsec.iast._taint_tracking import (
-        Source, OriginType, TaintRange,
-        set_ranges, get_ranges, shift_taint_range, shift_taint_ranges, get_range_by_hash,
-        are_all_text_all_ranges, is_notinterned_notfasttainted_unicode,
-        set_fast_tainted_if_notinterned_unicode
+        Source,
+        OriginType,
+        TaintRange,
+        set_ranges,
+        get_ranges,
+        shift_taint_range,
+        shift_taint_ranges,
+        get_range_by_hash,
+        are_all_text_all_ranges,
+        is_notinterned_notfasttainted_unicode,
+        set_fast_tainted_if_notinterned_unicode,
     )
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -95,8 +101,8 @@ def test_set_get_ranges_bytes():
 
 
 def test_set_get_ranges_bytearray():
-    b1 = bytearray(b'abcdef')
-    b2 = bytearray(b'abcdef')
+    b1 = bytearray(b"abcdef")
+    b2 = bytearray(b"abcdef")
     set_ranges(b1, [_RANGE1, _RANGE2])
     assert get_ranges(b1) == [_RANGE1, _RANGE2]
     assert not get_ranges(b2) == [_RANGE1, _RANGE2]
