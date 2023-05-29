@@ -57,6 +57,7 @@ PyObject* api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs
         return nullptr;
     }
     PyObject* candidate_text = args[0];
+    PyObject* tmp_bytes = candidate_text;
     PyObject* text_to_add = args[1];
 
     PyObject *result_o;
