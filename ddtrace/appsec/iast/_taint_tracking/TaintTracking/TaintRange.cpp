@@ -101,19 +101,6 @@ TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs &source_taint_ranges,
     return new_ranges;
 }
 
-
-static TaintRangeRefs get_ranges_for_string(const PyObject *str, TaintRangeMapType *tx_map) {
-    if (not is_text(str))
-        return {};
-
-    const auto it = tx_map->find(get_unique_id(str));
-    if (it == tx_map->end()) {
-        return {};
-    }
-
-    return it->second->get_ranges();
-}
-
 TaintRangeRefs get_ranges(const PyObject *string_input, TaintRangeMapType *tx_map) {
     if (not is_text(string_input))
         return {};
@@ -124,7 +111,13 @@ TaintRangeRefs get_ranges(const PyObject *string_input, TaintRangeMapType *tx_ma
     if (tx_map->empty()) {
         return {};
     }
-    return get_ranges_for_string(string_input, tx_map);
+
+    const auto it = tx_map->find(get_unique_id(string_input));
+    if (it == tx_map->end()) {
+        return {};
+    }
+
+    return it->second->get_ranges();
 }
 
 
