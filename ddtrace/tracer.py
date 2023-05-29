@@ -148,15 +148,21 @@ def _default_span_processors_factory(
     span_processors = []  # type: List[SpanProcessor]
     span_processors += [TopLevelSpanProcessor()]
 
-    import ddtrace.appsec.api_security.api_manager as api_m
-
     if appsec_enabled:
-        api_m.enable_api_security()
+        if config._api_security_enabled:
+            from ddtrace.appsec.api_security.api_manager import APIManager
+
+            APIManager.enable()
+
         appsec_processor = _start_appsec_processor()
         if appsec_processor:
             span_processors.append(appsec_processor)
     else:
-        api_m.disable_api_security()
+        if config._api_security_enabled:
+            from ddtrace.appsec.api_security.api_manager import APIManager
+
+            APIManager.disable()
+
         appsec_processor = None
 
     if iast_enabled:
