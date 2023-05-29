@@ -480,7 +480,8 @@ def test_ddwaf_run():
         }
         ctx = _ddwaf._at_request_start()
         res = _ddwaf.run(ctx, data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
-        assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
+        assert res.data
+        assert res.data[0]["rule"]["id"] == "crs-942-100"
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime

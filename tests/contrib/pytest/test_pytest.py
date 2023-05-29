@@ -1289,3 +1289,76 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.BRANCH)
         assert test_span.get_tag(git.COMMIT_SHA)
         assert test_span.get_tag(git.REPOSITORY_URL)
+
+    def test_pytest_skipped_by_itr(self):
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_work():
+            assert 1 == 1
+
+        def test_not_ok():
+            assert 0 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
+            return_value=[
+                "test_will_work",
+            ],
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        pytest_skip.assert_called_once_with("Skipped by Datadog Intelligent Test Runner")
+
+        assert len(spans) == 3
+        test_test_span = spans[0]
+        assert test_test_span.name == "pytest.test"
+        assert test_test_span.get_tag("test.status") == "fail"
+        assert test_test_span.get_tag("test.name") == "test_not_ok"
+
+    def test_pytest_not_skipped_by_itr_empty_tests_to_skip(self):
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_work():
+            assert 1 == 1
+
+        def test_not_ok():
+            assert 0 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
+            return_value=[],
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        pytest_skip.assert_not_called()
+
+        assert len(spans) == 4
+        test_passed_test_span = spans[0]
+        assert test_passed_test_span.name == "pytest.test"
+        assert test_passed_test_span.get_tag("test.status") == "pass"
+        assert test_passed_test_span.get_tag("test.name") == "test_will_work"
+
+        test_failed_test_span = spans[1]
+        assert test_failed_test_span.name == "pytest.test"
+        assert test_failed_test_span.get_tag("test.status") == "fail"
+        assert test_failed_test_span.get_tag("test.name") == "test_not_ok"
