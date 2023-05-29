@@ -90,15 +90,15 @@ def taint_ranges_as_evidence_info(pyobject):
         return ([{"value": pyobject}], [])
 
     for _range in tainted_ranges:
-        _source, _pos, _length = _range
-        if _pos > current_pos:
-            value_parts.append({"value": pyobject[current_pos:_pos]})
+        # _source, _pos, _length = _range
+        if _range.start > current_pos:
+            value_parts.append({"value": pyobject[current_pos:_range.start]})
 
-        if _source not in sources:
-            sources.append(_source)
+        if _range.source not in sources:
+            sources.append(_range.source)
 
-        value_parts.append({"value": pyobject[_pos : _pos + _length], "source": sources.index(_source)})
-        current_pos = _pos + _length
+        value_parts.append({"value": pyobject[_range.start : _range.start + _range.length], "source": sources.index(_range.source)})
+        current_pos = _range.start + _range.length
 
     if current_pos < len(pyobject):
         value_parts.append({"value": pyobject[current_pos:]})

@@ -1,6 +1,6 @@
 #ifndef _NATIVE_ASPECTOPERATORADD_H
 #define _NATIVE_ASPECTOPERATORADD_H
-#include <Python.h>
+#include <pybind11/pybind11.h>
 #include "Initializer/Initializer.h"
 #include "TaintTracking/TaintedObject.h"
 #include "TaintTracking/TaintRange.h"

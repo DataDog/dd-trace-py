@@ -157,7 +157,7 @@ __attribute__((flatten)) bool could_be_tainted(const PyObject* objptr) {
     if (objptr == nullptr) {
         return false;
     }
-    if (!PyUnicode_Check(objptr)) {
+    if (PyUnicode_Check(objptr) or PyBytes_Check(objptr)or PyByteArray_Check(objptr)) {
         return true;
     }
     if (PyUnicode_CHECK_INTERNED(objptr) != SSTATE_NOT_INTERNED) {

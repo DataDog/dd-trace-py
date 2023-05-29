@@ -63,8 +63,9 @@ PyObject* api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs
     if (PyUnicode_Check(candidate_text)) {
         result_o = PyUnicode_Concat(candidate_text, text_to_add);
     } else if (PyBytes_Check(candidate_text)){
-    PyBytes_Concat(&candidate_text, text_to_add);
+        PyBytes_Concat(&candidate_text, text_to_add);
         result_o = candidate_text;
+        candidate_text = tmp_bytes;
     } else if (PyByteArray_Check(candidate_text)){
         result_o = PyByteArray_Concat(candidate_text, text_to_add);
     }

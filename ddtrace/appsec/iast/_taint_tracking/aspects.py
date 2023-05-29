@@ -34,7 +34,7 @@ __all__ = ["add_aspect", "str_aspect", "decode_aspect", "encode_aspect"]
 
 
 def add_aspect(op1, op2):
-    if not isinstance(op1, TEXT_TYPES):
+    if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES):
         return op1 + op2
     return _add_aspect(op1, op2)
 
