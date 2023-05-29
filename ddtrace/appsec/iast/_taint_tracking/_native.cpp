@@ -10,6 +10,7 @@
 #include "TaintedOps/TaintedOps.h"
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/AspectJoin.h"
+#include "Aspects/AspectExtend.h"
 #include "Context/_context.h"
 #include "TaintTracking/_taint_tracking.h"
 
@@ -24,6 +25,7 @@ static PyMethodDef AspectsMethods[] = {
     // >= 3.7
     {"add_aspect", ((PyCFunction) api_add_aspect), METH_FASTCALL, "aspect add"},
     {"join_aspect", ((PyCFunction) api_join_aspect), METH_FASTCALL, "aspect add"},
+    {"extend_aspect", ((PyCFunction) api_extend_aspect), METH_FASTCALL, "aspect extend"},
     {nullptr, nullptr, 0, nullptr}
 };
 

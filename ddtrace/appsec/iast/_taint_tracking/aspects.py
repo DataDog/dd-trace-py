@@ -27,10 +27,11 @@ if TYPE_CHECKING:
 TEXT_TYPES = (Text, binary_type, bytearray)
 
 _add_aspect = aspects.add_aspect
+_extend_aspect = aspects.extend_aspect
 
 
 
-__all__ = ["add_aspect", "str_aspect", "decode_aspect", "encode_aspect"]
+__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
 
 
 def add_aspect(op1, op2):
@@ -46,6 +47,13 @@ def str_aspect(*args, **kwargs):
         result = taint_pyobject(result, _Source("str_aspect", result, 0))
 
     return result
+
+
+def bytearray_extend_aspect(op1, op2):
+    # type: (Any, Any) -> Any
+    if not isinstance(op1, bytearray) or not isinstance(op2, (bytearray, bytes)):
+        return op1.extend(op2)
+    return _extend_aspect(op1, op2)
 
 
 def bytes_aspect(*args, **kwargs):

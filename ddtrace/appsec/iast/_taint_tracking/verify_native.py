@@ -1,12 +1,17 @@
 # from ddtrace.appsec.iast._taint_tracking._native import setup, add_aspect
 from ddtrace.appsec.iast._taint_tracking import setup
 from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking.aspects import bytearray_extend_aspect  # noqa: F401
 
 # Setup
 setup(bytes.join, bytearray.join)
 #
 # # Source
-print(add_aspect("a", "b"))
+# print(add_aspect("a", "b"))
+
+ba1 = bytearray(b"123")
+ba2 = bytearray(b"456")
+print(bytearray_extend_aspect(ba1, ba2))
 # # print(source)
 # # print(source.name)
 # # print(source.value)
