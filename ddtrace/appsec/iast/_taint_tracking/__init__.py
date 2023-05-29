@@ -55,20 +55,12 @@ def taint_pyobject(pyobject, source=None):  # type: (Any, Source) -> Any
 
     if source is None:
         return pyobject
-    # source = Source("key", "value", OriginType.PARAMETER)
+
+    len_pyobject = len(pyobject)
+    pyobject = new_pyobject_id(pyobject, len_pyobject)
+
     set_ranges(pyobject, [TaintRange(0, len(pyobject), source)])
-    #
-
-    #
-    # len_pyobject = len(pyobject)
-    # pyobject = new_pyobject_id(pyobject, len_pyobject)
-    # taint_dict = get_taint_dict()
-    # taint_dict[id(pyobject)] = ((source, 0, len_pyobject),)
     return pyobject
-
-
-# def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
-#     return id(pyobject) in get_taint_dict()
 
 
 def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None

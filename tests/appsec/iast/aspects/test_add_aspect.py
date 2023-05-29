@@ -56,13 +56,13 @@ def test_add_aspect_type_error(obj1, obj2):
         ("Hello ", "world", True),
         (b"bye ", b"".join((b"bye", b" ")), True),
         ("🙀", "".join(("🙀", "")), True),
-        # ("a", "a", True),
-        # (b"a", b"a", True),
+        ("a", "a", True),
+        (b"a", b"a", True),
         (b"Hi", b"", True),
         (b"Hi ", b" world", True),
-        # (["a"], ["b"], False),
-        (bytearray("a", "utf-8"), bytearray("b", "utf-8"), True),
-        # (("a", "b"), ("c", "d"), False),
+        (["a"], ["b"], False),
+        (bytearray(b"a"), bytearray(b"b"), True),
+        (("a", "b"), ("c", "d"), False),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
@@ -102,15 +102,16 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 @pytest.mark.parametrize(
     "obj1, obj2, should_be_tainted",
     [
-        # (3.5, 3.3, False),
-        # (complex(2, 1), complex(3, 4), False),
+        (3.5, 3.3, False),
+        (complex(2, 1), complex(3, 4), False),
         ("Hello ", "world", True),
+        (b"a", b"a", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
-        # (["a"], ["b"], False),
+         (["a"], ["b"], False),
         (bytearray("a", "utf-8"), bytearray("b", "utf-8"), True),
-        # (("a", "b"), ("c", "d"), False),
+        (("a", "b"), ("c", "d"), False),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
@@ -127,7 +128,6 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
-
     if should_be_tainted:
         obj2 = taint_pyobject(obj2, Source("test_add_aspect_tainting_right_hand", repr(obj2), OriginType.PARAMETER))
         if len(obj2):

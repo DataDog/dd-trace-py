@@ -49,11 +49,11 @@ TaintedObject::operator string() {
 }
 
 void TaintedObject::move_ranges_to_stack() {
-    for (auto range_ptr : ranges_) {
+    for (const auto& range_ptr : ranges_) {
         if (!range_ptr) {
             continue;
         }
-        //initializer->release_taint_range(range_ptr);
+        initializer->release_taint_range(range_ptr);
     }
     ranges_.clear();
 }
