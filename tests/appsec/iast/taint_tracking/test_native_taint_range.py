@@ -1,4 +1,3 @@
-import array
 import sys
 import pytest
 
@@ -7,7 +6,8 @@ from ddtrace.appsec.iast._taint_tracking import (Source, OriginType, TaintRange,
 
 try:
     from ddtrace.appsec.iast._taint_tracking import (Source, OriginType, TaintRange,
-        set_ranges, get_ranges, shift_taint_range, shift_taint_ranges, get_range_by_hash)
+        set_ranges, get_ranges, shift_taint_range, shift_taint_ranges, get_range_by_hash,
+        are_all_text_all_ranges)
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -87,12 +87,22 @@ def test_shift_taint_ranges():
     assert r3_shifted == TaintRange(6, 6, _SOURCE1)
 
 
-# FIXME: todo
-# def test_are_all_textgg_all_ranges():
-#     s1 = "abcdef"
-#     s2 = "ghijk"
-#     set_ranges(s1, [_RANGE1, _RANGE2])
-#     set_ranges(s2, [_RANGE2, _RANGE2])
+def test_are_all_text_all_ranges():
+    s1 = "abcdef"
+    s2 = "ghijk"
+    s3 = "xyzv"
+    num = 123456
+    source3 = Source(name="name3", value="value3", origin=OriginType.COOKIE)
+    source4 = Source(name="name4", value="value4", origin=OriginType.COOKIE)
+    range3 = TaintRange(2, 3, source3)
+    range4 = TaintRange(4, 5, source4)
+    set_ranges(s1, [_RANGE1, _RANGE2])
+    set_ranges(s2, [range3, _RANGE2])
+    set_ranges(s3, [range4, _RANGE1])
+    all_ranges, candidate_ranges = are_all_text_all_ranges(s1, (s2, s3, num))
+    # Ranges are inserted at the start except the candidate ones that are appended
+    assert all_ranges == [range3, _RANGE2, range4, _RANGE1, _RANGE1, _RANGE2]
+    assert candidate_ranges == [_RANGE1, _RANGE2]
 
 
 def test_get_range_by_hash():

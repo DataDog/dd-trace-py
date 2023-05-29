@@ -112,6 +112,7 @@ void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMap
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 // FIXME: add check that candidate_text is really some kind of string
+// FIXME: Take a PyList as parameter_list instead of a py::tuple
 std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
                                                                    const py::tuple& parameter_list) {
     // TODO: pass tx_map to the function
