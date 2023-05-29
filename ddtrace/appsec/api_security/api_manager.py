@@ -120,8 +120,9 @@ class APIManager(Service):
 
         waf_content = env.waf_addresses
         for address, meta_name, transform in self.COLLECTED:
-            value = waf_content.get(address, None)
-            if not value:
+            _sentinel = object()
+            value = waf_content.get(address, _sentinel)
+            if value is _sentinel:
                 continue
             try:
                 if transform is not None:

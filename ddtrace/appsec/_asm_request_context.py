@@ -143,6 +143,11 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
         asm_context_attr[address] = value
 
 
+def set_headers_response(headers):  # type: (Any) -> None
+    if headers is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers, _ASM.get().span)
+
+
 def set_body_response(body_response):
     import json
 
@@ -159,7 +164,7 @@ def set_body_response(body_response):
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, body_response)
         return
 
-    headers = get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+    headers = get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
@@ -176,22 +181,19 @@ def set_body_response(body_response):
             bd = bd.decode("UTF-8", errors="ignore")
         if len(bd) >= 0x1000000:
             raise ValueError("response body larger than 16MB")
+        return bd
 
     req_body = None
     try:
-        if content_type == "application/x-www-form-urlencoded":
-            req_body = parse_form_params(access_body(body_response))
-        elif content_type == "multipart/form-data":
-            req_body = parse_form_multipart(access_body(body_response))
-        elif content_type in ("application/json", "text/json"):
+        if content_type in ("application/json", "text/json"):
             req_body = json.loads(access_body(body_response))
         elif content_type in ("application/xml", "text/xml"):
             req_body = xmltodict.parse(access_body(body_response))
-        else:  # text/plain, others: don't use them
-            req_body = None
+        else:
+            raise ValueError("unsupported format: {!r}".format(content_type))
     except BaseException:
         log.debug("Failed to parse response body", exc_info=True)
-    if req_body:
+    else:
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, req_body)
 
 
