@@ -1,20 +1,61 @@
 #include "Initializer/Initializer.h"
 #include "TaintRange.h"
-#include "Utils/StringUtils.h"
 
 #include <sstream>
-#include <iostream> // JJJ remove
+#include <iostream> // FIXME: remove
 
 using namespace pybind11::literals;
 
 using namespace std;
 
+typedef struct _PyASCIIObject_State_Hidden {
+    unsigned int : 8;
+    unsigned int hidden: 24;
+} PyASCIIObject_State_Hidden;
+
+// Used to quickly exit on cases where the object is a non interned unicode string and does not have the fast-taint
+// mark on its internal data structure. In any other case it will return false so the evaluation
+// continue for (more slowly) checking if bytes and bytearrays are tainted.
+__attribute__((flatten)) bool is_notinterned_notfasttainted_unicode(const PyObject *objptr) {
+    if (!objptr) {
+        return true;  // cannot taint a nullptr
+    }
+
+    if (!PyUnicode_Check(objptr)) {
+        return false; // not a unicode, continue evaluation
+    }
+
+    if (PyUnicode_CHECK_INTERNED(objptr)) {
+        return true;  // interned but it could still be tainted
+    }
+
+    const PyASCIIObject_State_Hidden *e = (PyASCIIObject_State_Hidden *) &(((PyASCIIObject *) objptr)->state);
+    if (!e) {
+        return true;  // broken string object? better to skip it
+    }
+    return e->hidden != 1;
+}
+
+// For non internet unicode strings, set a hidden mark on it's internsal data structure that will allow
+// us to quickly check if the string is not tainted and thus skip further processing without having
+// to search on the tainting map
+__attribute__((flatten)) void set_fast_tainted_if_notinterned_unicode(const PyObject *objptr) {
+    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
+        return;
+    }
+    auto e = (PyASCIIObject_State_Hidden *) &(((PyASCIIObject *) objptr)->state);
+    if (e) {
+        e->hidden = 1;
+    }
+}
+
 // Only for Python! C++ should use the constructor with the TaintOriginPtr defined in the header
-TaintRange::TaintRange(int start, int length, const Source& source)
+TaintRange::TaintRange(int start, int length, const Source &source)
         : start(start),
           length(length) {
     this->source = initializer->allocate_taint_source(source.name, source.value, source.origin);
 }
+
 void TaintRange::reset() {
     if (source) {
         initializer->release_taint_source(source);
@@ -28,8 +69,8 @@ void TaintRange::reset() {
 string TaintRange::toString() const {
     ostringstream ret;
     ret << "TaintRange at " << this << " "
-      << "[start=" << start << ", length=" << length
-      << " source=" << source->toString() << "]";
+        << "[start=" << start << ", length=" << length
+        << " source=" << source->toString() << "]";
     return ret.str();
 }
 
@@ -37,32 +78,34 @@ TaintRange::operator std::string() const { return toString(); }
 
 // Note: don't use size_t or long, if the hash is bigger than an int, Python will re-hash it!
 uint TaintRange::get_hash() const {
-  uint hstart = hash<uint>()(this->start);
-  uint hlength = hash<uint>()(this->length);
-  uint hsource = hash<uint>()(this->source->get_hash());
-  return hstart ^ hlength ^ hsource;
+    uint hstart = hash<uint>()(this->start);
+    uint hlength = hash<uint>()(this->length);
+    uint hsource = hash<uint>()(this->source->get_hash());
+    return hstart ^ hlength ^ hsource;
 };
 
-TaintRangePtr api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset) {
+TaintRangePtr api_shift_taint_range(const TaintRangePtr &source_taint_range, int offset) {
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,  // start
                                                   source_taint_range->length, // length
                                                   source_taint_range->source); // origin
     return tptr;
 }
 
-TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, long offset) {
+TaintRangeRefs api_shift_taint_ranges(const TaintRangeRefs &source_taint_ranges, long offset) {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
 
-    for (const auto& trange : source_taint_ranges) {
+    for (const auto &trange: source_taint_ranges) {
         new_ranges.emplace_back(api_shift_taint_range(trange, offset));
     }
     return new_ranges;
 }
 
 
-// FIXME: add check that str is really some kind of string
-static TaintRangeRefs get_ranges_for_string(const PyObject* str, TaintRangeMapType* tx_map) {
+static TaintRangeRefs get_ranges_for_string(const PyObject *str, TaintRangeMapType *tx_map) {
+    if (not is_text(str))
+        return {};
+
     const auto it = tx_map->find(get_unique_id(str));
     if (it == tx_map->end()) {
         return {};
@@ -71,7 +114,10 @@ static TaintRangeRefs get_ranges_for_string(const PyObject* str, TaintRangeMapTy
     return it->second->get_ranges();
 }
 
-TaintRangeRefs get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map) {
+TaintRangeRefs get_ranges(const PyObject *string_input, TaintRangeMapType *tx_map) {
+    if (not is_text(string_input))
+        return {};
+
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
     }
@@ -82,9 +128,8 @@ TaintRangeRefs get_ranges(const PyObject* string_input, TaintRangeMapType* tx_ma
 }
 
 
-// FIXME: add check that str is really some kind of string
-void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map) {
-    if (ranges.empty())
+void set_ranges(const PyObject *str, const TaintRangeRefs &ranges, TaintRangeMapType *tx_map) {
+    if (not is_text(str) or ranges.empty())
         return;
 
     if (not tx_map) {
@@ -99,7 +144,7 @@ void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMap
     auto hash = get_unique_id(str);
     auto it = tx_map->find(hash);
     auto new_tainted_object = initializer->allocate_tainted_object(ranges);
-    set_could_be_tainted(str);
+    set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second->decref();
@@ -112,15 +157,17 @@ void set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMap
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 // FIXME: add check that candidate_text is really some kind of string
-// FIXME: Take a PyList as parameter_list instead of a py::tuple
-std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject* candidate_text,
-                                                                   const py::tuple& parameter_list) {
+// FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the result)
+std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObject *candidate_text,
+                                                                   const py::tuple &parameter_list) {
+    if (not is_text(candidate_text))
+        return {};
     // TODO: pass tx_map to the function
     auto tx_map = initializer->get_tainting_map();
     TaintRangeRefs candidate_text_ranges{get_ranges(candidate_text, tx_map)};
     TaintRangeRefs all_ranges;
 
-    for (const auto& param_handler : parameter_list) {
+    for (const auto &param_handler: parameter_list) {
         auto param = param_handler.cast<py::object>().ptr();
 
         if (is_text(param)) {
@@ -134,13 +181,13 @@ std::tuple<TaintRangeRefs, TaintRangeRefs> are_all_text_all_ranges(const PyObjec
     return {all_ranges, candidate_text_ranges};
 }
 
-TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges) {
+TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs> &taint_ranges) {
     if (!taint_ranges or taint_ranges->empty()) {
         return nullptr;
     }
     // TODO: Replace this loop with a efficient function, vector.find() is O(n) too.
     TaintRangePtr null_range = nullptr;
-    for (const auto& range : taint_ranges.value()) {
+    for (const auto &range: taint_ranges.value()) {
         if (range_hash == range->get_hash()) {
             return range;
         }
@@ -148,44 +195,14 @@ TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& tai
     return null_range;
 }
 
-typedef struct _PyASCIIObject_State_Hidden {
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
+TaintedObject *get_tainted_object(const PyObject *str, TaintRangeMapType *tx_map) {
+    if (not str)
+        return nullptr;
 
-__attribute__((flatten)) bool could_be_tainted(const PyObject* objptr) {
-    if (objptr == nullptr) {
-        return false;
-    }
-    if (PyUnicode_Check(objptr) or PyBytes_Check(objptr)or PyByteArray_Check(objptr)) {
-        return true;
-    }
-    if (PyUnicode_CHECK_INTERNED(objptr) != SSTATE_NOT_INTERNED) {
-        return false;
-    }
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*)objptr)->state);
-    return e->hidden == 1;
-}
-
-__attribute__((flatten)) void set_could_be_tainted(const PyObject* objptr) {
-    if (objptr == nullptr) {
-        return;
-    }
-    if (!PyUnicode_Check(objptr)) {
-        return;
-    }
-    if (PyUnicode_CHECK_INTERNED(objptr) != SSTATE_NOT_INTERNED) {
-        return;
-    }
-    auto e = (PyASCIIObject_State_Hidden*) &(((PyASCIIObject*) objptr)->state);
-    e->hidden = 1;
-}
-
-TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map) {
-    if (!tx_map) {
+    if (not tx_map) {
         tx_map = initializer->get_tainting_map();
     }
-    if (!could_be_tainted(str) or tx_map->empty()) {
+    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
     }
 
@@ -193,14 +210,17 @@ TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map
     return it == tx_map->end() ? nullptr : it->second;
 }
 
-void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map) {
+void set_tainted_object(PyObject *str, TaintedObjectPtr tainted_object, TaintRangeMapType *tx_taint_map) {
+    if (not str or not is_text(str))
+        return;
+
     if (not tx_taint_map) {
         tx_taint_map = initializer->get_tainting_map();
     }
 
     auto hash = get_unique_id(str);
     auto it = tx_taint_map->find(hash);
-    set_could_be_tainted(str);
+    set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so we need to overwrite it.
         if (it->second != tainted_object) {
@@ -216,7 +236,15 @@ void set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRan
     tx_taint_map->insert({hash, tainted_object});
 }
 
-void pyexport_taintrange(py::module& m) {
+void pyexport_taintrange(py::module &m) {
+    m.def("is_notinterned_notfasttainted_unicode", py::overload_cast<const PyObject *>(
+            &is_notinterned_notfasttainted_unicode), "candidate_text"_a);
+    m.def("is_notinterned_notfasttainted_unicode", &api_is_unicode_and_not_fast_tainted, "candidate_text"_a);
+
+    m.def("set_fast_tainted_if_notinterned_unicode", py::overload_cast<const PyObject *>(
+            &set_fast_tainted_if_notinterned_unicode), "candidate_text"_a);
+    m.def("set_fast_tainted_if_notinterned_unicode", &api_set_fast_tainted_if_unicode, "text"_a);
+
     // TODO OPT: check all the py::return_value_policy
     m.def("are_all_text_all_ranges", &are_all_text_all_ranges, "candidate_text"_a, "parameter_list"_a,
           py::return_value_policy::move);
@@ -231,10 +259,10 @@ void pyexport_taintrange(py::module& m) {
     m.def("shift_taint_ranges", &api_shift_taint_ranges, py::return_value_policy::move,
           "ranges"_a, "offset"_a);
 
-    m.def("set_ranges", py::overload_cast<const PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
+    m.def("set_ranges", py::overload_cast<const PyObject *, const TaintRangeRefs &>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
 
-    m.def("get_ranges", py::overload_cast<const PyObject*>(&get_ranges), "string_input"_a,
+    m.def("get_ranges", py::overload_cast<const PyObject *>(&get_ranges), "string_input"_a,
           py::return_value_policy::take_ownership);
     m.def("get_ranges", &api_get_ranges, "string_input"_a,
           py::return_value_policy::take_ownership);
@@ -250,14 +278,14 @@ void pyexport_taintrange(py::module& m) {
             .def("__repr__", &TaintRange::toString)
             .def("__hash__", &TaintRange::get_hash)
             .def("get_hash", &TaintRange::get_hash)
-            // FIXME: check source to for these two?
+                    // FIXME: check source to for these two?
             .def("__eq__",
-                 [](const TaintRangePtr& self, const TaintRangePtr& other) {
+                 [](const TaintRangePtr &self, const TaintRangePtr &other) {
                      if (other == nullptr)
                          return false;
                      return self->start == other->start && self->length == other->length;
                  })
-            .def("__ne__", [](const TaintRangePtr& self, const TaintRangePtr& other) {
+            .def("__ne__", [](const TaintRangePtr &self, const TaintRangePtr &other) {
                 if (other == nullptr)
                     return true;
                 return self->start != other->start || self->length != other->length;

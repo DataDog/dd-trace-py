@@ -5,9 +5,12 @@ from ddtrace.appsec.iast._taint_tracking import (Source, OriginType, TaintRange,
                                                  set_ranges, get_ranges)
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import (Source, OriginType, TaintRange,
+    from ddtrace.appsec.iast._taint_tracking import (
+        Source, OriginType, TaintRange,
         set_ranges, get_ranges, shift_taint_range, shift_taint_ranges, get_range_by_hash,
-        are_all_text_all_ranges)
+        are_all_text_all_ranges, is_notinterned_notfasttainted_unicode,
+        set_fast_tainted_if_notinterned_unicode
+    )
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -40,6 +43,32 @@ _RANGE1 = TaintRange(0, 2, _SOURCE1)
 _RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
+def test_unicode_fast_tainting():
+    s = "somestr" * 4000
+    s_check = "somestr" * 4000
+    # Check that s is not interned since fast tainting only works on non-interned strings
+    assert s is not s_check
+    assert is_notinterned_notfasttainted_unicode(s)
+
+    set_fast_tainted_if_notinterned_unicode(s)
+    assert not is_notinterned_notfasttainted_unicode(s)
+
+    b = b"foobar" * 4000
+    assert not is_notinterned_notfasttainted_unicode(b)
+    set_fast_tainted_if_notinterned_unicode(b)
+    assert not is_notinterned_notfasttainted_unicode(b)
+
+    ba = bytearray(b"sfdsdfsdf" * 4000)
+    assert not is_notinterned_notfasttainted_unicode(ba)
+    set_fast_tainted_if_notinterned_unicode(ba)
+    assert not is_notinterned_notfasttainted_unicode(ba)
+
+    c = 12345
+    assert not is_notinterned_notfasttainted_unicode(c)
+    set_fast_tainted_if_notinterned_unicode(c)
+    assert not is_notinterned_notfasttainted_unicode(c)
+
+
 def test_set_get_ranges_str():
     s1 = "abcde😁"
     s2 = "defg"
@@ -48,7 +77,6 @@ def test_set_get_ranges_str():
     assert not get_ranges(s2)
 
 
-@pytest.mark.skip(reason="FIXME: currently not detecting types")
 def test_set_get_ranges_other():
     s1 = 12345
     s2 = None

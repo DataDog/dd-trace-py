@@ -10,6 +10,7 @@
 
 #include "Constants.h"
 #include "TaintTracking/Source.h"
+#include "Utils/StringUtils.h"
 
 #define PY_MODULE_NAME_TAINTRANGES PY_MODULE_NAME "." "TaintRange"
 
@@ -101,9 +102,15 @@ inline std::tuple<TaintRangeRefs, TaintRangeRefs> api_are_all_text_all_ranges(co
 
 TaintRangePtr get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
-bool could_be_tainted(const PyObject*);
+void set_fast_tainted_if_notinterned_unicode(const PyObject* objptr);
+inline void api_set_fast_tainted_if_unicode(const py::object obj) {
+    set_fast_tainted_if_notinterned_unicode(obj.ptr());
+}
 
-void set_could_be_tainted(const PyObject*);
+bool is_notinterned_notfasttainted_unicode(const PyObject *objptr);
+inline bool api_is_unicode_and_not_fast_tainted(const py::object str) {
+    return is_notinterned_notfasttainted_unicode(str.ptr());
+}
 
 TaintedObject* get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
 

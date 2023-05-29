@@ -71,10 +71,10 @@ PyObject* api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs
         result_o = PyByteArray_Concat(candidate_text, text_to_add);
     }
 
-    if (!could_be_tainted(candidate_text) && !could_be_tainted(text_to_add)) {
+    if (!is_notinterned_notfasttainted_unicode(candidate_text) && !is_notinterned_notfasttainted_unicode(
+            text_to_add)) {
         return result_o;
     }
-
 
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {

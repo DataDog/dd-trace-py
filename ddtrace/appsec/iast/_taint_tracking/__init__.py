@@ -15,7 +15,8 @@ if TYPE_CHECKING:
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (Source, OriginType, TaintRange,
     get_ranges, set_ranges, are_all_text_all_ranges, shift_taint_range,
-    shift_taint_ranges, get_range_by_hash)  # noqa: F401
+    shift_taint_ranges, get_range_by_hash, is_notinterned_notfasttainted_unicode,
+    set_fast_tainted_if_notinterned_unicode)  # noqa: F401
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
@@ -23,7 +24,7 @@ is_pyobject_tainted = ops.is_tainted
 
 __all__ = ["new_pyobject_id", "setup", "Source", "OriginType", "TaintRange", "get_ranges", "set_ranges",
            "are_all_text_all_ranges", "shift_taint_range", "shift_taint_ranges",
-           "get_range_by_hash"]
+           "get_range_by_hash", "is_notinterned_notfasttainted_unicode", "set_fast_tainted_if_notinterned_unicode"]
 
 
 def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
