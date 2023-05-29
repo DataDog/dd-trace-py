@@ -17,10 +17,14 @@ class Type_Base(enum.Enum):
     any Python type name can be added here and will be used automatically in the subsequent code
     """
 
+    Unknown = 0  # "Unknown"
     NoneType = 1  # "Null"
     bool = 2  # "Bool"
     int = 4  # "Number"
+    float = 4  # "Number"
     str = 8  # "String"
+    unicode = 8  # "String"
+    bytes = 8  # "String"
 
 
 class Record(dict):
@@ -77,18 +81,20 @@ def create_key(t, meta=None):
     return t + meta if meta else t
 
 
-def _build_type(obj, depth, cache):
+def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max_types_in_array=MAX_TYPES_IN_ARRAY):
     # type: (Any, int, CacheBank) -> tuple[int, Any]
-    if depth >= MAX_DEPTH:
-        return cache.get_id(Type_Base.NoneType.value), [Type_Base.NoneType.value]
+    if depth >= max_depth:
+        return cache.get_id(Type_Base.Unknown.value), [Type_Base.Unknown.value]
     elif isinstance(obj, list):
         elements_types = set()  # type: set[int]
         res_array = Array(len(obj))
         meta = {"len": res_array.element_count}
         for elem in obj:
-            e_id, e_type = _build_type(elem, depth + 1, cache)
+            e_id, e_type = _build_type(
+                elem, depth + 1, cache, max_depth=max_depth, max_girth=max_girth, max_types_in_array=max_types_in_array
+            )
             if e_id not in elements_types:
-                if len(elements_types) >= MAX_TYPES_IN_ARRAY:
+                if len(elements_types) >= max_types_in_array:
                     meta["truncated"] = True
                     break
                 res_array.append(e_type)
@@ -100,25 +106,28 @@ def _build_type(obj, depth, cache):
         i = 0
         meta = {}
         for i, (key, value) in enumerate(obj.items()):
-            if i >= MAX_GIRTH:
+            if i >= max_girth:
                 meta["truncated"] = True
                 break
-            e_id, e_type = _build_type(value, depth + 1, cache)
+            e_id, e_type = _build_type(
+                value, depth + 1, cache, max_depth=max_depth, max_girth=max_girth, max_types_in_array=max_types_in_array
+            )
+            key = str(key)
             res_record[key] = e_type
             record_types.append((key, e_id))
         res_type = [res_record, meta] if meta else [res_record]
         return cache.get_id(create_key(record_types, meta)), res_type
     else:
         typename = type(obj).__name__
-        type_base = getattr(Type_Base, typename, Type_Base.NoneType)
+        type_base = getattr(Type_Base, typename, Type_Base.Unknown)
         return cache.get_id(type_base.value), [type_base.value]
 
 
-def build_schema(obj):
-    return _build_type(obj, 0, CacheBank())[1]
+def build_schema(obj, **kwargs):
+    return _build_type(obj, 0, CacheBank(), **kwargs)[1]
 
 
-def get_json_schema(obj):
+def get_json_schema(obj, **kwargs):
     import json
 
-    return json.dumps(build_schema(obj), separators=",:")
+    return json.dumps(build_schema(obj, **kwargs), separators=",:")
