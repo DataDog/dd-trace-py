@@ -7,10 +7,10 @@
 using namespace std;
 
 struct GlobalContext {
-    // TODO FIXME: use size_t key once the Python usages are removed
-    unordered_map<string, string> framework_data;
+  // TODO FIXME: use size_t key once the Python usages are removed
+  unordered_map<string, string> framework_data;
 
-    GlobalContext() = default;
+  GlobalContext() = default;
 
-    void reset_global_data();
+  void reset_global_data();
 };
