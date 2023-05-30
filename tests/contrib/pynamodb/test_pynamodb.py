@@ -140,7 +140,7 @@ class PynamodbTest(TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @mock_dynamodb
-    def test_user_specified_service(self):
+    def test_schematized_service_default(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -149,7 +149,92 @@ class PynamodbTest(TracerTestCase):
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
-        assert span.service == "pynamodb"
+        assert span.service == "pynamodb", "Expected 'pynamodb', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @mock_dynamodb
+    def test_schematized_service_v0(self):
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "pynamodb", "Expected 'pynamodb', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @mock_dynamodb
+    def test_schematized_service_v1(self):
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "mysvc", "Expected 'mysvc', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @mock_dynamodb
+    def test_schematized_unspecified_service_default(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "pynamodb", "Expected 'pynamodb', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @mock_dynamodb
+    def test_schematized_unspecified_service_v0(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "pynamodb", "Expected 'pynamodb', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @mock_dynamodb
+    def test_schematized_unspecified_service_v1(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "unnamed-python-service", "Expected 'unnamed-python-service', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @mock_dynamodb
+    def test_schematized_operation_v0(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.name == "pynamodb.command", "Expected 'pynamodb.command', got %s" % span.name
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @mock_dynamodb
+    def test_schematized_operation_v1(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.name == "aws.dynamodb.request", "Expected 'aws.dynamodb.request', got %s" % span.name
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
