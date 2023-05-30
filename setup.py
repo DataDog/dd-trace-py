@@ -40,6 +40,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+SKIP_UPX = "DD_SKIP_UPX" in os.environ
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
@@ -186,7 +188,7 @@ class BuildExtWithUpx(BuildExtCommand):
 
     def run(self):
         BuildExtCommand.run(self)
-        if self.download_upx():
+        if not SKIP_UPX and self.download_upx():
             self.compress_shared_objects()
 
 
