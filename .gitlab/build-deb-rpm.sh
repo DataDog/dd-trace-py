@@ -16,7 +16,9 @@ mkdir -p dd-trace.dir/lib
 python3 -m pip install -U "pip>=22.0"
 python3 -m pip install packaging
 
-../workspace/lib-injection/dl_wheels.py \
+echo `pwd`
+
+../lib-injection/dl_wheels.py \
     --python-version=3.11 \
     --python-version=3.10 \
     --python-version=3.9 \
@@ -30,7 +32,7 @@ python3 -m pip install packaging
     --output-dir dd-trace.dir/lib \
     --verbose
 
-cp ../workspace/lib-injection/sitecustomize.py dd-trace.dir/lib/
+cp ../lib-injection/sitecustomize.py dd-trace.dir/lib/
 
 cp auto_inject-python.version dd-trace.dir/lib/version
 
