@@ -39,6 +39,7 @@ def test_small_schemas(obj, res):
     assert build_schema(obj) == res
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
 @pytest.mark.parametrize(
     "obj, res",
     [
