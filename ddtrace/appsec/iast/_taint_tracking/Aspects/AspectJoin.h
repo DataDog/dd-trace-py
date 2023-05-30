@@ -5,5 +5,5 @@
 #include "TaintedOps/TaintedOps.h"
 #include <Python.h>
 
-PyObject *api_join_aspect(PyObject *self, PyObject *const *args,
-                          Py_ssize_t nargs);
+PyObject*
+api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs);

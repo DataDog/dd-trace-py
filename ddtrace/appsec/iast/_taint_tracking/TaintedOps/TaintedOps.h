@@ -8,17 +8,24 @@
 using namespace std;
 namespace py = pybind11;
 
-PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args);
+PyObject*
+setup(PyObject* Py_UNUSED(module), PyObject* args);
 
-PyObject *new_pyobject_id(PyObject *tainted_object, Py_ssize_t object_length);
+PyObject*
+new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length);
 
-PyObject *api_new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args);
+PyObject*
+api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);
 
-bool is_tainted(PyObject *Py_UNUSED(module), PyObject *args);
-void taint(PyObject *Py_UNUSED(module), PyObject *args);
+bool
+is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
+void
+taint(PyObject* Py_UNUSED(module), PyObject* args);
 
-PyObject *api_is_tainted(PyObject *Py_UNUSED(module), PyObject *args);
-PyObject *api_taint(PyObject *Py_UNUSED(module), PyObject *args);
+PyObject*
+api_is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
+PyObject*
+api_taint(PyObject* Py_UNUSED(module), PyObject* args);
 // TODO
 // PyObject *api_add_taint_pyobject(PyObject* pyobject, PyObject* op1, PyObject*
 // op2); PyObject* api_taint_pyobject(PyObject* pyobject, Source source); bool

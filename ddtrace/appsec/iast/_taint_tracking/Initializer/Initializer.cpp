@@ -146,17 +146,17 @@ void Initializer::release_tainted_object(TaintedObjectPtr tobj) {
   delete tobj;
 }
 
-TaintRangePtr Initializer::allocate_taint_range(int start, int lenght,
+TaintRangePtr Initializer::allocate_taint_range(int start, int length,
                                                 SourcePtr origin) {
   if (!available_ranges_stack.empty()) {
     auto rptr = available_ranges_stack.top();
     available_ranges_stack.pop();
-    rptr->set_values(start, lenght, reuse_taint_source(origin));
+    rptr->set_values(start, length, reuse_taint_source(origin));
     return rptr;
   }
 
   // Stack is empty, create new object
-  return make_shared<TaintRange>(start, lenght, origin);
+  return make_shared<TaintRange>(start, length, origin);
 }
 
 void Initializer::release_taint_range(TaintRangePtr rangeptr) {
