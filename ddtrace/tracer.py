@@ -283,6 +283,12 @@ class Tracer(object):
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
+        if config._data_streams_enabled:
+            # Inline the import to avoid pulling in ddsketch or protobuf
+            # when importing ddtrace.
+            from .internal.datastreams.processor import DataStreamsProcessor
+
+            self.data_streams_processor = DataStreamsProcessor(self._agent_url)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -1029,6 +1035,11 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+            try:
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)

@@ -271,6 +271,7 @@ class Config(object):
         self._trace_compute_stats = asbool(
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
         )
+        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
         self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
