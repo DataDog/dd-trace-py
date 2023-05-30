@@ -82,7 +82,7 @@ def create_key(t, meta=None):
 
 
 def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max_types_in_array=MAX_TYPES_IN_ARRAY):
-    # type: (Any, int, CacheBank) -> tuple[int, Any]
+    # type: (Any, int, CacheBank, int, int, int) -> tuple[int, Any]
     if depth >= max_depth:
         return cache.get_id(Type_Base.Unknown.value), [Type_Base.Unknown.value]
     elif isinstance(obj, list):
