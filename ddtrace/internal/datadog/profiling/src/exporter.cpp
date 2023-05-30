@@ -24,19 +24,18 @@ inline ddog_CharSlice to_slice(std::string_view str) {
 }
 
 UploaderBuilder &UploaderBuilder::set_env(std::string_view env) {
-  // Don't over-write the default with garbage
   if (!env.empty())
     this->env = env;
   return *this;
 }
 UploaderBuilder &UploaderBuilder::set_service(std::string_view service) {
-  // Don't over-write the default with garbage
   if (!service.empty())
     this->service = service;
   return *this;
 }
 UploaderBuilder &UploaderBuilder::set_version(std::string_view version) {
-  this->version = version;
+  if (!version.empty())
+    this->version = version;
   return *this;
 }
 UploaderBuilder &UploaderBuilder::set_runtime(std::string_view runtime) {
@@ -78,6 +77,9 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
                        static_cast<size_t>(ExportTagKey::_Length)>
       keys = {EXPORTER_TAGS(X_STR)};
 
+  // If the value is empty, return an error.
+  if (val.empty())
+    return false;
   std::string_view key_sv = keys[static_cast<size_t>(key)];
 
   // Add
@@ -88,15 +90,15 @@ bool add_tag(ddog_Vec_Tag &tags, const ExportTagKey key, std::string_view val,
     errmsg = "tags[" + std::string(key_sv) + "]='" + std::string(val) +
              " err: '" + ddog_err + "'";
     ddog_Error_drop(&res.err);
+    return false;
   }
   return true;
 }
 
 bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
                     std::string_view val, std::string &errmsg) {
-  if (key.empty()) {
+  if (key.empty() || val.empty())
     return false;
-  }
 
   ddog_Vec_Tag_PushResult res =
       ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
@@ -114,10 +116,17 @@ bool add_tag_unsafe(ddog_Vec_Tag &tags, std::string_view key,
 Uploader *UploaderBuilder::build_ptr() {
   // Setup the ddog_Exporter
   ddog_Vec_Tag tags = ddog_Vec_Tag_new();
+
+  // These three tags are guaranteed by the backend; they can be omitted if needed
+  if (!env.empty())
+    add_tag(tags, ExportTagKey::env, env, errmsg);
+  if (!service.empty())
+    add_tag(tags, ExportTagKey::service, service, errmsg);
+  if (!version.empty())
+    add_tag(tags, ExportTagKey::version, version, errmsg);
+
+  // Assume that these tags are all populated + correct
   if (!add_tag(tags, ExportTagKey::language, language, errmsg) ||
-      !add_tag(tags, ExportTagKey::env, env, errmsg) ||
-      !add_tag(tags, ExportTagKey::service, service, errmsg) ||
-      !add_tag(tags, ExportTagKey::version, version, errmsg) ||
       !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
       !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
       !add_tag(tags, ExportTagKey::profiler_version, profiler_version,
