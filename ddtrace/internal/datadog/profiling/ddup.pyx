@@ -1,10 +1,6 @@
-import os
 import platform
-import sys
 import typing
 from typing import Optional
-
-import __main__
 
 import ddtrace
 from ddtrace.internal import runtime
