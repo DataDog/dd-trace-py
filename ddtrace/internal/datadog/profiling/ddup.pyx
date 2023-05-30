@@ -4,8 +4,8 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import runtime
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
 
 
