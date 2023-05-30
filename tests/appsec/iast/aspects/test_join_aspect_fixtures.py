@@ -15,7 +15,11 @@ mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
 class TestOperatorJoinReplacement(object):
-    def test_string_join_tainted_joiner(self, context):  # type: () -> None
+    def test_string_join_tainted_joiner(self):  # type: () -> None
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
+
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             "-joiner-", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
@@ -23,20 +27,27 @@ class TestOperatorJoinReplacement(object):
         it = ["a", "b", "c"]
 
         result = mod.do_join(string_input, it)
-        assert not get_tainted_ranges(result)
+        assert result == 'aaaa-joiner-bbbb-joiner-cccc'
+        assert get_tainted_ranges(result)
 
-    def test_string_join_tainted_joined(self, context):  # type: () -> None
+    def test_string_join_tainted_joined(self):  # type: () -> None
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
         string_input = "-joiner-"
-        it = [
-            create_taint_range_with_format(":+-aaa-+:a"),
+        it = [taint_pyobject(
+            "aaaa", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+        ),
             "bbbb",
-            create_taint_range_with_format(":+-ccc-+:c"),
+            taint_pyobject(
+                "cccc", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+            ),
         ]
 
-        result_join = mod.do_join(string_input, it)
-        assert as_formatted_evidence(result_join) == ":+-aaa-+:a-joiner-bbbb-joiner-:+-ccc-+:c"
+        result = mod.do_join(string_input, it)
+        assert get_tainted_ranges(result)
 
-    def test_string_join_tainted_all(self, context):  # type: () -> None
+    def test_string_join_tainted_all(self):  # type: () -> None
         string_input = ":+--jo-+:iner-"
         it = [
             ":+-a-+:aaa",
@@ -54,7 +65,7 @@ class TestOperatorJoinReplacement(object):
             ":+--jo-+:iner-:+-ee-+:ee:+--jo-+:iner-:+-fff-+:f:+--jo-+:iner-:+-gggg-+:"
         )
 
-    def test_string_join_generator(self, context):  # type: () -> None
+    def test_string_join_generator(self):  # type: () -> None
         # Not tainted
         base_string = "abcde"
         result = mod.get_generator_string(base_string)
@@ -65,7 +76,7 @@ class TestOperatorJoinReplacement(object):
         result = mod.get_generator_string(tainted_base_string)
         assert as_formatted_evidence(result) == ":+-Abc-+:de:+-Abc-+:de:+-Abc-+:de"
 
-    def test_string_join_yield(self, context):  # type: () -> None
+    def test_string_join_yield(self):  # type: () -> None
         # Not tainted
         base_string = "abcde"
         result = mod.get_generator_string_2(base_string)

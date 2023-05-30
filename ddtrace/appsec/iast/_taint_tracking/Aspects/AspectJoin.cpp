@@ -71,6 +71,10 @@ PyObject *aspect_join(const PyObject *sep, PyObject *result,
 
 PyObject *api_join_aspect(PyObject *self, PyObject *const *args,
                           Py_ssize_t nargs) {
+  py::print("api_join_aspect 0 for ",
+            py::reinterpret_borrow<py::object>(args[0]));
+  py::print("api_join_aspect 1 for ",
+            py::reinterpret_borrow<py::object>(args[1]));
   if (nargs != 2) {
     // TODO: any other more sane error handling?
     return nullptr;

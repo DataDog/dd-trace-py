@@ -36,7 +36,9 @@ class AstVisitor(ast.NodeTransformer):
             },
             "stringalike_methods": {
                 "decode": "ddtrace_aspects.decode_aspect",
+                "join": "ddtrace_aspects.join_aspect",
                 "encode": "ddtrace_aspects.encode_aspect",
+                "extend": "ddtrace_aspects.bytearray_extend_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
