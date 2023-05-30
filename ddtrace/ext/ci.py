@@ -361,9 +361,6 @@ def extract_gitlab(env):
         # Extract name and email from `author` which is in the form "name <email>"
         author_name, author_email = author.strip("> ").split(" <")
     commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
-    url = env.get("CI_PIPELINE_URL")
-    if url:
-        url = re.sub("/-/pipelines/", "/pipelines/", url)
     return {
         git.BRANCH: env.get("CI_COMMIT_REF_NAME"),
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
@@ -375,7 +372,7 @@ def extract_gitlab(env):
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),
         PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
         PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
-        PIPELINE_URL: url,
+        PIPELINE_URL: env.get("CI_PIPELINE_URL"),
         PROVIDER_NAME: "gitlab",
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
         git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
