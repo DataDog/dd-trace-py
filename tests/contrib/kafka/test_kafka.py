@@ -1,6 +1,6 @@
 import logging
-import time
 import os
+import time
 
 import confluent_kafka
 import pytest
@@ -169,6 +169,7 @@ def test_data_streams_kafka(consumer, producer):
         >= 1
     )
 
+
 def _generate_in_subprocess(topic):
     import six
 
@@ -272,4 +273,3 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
-

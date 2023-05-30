@@ -315,3 +315,93 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "my-pyodbc-service"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_schematized_unspecified_service_name_default(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert (
+            span.service == "unnamed-python-service"
+        ), "Expected service name to be 'unnamed-python-service' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        conn, tracer = self._get_conn_tracer()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT 1")
+        cursor.fetchall()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
+            span.name
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        conn, tracer = self._get_conn_tracer()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT 1")
+        cursor.fetchall()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
+            span.name
+        )
