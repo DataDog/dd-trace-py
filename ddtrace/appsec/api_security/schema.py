@@ -1,6 +1,8 @@
 import enum
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.compat import to_unicode
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -112,7 +114,11 @@ def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max
             e_id, e_type = _build_type(
                 value, depth + 1, cache, max_depth=max_depth, max_girth=max_girth, max_types_in_array=max_types_in_array
             )
-            key = str(key)
+            try:
+                key = to_unicode(key)
+            except Exception:
+                meta["no_str_key"] = True
+                continue
             res_record[key] = e_type
             record_types.append((key, e_id))
         res_type = [res_record, meta] if meta else [res_record]
