@@ -10,10 +10,15 @@ PyObject *api_extend_aspect(PyObject *self, PyObject *const *args,
     }
 
     PyObject *candidate_text = args[0];
+    if (!PyByteArray_Check(candidate_text)) {
+        return nullptr;
+    }
     auto len_candidate_text = PyByteArray_Size(candidate_text);
     PyObject *to_add = args[1];
-    // TODO: Check if this works with bytes and bytearrays or we have to convert
-    // bytes to a new bytearray!
+
+    if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
+        return nullptr;
+    }
     auto method_name = PyUnicode_FromString("extend");
     PyObject_CallMethodOneArg(candidate_text, method_name, to_add);
     Py_DecRef(method_name);  // TODO: check if right
