@@ -153,8 +153,6 @@ def set_body_response(body_response):
 
     import xmltodict
 
-    from ddtrace.appsec.utils import parse_form_multipart
-    from ddtrace.appsec.utils import parse_form_params
     from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
 
     if not body_response:
