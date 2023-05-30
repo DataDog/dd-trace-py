@@ -59,32 +59,9 @@ def cover(span, root=None, **kwargs):
     span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
 
 
-def segments(lines):
-    # type: (Iterable[int]) -> Iterable[Tuple[int, int, int, int, int]]
-    """Extract the relevant report data for a single file."""
-
-    def as_segments(it):
-        # type: (Iterable[int]) -> Tuple[int, int, int, int, int]
-        sequence = list(it)  # type: List[int]
-        return (sequence[0], 0, sequence[-1], 0, -1)
-
-    return [as_segments(sorted(lines))]
-
-
 def _lines(coverage, context):
-    data = coverage.get_data()
-    context_id = data._context_id(context)
-    data._start_using()
-    with data._connect() as con:
-        query = (
-            "select file.path, line_bits.numbits "
-            "from line_bits "
-            "join file on line_bits.file_id = file.id "
-            "where context_id = ?"
-        )
-        data = [context_id]
-        bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
-        return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
+    data = coverage._collector.data
+    return {row[0]: row[1] for row in data if "site-packages" not in row[0]}
 
 
 def build_payload(coverage, test_id=None, root=None):
