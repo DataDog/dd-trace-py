@@ -189,7 +189,7 @@ def do_bytearray_append(ba):  # type: (bytearray) -> bytes
     return ba
 
 
-def do_bytearray_extend(ba, b):  # type: (bytearray, bytes) -> bytes
+def do_bytearray_extend(ba, b):  # type: (bytearray, bytearray) -> None
     ba.extend(b)
     return ba
 

@@ -105,6 +105,8 @@ class Initializer
 
     bool get_propagation();
 
+    // FIXME: these should be static functions of TaintedObject
+
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_tainted_object on it or you'll have a
     // leak.
@@ -142,6 +144,7 @@ class Initializer
 
     void release_tainted_object(TaintedObjectPtr tobj);
 
+    // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
     TaintRangePtr allocate_taint_range(int start, int length, SourcePtr source);
