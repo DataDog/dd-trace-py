@@ -87,8 +87,8 @@ class UploaderBuilder {
 
   // Building parameters
   // TODO remove these defaults before making this available to customers
-  std::string env = "prod";
-  std::string service = "myservice";
+  std::string env = "";
+  std::string service = "";
   std::string version = "";
   std::string runtime = "cython";
   std::string runtime_version = "";

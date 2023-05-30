@@ -28,16 +28,16 @@ Datadog::ProfileBuilder profile_builder;
 // Configuration
 void ddup_config_env(const char *env) {
   if (!env || !*env)
-    env = "prod";
+    return;
   uploader_builder.set_env(env);
 }
 void ddup_config_service(const char *service) {
-  if (!service)
+  if (!service || !*service)
     return;
   uploader_builder.set_service(service);
 }
 void ddup_config_version(const char *version) {
-  if (!version)
+  if (!version || !*version)
     return;
   uploader_builder.set_version(version);
 }

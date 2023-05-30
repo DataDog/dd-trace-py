@@ -36,6 +36,8 @@ AGENTLESS_BASE_URL = "https://citestcycle-intake"
 AGENTLESS_COVERAGE_BASE_URL = "https://citestcov-intake"
 AGENTLESS_DEFAULT_SITE = "datadoghq.com"
 GIT_API_BASE_PATH = "/api/v2/git"
+SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
+SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 
 
 class REQUESTS_MODE(IntEnum):

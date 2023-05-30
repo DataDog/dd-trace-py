@@ -8,6 +8,7 @@ import __main__
 
 import ddtrace
 from ddtrace.internal import runtime
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
 
 
@@ -69,20 +70,16 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             max_nframes: Optional[int],
             url: Optional[str]) -> None:
 
-        # Default service is the main script, but what if there isn't one?
+        # Try to provide a ddtrace-specific default service if one is not given
         if not service:
-            if hasattr(__main__, "__file"):
-                service = os.path.basename(__main__.__file__)
-            else:
-                service = os.path.basename(sys.argv[0])
-        ddup_config_service(str.encode(service))
+            service = DEFAULT_SERVICE_NAME
 
-        # Default env is "prod"
-        if not env:
-            env = "prod"
-        ddup_config_env(str.encode(env))
-
-        # No default version?
+        # If otherwise no values are provided, the uploader will omit the fields
+        # and they will be auto-populated in the backend
+        if service:
+            ddup_config_service(str.encode(service))
+        if env:
+            ddup_config_env(str.encode(env))
         if version:
             ddup_config_version(str.encode(version))
 
