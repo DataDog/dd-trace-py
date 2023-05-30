@@ -66,7 +66,7 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
     return pyobject
 
 
-def taint_pyobject(pyobject, source=None):  # type: (Any, Source) -> Any
+def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: (Any, Source) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -76,11 +76,11 @@ def taint_pyobject(pyobject, source=None):  # type: (Any, Source) -> Any
 
     if source is None:
         return pyobject
-
-    len_pyobject = len(pyobject)
+    if len_pyobject is None:
+        len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
 
-    set_ranges(pyobject, [TaintRange(0, len(pyobject), source)])
+    set_ranges(pyobject, [TaintRange(start, len(pyobject), source)])
     return pyobject
 
 
@@ -95,7 +95,7 @@ def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
 
 
 def taint_ranges_as_evidence_info(pyobject):
-    # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[_Source]]
+    # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Source]]
     value_parts = []
     sources = []
     current_pos = 0

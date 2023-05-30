@@ -33,5 +33,5 @@ api_taint(PyObject* Py_UNUSED(module), PyObject* args);
 // api_set_tainted_ranges(PyObject* pyobject, TaintRangeRefs ranges);
 // TaintRangeRefs api_get_tainted_ranges(PyObject* pyobject); // can be already
 // implemented
-// XXX (Tuple[List[Dict[str, Union[Any, int]]], list[_Source]])
+// XXX (Tuple[List[Dict[str, Union[Any, int]]], list[Source]])
 // api_taint_ranges_as_evidence_info(PyObject* pyobject);

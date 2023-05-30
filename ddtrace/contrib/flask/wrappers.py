@@ -46,11 +46,11 @@ def wrap_view(instance, func, name=None, resource=None):
 
             # If IAST is enabled, taint the Flask function kwargs (path parameters)
             if _is_iast_enabled() and kwargs:
-                from ddtrace.appsec.iast._source import _Source
+                from ddtrace.appsec.iast._taint_tracking import Source
                 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
                 for k, v in kwargs.items():
-                    kwargs[k] = taint_pyobject(v, _Source(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                    kwargs[k] = taint_pyobject(v, Source(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
 
             return wrapped(*args, **kwargs)
 
