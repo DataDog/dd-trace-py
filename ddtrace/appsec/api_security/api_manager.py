@@ -36,8 +36,8 @@ class APIManager(Service):
         (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.schema.res.headers", dict),
         (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.schema.res.body", None),
     ]
-    GLOBAL_RATE_LIMIT = 100.0  # requests per seconds
-    INTERVAL_PER_ROUTE = 30.0  # seconds between requests
+    GLOBAL_RATE_LIMIT = 10.0  # requests per seconds
+    INTERVAL_PER_ROUTE = 15.0  # seconds between requests
 
     _instance = None  # type: Optional[APIManager]
 
@@ -136,3 +136,4 @@ class APIManager(Service):
                 self._log_limiter.limit(
                     log.warning, "Failed to get schema from %r:\n%s", address, repr(value)[:256], exc_info=True
                 )
+        self._schema_meter.increment("spans")
