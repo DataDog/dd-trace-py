@@ -183,12 +183,13 @@ def set_body_response(body_response):
 
     req_body = None
     try:
+        # TODO handle charset
         if content_type in ("application/json", "text/json"):
             req_body = json.loads(access_body(body_response))
         elif content_type in ("application/xml", "text/xml"):
             req_body = xmltodict.parse(access_body(body_response))
         else:
-            raise ValueError("unsupported format: {!r}".format(content_type))
+            return
     except BaseException:
         log.debug("Failed to parse response body", exc_info=True)
     else:
