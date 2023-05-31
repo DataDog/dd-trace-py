@@ -20,6 +20,7 @@ from ...constants import ERROR_TYPE
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_url_operation
 from ...propagation.http import HTTPPropagator
 
 
@@ -177,7 +178,7 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            "grpc",
+            schematize_url_operation("grpc", protocol="grpc", direction="outbound"),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
