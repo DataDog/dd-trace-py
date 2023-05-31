@@ -135,8 +135,14 @@ class APIManager(Service):
                     raise TooLarge
                 root._meta[meta_name] = json_serialized
             except Exception as e:
-                self._schema_meter.increment("errors", tags=["exc:" + e.__class__.__name__, "address:" + address])
+                self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
                 self._log_limiter.limit(
                     log.warning, "Failed to get schema from %r:\n%s", address, repr(value)[:256], exc_info=True
                 )
-        self._schema_meter.increment("spans")
+
+        try:
+            method = root._meta.get(http.METHOD, "unknown")
+            route = root._meta.get(http.ROUTE, "unknown")
+            self._schema_meter.increment("spans", tags={"method": method, "route": route})
+        except Exception:
+            self._log_limiter.limit(log.warning, "Failed to emit schema metric", exc_info=True)
