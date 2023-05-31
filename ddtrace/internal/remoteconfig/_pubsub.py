@@ -104,7 +104,7 @@ class PubSub(object):
 
     def append_and_publish(self, config_content=None, target="", config_metadata=None):
         # type: (Optional[Any], str, Optional[Any]) -> None
-        """Append data to publisher and send the data to subscriber. It's a shortcut for testing propose"""
+        """Append data to publisher and send the data to subscriber. It's a shortcut for testing purposes"""
         self.append(config_content, target, config_metadata)
         self.publish()
 
