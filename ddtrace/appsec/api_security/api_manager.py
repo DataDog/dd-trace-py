@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING
 
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.api_security.schema import get_json_schema
-from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
@@ -89,14 +89,15 @@ class APIManager(Service):
         # type: () -> None
         add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, span):
+    def _should_collect_schema(self, env):
+        method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
+        route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         # Framework is not fully supported
-        method = span._meta.get(http.METHOD)
-        route = span._meta.get(http.ROUTE)
         if not method or not route:
             return False
-        # Always collect headers when ddwaf triggered
-        if span._meta.get("appsec.event", "") == "true":
+        # WAF has triggered, always collect schemas
+        results = env.telemetry.get(_WAF_RESULTS)
+        if results and any((result.data for result in results[0])):
             return True
         # Rate limit per route
         key = method + route
@@ -118,13 +119,15 @@ class APIManager(Service):
 
         root._metrics["_dd.appsec.api_security.enabled"] = 1.0
 
-        # if not self._should_collect_schema(root) or self._global_rate_limiter.limit() is RateLimitExceeded:
-        #     return
+        try:
+            if not self._should_collect_schema(env) or self._global_rate_limiter.limit() is RateLimitExceeded:
+                return
+        except Exception:
+            self._log_limiter.limit(log.warning, "Failed to sample request for schema generation", exc_info=True)
 
-        waf_content = env.waf_addresses
         for address, meta_name, transform in self.COLLECTED:
             _sentinel = object()
-            value = waf_content.get(address, _sentinel)
+            value = env.waf_addresses.get(address, _sentinel)
             if value is _sentinel:
                 continue
             try:
@@ -139,10 +142,4 @@ class APIManager(Service):
                 self._log_limiter.limit(
                     log.warning, "Failed to get schema from %r:\n%s", address, repr(value)[:256], exc_info=True
                 )
-
-        try:
-            method = root._meta.get(http.METHOD, "unknown")
-            route = root._meta.get(http.ROUTE, "unknown")
-            self._schema_meter.increment("spans", tags={"method": method, "route": route})
-        except Exception:
-            self._log_limiter.limit(log.warning, "Failed to emit schema metric", exc_info=True)
+        self._schema_meter.increment("spans")
