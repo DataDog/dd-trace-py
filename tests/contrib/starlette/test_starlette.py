@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 import httpx
@@ -535,3 +536,51 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+@pytest.mark.snapshot()
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+from ddtrace import config
+import sqlalchemy
+
+from tests.contrib.starlette.test_starlette import snapshot_app
+from tests.contrib.starlette.test_starlette import snapshot_client
+
+@pytest.fixture
+def engine():
+    engine = sqlalchemy.create_engine("sqlite:///test.db")
+    yield engine
+
+def test(snapshot_client):
+    config.starlette["aggregate_resources"] = False
+    response = snapshot_client.get("/sub-app/hello/name")
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
+    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    env["DD_TRACE_HTTPX_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
