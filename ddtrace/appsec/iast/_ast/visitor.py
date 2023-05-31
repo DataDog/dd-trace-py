@@ -39,13 +39,20 @@ class AstVisitor(ast.NodeTransformer):
                 "join": "ddtrace_aspects.join_aspect",
                 "encode": "ddtrace_aspects.encode_aspect",
                 "extend": "ddtrace_aspects.bytearray_extend_aspect",
+                "upper": "ddtrace_aspects.upper_aspect",
+                "lower": "ddtrace_aspects.lower_aspect",
+                "swapcase": "ddtrace_aspects.swapcase_aspect",
+                "title": "ddtrace_aspects.title_aspect",
+                "capitalize": "ddtrace_aspects.capitalize_aspect",
+                "casefold": "ddtrace_aspects.casefold_aspect",
+                "translate": "ddtrace_aspects.translate_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
                 "BytesIO": "ddtrace_aspects.stringio_aspect",
-                "StringIO": "ddtrace_aspects.stringio_aspect",
-                "format": "ddtrace_aspects.format_aspect",
-                "format_map": "ddtrace_aspects.format_map_aspect",
+                # "StringIO": "ddtrace_aspects.stringio_aspect",
+                # "format": "ddtrace_aspects.format_aspect",
+                # "format_map": "ddtrace_aspects.format_map_aspect",
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",

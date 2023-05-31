@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from builtins import str as builtin_str
 from builtins import bytes as builtin_bytes
 from builtins import bytearray as builtin_bytearray
@@ -17,6 +15,7 @@ from ddtrace.appsec.iast._taint_tracking import set_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 
 if TYPE_CHECKING:
     from typing import Any
@@ -50,7 +49,7 @@ def str_aspect(*args, **kwargs):
 
 
 def join_aspect(joiner, *args, **kwargs):
-    # type: (Any, Any) -> Any
+    # type: (Any, Any, Any) -> Any
     if not isinstance(joiner, TEXT_TYPES) or not isinstance(joiner, TEXT_TYPES):
         return joiner.join(*args, **kwargs)
     return _join_aspect(joiner, *args, **kwargs)
@@ -81,148 +80,153 @@ def bytearray_aspect(*args, **kwargs):
     return result
 
 
-def stringio_aspect(*args, **kwargs):
-    # type: (Any, Any) -> StringIO
-    return StringIO(*args, **kwargs)
+# TODO
+# def stringio_aspect(*args, **kwargs):
+#     # type: (Any, Any) -> StringIO
+#     return StringIO(*args, **kwargs)
 
 
-def modulo_aspect(candidate_text, candidate_tuple):
-    # type: (Any, Any) -> Any
-    if not get_propagation():
-        return candidate_text % candidate_tuple
-
-    try:
-        if isinstance(candidate_tuple, tuple):
-            parameter_list = candidate_tuple
-        else:
-            parameter_list = (candidate_tuple,)  # type: ignore
-
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
-        if not ranges_orig:
-            return candidate_text % candidate_tuple
-
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text,
-                candidate_text_ranges,
-                tag_mapping_function=TagMappingMode.Mapper,
-            )
-            % tuple(
-                as_formatted_evidence(
-                    parameter,
-                    tag_mapping_function=TagMappingMode.Mapper,
-                )
-                if isinstance(parameter, TEXT_TYPES)
-                else parameter
-                for parameter in parameter_list
-            ),
-            ranges_orig=ranges_orig,
-        )
-    except Exception as exc:
-        return candidate_text % candidate_tuple
-
-
-def format_aspect(
-    candidate_text,  # type: str
-    *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
-):  # type: (...) -> str
-    if not get_propagation():
-        return candidate_text.format(*args, **kwargs)
-
-    try:
-        params = tuple(args) + tuple(kwargs.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
-        if not ranges_orig:
-            return candidate_text.format(*args, **kwargs)
-
-        new_template = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-        )
-        fun = (
-            lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
-            if isinstance(arg, TEXT_TYPES)
-            else arg
-        )
-        new_args = map(fun, args)  # type: ignore[arg-type]
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-        # invert_dict(range_guid_map)
-        return _convert_escaped_text_to_tainted_text(
-            new_template.format(*new_args, **new_kwargs),  # type: ignore[union-attr]
-            ranges_orig=ranges_orig,
-        )
-
-    except Exception as exc:
-        return candidate_text.format(*args, **kwargs)
+# TODO
+# def modulo_aspect(candidate_text, candidate_tuple):
+#     # type: (Any, Any) -> Any
+#     if not get_propagation():
+#         return candidate_text % candidate_tuple
+#
+#     try:
+#         if isinstance(candidate_tuple, tuple):
+#             parameter_list = candidate_tuple
+#         else:
+#             parameter_list = (candidate_tuple,)  # type: ignore
+#
+#         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
+#         if not ranges_orig:
+#             return candidate_text % candidate_tuple
+#
+#         return _convert_escaped_text_to_tainted_text(
+#             as_formatted_evidence(
+#                 candidate_text,
+#                 candidate_text_ranges,
+#                 tag_mapping_function=TagMappingMode.Mapper,
+#             )
+#             % tuple(
+#                 as_formatted_evidence(
+#                     parameter,
+#                     tag_mapping_function=TagMappingMode.Mapper,
+#                 )
+#                 if isinstance(parameter, TEXT_TYPES)
+#                 else parameter
+#                 for parameter in parameter_list
+#             ),
+#             ranges_orig=ranges_orig,
+#         )
+#     except Exception as exc:
+#         return candidate_text % candidate_tuple
 
 
-def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
-    if not get_propagation():
-        return candidate_text.format_map(*args, **kwargs)
+# TODO
+# def format_aspect(
+#     candidate_text,  # type: str
+#     *args,  # type: List[Any]
+#     **kwargs  # type: Dict[str, Any]
+# ):  # type: (...) -> str
+#     if not get_propagation():
+#         return candidate_text.format(*args, **kwargs)
+#
+#     try:
+#         params = tuple(args) + tuple(kwargs.values())
+#         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
+#         if not ranges_orig:
+#             return candidate_text.format(*args, **kwargs)
+#
+#         new_template = as_formatted_evidence(
+#             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+#         )
+#         fun = (
+#             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
+#             if isinstance(arg, TEXT_TYPES)
+#             else arg
+#         )
+#         new_args = map(fun, args)  # type: ignore[arg-type]
+#         new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
+#         # invert_dict(range_guid_map)
+#         return _convert_escaped_text_to_tainted_text(
+#             new_template.format(*new_args, **new_kwargs),  # type: ignore[union-attr]
+#             ranges_orig=ranges_orig,
+#         )
+#
+#     except Exception as exc:
+#         return candidate_text.format(*args, **kwargs)
 
-    try:
-        mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
-            candidate_text,
-            args + mapping_tuple,
-        )
-        if not ranges_orig:
-            return candidate_text.format_map(*args, **kwargs)
 
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-            ).format_map(
-                {
-                    key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, TEXT_TYPES)
-                    else value
-                    for key, value in iteritems(mapping)
-                }
-            ),
-            ranges_orig=ranges_orig,
-        )
+# TODO
+# def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
+#     if not get_propagation():
+#         return candidate_text.format_map(*args, **kwargs)
+#
+#     try:
+#         mapping = parse_params(0, "mapping", None, *args, **kwargs)
+#         mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+#         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
+#             candidate_text,
+#             args + mapping_tuple,
+#         )
+#         if not ranges_orig:
+#             return candidate_text.format_map(*args, **kwargs)
+#
+#         return _convert_escaped_text_to_tainted_text(
+#             as_formatted_evidence(
+#                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+#             ).format_map(
+#                 {
+#                     key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+#                     if isinstance(value, TEXT_TYPES)
+#                     else value
+#                     for key, value in iteritems(mapping)
+#                 }
+#             ),
+#             ranges_orig=ranges_orig,
+#         )
+#
+#     except Exception as exc:
+#         return candidate_text.format_map(*args, **kwargs)
 
-    except Exception as exc:
-        return candidate_text.format_map(*args, **kwargs)
 
-
-def format_value_aspect(
-    element,  # type: Any
-    options=0,  # type: int
-    format_spec=None,  # type: Optional[str]
-):  # type: (...) -> str
-
-    if options == 115:
-        new_text = str(element)
-    elif options == 114:
-        # TODO: use our repr once we have implemented it
-        new_text = repr(element)
-    elif options == 97:
-        # TODO: use our ascii once we have implemented it
-        if sys.version_info[0] >= 3:
-            new_text = ascii(element)
-    else:
-        new_text = element
-
-    if format_spec:
-        # Apply formatting
-        new_text = aspect_format("{:%s}" % format_spec, new_text)  # type:ignore
-    else:
-        new_text = str(new_text)
-
-    # FIXME: can we return earlier here?
-    if not get_propagation():
-        return new_text
-
-    ranges_new = get_ranges(new_text) if isinstance(element, TEXT_TYPES) else ()
-    if not ranges_new:
-        return new_text
-
-    new_text_new_id = copy_string_new_id(new_text)
-    set_ranges(new_text_new_id, ranges_new)
-    return new_text_new_id
+# TODO
+# def format_value_aspect(
+#     element,  # type: Any
+#     options=0,  # type: int
+#     format_spec=None,  # type: Optional[str]
+# ):  # type: (...) -> str
+#
+#     if options == 115:
+#         new_text = str(element)
+#     elif options == 114:
+#         # TODO: use our repr once we have implemented it
+#         new_text = repr(element)
+#     elif options == 97:
+#         # TODO: use our ascii once we have implemented it
+#         if sys.version_info[0] >= 3:
+#             new_text = ascii(element)
+#     else:
+#         new_text = element
+#
+#     if format_spec:
+#         # Apply formatting
+#         new_text = aspect_format("{:%s}" % format_spec, new_text)  # type:ignore
+#     else:
+#         new_text = str(new_text)
+#
+#     # FIXME: can we return earlier here?
+#     if not get_propagation():
+#         return new_text
+#
+#     ranges_new = get_ranges(new_text) if isinstance(element, TEXT_TYPES) else ()
+#     if not ranges_new:
+#         return new_text
+#
+#     new_text_new_id = copy_string_new_id(new_text)
+#     set_ranges(new_text_new_id, ranges_new)
+#     return new_text_new_id
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
@@ -272,3 +276,50 @@ def encode_aspect(self, *args, **kwargs):
     codec = args[0] if args else "utf-8"
     inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
     return incremental_translation(self, inc_enc, inc_enc.encode, b"")
+
+
+def upper_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+
+    return common_replace('upper', candidate_text, *args, **kwargs)
+
+
+def lower_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+
+    return common_replace('lower', candidate_text, *args, **kwargs)
+
+
+def swapcase_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+
+    return common_replace('swapcase', candidate_text, *args, **kwargs)
+
+
+def title_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+
+    return common_replace('title', candidate_text, *args, **kwargs)
+
+
+def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+
+    return common_replace('capitalize', candidate_text, *args, **kwargs)
+
+
+def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+    return common_replace('casefold', candidate_text, *args, **kwargs)
+
+
+def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.upper(*args, **kwargs)
+    return common_replace('translate', candidate_text, *args, **kwargs)

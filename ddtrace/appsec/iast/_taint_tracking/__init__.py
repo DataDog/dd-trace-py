@@ -69,6 +69,7 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
 
 
 def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: (Any, Source) -> Any
+    print("JJJ pyobject: %s" % pyobject)
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -80,6 +81,7 @@ def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: 
         return pyobject
     if len_pyobject is None:
         len_pyobject = len(pyobject)
+    print("JJJ pyobject2: %s" % pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
 
     set_ranges(pyobject, [TaintRange(start, len(pyobject), source)])
