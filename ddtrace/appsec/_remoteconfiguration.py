@@ -48,7 +48,7 @@ def enable_appsec_rc(test_tracer=None):
     """Remote config will be used by ASM libraries to receive four different updates from the backend.
     Each update has it’s own product:
     - ASM_FEATURES product - To allow users enable or disable ASM remotely
-    - ASM product - To allow clients to activate of disactivate rules
+    - ASM product - To allow clients to activate or deactivate rules
     - ASM_DD product - To allow the library to receive rules updates
     - ASM_DATA product - To allow the library to receive list of blocked IPs and users
 
