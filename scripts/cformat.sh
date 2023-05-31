@@ -14,7 +14,6 @@ trap clean EXIT
 
 if [[ "$1" == "update" ]]
 then
-    echo "llega"
     THIS_PATH="$(realpath "$0")"
     THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
     FILE_LIST="$(find "$THIS_DIR" -name '*.[c|cpp|h]' | grep -v '.riot/' | grep -v 'ddtrace/vendor/' | grep -v 'ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/')"
