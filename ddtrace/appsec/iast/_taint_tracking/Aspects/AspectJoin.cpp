@@ -1,11 +1,12 @@
 #include "AspectJoin.h"
 
-PyObject *
-aspect_join(PyObject *sep, PyObject *result, PyObject *iterable_elements, TaintRangeMapType *tx_taint_map) {
-    const size_t &len_sep = get_pyobject_size(sep);
+PyObject*
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
+{
+    const size_t& len_sep = get_pyobject_size(sep);
     // FIXME: bug. if the argument is a string instead of a tuple, it will enter
     // into an infinite loop
-    size_t len_iterable{0};
+    size_t len_iterable{ 0 };
     auto GetElement = PyList_GetItem;
     if (PyList_Check(iterable_elements)) {
         py::print("It's a list");
@@ -16,14 +17,14 @@ aspect_join(PyObject *sep, PyObject *result, PyObject *iterable_elements, TaintR
         GetElement = PyTuple_GetItem;
     }
 
-    unsigned long current_pos{0L};
+    unsigned long current_pos{ 0L };
     TaintedObjectPtr result_to = nullptr;
     TaintedObjectPtr first_tainted_to = nullptr;
 
-    const auto &to_joiner = get_tainted_object(sep, tx_taint_map);
+    const auto& to_joiner = get_tainted_object(sep, tx_taint_map);
 
     for (size_t i = 0; i < len_iterable; i++) {
-        PyObject *element = GetElement(iterable_elements, i);
+        PyObject* element = GetElement(iterable_elements, i);
         if (!element) {
             break;
         }
@@ -32,9 +33,9 @@ aspect_join(PyObject *sep, PyObject *result, PyObject *iterable_elements, TaintR
         // u"a".join(b"c", b"d") -> unicode
         // b"a".join(u"c", u"d") -> unicode
         // b"a".join(u"c", b"d") -> unicode
-        const size_t &element_len = get_pyobject_size(element);
+        const size_t& element_len = get_pyobject_size(element);
         if (element_len > 0) {
-            const auto &to_element = get_tainted_object(element, tx_taint_map);
+            const auto& to_element = get_tainted_object(element, tx_taint_map);
             if (to_element) {
                 if (current_pos == 0 and !first_tainted_to) {
                     first_tainted_to = to_element;
@@ -70,45 +71,46 @@ aspect_join(PyObject *sep, PyObject *result, PyObject *iterable_elements, TaintR
         }
     }
 
-    PyObject *new_result{new_pyobject_id(result, get_pyobject_size(result))};
+    PyObject* new_result{ new_pyobject_id(result, get_pyobject_size(result)) };
     set_tainted_object(new_result, result_to, tx_taint_map);
     // Py_DECREF(result);
     return new_result;
 }
 
-PyObject *
-api_join_aspect(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
+PyObject*
+api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+{
     if (nargs != 2) {
         // TODO: any other more sane error handling?
         return nullptr;
     }
 
-    PyObject *sep = args[0];
-    PyObject *arg0 = args[1];
+    PyObject* sep = args[0];
+    PyObject* arg0 = args[1];
 
     if (PyIter_Check(arg0) or PyAIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
-        PyObject *iterator = PyObject_GetIter(arg0);
+        PyObject* iterator = PyObject_GetIter(arg0);
 
         if (iterator != NULL) {
-            PyObject *item;
-            PyObject *list_aux = PyList_New(0);
+            PyObject* item;
+            PyObject* list_aux = PyList_New(0);
             while ((item = PyIter_Next(iterator))) {
                 PyList_Append(list_aux, item);
             }
             arg0 = list_aux;
         }
     }
-    PyObject *result;
+    PyObject* result;
     if (PyUnicode_Check(sep)) {
         result = PyUnicode_Join(sep, arg0);
     } else if (PyBytes_Check(sep)) {
         py::bytes result_ptr = py::reinterpret_borrow<py::bytes>(py::reinterpret_borrow<py::object>(sep))
-                                       .attr("join")(py::reinterpret_borrow<py::object>(arg0));
+                                 .attr("join")(py::reinterpret_borrow<py::object>(arg0));
         result = result_ptr.ptr();
         ./ Py_INCREF(result);
     } else if (PyByteArray_Check(sep)) {
         py::bytearray result_ptr = py::reinterpret_borrow<py::bytearray>(py::reinterpret_borrow<py::object>(sep))
-                                           .attr("join")(py::reinterpret_borrow<py::object>(arg0));
+                                     .attr("join")(py::reinterpret_borrow<py::object>(arg0));
         result = result_ptr.ptr();
         Py_INCREF(result);
     }

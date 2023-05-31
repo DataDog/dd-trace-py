@@ -14,7 +14,8 @@ using namespace std;
 using namespace pybind11::literals;
 
 py::str
-copy_string_new_id(const py::str &source) {
+copy_string_new_id(const py::str& source)
+{
     if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
         return source;
     }
@@ -24,7 +25,8 @@ copy_string_new_id(const py::str &source) {
 }
 
 py::bytes
-copy_string_new_id(const py::bytes &source) {
+copy_string_new_id(const py::bytes& source)
+{
     if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
         return source;
     }
@@ -35,17 +37,20 @@ copy_string_new_id(const py::bytes &source) {
 }
 
 py::bytearray
-copy_string_new_id(const py::bytearray &source) {
+copy_string_new_id(const py::bytearray& source)
+{
     return source;
 }
 
 py::object
-copy_string_new_id(const py::object &source) {
+copy_string_new_id(const py::object& source)
+{
     return source;
 }
 
-PyObject *
-copy_string_new_str_id(PyObject *source) {
+PyObject*
+copy_string_new_str_id(PyObject* source)
+{
     if (PyUnicode_CHECK_INTERNED(source) == SSTATE_NOT_INTERNED) {
         return source;
     }
@@ -63,27 +68,29 @@ copy_string_new_str_id(PyObject *source) {
     // Using this PyUnicode_New constructor, and the manual copy, we avoid any
     // iteration of contents too. And we also avoid any decoding process like
     // unicode_decode_utf8.
-    PyObject *newobj = PyUnicode_New(length, maxchar);
+    PyObject* newobj = PyUnicode_New(length, maxchar);
     memcpy(PyUnicode_DATA(newobj), PyUnicode_DATA(source), byte_length);
     Py_DECREF(source);
     return newobj;
 }
 
-void pyexport_string_utils(py::module &m) {
+void
+pyexport_string_utils(py::module& m)
+{
     m.def("copy_string_new_id",
-          py::overload_cast<const py::bytes &>(&copy_string_new_id),
+          py::overload_cast<const py::bytes&>(&copy_string_new_id),
           "s"_a,
           py::return_value_policy::move);
     m.def("copy_string_new_id",
-          py::overload_cast<const py::str &>(&copy_string_new_id),
+          py::overload_cast<const py::str&>(&copy_string_new_id),
           "s"_a,
           py::return_value_policy::move);
     m.def("copy_string_new_id",
-          py::overload_cast<const py::bytearray &>(&copy_string_new_id),
+          py::overload_cast<const py::bytearray&>(&copy_string_new_id),
           "s"_a,
           py::return_value_policy::move);
     m.def("copy_string_new_id",
-          py::overload_cast<const py::object &>(&copy_string_new_id),
+          py::overload_cast<const py::object&>(&copy_string_new_id),
           "s"_a,
           py::return_value_policy::move);
 }
