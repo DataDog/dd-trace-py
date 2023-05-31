@@ -45,27 +45,27 @@ class APIManager(Service):
     def enable(cls):
         # type: () -> None
         if cls._instance is not None:
-            log.debug("%s already enabled", cls.__name__)
+            log.info("%s already enabled", cls.__name__)
             return
 
-        log.debug("Enabling %s", cls.__name__)
+        log.info("Enabling %s", cls.__name__)
         metrics.enable()
         cls._instance = cls()
         cls._instance.start()
-        log.debug("%s enabled", cls.__name__)
+        log.info("%s enabled", cls.__name__)
 
     @classmethod
     def disable(cls):
         # type: () -> None
         if cls._instance is None:
-            log.debug("%s not enabled", cls.__name__)
+            log.info("%s not enabled", cls.__name__)
             return
 
-        log.debug("Disabling %s", cls.__name__)
+        log.info("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
         metrics.disable()
-        log.debug("%s disabled", cls.__name__)
+        log.info("%s disabled", cls.__name__)
 
     def __init__(self):
         # type: () -> None
@@ -79,7 +79,7 @@ class APIManager(Service):
         )
         self._rate_limiter_by_route = dict()  # type: Dict[str, RateLimiter]
 
-        log.debug("%s initialized", self.__class__.__name__)
+        log.info("%s initialized", self.__class__.__name__)
 
     def _stop_service(self):
         # type: () -> None
@@ -90,8 +90,6 @@ class APIManager(Service):
         add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, span):
-        if self._global_rate_limiter.limit() is RateLimitExceeded:
-            return False
         # Framework is not fully supported
         method = span._meta.get(http.METHOD)
         route = span._meta.get(http.ROUTE)
@@ -116,6 +114,9 @@ class APIManager(Service):
             return
         root = env.span._local_root or env.span
         if not root or not self._should_collect_schema(root):
+            return
+
+        if self._global_rate_limiter.limit() is RateLimitExceeded:
             return
 
         waf_content = env.waf_addresses
