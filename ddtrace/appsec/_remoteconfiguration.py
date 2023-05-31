@@ -55,7 +55,7 @@ def enable_appsec_rc(test_tracer=None):
     If environment variable `DD_APPSEC_ENABLED` is not set, register ASM_FEATURE which could enable ASM remotly. If
     it set to true, register the rest of products
 
-    Parameters `test_tracer` and `start_subscribers` are needed for testing proposes
+    Parameters `test_tracer` and `start_subscribers` are needed for testing purposes
     """
     # Import tracer here to avoid a circular import
     if test_tracer is None:
