@@ -184,9 +184,9 @@ def set_body_response(body_response):
     req_body = None
     try:
         # TODO handle charset
-        if content_type in ("application/json", "text/json"):
+        if "json" in content_type:
             req_body = json.loads(access_body(body_response))
-        elif content_type in ("application/xml", "text/xml"):
+        elif "xml" in content_type:
             req_body = xmltodict.parse(access_body(body_response))
         else:
             return
