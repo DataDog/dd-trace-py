@@ -1,18 +1,20 @@
 #include "Initializer.h"
 
-#include <iostream>// FIXME: debug, remove
+#include <iostream> // FIXME: debug, remove
 #include <mutex>
 #include <thread>
 
 using namespace std;
 using namespace pybind11::literals;
 
-thread_local struct ThreadContextCache_ {
+thread_local struct ThreadContextCache_
+{
     size_t tx_id = 0;
     shared_ptr<Context> local_ctx;
 } ThreadContextCache;
 
-Initializer::Initializer() {
+Initializer::Initializer()
+{
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
         available_taintedobjects_stack.push(new TaintedObject());
@@ -29,7 +31,9 @@ Initializer::Initializer() {
     }
 }
 
-void Initializer::load_modules() {
+void
+Initializer::load_modules()
+{
     pyfunc_get_python_lib = py::module::import("distutils.sysconfig").attr("get_python_lib");
 
     global_context = make_unique<GlobalContext>();
@@ -37,13 +41,15 @@ void Initializer::load_modules() {
     pytype_frame = pymod_types.attr("FrameType");
 }
 
-void Initializer::load_local_settings(bool allow_skip) {
+void
+Initializer::load_local_settings(bool allow_skip)
+{
     if (settings_loaded)
         return;
 
     try {
         settings_loaded = true;
-    } catch (py::error_already_set &e) {
+    } catch (py::error_already_set& e) {
         settings_loaded = false;
         if (!allow_skip) {
             throw;
@@ -51,14 +57,18 @@ void Initializer::load_local_settings(bool allow_skip) {
     }
 }
 
-void Initializer::get_paths() {
+void
+Initializer::get_paths()
+{
     stdlib_paths.insert(pyfunc_get_python_lib(false, true).cast<string>());
     stdlib_paths.insert(pyfunc_get_python_lib(true, true).cast<string>());
     site_package_paths.insert(pyfunc_get_python_lib(false, false).cast<string>());
     site_package_paths.insert(pyfunc_get_python_lib(true, false).cast<string>());
 }
 
-bool Initializer::get_taint_debug() {
+bool
+Initializer::get_taint_debug()
+{
     if (!settings_loaded) {
         // Load the settings, this time without allowing for errors
         load_local_settings(false);
@@ -67,25 +77,30 @@ bool Initializer::get_taint_debug() {
     return taint_debug;
 }
 
-void Initializer::set_taint_debug(bool taint_debug_) {
+void
+Initializer::set_taint_debug(bool taint_debug_)
+{
     this->taint_debug = taint_debug_;
 }
 
-TaintRangeMapType *
-Initializer::create_tainting_map() {
+TaintRangeMapType*
+Initializer::create_tainting_map()
+{
     auto map_ptr = new TaintRangeMapType();
     active_map_addreses.insert(map_ptr);
     return map_ptr;
 }
 
-void Initializer::free_tainting_map(TaintRangeMapType *tx_map) {
+void
+Initializer::free_tainting_map(TaintRangeMapType* tx_map)
+{
     auto it = active_map_addreses.find(tx_map);
     if (it == active_map_addreses.end()) {
         // Map wasn't in the set, do nothing
         return;
     }
 
-    for (auto &kv_taint_map: *tx_map) {
+    for (auto& kv_taint_map : *tx_map) {
         kv_taint_map.second->decref();
     }
     tx_map->clear();
@@ -94,26 +109,33 @@ void Initializer::free_tainting_map(TaintRangeMapType *tx_map) {
 }
 
 // User must check for nullptr return
-TaintRangeMapType *
-Initializer::get_tainting_map() {
-    return (TaintRangeMapType *) ThreadContextCache.tx_id;
+TaintRangeMapType*
+Initializer::get_tainting_map()
+{
+    return (TaintRangeMapType*)ThreadContextCache.tx_id;
 }
 
-void Initializer::clear_tainting_maps() {
+void
+Initializer::clear_tainting_maps()
+{
     // Need to copy because free_tainting_map changes the set inside the iteration
     auto map_addresses_copy = initializer->active_map_addreses;
-    for (auto map_ptr: map_addresses_copy) {
-        free_tainting_map((TaintRangeMapType *) map_ptr);
+    for (auto map_ptr : map_addresses_copy) {
+        free_tainting_map((TaintRangeMapType*)map_ptr);
     }
     active_map_addreses.clear();
 }
 
-void Initializer::reset_stdlib_paths_and_modules() {
+void
+Initializer::reset_stdlib_paths_and_modules()
+{
     this->stdlib_modules = this->stdlib_modules_orig;
     this->no_stdlib_modules.clear();
 }
 
-bool Initializer::get_propagation() {
+bool
+Initializer::get_propagation()
+{
     if (ThreadContextCache.tx_id == 0) {
         return false;
     }
@@ -122,9 +144,10 @@ bool Initializer::get_propagation() {
 }
 
 TaintedObjectPtr
-Initializer::allocate_tainted_object() {
+Initializer::allocate_tainted_object()
+{
     if (!available_taintedobjects_stack.empty()) {
-        const auto &toptr = available_taintedobjects_stack.top();
+        const auto& toptr = available_taintedobjects_stack.top();
         available_taintedobjects_stack.pop();
         return toptr;
     }
@@ -133,7 +156,9 @@ Initializer::allocate_tainted_object() {
     return new TaintedObject();
 }
 
-void Initializer::release_tainted_object(TaintedObjectPtr tobj) {
+void
+Initializer::release_tainted_object(TaintedObjectPtr tobj)
+{
     if (!tobj)
         return;
 
@@ -149,7 +174,8 @@ void Initializer::release_tainted_object(TaintedObjectPtr tobj) {
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(int start, int length, SourcePtr origin) {
+Initializer::allocate_taint_range(int start, int length, SourcePtr origin)
+{
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
         available_ranges_stack.pop();
@@ -161,7 +187,9 @@ Initializer::allocate_taint_range(int start, int length, SourcePtr origin) {
     return make_shared<TaintRange>(start, length, origin);
 }
 
-void Initializer::release_taint_range(TaintRangePtr rangeptr) {
+void
+Initializer::release_taint_range(TaintRangePtr rangeptr)
+{
     if (!rangeptr)
         return;
 
@@ -178,7 +206,8 @@ void Initializer::release_taint_range(TaintRangePtr rangeptr) {
 }
 
 SourcePtr
-Initializer::allocate_taint_source(string name, string value, OriginType origin) {
+Initializer::allocate_taint_source(string name, string value, OriginType origin)
+{
     auto source_hash = Source::hash(name, value, origin);
 
     auto it = allocated_sources_map.find(source_hash);
@@ -196,19 +225,20 @@ Initializer::allocate_taint_source(string name, string value, OriginType origin)
         available_source_stack.pop();
         toptr->set_values(move(name), move(value), origin);
         ++(toptr->refcount);
-        allocated_sources_map.insert({source_hash, toptr});
+        allocated_sources_map.insert({ source_hash, toptr });
         return toptr;
     }
 
     // Stack is empty, create a new object
     auto toptr = new Source(move(name), move(value), origin);
     ++(toptr->refcount);
-    allocated_sources_map.insert({source_hash, toptr});
+    allocated_sources_map.insert({ source_hash, toptr });
     return toptr;
 }
 
 SourcePtr
-Initializer::reuse_taint_source(SourcePtr source) {
+Initializer::reuse_taint_source(SourcePtr source)
+{
     if (!source)
         return nullptr;
 
@@ -216,7 +246,9 @@ Initializer::reuse_taint_source(SourcePtr source) {
     return source;
 }
 
-void Initializer::release_taint_source(SourcePtr sourceptr) {
+void
+Initializer::release_taint_source(SourcePtr sourceptr)
+{
     if (!sourceptr)
         return;
 
@@ -239,12 +271,13 @@ void Initializer::release_taint_source(SourcePtr sourceptr) {
     // else: still references to this origin exist so it remains in the map
 }
 
-recursive_mutex contexts_mutex;// NOLINT(cert-err58-cpp)
+recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)
 
 // TODO: also return the tx_id so it can be reused on aspects or calls
 // to get/set_ranges without accessing the ThreadLocal struct
 shared_ptr<Context>
-Initializer::create_context() {
+Initializer::create_context()
+{
     if (ThreadContextCache.tx_id != 0) {
         // Destroy the current context
         destroy_context();
@@ -252,24 +285,27 @@ Initializer::create_context() {
 
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
-    ThreadContextCache.tx_id = (size_t) map_ptr;
+    ThreadContextCache.tx_id = (size_t)map_ptr;
     auto ret_ctx = make_shared<Context>();
-    contexts[(size_t) map_ptr] = ret_ctx;
+    contexts[(size_t)map_ptr] = ret_ctx;
     ThreadContextCache.local_ctx = ret_ctx;
     return ret_ctx;
 }
 
-void Initializer::destroy_context() {
+void
+Initializer::destroy_context()
+{
     auto tx_id = ThreadContextCache.tx_id;
     ThreadContextCache.local_ctx.reset();
     ThreadContextCache.tx_id = 0;
     contexts[tx_id].reset();
     contexts.erase(tx_id);
-    free_tainting_map((TaintRangeMapType *) tx_id);
+    free_tainting_map((TaintRangeMapType*)tx_id);
 }
 
 shared_ptr<Context>
-Initializer::get_context(size_t tx_id_) {
+Initializer::get_context(size_t tx_id_)
+{
     if (tx_id_ == 0) {
         if (ThreadContextCache.tx_id == 0) {
             throw ContextNotInitializedException("Context is not created");
@@ -287,7 +323,7 @@ Initializer::get_context(size_t tx_id_) {
 
     // tx_id not  in the cache, search for it in the contexts map
     // ...but first check that the map exists
-    auto it = active_map_addreses.find((TaintRangeMapType *) ThreadContextCache.tx_id);
+    auto it = active_map_addreses.find((TaintRangeMapType*)ThreadContextCache.tx_id);
     if (it == active_map_addreses.end()) {
         throw ContextNotInitializedException("Context doesnt have available tainted map allocated");
     }
@@ -307,11 +343,14 @@ Initializer::get_context(size_t tx_id_) {
 }
 
 size_t
-Initializer::context_id() {
+Initializer::context_id()
+{
     return ThreadContextCache.tx_id;
 }
 
-void Initializer::contexts_reset() {
+void
+Initializer::contexts_reset()
+{
     //    lock_guard<recursive_mutex> lock(contexts_mutex);
     if (contexts[ThreadContextCache.tx_id]) {
         contexts[ThreadContextCache.tx_id]->reset_blocking_vulnerability_hashes();
@@ -328,7 +367,9 @@ void Initializer::contexts_reset() {
 // Created in the PYBIND11_MODULE in _native.cpp
 unique_ptr<Initializer> initializer;
 
-void pyexport_initializer(py::module &m) {
+void
+pyexport_initializer(py::module& m)
+{
     m.def("get_taint_debug", [] { return py::bool_(initializer->get_taint_debug()); });
 
     m.def("set_taint_debug", [](bool newvalue) { initializer->set_taint_debug(newvalue); });

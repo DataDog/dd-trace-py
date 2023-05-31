@@ -1,19 +1,21 @@
 #include "TaintedOps.h"
 #include <iostream>  // JJJ remove
 
-PyObject *bytes_join = NULL;
-PyObject *bytearray_join = NULL;
-PyObject *empty_bytes = NULL;
-PyObject *empty_bytearray = NULL;
-PyObject *empty_unicode = NULL;
+PyObject* bytes_join = NULL;
+PyObject* bytearray_join = NULL;
+PyObject* empty_bytes = NULL;
+PyObject* empty_bytearray = NULL;
+PyObject* empty_unicode = NULL;
 
-typedef struct _PyASCIIObject_State_Hidden {
+typedef struct _PyASCIIObject_State_Hidden
+{
     unsigned int : 8;
     unsigned int hidden : 24;
 } PyASCIIObject_State_Hidden;
 
-PyObject *
-setup(PyObject *Py_UNUSED(module), PyObject *args) {
+PyObject*
+setup(PyObject* Py_UNUSED(module), PyObject* args)
+{
     PyArg_ParseTuple(args, "OO", &bytes_join, &bytearray_join);
     empty_bytes = PyBytes_FromString("");
     empty_bytearray = PyByteArray_FromObject(empty_bytes);
@@ -21,8 +23,9 @@ setup(PyObject *Py_UNUSED(module), PyObject *args) {
     Py_RETURN_NONE;
 }
 
-PyObject *
-new_pyobject_id(PyObject *tainted_object, Py_ssize_t object_length) {
+PyObject*
+new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
+{
     if (PyUnicode_Check(tainted_object)) {
         //        if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { //
         //        SSTATE_NOT_INTERNED
@@ -35,35 +38,39 @@ new_pyobject_id(PyObject *tainted_object, Py_ssize_t object_length) {
     if (PyBytes_Check(tainted_object)) {
         cerr << "JJJ 2\n";
         return PyObject_CallFunctionObjArgs(
-                bytes_join, empty_bytes, Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
+          bytes_join, empty_bytes, Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
     } else if (PyByteArray_Check(tainted_object)) {
         cerr << "JJJ 3\n";
         return PyObject_CallFunctionObjArgs(
-                bytearray_join, empty_bytearray, Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
+          bytearray_join, empty_bytearray, Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
     }
     cerr << "JJJ 4\n";
     return tainted_object;
 }
 
-PyObject *
-api_new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args) {
-    PyObject *tainted_object;
+PyObject*
+api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args)
+{
+    PyObject* tainted_object;
     Py_ssize_t object_length;
     PyArg_ParseTuple(args, "On", &tainted_object, &object_length);
     return new_pyobject_id(tainted_object, object_length);
 }
 
-bool is_tainted(PyObject *tainted_object, TaintRangeMapType *tx_taint_map) {
-    const auto &to_initial = get_tainted_object(tainted_object, tx_taint_map);
+bool
+is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map)
+{
+    const auto& to_initial = get_tainted_object(tainted_object, tx_taint_map);
     if (to_initial and to_initial->get_ranges().size()) {
         return true;
     }
     return false;
 }
 
-PyObject *
-api_is_tainted(PyObject *Py_UNUSED(module), PyObject *args) {
-    PyObject *tainted_object;
+PyObject*
+api_is_tainted(PyObject* Py_UNUSED(module), PyObject* args)
+{
+    PyObject* tainted_object;
     PyArg_ParseTuple(args, "O", &tainted_object);
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {

@@ -15,44 +15,47 @@
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
 
-#define PY_MODULE_NAME_ASPECTS \
-    PY_MODULE_NAME "."         \
+#define PY_MODULE_NAME_ASPECTS                                                                                         \
+    PY_MODULE_NAME "."                                                                                                 \
                    "aspects"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
 
 static PyMethodDef AspectsMethods[] = {
-        // We are using  METH_VARARGS because we need compatibility with
-        // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
-        // >= 3.7
-        {"add_aspect", ((PyCFunction) api_add_aspect), METH_FASTCALL, "aspect add"},
-        {"join_aspect", ((PyCFunction) api_join_aspect), METH_FASTCALL, "aspect add"},
-        {"extend_aspect", ((PyCFunction) api_extend_aspect), METH_FASTCALL, "aspect extend"},
-        {nullptr, nullptr, 0, nullptr}};
+    // We are using  METH_VARARGS because we need compatibility with
+    // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
+    // >= 3.7
+    { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
+    { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect add" },
+    { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
+    { nullptr, nullptr, 0, nullptr }
+};
 
-static struct PyModuleDef aspects = {PyModuleDef_HEAD_INIT,
-                                     .m_name = PY_MODULE_NAME_ASPECTS,
-                                     .m_doc = "Taint tracking Aspects",
-                                     .m_size = -1,
-                                     .m_methods = AspectsMethods};
+static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
+                                      .m_name = PY_MODULE_NAME_ASPECTS,
+                                      .m_doc = "Taint tracking Aspects",
+                                      .m_size = -1,
+                                      .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
-        // We are using  METH_VARARGS because we need compatibility with
-        // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
-        // >= 3.7
-        {"setup", (PyCFunction) setup, METH_VARARGS, "setup tainting module"},
-        {"new_pyobject_id", (PyCFunction) api_new_pyobject_id, METH_VARARGS, "new pyobject id"},
-        {"is_tainted", (PyCFunction) api_is_tainted, METH_VARARGS, "Check Python object is tainted"},
-        {nullptr, nullptr, 0, nullptr}};
+    // We are using  METH_VARARGS because we need compatibility with
+    // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
+    // >= 3.7
+    { "setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module" },
+    { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
+    { "is_tainted", (PyCFunction)api_is_tainted, METH_VARARGS, "Check Python object is tainted" },
+    { nullptr, nullptr, 0, nullptr }
+};
 
-static struct PyModuleDef ops = {PyModuleDef_HEAD_INIT,
-                                 .m_name = PY_MODULE_NAME_ASPECTS,
-                                 .m_doc = "Taint tracking operations",
-                                 .m_size = -1,
-                                 .m_methods = OpsMethods};
+static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
+                                  .m_name = PY_MODULE_NAME_ASPECTS,
+                                  .m_doc = "Taint tracking operations",
+                                  .m_size = -1,
+                                  .m_methods = OpsMethods };
 
-PYBIND11_MODULE(_native, m) {
+PYBIND11_MODULE(_native, m)
+{
     initializer = make_unique<Initializer>();
     initializer->load_modules();
     initializer->load_local_settings(true);
@@ -74,9 +77,9 @@ PYBIND11_MODULE(_native, m) {
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
     // classes inheriting from it.
-    PyObject *hm_aspects = PyModule_Create(&aspects);
+    PyObject* hm_aspects = PyModule_Create(&aspects);
     m.add_object("aspects", hm_aspects);
 
-    PyObject *hm_ops = PyModule_Create(&ops);
+    PyObject* hm_ops = PyModule_Create(&ops);
     m.add_object("ops", hm_ops);
 }
