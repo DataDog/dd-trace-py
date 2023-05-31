@@ -1,10 +1,9 @@
 import contextlib
 import json
 import os
-from typing import Iterable
+from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace import config
 from ddtrace.internal import compat
@@ -18,7 +17,6 @@ log = get_logger(__name__)
 try:
     from coverage import Coverage
     from coverage import version_info as coverage_version
-    from coverage.numbits import numbits_to_nums
 
     # this public attribute became private after coverage==6.3
     EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
@@ -41,6 +39,12 @@ def enabled():
     return False
 
 
+def segments(lines):
+    minimum = min(lines)
+    maximum = max(lines)
+    return [minimum, 0, maximum, 0, -1]
+
+
 @contextlib.contextmanager
 def cover(span, root=None, **kwargs):
     """Calculates code coverage on the given span and saves it as a tag"""
@@ -60,8 +64,10 @@ def cover(span, root=None, **kwargs):
 
 
 def _lines(coverage, context):
+    # type: (Coverage, Optional[str]) -> Dict[str, List[List[int]]]
+    assert coverage._collector and coverage._collector.data
     data = coverage._collector.data
-    return {row[0]: row[1] for row in data if "site-packages" not in row[0]}
+    return {row[0]: [segments(row[1])] for row in data if "site-packages" not in row[0]}
 
 
 def build_payload(coverage, test_id=None, root=None):
@@ -97,7 +103,7 @@ def build_payload(coverage, test_id=None, root=None):
             "files": [
                 {
                     "filename": os.path.relpath(filename, root) if root is not None else filename,
-                    "segments": segments(lines),
+                    "segments": lines,
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]
