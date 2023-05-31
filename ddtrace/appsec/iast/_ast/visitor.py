@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-
 from _ast import Expr
 from _ast import ImportFrom
 import ast
 import sys
 from typing import Any
+
 from six import iteritems
 
 
@@ -114,9 +113,7 @@ class AstVisitor(ast.NodeTransformer):
         if PY27_37 and isinstance(node, ast.Num):
             return True
 
-        if PY38_PLUS and (
-            isinstance(node, ast.Constant) and isinstance(node.value, (int, float))  # type: ignore[name-defined]
-        ):
+        if PY38_PLUS and (isinstance(node, ast.Constant) and isinstance(node.value, (int, float))):
             return True
 
         return False

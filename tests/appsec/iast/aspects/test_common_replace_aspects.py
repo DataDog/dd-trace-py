@@ -129,6 +129,7 @@ _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
 )
 def test_common_replace_aspects(input_str, output_str, mod_function, check_ranges):
     from ddtrace.appsec.iast._taint_tracking import setup
+
     setup(bytes.join, bytearray.join)
 
     assert not get_tainted_ranges(input_str)
