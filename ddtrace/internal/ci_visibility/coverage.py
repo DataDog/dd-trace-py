@@ -44,7 +44,7 @@ def enabled():
 
 def segments(lines):
     _segments = []
-    for key, group in groupby(enumerate(lines), lambda x: x[1] - x[0]):
+    for key, group in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
         group = list(group)
         start = group[0][1]
         end = group[-1][1]
