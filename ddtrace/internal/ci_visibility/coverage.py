@@ -85,7 +85,9 @@ def cover(span):
 
 def _lines(coverage, context):
     # type: (Coverage, Optional[str]) -> Dict[str, List[List[int]]]
-    assert coverage._collector and coverage._collector.data
+    if not coverage._collector or not coverage._collector.data:
+        return {}
+
     data = cast(Dict[str, Set[int]], coverage._collector.data)
     return {
         filename: segments(lines_covered) for filename, lines_covered in data.items() if "site-packages" not in filename
