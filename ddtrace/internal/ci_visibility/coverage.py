@@ -1,9 +1,12 @@
 import contextlib
+from itertools import groupby
 import json
 import os
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
+from typing import cast
 
 from ddtrace import config
 from ddtrace.internal import compat
@@ -40,9 +43,14 @@ def enabled():
 
 
 def segments(lines):
-    minimum = min(lines)
-    maximum = max(lines)
-    return [minimum, 0, maximum, 0, -1]
+    _segments = []
+    for key, group in groupby(enumerate(lines), lambda x: x[1] - x[0]):
+        group = list(group)
+        start = group[0][1]
+        end = group[-1][1]
+        _segments.append([start, 0, end, 0, -1])
+
+    return _segments
 
 
 @contextlib.contextmanager
@@ -66,8 +74,10 @@ def cover(span, root=None, **kwargs):
 def _lines(coverage, context):
     # type: (Coverage, Optional[str]) -> Dict[str, List[List[int]]]
     assert coverage._collector and coverage._collector.data
-    data = coverage._collector.data
-    return {row[0]: [segments(row[1])] for row in data if "site-packages" not in row[0]}
+    data = cast(Dict[str, Set[int]], coverage._collector.data)
+    return {
+        filename: segments(lines_covered) for filename, lines_covered in data.items() if "site-packages" not in filename
+    }
 
 
 def build_payload(coverage, test_id=None, root=None):
