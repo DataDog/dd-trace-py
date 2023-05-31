@@ -80,6 +80,7 @@ def cover(span):
     COV.stop()
     span.set_tag(COVERAGE_TAG_NAME, build_payload(COV, test_id=test_id))
     COV._collector._clear_data()
+    COV._collector.data.clear()
 
 
 def _lines(coverage, context):
