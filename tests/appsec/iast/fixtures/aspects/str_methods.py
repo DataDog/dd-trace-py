@@ -822,21 +822,41 @@ def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
     return template.format_map(mapping)
 
 
-def do_join(s, iterable):  # type: (str, Iterable) -> str
+def do_join(s, iterable):
+    # type: (str, Iterable) -> str
     return s.join(iterable)
 
 
-def get_generator_string(mystring):  # type: (str) -> str
-    mystring = mystring.title()
-    return "".join(mystring for _ in ["1", "2", "3"])
+def do_join_tuple(mystring):  # type: (str) -> str
+    mystring = mystring
+    gen = tuple(mystring + _ for _ in ["1", "2", "3"])
+    return "".join(gen)
 
 
-def get_generator_string_2(mystring):  # type: (str) -> str
+def do_join_set(mystring):  # type: (str) -> str
+    mystring = mystring
+    gen = {mystring + _ for _ in ["1", "2", "3"]}
+    return "".join(gen)
+
+
+def do_join_generator(mystring):  # type: (str) -> str
+    mystring = mystring
+    gen = (mystring for _ in ["1", "2", "3"])
+    return "".join(gen)
+
+
+def do_join_generator_2(mystring):  # type: (str) -> str
     def parts():  # type: () -> Generator
         for i in ["x", "y", "z"]:
             yield i
 
     return mystring.join(parts())
+
+
+def do_join_generator_and_title(mystring):  # type: (str) -> str
+    mystring = mystring.title()
+    gen = (mystring for _ in ["1", "2", "3"])
+    return "".join(gen)
 
 
 def do_modulo(template, parameter):  # type: (Text, Any) -> Text

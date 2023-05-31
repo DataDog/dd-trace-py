@@ -46,7 +46,7 @@ __all__ = [
     "get_range_by_hash",
     "is_notinterned_notfasttainted_unicode",
     "set_fast_tainted_if_notinterned_unicode",
-    "aspect_helpers"
+    "aspect_helpers",
 ]
 
 
@@ -69,7 +69,6 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
 
 
 def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: (Any, Source) -> Any
-    print("JJJ pyobject: %s" % pyobject)
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -81,10 +80,9 @@ def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: 
         return pyobject
     if len_pyobject is None:
         len_pyobject = len(pyobject)
-    print("JJJ pyobject2: %s" % pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
 
-    set_ranges(pyobject, [TaintRange(start, len(pyobject), source)])
+    set_ranges(pyobject, [TaintRange(start, len_pyobject, source)])
     return pyobject
 
 
