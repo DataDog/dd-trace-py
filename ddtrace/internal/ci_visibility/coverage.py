@@ -28,7 +28,11 @@ except ImportError:
     EXECUTE_ATTR = ""
 
 
-def enabled():
+COV = None
+ROOT = None
+
+
+def enabled(root=None):
     if config._ci_visibility_code_coverage_enabled:
         if compat.PY2:
             return False
@@ -38,6 +42,19 @@ def enabled():
                 "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
             )
             return False
+        if root:
+            global COV
+            global ROOT
+            if ROOT is None:
+                ROOT = root
+            if COV is None:
+                coverage_kwargs = {
+                    "data_file": None,
+                    "source": [ROOT] if ROOT else None,
+                    "config_file": False,
+                }
+                # coverage_kwargs.update(kwargs)
+                COV = Coverage(**coverage_kwargs)
         return True
     return False
 
@@ -54,21 +71,15 @@ def segments(lines):
 
 
 @contextlib.contextmanager
-def cover(span, root=None, **kwargs):
+def cover(span):
     """Calculates code coverage on the given span and saves it as a tag"""
-    coverage_kwargs = {
-        "data_file": None,
-        "source": [root] if root else None,
-        "config_file": False,
-    }
-    coverage_kwargs.update(kwargs)
-    cov = Coverage(**coverage_kwargs)
-    cov.start()
+    COV.start()
     test_id = str(span.trace_id)
-    cov.switch_context(test_id)
-    yield cov
-    cov.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
+    COV
+    yield COV
+    COV.stop()
+    span.set_tag(COVERAGE_TAG_NAME, build_payload(COV, test_id=test_id))
+    COV._collector._clear_data()
 
 
 def _lines(coverage, context):
@@ -80,8 +91,8 @@ def _lines(coverage, context):
     }
 
 
-def build_payload(coverage, test_id=None, root=None):
-    # type: (Coverage, Optional[str], Optional[str]) -> str
+def build_payload(coverage, test_id=None):
+    # type: (Coverage, Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -112,12 +123,12 @@ def build_payload(coverage, test_id=None, root=None):
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                    "filename": os.path.relpath(filename, ROOT) if ROOT is not None else filename,
                     "segments": lines,
                 }
                 if lines
                 else {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                    "filename": os.path.relpath(filename, ROOT) if ROOT is not None else filename,
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]

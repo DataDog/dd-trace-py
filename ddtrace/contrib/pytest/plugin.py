@@ -384,10 +384,10 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if coverage_enabled():
+        if coverage_enabled(str(item.config.rootdir)):
             from ddtrace.internal.ci_visibility.coverage import cover
 
-            with cover(span, root=str(item.config.rootdir)):
+            with cover(span):
                 yield
         else:
             yield
