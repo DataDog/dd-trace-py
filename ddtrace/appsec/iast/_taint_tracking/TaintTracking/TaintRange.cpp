@@ -249,6 +249,8 @@ void set_tainted_object(PyObject *str, TaintedObjectPtr tainted_object,
   tx_taint_map->insert({hash, tainted_object});
 }
 
+// OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
+// using the C API directly.
 void pyexport_taintrange(py::module &m) {
   m.def("is_notinterned_notfasttainted_unicode",
         py::overload_cast<const PyObject *>(
@@ -264,7 +266,7 @@ void pyexport_taintrange(py::module &m) {
   m.def("set_fast_tainted_if_notinterned_unicode",
         &api_set_fast_tainted_if_unicode, "text"_a);
 
-  // TODO OPT: check all the py::return_value_policy
+  // TODO: check all the py::return_value_policy
   m.def("are_all_text_all_ranges", &are_all_text_all_ranges, "candidate_text"_a,
         "parameter_list"_a, py::return_value_policy::move);
   m.def("are_all_text_all_ranges", &api_are_all_text_all_ranges,

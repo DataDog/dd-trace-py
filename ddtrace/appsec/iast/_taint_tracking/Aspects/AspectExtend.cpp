@@ -1,6 +1,5 @@
 #include "AspectExtend.h"
 #include "Initializer/Initializer.h"
-#include <iostream> // FIXME: remove
 
 PyObject *api_extend_aspect(PyObject *self, PyObject *const *args,
                             Py_ssize_t nargs) {
@@ -20,7 +19,7 @@ PyObject *api_extend_aspect(PyObject *self, PyObject *const *args,
         return nullptr;
     }
     auto method_name = PyUnicode_FromString("extend");
-    PyObject_CallMethodOneArg(candidate_text, method_name, to_add);
+    PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
     Py_DecRef(method_name);  // TODO: check if right
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {

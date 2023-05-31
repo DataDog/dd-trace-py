@@ -4,6 +4,7 @@
 #include "Aspects/AspectExtend.h"
 #include "Aspects/AspectJoin.h"
 #include "Aspects/AspectOperatorAdd.h"
+#include "Aspects/_aspects_helpers.h"
 #include "Constants.h"
 #include "Context/_context.h"
 #include "Exceptions/_exceptions.h"
@@ -69,6 +70,7 @@ PYBIND11_MODULE(_native, m) {
   pyexport_m_taint_tracking(m);
   pyexport_m_context(m);
   pyexport_m_exceptions(m, m_initializer);
+  pyexport_m_aspect_helpers(m);
 
   // Note: the order of these definitions matter. For example,
   // stacktrace_element definitions must be before the ones of the
