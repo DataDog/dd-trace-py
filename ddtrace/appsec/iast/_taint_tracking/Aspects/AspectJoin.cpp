@@ -86,7 +86,7 @@ api_join_aspect(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     PyObject *sep = args[0];
     PyObject *arg0 = args[1];
 
-    if (PyIter_Check(arg0) or PyAIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
+    if (PyIter_Check(arg0) or PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject *iterator = PyObject_GetIter(arg0);
 
         if (iterator != NULL) {
@@ -105,7 +105,7 @@ api_join_aspect(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
         py::bytes result_ptr = py::reinterpret_borrow<py::bytes>(py::reinterpret_borrow<py::object>(sep))
                                        .attr("join")(py::reinterpret_borrow<py::object>(arg0));
         result = result_ptr.ptr();
-        ./ Py_INCREF(result);
+        Py_INCREF(result);
     } else if (PyByteArray_Check(sep)) {
         py::bytearray result_ptr = py::reinterpret_borrow<py::bytearray>(py::reinterpret_borrow<py::object>(sep))
                                            .attr("join")(py::reinterpret_borrow<py::object>(arg0));

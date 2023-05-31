@@ -1,4 +1,5 @@
 #include "TaintedOps.h"
+#include <iostream>  // JJJ remove
 
 PyObject *bytes_join = NULL;
 PyObject *bytearray_join = NULL;
@@ -28,15 +29,19 @@ new_pyobject_id(PyObject *tainted_object, Py_ssize_t object_length) {
         //            Py_INCREF(tainted_object);
         //            return tainted_object;
         //        }
+        cerr << "JJJ 1\n";
         return PyUnicode_Join(empty_unicode, Py_BuildValue("(OO)", tainted_object, empty_unicode));
     }
     if (PyBytes_Check(tainted_object)) {
+        cerr << "JJJ 2\n";
         return PyObject_CallFunctionObjArgs(
                 bytes_join, empty_bytes, Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
     } else if (PyByteArray_Check(tainted_object)) {
+        cerr << "JJJ 3\n";
         return PyObject_CallFunctionObjArgs(
                 bytearray_join, empty_bytearray, Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
     }
+    cerr << "JJJ 4\n";
     return tainted_object;
 }
 
