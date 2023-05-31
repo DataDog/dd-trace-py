@@ -80,7 +80,7 @@ def do_upper_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def upper(string):  # type: (str) -> str
-            return string + "upper"
+            return "output"
 
     my_str = MyStr()
     return my_str.upper(s)
@@ -90,7 +90,7 @@ def do_lower_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def lower(string):  # type: (str) -> str
-            return string + "lower"
+            return "output"
 
     my_str = MyStr()
     return my_str.lower(s)
@@ -104,7 +104,7 @@ def do_swapcase_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def swapcase(string):  # type: (str) -> str
-            return string + "swapcase"
+            return "output"
 
     my_str = MyStr()
     return my_str.swapcase(s)
@@ -118,7 +118,7 @@ def do_title_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def title(string):  # type: (str) -> str
-            return string + "title"
+            return "output"
 
     my_str = MyStr()
     return my_str.title(s)
@@ -132,7 +132,7 @@ def do_capitalize_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def capitalize(string):  # type: (str) -> str
-            return string + "capitalize"
+            return "output"
 
     my_str = MyStr()
     return my_str.capitalize(s)
@@ -220,7 +220,7 @@ def do_encode_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def encode(string):  # type: (str) -> str
-            return string + "encode"
+            return "output"
 
     my_str = MyStr()
     return my_str.encode(s)
@@ -234,7 +234,7 @@ def do_expandtabs_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def expandtabs(string):  # type: (str) -> str
-            return string + "expandtabs"
+            return "output"
 
     my_str = MyStr()
     return my_str.expandtabs(s)
@@ -248,7 +248,7 @@ def do_casefold_not_str(s):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def casefold(string):  # type: (str) -> str
-            return string + "swapcase"
+            return "output"
 
     my_str = MyStr()
     return my_str.casefold(s)
@@ -262,7 +262,7 @@ def do_center_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def center(string):  # type: (str) -> str
-            return string + "center"
+            return "output"
 
     my_str = MyStr()
     return my_str.center(c)
@@ -272,7 +272,7 @@ def do_ljust_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def ljust(string1, string2):  # type: (str, str) -> str
-            return string1 + string2 + "ljust"
+            return "output"
 
     my_str = MyStr()
     return my_str.ljust(c, c)
@@ -290,7 +290,7 @@ def do_lstrip_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def lstrip(string1, string2):  # type: (str, str) -> str
-            return string1 + string2 + "lstrip"
+            return "output"
 
     my_str = MyStr()
     return my_str.lstrip(c, c)
@@ -304,7 +304,7 @@ def do_rstrip_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def rstrip(string1, string2):  # type: (str, str) -> str
-            return string1 + string2 + "rstrip"
+            return "output"
 
     my_str = MyStr()
     return my_str.rstrip(c, c)
@@ -314,7 +314,7 @@ def do_split_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def split(string1, string2, string3):  # type: (str, str, str) -> str
-            return string1 + string2 + string3 + "split"
+            return "output"
 
     my_str = MyStr()
     return my_str.split(c, c, c)
@@ -324,7 +324,7 @@ def do_rsplit_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def rsplit(string1, string2, string3):  # type: (str, str, str) -> str
-            return string1 + string2 + string3 + "rsplit"
+            return "output"
 
     my_str = MyStr()
     return my_str.rsplit(c, c, c)
@@ -334,7 +334,7 @@ def do_splitlines_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def splitlines(string1, string2, string3):  # type: (str, str, str) -> str
-            return string1 + string2 + string3 + "splitlines"
+            return "output"
 
     my_str = MyStr()
     return my_str.splitlines(c, c, c)
@@ -344,7 +344,7 @@ def do_partition_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def partition(string1, string2, string3):  # type: (str, str, str) -> str
-            return string1 + string2 + string3 + "partition"
+            return "output"
 
     my_str = MyStr()
     return my_str.partition(c, c, c)
@@ -354,7 +354,7 @@ def do_rpartition_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def rpartition(string1, string2, string3):  # type: (str, str, str) -> str
-            return string1 + string2 + string3 + "rpartition"
+            return "output"
 
     my_str = MyStr()
     return my_str.rpartition(c, c, c)
@@ -364,7 +364,7 @@ def do_replace_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def replace(string1):  # type: (str) -> str
-            return string1 + "replace"
+            return "output"
 
     my_str = MyStr()
     return my_str.replace(c)
@@ -374,7 +374,7 @@ def do_format_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def format(string1):  # type: (str) -> str
-            return string1 + "format"
+            return "output"
 
     my_str = MyStr()
     return my_str.format(c)
@@ -384,7 +384,7 @@ def do_format_map_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def format_map(string1):  # type: (str) -> str
-            return string1 + "format_map"
+            return "output"
 
     my_str = MyStr()
     return my_str.format_map(c)
@@ -394,7 +394,7 @@ def do_zfill_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
         def zfill(string1):  # type: (str) -> str
-            return string1 + "zfill"
+            return "output"
 
     my_str = MyStr()
     return my_str.zfill(c)

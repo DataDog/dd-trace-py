@@ -34,7 +34,7 @@ __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect
 
 
 def add_aspect(op1, op2):
-    if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES):
+    if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES) or type(op1) != type(op2):
         return op1 + op2
     return _add_aspect(op1, op2)
 
@@ -287,39 +287,39 @@ def upper_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> s
 
 def lower_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.lower(*args, **kwargs)
 
     return common_replace('lower', candidate_text, *args, **kwargs)
 
 
 def swapcase_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.swapcase(*args, **kwargs)
 
     return common_replace('swapcase', candidate_text, *args, **kwargs)
 
 
 def title_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.title(*args, **kwargs)
 
     return common_replace('title', candidate_text, *args, **kwargs)
 
 
 def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.capitalize(*args, **kwargs)
 
     return common_replace('capitalize', candidate_text, *args, **kwargs)
 
 
 def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.casefold(*args, **kwargs)
     return common_replace('casefold', candidate_text, *args, **kwargs)
 
 
 def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.upper(*args, **kwargs)
+        return candidate_text.translate(*args, **kwargs)
     return common_replace('translate', candidate_text, *args, **kwargs)
