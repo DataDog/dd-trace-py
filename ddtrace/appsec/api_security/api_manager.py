@@ -118,8 +118,8 @@ class APIManager(Service):
 
         root._metrics["_dd.appsec.api_security.enabled"] = 1.0
 
-        if not self._should_collect_schema(root) or self._global_rate_limiter.limit() is RateLimitExceeded:
-            return
+        # if not self._should_collect_schema(root) or self._global_rate_limiter.limit() is RateLimitExceeded:
+        #     return
 
         waf_content = env.waf_addresses
         for address, meta_name, transform in self.COLLECTED:
