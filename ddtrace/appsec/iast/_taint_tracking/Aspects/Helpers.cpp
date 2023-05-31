@@ -25,7 +25,7 @@ StrType common_replace(const py::str& string_method,
 #pragma ide diagnostic ignored "misc-no-recursion"
 
 void pyexport_aspect_helpers(py::module& m) {
-    m.def("_common_replace", &common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("_common_replace", &common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("_common_replace", &common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &common_replace<py::str>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
 }

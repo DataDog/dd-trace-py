@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from typing import Union
 
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native import aspect_helpers
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
     Source,
     OriginType,
@@ -45,6 +46,7 @@ __all__ = [
     "get_range_by_hash",
     "is_notinterned_notfasttainted_unicode",
     "set_fast_tainted_if_notinterned_unicode",
+    "aspect_helpers"
 ]
 
 
