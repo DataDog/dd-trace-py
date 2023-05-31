@@ -8,6 +8,9 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
+// Calls the specified method and applies the same ranges to the result. Used
+// for wrapping simple methods that doesn't change the string size like upper(),
+// lower() and similar.
 template <class StrType>
 StrType common_replace(const py::str& string_method,
                        const StrType& candidate_text,
