@@ -11,6 +11,7 @@ import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._remoteconfiguration import RCAppSecCallBack
 from ddtrace.appsec._remoteconfiguration import RCAppSecFeaturesCallBack
@@ -139,8 +140,16 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
         assert _appsec_rc_capabilities(test_tracer=tracer) == capability
 
 
-def test_rc_activation_capabilities(tracer, remote_config_worker):
+@pytest.mark.parametrize(
+    "env_rules, expected",
+    [
+        ({}, "Af4="),  # All capabilities
+        ({"DD_APPSEC_RULES": DEFAULT.RULES}, "Ag=="),  # Only ASM_FEATURES
+    ],
+)
+def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
     env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    env.update(env_rules)
     with override_env(env), override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
         rc_config = {"asm": {"enabled": True}}
 
@@ -148,7 +157,7 @@ def test_rc_activation_capabilities(tracer, remote_config_worker):
 
         RCAppSecFeaturesCallBack(tracer)(None, rc_config)
 
-        assert _appsec_rc_capabilities(test_tracer=tracer) == "Af4="  # All capabilities
+        assert _appsec_rc_capabilities(test_tracer=tracer) == expected
 
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):
@@ -162,13 +171,24 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
         assert RemoteConfig._worker._client._products["ASM_DATA"]
 
 
-def test_rc_activation_check_asm_features_product_disables_rest_of_products(tracer, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+@pytest.mark.parametrize(
+    "env_rules, expected",
+    [
+        ({}, True),  # All capabilities
+        ({"DD_APPSEC_RULES": DEFAULT.RULES}, False),  # Only ASM_FEATURES
+    ],
+)
+def test_rc_activation_check_asm_features_product_disables_rest_of_products(
+    tracer, remote_config_worker, env_rules, expected
+):
+    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+    env.update(env_rules)
+    with override_env(env), override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
-        assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_DATA)
-        assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM)
+        assert bool(RemoteConfig._worker._client._products.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(RemoteConfig._worker._client._products.get(PRODUCTS.ASM)) is expected
         assert RemoteConfig._worker._client._products.get(PRODUCTS.ASM_FEATURES)
 
         RCAppSecFeaturesCallBack(tracer)(None, False)
