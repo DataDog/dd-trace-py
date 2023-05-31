@@ -52,7 +52,7 @@ def enable_appsec_rc(test_tracer=None):
     - ASM_DD product - To allow the library to receive rules updates
     - ASM_DATA product - To allow the library to receive list of blocked IPs and users
 
-    If environment variable `DD_APPSEC_ENABLED` is not set, register ASM_FEATURE which could enable ASM remotly. If
+    If environment variable `DD_APPSEC_ENABLED` is not set, registering ASM_FEATURE can enable ASM remotely. If
     it's set to true, we will register the rest of the products.
 
     Parameters `test_tracer` and `start_subscribers` are needed for testing purposes
