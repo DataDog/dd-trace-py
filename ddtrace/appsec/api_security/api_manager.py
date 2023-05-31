@@ -36,7 +36,7 @@ class APIManager(Service):
         (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.schema.res.headers", dict),
         (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.schema.res.body", None),
     ]
-    GLOBAL_RATE_LIMIT = 10.0  # requests per seconds
+    GLOBAL_RATE_LIMIT = 50.0  # requests per seconds
     INTERVAL_PER_ROUTE = 15.0  # seconds between requests
 
     _instance = None  # type: Optional[APIManager]
