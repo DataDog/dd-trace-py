@@ -1,5 +1,6 @@
 #ifndef _NATIVE_ASPECTOPERATORADD_H
 #define _NATIVE_ASPECTOPERATORADD_H
+#include "Aspects/Helpers.h"
 #include "Initializer/Initializer.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"

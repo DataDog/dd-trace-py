@@ -51,7 +51,7 @@ def str_aspect(*args, **kwargs):
 
 def join_aspect(joiner, *args, **kwargs):
     # type: (Any, Any) -> Any
-    if not isinstance(joiner, TEXT_TYPES) or not isinstance(joiner, TEXT_TYPES):
+    if not isinstance(joiner, TEXT_TYPES):
         return joiner.join(*args, **kwargs)
     return _join_aspect(joiner, *args, **kwargs)
 

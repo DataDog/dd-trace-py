@@ -36,7 +36,8 @@
 /**
  * get_file_and_line
  *
- * Get the filename (path + filename) and line number of the original wrapped function to report it.
+ * Get the filename (path + filename) and line number of the original wrapped
+ *function to report it.
  *
  * @return Tuple, string and integer.
  **/
