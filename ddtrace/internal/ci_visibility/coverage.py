@@ -115,6 +115,10 @@ def build_payload(coverage, test_id=None, root=None):
                     "filename": os.path.relpath(filename, root) if root is not None else filename,
                     "segments": lines,
                 }
+                if lines
+                else {
+                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                }
                 for filename, lines in _lines(coverage, test_id).items()
             ]
         }
