@@ -113,10 +113,12 @@ class APIManager(Service):
         if env.span is None:
             return
         root = env.span._local_root or env.span
-        if not root or not self._should_collect_schema(root):
+        if not root:
             return
 
-        if self._global_rate_limiter.limit() is RateLimitExceeded:
+        root._metrics["_dd.appsec.api_security.enabled"] = 1.0
+
+        if not self._should_collect_schema(root) or self._global_rate_limiter.limit() is RateLimitExceeded:
             return
 
         waf_content = env.waf_addresses
