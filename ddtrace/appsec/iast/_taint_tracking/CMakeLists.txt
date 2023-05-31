@@ -12,15 +12,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(ABSL_PROPAGATE_CXX_STD ON)
 
-add_compile_options(-fPIC -fexceptions -fvisibility=hidden -pthread -Wall -Wno-unknown-pragmas)
-
 # For release modes: switch off assertions (more risky but faster). Compiler: -DNDEBUG
 add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
-
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
-add_compile_options(-U_FORTIFY_SOURCE)
+add_compile_options(-fPIC -fexceptions -fvisibility=hidden -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
 add_link_options(-ldl -static-libgcc -static-libstdc++)
 
@@ -31,7 +28,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(absl)
 
 include_directories(".")
-# get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
+
 file(GLOB SOURCE_FILES "*.cpp"
         "Aspects/*.cpp"
         "Context/*.cpp"
@@ -49,9 +46,14 @@ file(GLOB HEADER_FILES "*.h"
         "TaintTracking/*.h"
         "Utils/*.h"
         )
-
-set(Python_USE_STATIC_LIBS FALSE)
+#set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)
+# Debug messages
+message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
+message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
+message(STATUS "PYTHON_INCLUDE_DIRS = ${Python_INCLUDE_DIRS}")
+message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
+
 
 execute_process(
         COMMAND ${Python_EXECUTABLE} -c import\ pybind11\;print\(pybind11.get_cmake_dir\(\)\)
@@ -76,14 +78,3 @@ set_target_properties(
 )
 
 target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
-
-# add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp Constants.h)
-#
-# get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-# set_target_properties(
-#         _native
-#         PROPERTIES
-#         LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}"
-# )
-
-# target_link_libraries(${APP_NAME} absl::node_hash_map ${PYTHON_LIBRARIES} )
