@@ -26,6 +26,8 @@ enum class OriginType
     COOKIE_NAME
 };
 
+enum class TagMappingMode { Normal, Mapper, Mapper_Replace };
+
 struct Source
 {
     Source(string, string, OriginType);

@@ -4,6 +4,7 @@
 #include <pybind11/stl.h>
 
 #include "TaintTracking/TaintRange.h"
+#include "TaintTracking/Source.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -21,5 +22,10 @@ common_replace(const py::str& string_method,
                const py::args& args,
                const py::kwargs& kwargs);
 
+template <class StrType>
+StrType as_formatted_evidence(const StrType& text,
+                              optional<TaintRangeRefs>& text_ranges,
+                              const optional<TagMappingMode>& tag_mapping_mode,
+                              const optional<const py::dict>& new_ranges);
 void
 pyexport_aspect_helpers(py::module& m);

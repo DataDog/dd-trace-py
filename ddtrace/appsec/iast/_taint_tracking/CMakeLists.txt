@@ -46,7 +46,7 @@ file(GLOB HEADER_FILES "*.h"
         "TaintTracking/*.h"
         "Utils/*.h"
         )
-#set(Python_USE_STATIC_LIBS FALSE)
+set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")

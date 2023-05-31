@@ -201,4 +201,3 @@ def test_upper_in_decorator():
 
     res2 = mod.do_add_and_uppercase(s_tainted, s)
     assert get_tainted_ranges(res2) == [TaintRange(0, 6, _SOURCE1)]
-
