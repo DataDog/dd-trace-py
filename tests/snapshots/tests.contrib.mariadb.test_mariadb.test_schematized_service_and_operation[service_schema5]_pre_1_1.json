@@ -16,7 +16,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "26bf5d260f114319b2f96ac1f3f80003",
+      "runtime-id": "b90b1aef18a646e889c4c8ced8707cd8",
       "span.kind": "client"
     },
     "metrics": {
@@ -27,8 +27,8 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 0,
       "network.destination.port": 3306,
-      "process_id": 4005
+      "process_id": 51968
     },
-    "duration": 182750,
-    "start": 1685456752524454961
+    "duration": 266208,
+    "start": 1685619028302835086
   }]]

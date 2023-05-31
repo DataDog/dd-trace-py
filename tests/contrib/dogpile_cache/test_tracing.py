@@ -6,6 +6,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch
 from ddtrace.contrib.dogpile_cache.patch import unpatch
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
@@ -233,7 +234,7 @@ def test_get_or_create_kwarg_only(region):
     [
         (None, None, None, "dogpile.cache"),
         (None, "v0", None, "dogpile.cache"),
-        (None, "v1", "unnamed-python-service", "dogpile.command"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "dogpile.command"),
         ("mysvc", None, "mysvc", "dogpile.cache"),
         ("mysvc", "v0", "mysvc", "dogpile.cache"),
         ("mysvc", "v1", "mysvc", "dogpile.command"),

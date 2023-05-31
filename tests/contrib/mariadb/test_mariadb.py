@@ -33,6 +33,7 @@ def tracer():
     patch()
     try:
         yield tracer
+        tracer.pop_traces()
     finally:
         unpatch()
 

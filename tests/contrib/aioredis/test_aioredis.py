@@ -202,21 +202,14 @@ from tests.contrib.aioredis.test_aioredis import get_redis_instance
 @pytest.mark.asyncio
 async def test(redis_client):
     # Works for 3.6
-    if sys.version_info < (3, 7):
-        client = await redis_client
-        await client.set("cheese", "my-cheese")
-    else:
-        redis_client = await get_redis_instance(10)
-        await redis_client.set("cheese", "my-cheese")
-        await redis_client.flushall()
-        if hasattr(redis_client, "wait_closed"):
-            redis_client.close()
-            await redis_client.wait_closed()
-        else:
-            await redis_client.close()
+    client = await redis_client
+    await client.set("cheese", "my-cheese")
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    if sys.version_info < (3, 7):
+        sys.exit(pytest.main(["-x", __file__]))
+    else:
+        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
     """
     env = os.environ.copy()
     if service:

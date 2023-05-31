@@ -7,6 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.aredis.patch import patch
 from ddtrace.contrib.aredis.patch import unpatch
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.vendor.wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
@@ -154,7 +155,7 @@ async def test_meta_override(tracer, test_spans):
     [
         (None, None, "redis", "redis.command"),
         (None, "v0", "redis", "redis.command"),
-        (None, "v1", "unnamed-python-service", "redis.command"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "redis.command"),
         ("mysvc", None, "redis", "redis.command"),
         ("mysvc", "v0", "redis", "redis.command"),
         ("mysvc", "v1", "mysvc", "redis.command"),

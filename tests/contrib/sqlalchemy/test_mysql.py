@@ -2,10 +2,12 @@ import pytest
 from sqlalchemy.exc import ProgrammingError
 
 from ddtrace.constants import ERROR_MSG
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 from ..config import MYSQL_CONFIG
+from .mixins import SQLAlchemyTestBase
 from .mixins import SQLAlchemyTestMixin
 
 
@@ -56,7 +58,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag("error.stack"))
 
 
-class TestSchematization(SQLAlchemyTestMixin, TracerTestCase):
+class TestSchematization(SQLAlchemyTestBase, TracerTestCase):
     """TestCase for mysql-connector engine"""
 
     ENGINE_ARGS = {"url": "mysql+mysqlconnector://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s" % MYSQL_CONFIG}
@@ -111,7 +113,7 @@ class TestSchematization(SQLAlchemyTestMixin, TracerTestCase):
     def test_schematized_unspecified_service_name_v1(self):
         span = self._generate_span()
 
-        self.assertEqual(span.service, "unnamed-python-service")
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
@@ -124,3 +126,6 @@ class TestSchematization(SQLAlchemyTestMixin, TracerTestCase):
         span = self._generate_span()
 
         self.assertEqual(span.name, "mysql.query")
+
+    def test_engine_connect_execute(self):
+        pass

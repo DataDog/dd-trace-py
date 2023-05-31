@@ -5,6 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.consul.patch import patch
 from ddtrace.contrib.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -289,7 +290,7 @@ class TestSchematization(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        assert span.service == "unnamed-python-service"
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematize_operation_name_v0(self):

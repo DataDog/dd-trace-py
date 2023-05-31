@@ -10,6 +10,7 @@ from ddtrace.contrib.mako import unpatch
 from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -168,6 +169,6 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "unnamed-python-service", "Expected service name to be mysvc, got {}".format(
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, "Expected service name to be mysvc, got {}".format(
             spans[0].service
         )

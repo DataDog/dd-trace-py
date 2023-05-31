@@ -3,6 +3,8 @@ import os
 import time
 
 import confluent_kafka
+from confluent_kafka import KafkaException
+from confluent_kafka import admin as kafka_admin
 import pytest
 import six
 from tenacity import Retrying
@@ -18,7 +20,6 @@ from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import override_config
 
 
-TOPIC_NAME = "test_topic"
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key"
@@ -42,6 +43,19 @@ class KafkaConsumerPollFilter(TraceFilter):
 dd_tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
 
 
+@pytest.fixture()
+def kafka_topic(request):
+    topic_name = request.node.name.replace("[", "_").replace("]", "")
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
+
+
 @pytest.fixture
 def tracer():
     patch()
@@ -57,7 +71,7 @@ def producer(tracer):
 
 
 @pytest.fixture
-def consumer(tracer):
+def consumer(tracer, kafka_topic):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -66,7 +80,7 @@ def consumer(tracer):
         }
     )
     Pin.override(_consumer, tracer=tracer)
-    _consumer.subscribe([TOPIC_NAME])
+    _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
 
@@ -88,11 +102,11 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
 
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_message(producer, consumer, tombstone):
+def test_message(producer, consumer, tombstone, kafka_topic):
     if tombstone:
-        producer.produce(TOPIC_NAME, key=KEY)
+        producer.produce(kafka_topic, key=KEY)
     else:
-        producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
     message = None
     while message is None:
@@ -102,9 +116,9 @@ def test_message(producer, consumer, tombstone):
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
 )
-def test_service_override_config(producer, consumer):
+def test_service_override_config(producer, consumer, kafka_topic):
     with override_config("kafka", dict(service="my-custom-service-name")):
-        producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
         message = None
         while message is None:
@@ -112,9 +126,9 @@ def test_service_override_config(producer, consumer):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_with_rate(producer, consumer):
+def test_analytics_with_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
         message = None
         while message is None:
@@ -122,9 +136,9 @@ def test_analytics_with_rate(producer, consumer):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_without_rate(producer, consumer):
+def test_analytics_without_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True)):
-        producer.produce(TOPIC_NAME, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
         message = None
         while message is None:
@@ -140,13 +154,13 @@ def retry_until_not_none(factory):
     return None
 
 
-def test_data_streams_kafka(consumer, producer):
+def test_data_streams_kafka(consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
         del dd_tracer.data_streams_processor._current_context.value
     except AttributeError:
         pass
-    producer.produce(TOPIC_NAME, PAYLOAD, key="test_key_2")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
@@ -154,23 +168,39 @@ def test_data_streams_kafka(consumer, producer):
     buckets = dd_tracer.data_streams_processor._buckets
     assert len(buckets) == 1
     _, first = list(buckets.items())[0]
-    assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].full_pathway_latency._count >= 1
-    assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].edge_latency._count >= 1
     assert (
         first[
-            ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+            ("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)
+        ].full_pathway_latency._count
+        >= 1
+    )
+    assert (
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)].edge_latency._count
+        >= 1
+    )
+    assert (
+        first[
+            (
+                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                6611771803293368236,
+                7591515074392955298,
+            )
         ].full_pathway_latency._count
         >= 1
     )
     assert (
         first[
-            ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+            (
+                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                6611771803293368236,
+                7591515074392955298,
+            )
         ].edge_latency._count
         >= 1
     )
 
 
-def _generate_in_subprocess(topic):
+def _generate_in_subprocess(random_topic):
     import six
 
     import ddtrace
@@ -211,10 +241,10 @@ def _generate_in_subprocess(topic):
             ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
             ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
             if not subscribed:
-                consumer.subscribe([topic])
+                consumer.subscribe([random_topic])
                 subscribed = True
             if not published:
-                producer.produce(topic, PAYLOAD, key="test_key")
+                producer.produce(random_topic, PAYLOAD, key="test_key")
                 producer.flush()
                 published = True
             message = None
@@ -225,21 +255,25 @@ def _generate_in_subprocess(topic):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
+    token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
 )
 @pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
-def test_service_override_env_var(ddtrace_run_python_code_in_subprocess):
+def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
+from tests.contrib.kafka.test_kafka import kafka_topic
+
 
 def test():
-    _generate_in_subprocess('test_topic')
+    _generate_in_subprocess("{}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """
+    """.format(
+        kafka_topic
+    )
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
@@ -251,19 +285,19 @@ if __name__ == "__main__":
 @pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
-def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema):
+def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
     code = """
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
 
 def test():
-    _generate_in_subprocess('test-schema.{}.{}')
+    _generate_in_subprocess("{}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(
-        service, schema
+        kafka_topic
     )
     env = os.environ.copy()
     if service:

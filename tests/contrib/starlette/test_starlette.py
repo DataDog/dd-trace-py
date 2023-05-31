@@ -16,6 +16,7 @@ from ddtrace.contrib.sqlalchemy import patch as sql_patch
 from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
 from ddtrace.contrib.starlette import patch as starlette_patch
 from ddtrace.contrib.starlette import unpatch as starlette_unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.utils import DummyTracer
@@ -549,7 +550,12 @@ def test_background_task(client, tracer, test_spans):
         ("mysvc", "v1"),
     ],
 )
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(
+    variants={
+        "36": parse_version(sys.version) < (3, 7),  # 3.6 has an extra request
+        "rest": parse_version(sys.version) >= (3, 7),
+    }
+)
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
     service, schema = service_schema
     code = """
@@ -578,6 +584,7 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    # We only care about the starlette traces
     env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     env["DD_TRACE_HTTPX_ENABLED"] = "false"

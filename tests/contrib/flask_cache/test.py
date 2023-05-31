@@ -5,6 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -474,8 +475,8 @@ class TestFlaskCacheSchematization(TracerTestCase):
 
         for span in spans:
             assert (
-                span.service == "unnamed-python-service"
-            ), "Expected service name to be 'unnamed-python-service' but was '{}'".format(span.service)
+                span.service == DEFAULT_SPAN_SERVICE_NAME
+            ), "Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_operation_name_v0(self):

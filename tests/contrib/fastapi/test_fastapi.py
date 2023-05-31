@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 
+import fastapi
 from fastapi.testclient import TestClient
 import httpx
 import pytest
@@ -12,6 +13,8 @@ from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -657,41 +660,39 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
     [
         (None, None, "fastapi", "fastapi.request"),
         (None, "v0", "fastapi", "fastapi.request"),
-        (None, "v1", "unnamed-python-service", "http.server.request"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "http.server.request"),
         ("mysvc", None, "mysvc", "fastapi.request"),
         ("mysvc", "v0", "mysvc", "fastapi.request"),
         ("mysvc", "v1", "mysvc", "http.server.request"),
     ],
+)
+@pytest.mark.snapshot(
+    variants={
+        "6_9": (0, 60) <= parse_version(fastapi.__version__) < (0, 90),
+        "9": parse_version(fastapi.__version__) >= (0, 90),  # 0.90+ has an extra serialize step
+    }
 )
 def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
     service_override, schema_version, expected_service, expected_operation = schema_tuples
     code = """
 import pytest
 import sys
-from tests.contrib.fastapi.test_fastapi import client
-from tests.contrib.fastapi.test_fastapi import test_spans
-from tests.contrib.fastapi.test_fastapi import tracer
-from tests.contrib.fastapi.test_fastapi import application
 
-def test_read_homepage(client, tracer, test_spans):
-    response = client.get("/", headers={{"sleep": "False"}})
-    assert response.status_code == 200
-    spans = test_spans.pop_traces()
+from tests.contrib.fastapi.test_fastapi import snapshot_app
+from tests.contrib.fastapi.test_fastapi import snapshot_client
 
-    request_span, serialize_span = spans[0]
-    assert serialize_span.service == "{}"
-    assert serialize_span.name == "{}"
+def test_read_homepage(snapshot_client):
+    snapshot_client.get("/sub-app/hello/name")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service, expected_operation
-    )
+    """
     env = os.environ.copy()
     if service_override:
         env["DD_SERVICE"] = service_override
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()

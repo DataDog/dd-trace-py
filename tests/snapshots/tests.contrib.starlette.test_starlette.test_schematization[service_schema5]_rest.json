@@ -17,7 +17,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "c9b0cb1d212a4cef9956fd5d36ed11a5",
+      "runtime-id": "cbfb2de4aba049a895515a3126ab9ee4",
       "span.kind": "server"
     },
     "metrics": {
@@ -25,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10231
+      "process_id": 11231
     },
-    "duration": 275750,
-    "start": 1685543859929412096
+    "duration": 251500,
+    "start": 1685583301886201964
   },
      {
        "name": "http.server.request",
@@ -48,6 +48,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 101958,
-       "start": 1685543859929600763
+       "duration": 105833,
+       "start": 1685583301886361589
      }]]

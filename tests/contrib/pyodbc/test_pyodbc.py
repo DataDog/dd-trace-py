@@ -4,6 +4,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyodbc.patch import patch
 from ddtrace.contrib.pyodbc.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -375,8 +376,8 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert (
-            span.service == "unnamed-python-service"
-        ), "Expected service name to be 'unnamed-python-service' but was '{}'".format(span.service)
+            span.service == DEFAULT_SPAN_SERVICE_NAME
+        ), "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):

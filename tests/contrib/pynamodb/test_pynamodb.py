@@ -7,6 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.pynamodb.patch import patch
 from ddtrace.contrib.pynamodb.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -212,7 +213,9 @@ class PynamodbTest(TracerTestCase):
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
-        assert span.service == "unnamed-python-service", "Expected 'unnamed-python-service', got %s" % span.service
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+            "Expected 'internal.schema.DEFAULT_SEVICE_NAME', got %s" % span.service
+        )
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 

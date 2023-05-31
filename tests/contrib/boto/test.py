@@ -20,6 +20,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.boto.patch import patch
 from ddtrace.contrib.boto.patch import unpatch
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -155,7 +156,7 @@ class BotoTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, "unnamed-python-service")
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
     @mock_ec2
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -418,7 +419,7 @@ class BotoTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, "unnamed-python-service")
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
     @mock_s3
     def test_s3_client(self):
@@ -602,7 +603,7 @@ class BotoTest(TracerTestCase):
 
         spans = self.pop_spans()
         span = spans[0]
-        self.assertEqual(span.service, "unnamed-python-service")
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
     @mock_lambda
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -729,7 +730,7 @@ class BotoTest(TracerTestCase):
         assert spans
         span = spans[0]
         assert_is_measured(span)
-        self.assertEqual(span.service, "unnamed-python-service")
+        self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
     @mock_sts
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))

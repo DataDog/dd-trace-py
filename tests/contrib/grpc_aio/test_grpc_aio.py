@@ -953,10 +953,13 @@ async def test_client_streaming(server_info, tracer):
 
     operation_name_format = "{}"
     assert client_span.name == operation_name_format.format("client")
-    assert server_span.name == operation_name_format.format("server") 
+    assert server_span.name == operation_name_format.format("server")
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    if sys.version_info < (3, 7):
+        sys.exit(pytest.main(["-x", __file__]))
+    else:
+        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
     """.format(
         expected_operation_name_format
     )

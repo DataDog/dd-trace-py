@@ -1,7 +1,7 @@
 [[
   {
     "name": "starlette.request",
-    "service": "starlette",
+    "service": "mysvc",
     "resource": "GET /sub-app/hello/name",
     "trace_id": 0,
     "span_id": 1,
@@ -17,7 +17,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "03ab5eb3187b4f579b6c8e91802e5446",
+      "runtime-id": "6ab362a3f4294a7589ca7fdb2b5f3015",
       "span.kind": "server"
     },
     "metrics": {
@@ -25,14 +25,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10201
+      "process_id": 11223
     },
-    "duration": 425000,
-    "start": 1685543851627806467
+    "duration": 290625,
+    "start": 1685583300307783338
   },
      {
        "name": "starlette.request",
-       "service": "starlette",
+       "service": "mysvc",
        "resource": "GET /hello/name",
        "trace_id": 0,
        "span_id": 2,
@@ -48,6 +48,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 144416,
-       "start": 1685543851628107134
+       "duration": 128125,
+       "start": 1685583300307961422
      }]]

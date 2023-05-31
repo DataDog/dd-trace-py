@@ -35,6 +35,7 @@ from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -203,9 +204,9 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "unnamed-python-service", "Expected 'unnamed-python-service' but got {}".format(
-            span.service
-        )
+        assert (
+            span.service == DEFAULT_SPAN_SERVICE_NAME
+        ), "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
         assert span.name == "aws.ec2.request"
 
     @mock_ec2
@@ -462,7 +463,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        assert span.service == "unnamed-python-service"
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "aws.s3.request"
 
     def _test_sqs_client(self):
@@ -959,13 +960,13 @@ class BotocoreTest(TracerTestCase):
         )
 
         spans = self.get_spans()
-        assert spans[0].service == "unnamed-python-service"
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[0].name == "aws.sqs.request"
-        assert spans[1].service == "unnamed-python-service"
+        assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.sqs.send"
-        assert spans[2].service == "unnamed-python-service"
+        assert spans[2].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[2].name == "aws.sqs.send"
-        assert spans[3].service == "unnamed-python-service"
+        assert spans[3].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[3].name == "aws.sqs.receive"
 
     def _test_kinesis_client(self):
@@ -1486,9 +1487,9 @@ class BotocoreTest(TracerTestCase):
         lamb.delete_function(FunctionName="guns-and-roses")
 
         spans = self.get_spans()
-        assert spans[0].service == "unnamed-python-service", spans[0].service
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[0].name == "aws.lambda.request"
-        assert spans[1].service == "unnamed-python-service"
+        assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.lambda.invoke"
 
     @mock_events
@@ -1746,7 +1747,7 @@ class BotocoreTest(TracerTestCase):
             assert spans
             span = spans[0]
             assert len(spans) == 1
-            assert span.service == "unnamed-python-service"
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.kms.request"
 
     @mock_ec2
@@ -1936,7 +1937,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_sns_client_v1(self):
         span = self._test_sns(use_default_tracer=True)
-        assert span.service == "unnamed-python-service"
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "aws.sns.send"
 
     @mock_sns
@@ -2757,9 +2758,9 @@ class BotocoreTest(TracerTestCase):
         client.put_records(StreamName=stream_name, Records=data)
 
         spans = self.get_spans()
-        assert spans[0].service == "unnamed-python-service"
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[0].name == "aws.kinesis.request"
-        assert spans[1].service == "unnamed-python-service"
+        assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.kinesis.send"
 
     @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
@@ -2973,5 +2974,5 @@ class BotocoreTest(TracerTestCase):
             assert len(spans) == 1
             span = spans[0]
 
-            assert span.service == "unnamed-python-service"
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.secretsmanager.request"

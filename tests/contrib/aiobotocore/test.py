@@ -8,6 +8,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_config
@@ -423,7 +424,7 @@ async def test_user_specified_service(tracer):
     [
         (None, None, "aws.{}", "{}.command"),
         (None, "v0", "aws.{}", "{}.command"),
-        (None, "v1", "unnamed-python-service", "aws.{}.request"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "aws.{}.request"),
         ("mysvc", None, "mysvc", "{}.command"),
         ("mysvc", "v0", "mysvc", "{}.command"),
         ("mysvc", "v1", "mysvc", "aws.{}.request"),
@@ -432,7 +433,7 @@ async def test_user_specified_service(tracer):
 def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess, schema_params):
     """
     v0: use 'aws.<INTEGRATION>" for service name
-    v1: use the env-specified service (if specified) else "unnamed-python-service"
+    v1: use the env-specified service (if specified) else internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     service_name, schema_version, expected_service_name, expected_operation_name = schema_params
     code = """

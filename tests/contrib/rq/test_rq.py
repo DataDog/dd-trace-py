@@ -160,7 +160,13 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
             time.sleep(0.5)
 
 
-@pytest.mark.snapshot(ignores=snapshot_ignores)
+@pytest.mark.snapshot(
+    ignores=snapshot_ignores + ["meta.error.message", "meta.error.type"],
+    variants={
+        "": rq_version >= (1, 10, 1),  # Exception handling changed in 1.10.1
+        "pre_1_10_1": rq_version < (1, 10, 1),
+    },
+)
 @pytest.mark.parametrize(
     "service_schema",
     [
