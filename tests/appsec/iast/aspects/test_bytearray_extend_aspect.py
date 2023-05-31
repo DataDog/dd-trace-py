@@ -17,6 +17,7 @@ mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 class TestByteArrayExtendAspect(object):
     def test_simple_extend_not_tainted(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
@@ -29,6 +30,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_extend_with_bytes_not_tainted(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
@@ -39,6 +41,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_extend_first_tainted(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = taint_pyobject(bytearray(b"123"), Source("test", "foo", OriginType.PARAMETER))
@@ -54,6 +57,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_extend_first_tainted_second_bytes(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = taint_pyobject(bytearray(b"123"), Source("test", "foo", OriginType.PARAMETER))
@@ -68,6 +72,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_extend_second_tainted(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
@@ -81,6 +86,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_extend_second_tainted_bytes(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
@@ -94,6 +100,7 @@ class TestByteArrayExtendAspect(object):
 
     def test_first_and_second_tainted(self):
         from ddtrace.appsec.iast._taint_tracking import setup
+
         setup(bytes.join, bytearray.join)
 
         ba1 = taint_pyobject(bytearray(b"123"), Source("test1", "foo", OriginType.PARAMETER))
@@ -108,6 +115,4 @@ class TestByteArrayExtendAspect(object):
             TaintRange(3, 3, Source("test2", "bar", OriginType.BODY)),
         ]
         assert get_tainted_ranges(ba1) == ranges
-        assert get_tainted_ranges(ba2) == [
-            TaintRange(0, 3, Source("test2", "bar", OriginType.BODY))
-        ]
+        assert get_tainted_ranges(ba2) == [TaintRange(0, 3, Source("test2", "bar", OriginType.BODY))]

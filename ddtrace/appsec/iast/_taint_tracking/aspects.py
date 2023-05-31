@@ -1,11 +1,10 @@
-from builtins import str as builtin_str
-from builtins import bytes as builtin_bytes
 from builtins import bytearray as builtin_bytearray
+from builtins import bytes as builtin_bytes
+from builtins import str as builtin_str
 import codecs
 from typing import TYPE_CHECKING
 from typing import Text
 
-from six import StringIO
 from six import binary_type
 
 from ddtrace.appsec.iast._taint_tracking import Source
@@ -13,15 +12,12 @@ from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import set_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 
+
 if TYPE_CHECKING:
     from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Optional
 
 TEXT_TYPES = (Text, binary_type, bytearray)
 
@@ -49,7 +45,7 @@ def str_aspect(*args, **kwargs):
 
 
 def join_aspect(joiner, *args, **kwargs):
-    # type: (Any, Any) -> Any
+    # type: (Any, Any, Any) -> Any
     if not isinstance(joiner, TEXT_TYPES):
         return joiner.join(*args, **kwargs)
     return _join_aspect(joiner, *args, **kwargs)
@@ -72,7 +68,7 @@ def bytes_aspect(*args, **kwargs):
 
 
 def bytearray_aspect(*args, **kwargs):
-    # type: (Any, Any) -> str
+    # type: (Any, Any) -> bytearray
     result = builtin_bytearray(*args, **kwargs)
     if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
         result = taint_pyobject(result, Source("bytearray_aspect", result, 0))
@@ -282,44 +278,44 @@ def upper_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> s
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
-    return common_replace('upper', candidate_text, *args, **kwargs)
+    return common_replace("upper", candidate_text, *args, **kwargs)
 
 
 def lower_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
-    return common_replace('lower', candidate_text, *args, **kwargs)
+    return common_replace("lower", candidate_text, *args, **kwargs)
 
 
 def swapcase_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
-    return common_replace('swapcase', candidate_text, *args, **kwargs)
+    return common_replace("swapcase", candidate_text, *args, **kwargs)
 
 
 def title_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
-    return common_replace('title', candidate_text, *args, **kwargs)
+    return common_replace("title", candidate_text, *args, **kwargs)
 
 
 def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
-    return common_replace('capitalize', candidate_text, *args, **kwargs)
+    return common_replace("capitalize", candidate_text, *args, **kwargs)
 
 
 def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
-    return common_replace('casefold', candidate_text, *args, **kwargs)
+    return common_replace("casefold", candidate_text, *args, **kwargs)
 
 
 def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
-    return common_replace('translate', candidate_text, *args, **kwargs)
+    return common_replace("translate", candidate_text, *args, **kwargs)

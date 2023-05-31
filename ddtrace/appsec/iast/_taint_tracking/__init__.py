@@ -5,28 +5,29 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_dict import get_taint_dict
 
+
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
     from typing import List
     from typing import Tuple
     from typing import Union
+    from typing import Optional
 
-from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native import aspect_helpers
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
-    Source,
-    OriginType,
-    TaintRange,
-    get_ranges,
-    set_ranges,
-    are_all_text_all_ranges,
-    shift_taint_range,
-    shift_taint_ranges,
-    get_range_by_hash,
-    is_notinterned_notfasttainted_unicode,
-    set_fast_tainted_if_notinterned_unicode,
-)  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges
+
 
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
@@ -68,7 +69,8 @@ def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
     return pyobject
 
 
-def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):  # type: (Any, Source) -> Any
+def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):
+    # type: (Any, Source, int, Optional[int]) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject

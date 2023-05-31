@@ -17,6 +17,7 @@ _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
 
 def test_upper():
     from ddtrace.appsec.iast._taint_tracking import setup
+
     setup(bytes.join, bytearray.join)
     s = "foobar"
     assert not get_tainted_ranges(s)
