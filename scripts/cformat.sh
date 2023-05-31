@@ -14,10 +14,11 @@ trap clean EXIT
 
 if [[ "$1" == "update" ]]
 then
+    echo "llega"
     THIS_PATH="$(realpath "$0")"
-    THIS_DIR="$(dirname "$THIS_PATH")"
-    FILE_LIST="$(find "$THIS_DIR" | grep -E ".*(\.ino|\.cpp|\.c|\.h|\.hpp|\.hh)$")"
-    clang-format --style="{BasedOnStyle: Mozilla, IndentWidth: 4, ColumnLimit: 120}" -i "$FILE_LIST"
+    THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
+    FILE_LIST="$(find "$THIS_DIR" -name '*.[c|cpp|h]' | grep -v '.riot/' | grep -v 'ddtrace/vendor/' | grep -v 'ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/')"
+    clang-format --style="{BasedOnStyle: Mozilla, IndentWidth: 4, ColumnLimit: 120}" -i $FILE_LIST
 else
   git ls-files '*.c' '*.cpp' '*.h' | grep -v '^ddtrace/vendor/' | while read filename
   do
