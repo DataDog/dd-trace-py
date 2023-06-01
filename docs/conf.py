@@ -69,6 +69,7 @@ class VersionTagFilter(Filter):
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
     "reno.sphinxext",
     "sphinxcontrib.spelling",
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
@@ -85,6 +86,11 @@ templates_path = ["_templates"]
 #
 # source_suffix = ['.rst', '.md']
 source_suffix = ".rst"
+
+# Enable links to the python standard doc.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
 
 # The encoding of source files.
 #
