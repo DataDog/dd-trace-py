@@ -302,17 +302,16 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
         _block_ip(token)
 
         _request_200(gunicorn_client)
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
-        # time.sleep(1)
-        #
-        # _request_403(gunicorn_client)
-        #
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client)
+
+        time.sleep(3)
+
+        _request_403(gunicorn_client)
+
+        _unblock_ip(token)
+
+        time.sleep(1)
+
+        _request_200(gunicorn_client)
 
 
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
@@ -325,25 +324,21 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         _block_ip(token)
 
-        # _request_200(gunicorn_client)
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
+        time.sleep(3)
 
-        # time.sleep(1)
-        #
-        # _request_403(gunicorn_client)
+        _request_403(gunicorn_client)
 
-        # os.kill(int(pid), signal.SIGTERM)
-        #
-        # time.sleep(2)
-        #
-        # _request_403(gunicorn_client)
-        #
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client)
+        os.kill(int(pid), signal.SIGTERM)
+
+        time.sleep(3)
+
+        _request_403(gunicorn_client)
+
+        _unblock_ip(token)
+
+        time.sleep(1)
+
+        _request_200(gunicorn_client)
 
 
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
@@ -370,14 +365,12 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         os.kill(int(pid), signal.SIGTERM)
 
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
-        # time.sleep(3)
+        time.sleep(3)
 
-        # _request_403(gunicorn_client, debug_mode=False)
+        _request_403(gunicorn_client, debug_mode=False)
 
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client, debug_mode=False)
+        _unblock_ip(token)
+
+        time.sleep(1)
+
+        _request_200(gunicorn_client, debug_mode=False)

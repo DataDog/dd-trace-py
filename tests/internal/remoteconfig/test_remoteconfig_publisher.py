@@ -2,7 +2,7 @@
 import mock
 
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeFirst
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from tests.internal.remoteconfig.utils import MockConnector
 
 
@@ -12,32 +12,39 @@ def test_remoteconfig_publisher_dispatch():
     mock_connector = MockConnector({"example": "data"})
 
     publisher = RemoteConfigPublisher(mock_connector, mock_preprocess_results)
-    publisher.dispatch(config={"config": "data"}, metadata={})
-    mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
+    publisher.append({"config": "data"}, "", {})
+    publisher.dispatch()
+    # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
+    #  lines if a new product need it
+    #  if self._preprocess_results_func:
+    #     config = self._preprocess_results_func(config, pubsub_instance)
+    #  mock_preprocess_results.assert_called_once_with({"config": "data"}, None)
 
-    assert mock_connector.data == {"config": "parsed_data"}
-    assert mock_connector.metadata == {}
+    assert mock_connector.data == [{"config": "data"}]
+    assert mock_connector.metadata == [None]
 
 
 def test_remoteconfig_publisher_merge_first_dispatch_lists():
     mock_connector = MockConnector({"example": "data"})
 
-    publisher = RemoteConfigPublisherMergeFirst(mock_connector, None)
+    publisher = RemoteConfigPublisherMergeDicts(mock_connector, None)
     publisher.append(
-        "target_a",
         {
             "config": [
                 "data1",
             ]
         },
+        "target_a",
+        None,
     )
     publisher.append(
-        "target_b",
         {
             "config": [
                 "data2",
             ]
         },
+        "target_b",
+        None,
     )
 
     publisher.dispatch()
@@ -50,8 +57,8 @@ def test_remoteconfig_publisher_merge_first_dispatch_lists():
 def test_remoteconfig_publisher_merge_first_dispatch_dicts():
     mock_connector = MockConnector({})
 
-    publisher = RemoteConfigPublisherMergeFirst(mock_connector, None)
-    publisher.append("target_b", {"config": {"c": "d"}})
+    publisher = RemoteConfigPublisherMergeDicts(mock_connector, None)
+    publisher.append({"config": {"c": "d"}}, "target_b", None)
 
     publisher.dispatch()
 
