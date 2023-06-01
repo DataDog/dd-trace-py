@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "deleteFile",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/files",
+      "openai.request.method": "DELETE",
+      "openai.request.sid": "file-l48KgWVF75Tz2HLqLrcUdBPi",
+      "openai.response.id": "file-l48KgWVF75Tz2HLqLrcUdBPi",
+      "openai.response.deleted": "True",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "6adb8c989dd24acbbac807dcfe437783"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 65756
+    },
+    "duration": 578764000,
+    "start": 1685651506055696000
+  }]]

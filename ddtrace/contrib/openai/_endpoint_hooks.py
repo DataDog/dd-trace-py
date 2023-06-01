@@ -422,8 +422,14 @@ class _DeleteHook(_EndpointHook):
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag_str("openai.response.id", resp.get("id", ""))
-        span.set_tag_str("openai.response.deleted", resp.get("deleted", ""))
+        if hasattr(resp, "data"):
+            if resp._headers.get("openai-organization"):
+                span.set_tag_str("openai.organization.name", resp._headers.get("openai-organization"))
+            span.set_tag_str("openai.response.id", resp.data.get("id", ""))
+            span.set_tag_str("openai.response.deleted", str(resp.data.get("deleted", "")))
+        else:
+            span.set_tag_str("openai.response.id", resp.get("id", ""))
+            span.set_tag_str("openai.response.deleted", str(resp.get("deleted", "")))
         return resp
 
 
@@ -672,7 +678,10 @@ class _FileDownloadHook(_BaseFileHook):
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
-        span.set_tag("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
+        if isinstance(resp, bytes):
+            span.set_tag("openai.response.total_bytes", len(resp))
+        else:
+            span.set_tag("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
 
 

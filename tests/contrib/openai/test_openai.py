@@ -891,6 +891,164 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_file_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_list",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_list.yaml"):
+            openai.File.list(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_list",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_alist.yaml"):
+            await openai.File.alist(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_file_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_create",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("file_create.yaml"):
+            openai.File.create(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/training_data.jsonl"), "rb"),
+                purpose="fine-tune",
+                user_provided_filename="dummy_training_file.jsonl",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_acreate",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("file_acreate.yaml"):
+            await openai.File.acreate(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/training_data.jsonl"), "rb"),
+                purpose="fine-tune",
+                user_provided_filename="dummy_training_file.jsonl",
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_file_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_delete",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_delete.yaml"):
+            openai.File.delete(
+                sid="file-l48KgWVF75Tz2HLqLrcUdBPi",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_adelete",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_adelete.yaml"):
+            await openai.File.adelete(
+                sid="file-EArCuhXNtaTrFoPEKAmrVbnQ",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_file_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_retrieve",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_retrieve.yaml"):
+            openai.File.retrieve(
+                id="file-Aeh42OWPtbWgt7gfUjXBVFAF",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_retrieve",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_aretrieve.yaml"):
+            await openai.File.aretrieve(
+                id="file-Aeh42OWPtbWgt7gfUjXBVFAF",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_file_download(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_download",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("file_download.yaml"):
+            openai.File.download(
+                "file-xC22NUuYBkXvzRt2fLREcGde",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "File"):
+        pytest.skip("file not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_file_download",
+        ignores=["meta.http.useragent", "metrics.openai.response.total_bytes"],
+    ):
+        # mock vcrpy stream response does not have `total_bytes` attribute
+        with openai_vcr.use_cassette("file_adownload.yaml"):
+            await openai.File.adownload(
+                "file-xC22NUuYBkXvzRt2fLREcGde",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")
