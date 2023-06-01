@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
-  JS_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
+  PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
 fi
 
 echo -n $PYTHON_PACKAGE_VERSION > auto_inject-python.version
