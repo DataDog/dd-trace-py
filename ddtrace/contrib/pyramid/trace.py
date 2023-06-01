@@ -127,6 +127,7 @@ def trace_tween_factory(handler, registry):
                         query=request.query_string,
                         request_headers=request.headers,
                         response_headers=response_headers,
+                        route=request.matched_route.pattern if request.matched_route else None,
                     )
                 return response
 
