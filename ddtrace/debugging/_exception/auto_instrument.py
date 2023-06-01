@@ -22,14 +22,17 @@ class SpanExceptionProbe(LogLineProbe):
     def build(cls, exc_id, frame):
         # type: (uuid.UUID, FrameType) -> SpanExceptionProbe
         _exc_id = str(exc_id)
-        message = "Exception Debugging (exception %s)" % exc_id
+        filename = frame.f_code.co_filename
+        line = frame.f_lineno
+        fn = frame.f_code.co_name
+        message = "exception info for %s, in %s, line %d (exception ID %s)" % (fn, filename, line, exc_id)
 
         return cls(
             probe_id=_exc_id,
             version=0,
             tags={},
-            source_file=frame.f_code.co_filename,
-            line=frame.f_lineno,
+            source_file=filename,
+            line=line,
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
@@ -43,7 +46,6 @@ class SpanExceptionProbe(LogLineProbe):
 @attr.s
 class SpanExceptionSnapshot(Snapshot):
     exc_id = attr.ib(type=t.Optional[uuid.UUID], default=None)
-    seq_nr = attr.ib(type=t.Optional[int], default=None)
 
     @property
     def data(self):
@@ -69,13 +71,17 @@ class SpanExceptionProcessor(SpanProcessor):
             # No error to capture
             return
 
-        _, _, _tb = sys.exc_info()
+        _, exc, _tb = sys.exc_info()
         if _tb is None or _tb.tb_frame is None:
             # If we don't have a traceback there isn't much we can do
             return
 
         seq = count(1)
-        exc_id = uuid.uuid4()
+        try:
+            exc_id = exc._dd_exc_id  # type: ignore[union-attr]
+        except AttributeError:
+            # We haven't seen this exception before so we generate an ID for it
+            exc._dd_exc_id = exc_id = uuid.uuid4()  # type: ignore[union-attr]
 
         # DEV: We go from the handler up to the root exception
         while _tb:
@@ -83,25 +89,30 @@ class SpanExceptionProcessor(SpanProcessor):
             code = frame.f_code
             seq_nr = next(seq)
 
-            snapshot = SpanExceptionSnapshot(
-                probe=SpanExceptionProbe.build(exc_id, frame),
-                frame=frame,
-                thread=current_thread(),
-                trace_context=span,
-                exc_id=exc_id,
-                seq_nr=seq_nr,
-            )
+            try:
+                snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
+            except KeyError:
+                # We don't have a snapshot for the frame so we create one
+                snapshot = SpanExceptionSnapshot(
+                    probe=SpanExceptionProbe.build(exc_id, frame),
+                    frame=frame,
+                    thread=current_thread(),
+                    trace_context=span,
+                    exc_id=exc_id,
+                )
+
+                # Capture
+                snapshot.line()
+
+                self.collector.push(snapshot)
+
+                frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
 
             # Add correlation tags on the span
-            span.set_tag_str("_dd.debug.error.%d.snapshot.id" % seq_nr, snapshot.uuid)
+            span.set_tag_str("_dd.debug.error.%d.snapshot.id" % seq_nr, snapshot_id)
             span.set_tag_str("_dd.debug.error.%d.function" % seq_nr, code.co_name)
             span.set_tag_str("_dd.debug.error.%d.file" % seq_nr, code.co_filename)
             span.set_tag_str("_dd.debug.error.%d.line" % seq_nr, str(frame.f_lineno))
-
-            # Capture
-            snapshot.line()
-
-            self.collector.push(snapshot)
 
             _tb = _tb.tb_next
 
