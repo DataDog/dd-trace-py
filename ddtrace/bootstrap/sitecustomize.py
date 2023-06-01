@@ -49,6 +49,7 @@ if not debug_mode and call_basic_config:
 
 log = get_logger(__name__)
 
+
 if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
     deprecate(
         "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
@@ -247,6 +248,20 @@ try:
             log.debug("additional sitecustomize not found")
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
+
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        remoteconfig_poller.enable()
+
+    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
+        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+    )
+
+    if should_start_appsec_remoteconfig:
+        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+
+        enable_appsec_rc()
 
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
