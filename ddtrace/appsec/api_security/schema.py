@@ -22,11 +22,11 @@ class Type_Base(enum.Enum):
     Unknown = 0  # "Unknown"
     NoneType = 1  # "Null"
     bool = 2  # "Bool"
-    int = 4  # "Number"
-    float = 4  # "Number"
+    int = 4  # "Integer"
     str = 8  # "String"
     unicode = 8  # "String"
     bytes = 8  # "String"
+    float = 16  # "Float"
 
 
 class Record(dict):
