@@ -188,13 +188,33 @@ def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
         assert len(sampling_rules) == 1
 
 
-def traced_function(tracer, name="test_name", service="test_service", trace_sampling=False):
+def test_tag_rules_sample_span_via_env():
+    """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"tags":{"test_key":"test_value"}}]')):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._tag_value_matchers["test_key"].pattern == "test_value"
+        tracer = Tracer()
+        tracer.configure(writer=DummyWriter())
+
+        span = traced_function(tracer)
+        assert span.get_tag("test_key") == "test_value"
+
+        assert_sampling_decision_tags(span)
+
+
+def traced_function(
+    tracer, name="test_name", service="test_service", tags={"test_key": "test_value"}, trace_sampling=False
+):
     with tracer.trace(name) as span:
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
         if trace_sampling:
             span.context.sampling_priority = 1
         else:
             span.context.sampling_priority = 0
+
+        if tags:
+            for k, v in tags.items():
+                span.set_tag(k, v)
 
         span.service = service
     return span

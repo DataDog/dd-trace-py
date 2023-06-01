@@ -79,6 +79,7 @@ SPAN_SAMPLING_JSON_SCHEMA = {
         "anyOf": [
             {"properties": {"service": {"type": "string"}}, "required": ["service"]},
             {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+            {"properties": {"tags": {"type": "object"}}, "required": ["tags"]},
         ],
         "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
     },
@@ -145,7 +146,7 @@ class SpanSamplingRule:
         "_service_matcher",
         "_name_matcher",
         "_resource_matcher",
-        "_tags_matcher",
+        "_tag_value_matchers",
         "_sample_rate",
         "_max_per_second",
         "_sampling_id_threshold",
@@ -160,7 +161,7 @@ class SpanSamplingRule:
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
-        tags=None,  # type: Optional[str]
+        tags=None,  # type: Optional[dict]
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
@@ -173,8 +174,7 @@ class SpanSamplingRule:
         self._name_matcher = GlobMatcher(name) if name is not None else None
         self._resource_matcher = GlobMatcher(resource) if resource is not None else None
 
-        # for tags, we'll just try to match on the full key value pair as a string, rather than break it up into a dict
-        self._tags_matchers = [GlobMatcher(tag) for tag in tags] if tags is not None else []
+        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None else []
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -230,19 +230,17 @@ class SpanSamplingRule:
             else:
                 resource_match = self._resource_matcher.match(resource)
 
-        if self._tag_matchers:
+        if self._tag_value_matchers:
             if tags is None:
                 return False
             else:
-                try:
-                    for tag_matcher in self._tag_matchers:
-                        for tag in tags:
-                            tag_match = tag_matcher.match(tag)
-                            if tag_match:
-                                # If we get a single match, no need to continue trying to match, exit loops
-                                raise Found
-                except Found:
-                    pass
+                for tag_key in self._tag_value_matchers.keys():
+                    value = span.get_tag(tag_key)
+                    if value is not None:
+                        tag_match = self._tag_value_matchers[tag_key].match(value)
+                    else:
+                        # if we don't match with all specified tags for a rule, it's not a match
+                        return False
 
         return service_match and name_match and resource_match and tag_match
 
@@ -268,6 +266,9 @@ def get_span_sampling_rules():
         sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
+        resource = rule.get("resource")
+
+        tags = rule.get("tags")
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
@@ -277,7 +278,12 @@ def get_span_sampling_rules():
 
         try:
             sampling_rule = SpanSamplingRule(
-                sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
+                sample_rate=sample_rate,
+                service=service,
+                name=name,
+                resource=resource,
+                tags=tags,
+                max_per_second=max_per_second,
             )
         except Exception as e:
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
