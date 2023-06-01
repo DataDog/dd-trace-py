@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixed an issue with gunicorn and gevent workers that occasionally
+    caused an ``AttributeError`` exception to be raised on profiler start-up.
