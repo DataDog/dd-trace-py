@@ -58,7 +58,7 @@ from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
@@ -258,8 +258,9 @@ class Debugger(Service):
             log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
         # Register the debugger with the RCM client.
-        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
-
+        if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
+            di_callback = self.__rc_adapter__(None, self._on_configuration)
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
     def _on_encoder_buffer_full(self, item, encoded):
@@ -305,6 +306,7 @@ class Debugger(Service):
 
             signal.line()
 
+            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
             self._collector.push(signal)
 
         except Exception:
@@ -433,10 +435,12 @@ class Debugger(Service):
                     self._probe_registry.set_installed(probe)
 
             if failed:
-                log.error("Failed to inject probes %r", failed)
+                log.error("[%s][P: %s] Failed to inject probes %r", os.getpid(), os.getppid(), failed)
 
             log.debug(
-                "Injected probes %r in %r",
+                "[%s][P: %s] Injected probes %r in %r",
+                os.getpid(),
+                os.getppid(),
                 [probe.probe_id for probe in probes if probe.probe_id not in failed],
                 function,
             )
@@ -445,7 +449,7 @@ class Debugger(Service):
         # type: (List[LineProbe]) -> None
         for probe in probes:
             if probe not in self._probe_registry:
-                log.debug("Received new %s.", probe)
+                log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
             resolved_source = probe.source_file
@@ -545,11 +549,23 @@ class Debugger(Service):
                 wrapper = cast(FullyNamedWrappedFunction, function)
                 assert wrapper.__dd_wrappers__, "Function has debugger wrappers"
                 wrapper.__dd_wrappers__[probe.probe_id] = probe
-                log.debug("Function probe %r added to already wrapped %r", probe.probe_id, function)
+                log.debug(
+                    "[%s][P: %s] Function probe %r added to already wrapped %r",
+                    os.getpid(),
+                    os.getppid(),
+                    probe.probe_id,
+                    function,
+                )
             else:
                 wrappers = cast(FullyNamedWrappedFunction, function).__dd_wrappers__ = {probe.probe_id: probe}
                 self._function_store.wrap(cast(FunctionType, function), self._dd_debugger_wrapper(wrappers))
-                log.debug("Function probe %r wrapped around %r", probe.probe_id, function)
+                log.debug(
+                    "[%s][P: %s] Function probe %r wrapped around %r",
+                    os.getpid(),
+                    os.getppid(),
+                    probe.probe_id,
+                    function,
+                )
             self._probe_registry.set_installed(probe)
 
     def _wrap_functions(self, probes):
@@ -607,7 +623,7 @@ class Debugger(Service):
 
     def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, Iterable[Probe]) -> None
-        log.debug("Received poller event %r with probes %r", event, probes)
+        log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
         if len(list(probes)) + len(self._probe_registry) > config.max_probes:
             log.warning("Too many active probes. Ignoring new ones.")
             return
@@ -658,11 +674,12 @@ class Debugger(Service):
     def _start_service(self):
         # type: () -> None
         for service in self._services:
+            log.debug("[%s][P: %s] Debugger. Start service %s", os.getpid(), os.getppid(), service)
             service.start()
 
     @classmethod
     def _restart(cls):
-        log.info("Restarting the debugger in child process")
+        log.info("[%s][P: %s] Restarting the debugger in child process", os.getpid(), os.getppid())
         cls.disable(join=False)
         cls.enable()
 

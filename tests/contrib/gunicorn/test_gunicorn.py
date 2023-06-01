@@ -64,7 +64,7 @@ def _gunicorn_settings_factory(
         env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
-    env["DD_REMOTECONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     env["DD_TRACE_DEBUG"] = str(debug_mode)
     return GunicornServerSettings(
