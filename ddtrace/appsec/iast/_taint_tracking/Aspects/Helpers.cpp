@@ -80,6 +80,10 @@ py::object get_default_content(const TaintRangePtr& taint_range) {
     return py::cast<py::none>(Py_None);
 }
 
+bool range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2) {
+    return t1->start < t2->start;
+}
+
 // TODO OPTIMIZATION: Remove py::types once this isn't used in Python
 template <class StrType>
 StrType as_formatted_evidence(const StrType& text,
@@ -95,7 +99,7 @@ StrType as_formatted_evidence(const StrType& text,
     vector<StrType> res_vector;
     long index = 0;
 
-    sort(text_ranges->begin(), text_ranges->end());
+    sort(text_ranges->begin(), text_ranges->end(), &range_sort);
     for (const auto& taint_range : *text_ranges) {
         py::object content;
         if (!tag_mapping_mode) {
@@ -114,17 +118,24 @@ StrType as_formatted_evidence(const StrType& text,
             }
         StrType tag = get_tag<StrType>(content);
 
-        res_vector.push_back(text[py::slice(py::int_{index}, py::int_{taint_range->start}, nullptr)]);
+        auto range_end = taint_range->start + taint_range->length;
+
+        res_vector.push_back(
+                text[
+                        py::slice(py::int_{index},
+                    py::int_{taint_range->start}, nullptr)
+                    ]);
         res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
         res_vector.push_back(tag);
         res_vector.push_back(
                 text[
-                        py::slice(py::int_{taint_range->start}, py::int_{taint_range->start+taint_range->length},
+                        py::slice(py::int_{taint_range->start},
+                                  py::int_{range_end},
                                   nullptr)]);
         res_vector.push_back(tag);
         res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
 
-        index = taint_range->length;
+        index = range_end;
     }
     res_vector.push_back(
             text[

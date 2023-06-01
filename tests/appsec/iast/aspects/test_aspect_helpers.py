@@ -1,5 +1,8 @@
+import itertools
+
 import pytest
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import (common_replace,
+    as_formatted_evidence)
 from ddtrace.appsec.iast._taint_tracking import (
     Source,
     OriginType,
@@ -65,3 +68,29 @@ def test_common_replace_tainted_bytearray():
     s2 = common_replace("lower", s)
     assert s2 == b"foobar"
     assert get_ranges(s2) == [_RANGE1, _RANGE2]
+
+
+def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
+    return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
+
+
+def test_as_formatted_evidence():  # type: () -> None
+    s = 'abcdefgh'
+    set_ranges(s, (_build_sample_range(0, 5, "first"),))
+    assert as_formatted_evidence(s) == ':+-<first>abcde<first>-+:fgh'
+
+    set_ranges(s, (_build_sample_range(1, 6, "first"),))
+    assert as_formatted_evidence(s) == 'a:+-<first>bcdefg<first>-+:h'
+
+    set_ranges(
+        s,
+        (
+            _build_sample_range(0, 2, "first"),
+            _build_sample_range(3, 1, "second"),
+            _build_sample_range(4, 2, "third"),
+        ),
+    )
+    assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>d<second>-+::+-<third>ef<third>-+:gh"
+
+    set_ranges(s, (_build_sample_range(3, 2, "second"), _build_sample_range(0, 2, "first")))
+    assert as_formatted_evidence(s) == ':+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh'

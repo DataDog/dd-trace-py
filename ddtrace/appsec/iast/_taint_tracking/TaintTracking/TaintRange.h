@@ -75,12 +75,6 @@ struct TaintRange
 using TaintRangePtr = shared_ptr<TaintRange>;
 using TaintRangeRefs = vector<TaintRangePtr>;
 
-inline auto
-operator<(const TaintRange& left, const TaintRange& right)
-{
-    return left.start < right.start;
-}
-
 TaintRangePtr
 api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset);
 
