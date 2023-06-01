@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 import tenacity
@@ -78,7 +79,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
-                    log.debug("Payload uploaded: %s", payload)
+                    log.debug("[%s][P: %s] Payload uploaded: %s", os.getpid(), os.getppid(), payload)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
