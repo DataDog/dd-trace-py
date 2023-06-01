@@ -209,7 +209,6 @@ SourcePtr
 Initializer::allocate_taint_source(string name, string value, OriginType origin)
 {
     auto source_hash = Source::hash(name, value, origin);
-
     auto it = allocated_sources_map.find(source_hash);
     if (it != allocated_sources_map.end()) {
         // It's already in the map, increase the reference count and return it

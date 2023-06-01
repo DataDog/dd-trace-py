@@ -76,7 +76,12 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj1 = taint_pyobject(obj1, Source("test_add_aspect_tainting_left_hand", obj1, OriginType.PARAMETER))
+        obj1 = taint_pyobject(
+            pyobject=obj1,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=obj1,
+            source_origin=OriginType.PARAMETER,
+        )
         if len(obj1):
             assert get_tainted_ranges(obj1)
 
@@ -115,7 +120,12 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
     if should_be_tainted:
-        obj2 = taint_pyobject(obj2, Source("test_add_aspect_tainting_right_hand", repr(obj2), OriginType.PARAMETER))
+        obj2 = taint_pyobject(
+            pyobject=obj2,
+            source_name="test_add_aspect_tainting_right_hand",
+            source_value=obj2,
+            source_origin=OriginType.PARAMETER,
+        )
         if len(obj2):
             assert get_tainted_ranges(obj2)
 

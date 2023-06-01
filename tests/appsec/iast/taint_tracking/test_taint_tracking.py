@@ -30,7 +30,7 @@ def test_taint_ranges_as_evidence_info_nothing_tainted():
 def test_taint_ranges_as_evidence_info_all_tainted():
     arg = "all tainted"
     input_info = Source("request_body", arg)
-    tainted_text = taint_pyobject(arg, input_info)
+    tainted_text = taint_pyobject(pyobject=arg, source_name="request_body", source_value=arg)
     value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
     assert value_parts == [{"value": tainted_text, "source": 0}]
     assert sources == [input_info]
@@ -40,7 +40,7 @@ def test_taint_ranges_as_evidence_info_tainted_op1_add():
     arg = "tainted part"
     input_info = Source("request_body", arg)
     text = "|not tainted part|"
-    tainted_text = taint_pyobject(arg, input_info)
+    tainted_text = taint_pyobject(pyobject=arg, source_name="request_body", source_value=arg)
     tainted_add_result = add_aspect(tainted_text, text)
 
     value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
@@ -52,7 +52,7 @@ def test_taint_ranges_as_evidence_info_tainted_op2_add():
     arg = "tainted part"
     input_info = Source("request_body", arg)
     text = "|not tainted part|"
-    tainted_text = taint_pyobject(arg, input_info)
+    tainted_text = taint_pyobject(pyobject=arg, source_name="request_body", source_value=arg)
     tainted_add_result = add_aspect(text, tainted_text)
 
     value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
@@ -64,7 +64,7 @@ def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     arg = "tainted part"
     input_info = Source("request_body", arg)
     text = "|not tainted part|"
-    tainted_text = taint_pyobject(arg, input_info)
+    tainted_text = taint_pyobject(pyobject=arg, source_name="request_body", source_value=arg)
     tainted_add_result = add_aspect(tainted_text, add_aspect(text, tainted_text))
 
     value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
@@ -78,8 +78,8 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     input_info1 = Source("request_body", arg1)
     input_info2 = Source("request_header", arg2)
     text = "|not tainted part|"
-    tainted_text1 = taint_pyobject(arg1, input_info1)
-    tainted_text2 = taint_pyobject(arg2, input_info2)
+    tainted_text1 = taint_pyobject(pyobject=arg1, source_name="request_body", source_value=arg1)
+    tainted_text2 = taint_pyobject(pyobject=arg2, source_name="request_header", source_value=arg2)
     tainted_add_result = add_aspect(tainted_text1, add_aspect(text, tainted_text2))
 
     value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)

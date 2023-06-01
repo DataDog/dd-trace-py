@@ -23,7 +23,12 @@ class TestOperatorJoinReplacement(object):
 
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            "-joiner-", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
+            pyobject="-joiner-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=3,
         )
         it = ["a", "b", "c"]
 
@@ -40,7 +45,12 @@ class TestOperatorJoinReplacement(object):
 
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            b"-joiner-", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
+            pyobject=b"-joiner-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=3,
         )
         it = [b"a", b"b", b"c"]
         result = mod.do_join(string_input, it)
@@ -56,7 +66,12 @@ class TestOperatorJoinReplacement(object):
 
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            b"-joiner-", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
+            pyobject=b"-joiner-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=3,
         )
         it = [bytearray(b"a"), bytearray(b"b"), bytearray(b"c")]
         result = mod.do_join(string_input, it)
@@ -72,7 +87,12 @@ class TestOperatorJoinReplacement(object):
 
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            bytearray(b"-joiner-"), Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
+            pyobject=bytearray(b"-joiner-"),
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=3,
         )
         it = [bytearray(b"a"), bytearray(b"b"), bytearray(b"c")]
 
@@ -89,7 +109,12 @@ class TestOperatorJoinReplacement(object):
 
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            bytearray(b"-joiner-"), Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 3
+            pyobject=bytearray(b"-joiner-"),
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=3,
         )
         it = [b"a", b"b", b"c"]
 
@@ -105,9 +130,23 @@ class TestOperatorJoinReplacement(object):
         setup(bytes.join, bytearray.join)
         string_input = "-joiner-"
         it = [
-            taint_pyobject("aaaa", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3),
+            taint_pyobject(
+                pyobject="aaaa",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=3,
+            ),
             "bbbb",
-            taint_pyobject("cccc", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3),
+            taint_pyobject(
+                pyobject="cccc",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=3,
+            ),
         ]
 
         result = mod.do_join(string_input, it)
@@ -122,16 +161,63 @@ class TestOperatorJoinReplacement(object):
         setup(bytes.join, bytearray.join)
 
         string_input = taint_pyobject(
-            "-joiner-", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 1, 2
+            pyobject="-joiner-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=2,
         )
         it = [
-            taint_pyobject("aaaa", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 1),
+            taint_pyobject(
+                pyobject="aaaa",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=1,
+            ),
             "bbbb",
-            taint_pyobject("cccc", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 4),
-            taint_pyobject("dddd", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3),
-            taint_pyobject("eeee", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 2),
-            taint_pyobject("ffff", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3),
-            taint_pyobject("gggg", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 4),
+            taint_pyobject(
+                pyobject="cccc",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=4,
+            ),
+            taint_pyobject(
+                pyobject="dddd",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=3,
+            ),
+            taint_pyobject(
+                pyobject="eeee",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=2,
+            ),
+            taint_pyobject(
+                pyobject="ffff",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=3,
+            ),
+            taint_pyobject(
+                pyobject="gggg",
+                source_name="joiner",
+                source_value="foo",
+                source_origin=OriginType.PARAMETER,
+                start=0,
+                len_pyobject=4,
+            ),
         ]
 
         result = mod.do_join(string_input, it)
@@ -155,7 +241,12 @@ class TestOperatorJoinReplacement(object):
 
         # Tainted
         tainted_base_string = taint_pyobject(
-            "abcde", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+            pyobject="abcde",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=3,
         )
         result = mod.do_join_tuple(tainted_base_string)
         assert result == "abcde1abcde2abcde3"
@@ -173,15 +264,18 @@ class TestOperatorJoinReplacement(object):
 
         base_string = "abcde"
         result = mod.do_join_set(base_string)
-        # assert result == "abcde2abcde1abcde3"
         assert not get_tainted_ranges(result)
 
         # Tainted
         tainted_base_string = taint_pyobject(
-            "abcde", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+            pyobject="abcde",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=3,
         )
         result = mod.do_join_set(tainted_base_string)
-        # assert result == "abcde2abcde1abcde3"
 
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abc"
@@ -201,7 +295,12 @@ class TestOperatorJoinReplacement(object):
 
         # Tainted
         tainted_base_string = taint_pyobject(
-            "abcde", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+            pyobject="abcde",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=3,
         )
         result = mod.do_join_generator(tainted_base_string)
         assert result == "abcdeabcdeabcde"
@@ -223,7 +322,12 @@ class TestOperatorJoinReplacement(object):
 
         # Tainted
         tainted_base_string = taint_pyobject(
-            "abcde", Source("test_add_aspect_tainting_left_hand", "foo", OriginType.PARAMETER), 0, 3
+            pyobject="abcde",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=3,
         )
         result = mod.do_join_generator_2(tainted_base_string)
         assert result == "xabcdeyabcdez"

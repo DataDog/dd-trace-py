@@ -45,7 +45,9 @@ class TestByteArrayExtendAspect(object):
 
         setup(bytes.join, bytearray.join)
 
-        ba1 = taint_pyobject(bytearray(b"123"), Source("test", "foo", OriginType.PARAMETER))
+        ba1 = taint_pyobject(
+            pyobject=bytearray(b"123"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
+        )
         ba2 = bytearray(b"456")
 
         result = mod.do_bytearray_extend(ba1, ba2)
@@ -61,7 +63,9 @@ class TestByteArrayExtendAspect(object):
 
         setup(bytes.join, bytearray.join)
 
-        ba1 = taint_pyobject(bytearray(b"123"), Source("test", "foo", OriginType.PARAMETER))
+        ba1 = taint_pyobject(
+            pyobject=bytearray(b"123"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
+        )
         ba2 = b"456"
 
         result = mod.do_bytearray_extend(ba1, ba2)
@@ -77,8 +81,9 @@ class TestByteArrayExtendAspect(object):
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
-        ba2 = taint_pyobject(bytearray(b"456"), Source("test", "foo", OriginType.PARAMETER))
-
+        ba2 = taint_pyobject(
+            pyobject=bytearray(b"456"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
+        )
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
@@ -91,8 +96,9 @@ class TestByteArrayExtendAspect(object):
         setup(bytes.join, bytearray.join)
 
         ba1 = bytearray(b"123")
-        ba2 = taint_pyobject(b"456", Source("test", "foo", OriginType.PARAMETER))
-
+        ba2 = taint_pyobject(
+            pyobject=bytearray(b"456"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
+        )
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
@@ -104,9 +110,12 @@ class TestByteArrayExtendAspect(object):
 
         setup(bytes.join, bytearray.join)
 
-        ba1 = taint_pyobject(bytearray(b"123"), Source("test1", "foo", OriginType.PARAMETER))
-        ba2 = taint_pyobject(bytearray(b"456"), Source("test2", "bar", OriginType.BODY))
-
+        ba1 = taint_pyobject(
+            pyobject=bytearray(b"123"), source_name="test1", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        ba2 = taint_pyobject(
+            pyobject=bytearray(b"456"), source_name="test2", source_value="foo", source_origin=OriginType.PARAMETER
+        )
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)

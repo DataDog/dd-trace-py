@@ -62,6 +62,12 @@ def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=
     if len_pyobject is None:
         len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
+    if isinstance(source_name, (bytes, bytearray)):
+        source_name = str(source_name, encoding="utf8")
+    if isinstance(source_value, (bytes, bytearray)):
+        source_value = str(source_value, encoding="utf8")
+    if source_origin is None:
+        source_origin = OriginType.PARAMETER
     source = Source(source_name, source_value, source_origin)
     pyobject_range = TaintRange(start, len_pyobject, source)
     set_ranges(pyobject, [pyobject_range])
@@ -69,7 +75,7 @@ def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=
 
 
 def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
-    set_ranges(pyobject, ranges)
+    set_ranges(pyobject, tuple(ranges))
 
 
 def get_tainted_ranges(pyobject):  # type: (Any) -> tuple

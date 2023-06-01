@@ -51,7 +51,7 @@ struct Source
 
     static inline size_t hash(const string& name, const string& value, const OriginType origin)
     {
-        return std::hash<size_t>()(std::hash<string>()(name) ^ (long)origin ^ std::hash<string>()(value));
+        return std::hash<size_t>()(std::hash<string>()(name + value) ^ (int)origin);
     };
 
     explicit operator std::string() const;

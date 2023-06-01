@@ -117,7 +117,9 @@ def test_common_replace_aspects(input_str, output_str, mod_function, check_range
     assert not get_tainted_ranges(input_str)
     assert not get_tainted_ranges(res)
 
-    s_tainted = taint_pyobject(input_str, _SOURCE1)
+    s_tainted = taint_pyobject(
+        pyobject=input_str, source_name=_SOURCE1.name, source_value=_SOURCE1.value, source_origin=_SOURCE1.origin
+    )
     res = mod_function(s_tainted)
     assert res == output_str
     assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1)]
@@ -154,7 +156,9 @@ def test_translate():
     assert not get_tainted_ranges(input_str)
     assert not get_tainted_ranges(res)
 
-    s_tainted = taint_pyobject(input_str, _SOURCE1)
+    s_tainted = taint_pyobject(
+        pyobject=input_str, source_name=_SOURCE1.name, source_value=_SOURCE1.value, source_origin=_SOURCE1.origin
+    )
     res = mod.do_translate(s_tainted)
     assert res == output_str
     assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1)]
@@ -170,7 +174,9 @@ def test_upper_in_decorator():
     assert not get_tainted_ranges(s)
 
     s2 = "barbaz"
-    s_tainted = taint_pyobject(s2, _SOURCE1)
+    s_tainted = taint_pyobject(
+        pyobject=s2, source_name=_SOURCE1.name, source_value=_SOURCE1.value, source_origin=_SOURCE1.origin
+    )
 
     res = mod.do_add_and_uppercase(s, s_tainted)
     assert res == "FOOBARBARBAZ"

@@ -12,6 +12,8 @@ from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
+from ddtrace.appsec.iast._taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 
@@ -39,7 +41,9 @@ def str_aspect(*args, **kwargs):
     # type: (Any, Any) -> str
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, Source("str_aspect", result, 0))
+        result = taint_pyobject(
+            pyobject=result, source_name="str_aspect", source_value=result, source_origin=OriginType.PARAMETER
+        )
 
     return result
 
@@ -237,15 +241,22 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
-            if i == tainted_range[1]:
+            if i == tainted_range.start:
                 # start new tainted range
-                new_ranges.append([tainted_range[0], result_length])
+                new_ranges.append(TaintRange(start=i, length=result_length, source=tainted_range.source))
+
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
-            if i + 1 == tainted_range[1] + tainted_range[2]:
+
+            if i + 1 == tainted_range.start + tainted_range.length:
                 # end range. Do no taint partial multi-bytes character that comes next.
-                new_ranges[-1].append(result_length - new_ranges[-1][-1])
+                # new_ranges[-1].append(result_length - new_ranges[-1].length)
+                new_ranges[-1] = TaintRange(
+                    start=new_ranges[-1].length,
+                    length=(result_length - new_ranges[-1].length),
+                    source=new_ranges[-1].source,
+                )
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
