@@ -50,10 +50,7 @@ class SpanExceptionSnapshot(Snapshot):
         # type: () -> t.Dict[str, t.Any]
         data = super(SpanExceptionSnapshot, self).data
 
-        data.update(
-            exc_id=str(self.exc_id),
-            seq_nr=self.seq_nr,
-        )
+        data.update({"exception-id": str(self.exc_id)})
 
         return data
 
@@ -72,18 +69,19 @@ class SpanExceptionProcessor(SpanProcessor):
             # No error to capture
             return
 
-        _type, _exc, _tb = sys.exc_info()
+        _, _, _tb = sys.exc_info()
         if _tb is None or _tb.tb_frame is None:
             # If we don't have a traceback there isn't much we can do
             return
 
-        seq_nr = count()
+        seq = count(1)
         exc_id = uuid.uuid4()
 
         # DEV: We go from the handler up to the root exception
         while _tb:
             frame = _tb.tb_frame
-            n = next(seq_nr)
+            code = frame.f_code
+            seq_nr = next(seq)
 
             snapshot = SpanExceptionSnapshot(
                 probe=SpanExceptionProbe.build(exc_id, frame),
@@ -91,8 +89,14 @@ class SpanExceptionProcessor(SpanProcessor):
                 thread=current_thread(),
                 trace_context=span,
                 exc_id=exc_id,
-                seq_nr=n,
+                seq_nr=seq_nr,
             )
+
+            # Add correlation tags on the span
+            span.set_tag_str("_dd.debug.error.%d.snapshot.id" % seq_nr, snapshot.uuid)
+            span.set_tag_str("_dd.debug.error.%d.function" % seq_nr, code.co_name)
+            span.set_tag_str("_dd.debug.error.%d.file" % seq_nr, code.co_filename)
+            span.set_tag_str("_dd.debug.error.%d.line" % seq_nr, str(frame.f_lineno))
 
             # Capture
             snapshot.line()
@@ -100,3 +104,6 @@ class SpanExceptionProcessor(SpanProcessor):
             self.collector.push(snapshot)
 
             _tb = _tb.tb_next
+
+        span.set_tag_str("error.debug.info-captured", "true")
+        span.set_tag_str("_dd.debug.error.exception-id", str(exc_id))
