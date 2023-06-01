@@ -29,7 +29,7 @@ def test_build_schema(obj):
         (True, [2]),
         ("test", [8]),
         (b"test", [8]),
-        (1.0, [4]),
+        (1.0, [16]),
         ([1, 2], [[[4]], {"len": 2}]),
         ({"test": "truc"}, [{"test": [8]}]),
         (None, [1]),
