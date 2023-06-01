@@ -31,6 +31,7 @@ enum class TagMappingMode { Normal, Mapper, Mapper_Replace };
 struct Source
 {
     Source(string, string, OriginType);
+    Source(int, string, OriginType);
     Source() = default;
     string name;
     string value;

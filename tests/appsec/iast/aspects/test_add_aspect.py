@@ -4,11 +4,12 @@ import sys
 
 import pytest
 
+
 try:
-    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import TaintRange
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

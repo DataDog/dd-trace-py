@@ -1,12 +1,13 @@
 import pytest
 
+
 try:
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import TaintRange
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
+    from tests.appsec.iast.aspects.conftest import _iast_patched_module
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -21,107 +22,81 @@ _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
         ("foobar", "FOOBAR", mod.do_upper, True),
         (b"foobar", b"FOOBAR", mod.do_upper, True),
         (bytearray(b"foobar"), bytearray(b"FOOBAR"), mod.do_upper, True),
-
         ("FooBar", "foobar", mod.do_lower, True),
         (b"FooBar", b"foobar", mod.do_lower, True),
         (bytearray(b"FooBar"), bytearray(b"foobar"), mod.do_lower, True),
-
         ("FooBar", "fOObAR", mod.do_swapcase, True),
         (b"FooBar", b"fOObAR", mod.do_swapcase, True),
         (bytearray(b"FooBar"), bytearray(b"fOObAR"), mod.do_swapcase, True),
-
         ("fo baz", "Fo Baz", mod.do_title, True),
         (b"fo baz", b"Fo Baz", mod.do_title, True),
         (bytearray(b"fo baz"), bytearray(b"Fo Baz"), mod.do_title, True),
-
         ("foobar", "Foobar", mod.do_capitalize, True),
         (b"foobar", b"Foobar", mod.do_capitalize, True),
         (bytearray(b"foobar"), bytearray(b"Foobar"), mod.do_capitalize, True),
-
         ("FooBar", "foobar", mod.do_casefold, True),
-
         # These check that if the object is not text, but an object with a method with
         # the same name, we're not replacing it
         ("foobar", "output", mod.do_upper_not_str, False),
         (b"foobar", "output", mod.do_upper_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_upper_not_str, False),
-
         ("foobar", "output", mod.do_lower_not_str, False),
         (b"foobar", "output", mod.do_lower_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_lower_not_str, False),
-
         ("foobar", "output", mod.do_swapcase_not_str, False),
         (b"foobar", "output", mod.do_swapcase_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_swapcase_not_str, False),
-
         ("foobar", "output", mod.do_title_not_str, False),
         (b"foobar", "output", mod.do_title_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_title_not_str, False),
-
         ("foobar", "output", mod.do_capitalize_not_str, False),
         (b"foobar", "output", mod.do_capitalize_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_capitalize_not_str, False),
-
         ("foobar", "output", mod.do_encode_not_str, False),
         (b"foobar", "output", mod.do_encode_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_encode_not_str, False),
-
         ("foobar", "output", mod.do_expandtabs_not_str, False),
         (b"foobar", "output", mod.do_expandtabs_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_expandtabs_not_str, False),
-
         ("foobar", "output", mod.do_casefold_not_str, False),
         (b"foobar", "output", mod.do_casefold_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_casefold_not_str, False),
-
         ("foobar", "output", mod.do_center_not_str, False),
         (b"foobar", "output", mod.do_center_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_center_not_str, False),
-
         ("foobar", "output", mod.do_ljust_not_str, False),
         (b"foobar", "output", mod.do_ljust_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_ljust_not_str, False),
-
         ("foobar", "output", mod.do_lstrip_not_str, False),
         (b"foobar", "output", mod.do_lstrip_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_lstrip_not_str, False),
-
         ("foobar", "output", mod.do_rstrip_not_str, False),
         (b"foobar", "output", mod.do_rstrip_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_rstrip_not_str, False),
-
         ("foobar", "output", mod.do_split_not_str, False),
         (b"foobar", "output", mod.do_split_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_split_not_str, False),
-
         ("foobar", "output", mod.do_rsplit_not_str, False),
         (b"foobar", "output", mod.do_rsplit_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_rsplit_not_str, False),
-
         ("foobar", "output", mod.do_splitlines_not_str, False),
         (b"foobar", "output", mod.do_splitlines_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_splitlines_not_str, False),
-
         ("foobar", "output", mod.do_partition_not_str, False),
         (b"foobar", "output", mod.do_partition_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_partition_not_str, False),
-
         ("foobar", "output", mod.do_rpartition_not_str, False),
         (b"foobar", "output", mod.do_rpartition_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_rpartition_not_str, False),
-
         ("foobar", "output", mod.do_replace_not_str, False),
         (b"foobar", "output", mod.do_replace_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_replace_not_str, False),
-
         ("foobar", "output", mod.do_format_not_str, False),
         (b"foobar", "output", mod.do_format_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_format_not_str, False),
-
         ("foobar", "output", mod.do_format_map_not_str, False),
         (b"foobar", "output", mod.do_format_map_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_format_map_not_str, False),
-
         ("foobar", "output", mod.do_zfill_not_str, False),
         (b"foobar", "output", mod.do_zfill_not_str, False),
         (bytearray(b"foobar"), "output", mod.do_zfill_not_str, False),
@@ -166,6 +141,7 @@ def test_common_replace_aspects(input_str, output_str, mod_function, check_range
 
 def test_translate():
     from ddtrace.appsec.iast._taint_tracking import setup
+
     setup(bytes.join, bytearray.join)
 
     input_str = "foobar"
@@ -187,6 +163,7 @@ def test_translate():
 
 def test_upper_in_decorator():
     from ddtrace.appsec.iast._taint_tracking import setup
+
     setup(bytes.join, bytearray.join)
 
     s = "foobar"

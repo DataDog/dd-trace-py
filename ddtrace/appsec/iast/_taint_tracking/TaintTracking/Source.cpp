@@ -16,6 +16,12 @@ Source::Source(string name, string value, OriginType origin)
   , origin(origin)
 {}
 
+Source::Source(int name, string value, OriginType origin)
+  : name(origin_to_str(OriginType{ name }))
+  , value(move(value))
+  , origin(origin)
+{}
+
 string
 Source::toString() const
 {
@@ -41,6 +47,7 @@ Source::get_hash() const
 void
 pyexport_source(py::module& m)
 {
+    m.def("origin_to_str", &origin_to_str, "origin"_a);
     py::enum_<OriginType>(m, "OriginType")
       .value("PARAMETER", OriginType::PARAMETER)
       .value("PARAMETER_NAME", OriginType::PARAMETER_NAME)
@@ -56,6 +63,7 @@ pyexport_source(py::module& m)
 
     py::class_<Source>(m, "Source")
       .def(py::init<string, string, const OriginType>(), "name"_a = "", "value"_a = "", "origin"_a = OriginType())
+      .def(py::init<int, string, const OriginType>(), "name"_a = "", "value"_a = "", "origin"_a = OriginType())
       .def_readonly("name", &Source::name)
       .def_readonly("origin", &Source::origin)
       .def_readonly("value", &Source::value)

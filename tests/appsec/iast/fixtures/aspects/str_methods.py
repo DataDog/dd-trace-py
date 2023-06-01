@@ -1,4 +1,8 @@
+from collections import namedtuple
 import functools
+from http.client import HTTPConnection
+from http.server import HTTPServer as HTTPServer
+from http.server import SimpleHTTPRequestHandler
 import json
 import operator
 import os
@@ -6,14 +10,8 @@ import random
 import re
 import sys
 import threading
-from collections import namedtuple
 
 from six import StringIO
-
-
-from http.client import HTTPConnection
-from http.server import HTTPServer as HTTPServer
-from http.server import SimpleHTTPRequestHandler
 
 
 def methodcaller(*args, **kwargs):

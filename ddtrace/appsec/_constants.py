@@ -69,15 +69,6 @@ class IAST(object):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
-    HTTP_REQUEST_BODY = "http.request.body"
-    HTTP_REQUEST_HEADER = "http.request.header"
-    HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
-    HTTP_REQUEST_PARAMETER = "http.request.parameter"
-    HTTP_REQUEST_PATH = "http.request.path"
-    HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
-    HTTP_REQUEST_QUERYSTRING = "http.request.query"
-    HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
-    HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

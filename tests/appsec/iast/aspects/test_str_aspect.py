@@ -4,8 +4,8 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking import Source
 
 
 def setup():
@@ -52,11 +52,11 @@ def test_str_aspect(obj, kwargs):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
-    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()

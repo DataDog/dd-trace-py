@@ -10,8 +10,8 @@ from six import binary_type
 from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import set_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 
@@ -254,7 +254,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     except UnicodeEncodeError:
         funcode(self)
     result = empty.join(result_list)
-    set_tainted_ranges(result, new_ranges)
+    taint_pyobject_with_ranges(result, new_ranges)
     return result
 
 
@@ -312,10 +312,10 @@ def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any)
 def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.casefold(*args, **kwargs)
-    return common_replace('casefold', candidate_text, *args, **kwargs)
+    return common_replace("casefold", candidate_text, *args, **kwargs)
 
 
 def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.translate(*args, **kwargs)
-    return common_replace('translate', candidate_text, *args, **kwargs)
+    return common_replace("translate", candidate_text, *args, **kwargs)

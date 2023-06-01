@@ -1,15 +1,15 @@
 import itertools
 
 import pytest
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import (common_replace,
-    as_formatted_evidence)
-from ddtrace.appsec.iast._taint_tracking import (
-    Source,
-    OriginType,
-    TaintRange,
-    set_ranges,
-    get_ranges,
-)
+
+from ddtrace.appsec.iast._taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking import TaintRange
+from ddtrace.appsec.iast._taint_tracking import get_ranges
+from ddtrace.appsec.iast._taint_tracking import set_ranges
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import as_formatted_evidence
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
+
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
@@ -75,12 +75,12 @@ def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
 
 
 def test_as_formatted_evidence():  # type: () -> None
-    s = 'abcdefgh'
+    s = "abcdefgh"
     set_ranges(s, (_build_sample_range(0, 5, "first"),))
-    assert as_formatted_evidence(s) == ':+-<first>abcde<first>-+:fgh'
+    assert as_formatted_evidence(s) == ":+-<first>abcde<first>-+:fgh"
 
     set_ranges(s, (_build_sample_range(1, 6, "first"),))
-    assert as_formatted_evidence(s) == 'a:+-<first>bcdefg<first>-+:h'
+    assert as_formatted_evidence(s) == "a:+-<first>bcdefg<first>-+:h"
 
     set_ranges(
         s,
@@ -93,4 +93,4 @@ def test_as_formatted_evidence():  # type: () -> None
     assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>d<second>-+::+-<third>ef<third>-+:gh"
 
     set_ranges(s, (_build_sample_range(3, 2, "second"), _build_sample_range(0, 2, "first")))
-    assert as_formatted_evidence(s) == ':+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh'
+    assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh"

@@ -1,22 +1,26 @@
 import sys
+
 import pytest
 
-from ddtrace.appsec.iast._taint_tracking import Source, OriginType, TaintRange, set_ranges, get_ranges
+from ddtrace.appsec.iast._taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking import TaintRange
+from ddtrace.appsec.iast._taint_tracking import get_ranges
+from ddtrace.appsec.iast._taint_tracking import set_ranges
+
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import (
-        Source,
-        OriginType,
-        TaintRange,
-        set_ranges,
-        get_ranges,
-        shift_taint_range,
-        shift_taint_ranges,
-        get_range_by_hash,
-        are_all_text_all_ranges,
-        is_notinterned_notfasttainted_unicode,
-        set_fast_tainted_if_notinterned_unicode,
-    )
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import TaintRange
+    from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges
+    from ddtrace.appsec.iast._taint_tracking import get_range_by_hash
+    from ddtrace.appsec.iast._taint_tracking import get_ranges
+    from ddtrace.appsec.iast._taint_tracking import is_notinterned_notfasttainted_unicode
+    from ddtrace.appsec.iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
+    from ddtrace.appsec.iast._taint_tracking import set_ranges
+    from ddtrace.appsec.iast._taint_tracking import shift_taint_range
+    from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

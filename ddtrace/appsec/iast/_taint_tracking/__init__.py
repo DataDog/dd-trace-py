@@ -3,8 +3,6 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_dict import get_taint_dict
-
 
 if TYPE_CHECKING:
     from typing import Any
@@ -14,7 +12,7 @@ if TYPE_CHECKING:
     from typing import Union
     from typing import Optional
 
-from ddtrace.appsec.iast._taint_tracking._native import aspect_helpers
+from ddtrace.appsec.iast._taint_tracking._native import aspect_helpers  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
@@ -23,6 +21,7 @@ from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_t
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
@@ -51,26 +50,8 @@ __all__ = [
 ]
 
 
-def add_taint_pyobject(pyobject, op1, op2):  # type: (Any, Any, Any) -> Any
-    if not (is_pyobject_tainted(op1) or is_pyobject_tainted(op2)):
-        return pyobject
-
-    pyobject = new_pyobject_id(pyobject, len(pyobject))
-    taint_dict = get_taint_dict()
-    new_ranges = []
-    if is_pyobject_tainted(op1):
-        new_ranges = list(taint_dict[id(op1)])
-    if is_pyobject_tainted(op2):
-        offset = len(op1)
-        for source, start, size in taint_dict[id(op2)]:
-            new_ranges.append((source, start + offset, size))
-
-    taint_dict[id(pyobject)] = tuple(new_ranges)
-    return pyobject
-
-
-def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):
-    # type: (Any, Source, int, Optional[int]) -> Any
+def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=None, start=0, len_pyobject=None):
+    # type: (Any, str, str, OriginType, int, Optional[int]) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -78,20 +59,17 @@ def taint_pyobject(pyobject, source=None, start=0, len_pyobject=None):
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    if source is None:
-        return pyobject
     if len_pyobject is None:
         len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
-
-    set_ranges(pyobject, [TaintRange(start, len_pyobject, source)])
+    source = Source(source_name, source_value, source_origin)
+    pyobject_range = TaintRange(start, len_pyobject, source)
+    set_ranges(pyobject, [pyobject_range])
     return pyobject
 
 
-def set_tainted_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
-    taint_dict = get_taint_dict()
-    assert pyobject not in taint_dict
-    taint_dict[id(pyobject)] = ranges
+def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
+    set_ranges(pyobject, ranges)
 
 
 def get_tainted_ranges(pyobject):  # type: (Any) -> tuple

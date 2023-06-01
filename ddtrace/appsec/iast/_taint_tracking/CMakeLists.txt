@@ -14,6 +14,7 @@ set(ABSL_PROPAGATE_CXX_STD ON)
 
 # For release modes: switch off assertions (more risky but faster). Compiler: -DNDEBUG
 add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
+
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
