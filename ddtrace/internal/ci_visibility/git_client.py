@@ -114,7 +114,7 @@ class CIVisibilityGitClient(object):
             _headers.update(headers)
         try:
             conn = get_connection(url)
-            log.debug("Sending request: %s %s %s %s", ("POST", url, payload, _headers))
+            log.debug("Sending request: POST %s %s %s", url, str(payload)[:10], str(_headers))
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
             log.debug("Response status: %s", resp.status)
