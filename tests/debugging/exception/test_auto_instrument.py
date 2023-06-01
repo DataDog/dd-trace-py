@@ -1,0 +1,82 @@
+from contextlib import contextmanager
+from itertools import groupby
+
+import pytest
+
+import ddtrace
+from tests.debugging.mocking import debugger
+from tests.utils import TracerTestCase
+
+
+@contextmanager
+def auto_instrument():
+    with debugger(exception_debugging=True) as d:
+        yield d
+
+
+class ExceptionDebuggingTestCase(TracerTestCase):
+    def setUp(self):
+        super(ExceptionDebuggingTestCase, self).setUp()
+        self.backup_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
+
+    def tearDown(self):
+        ddtrace.tracer = self.backup_tracer
+        super(ExceptionDebuggingTestCase, self).tearDown()
+
+    def test_debugger_exception_debugging(self):
+        def a(v, d=None):
+            with self.trace("a"):
+                if not v:
+                    raise ValueError("hello", v)
+
+        def b(bar):
+            with self.trace("b"):
+                m = 4
+                a(bar % m)
+
+        def c(foo=42):
+            with self.trace("c"):
+                sh = 3
+                b(foo << sh)
+
+        with auto_instrument() as d:
+            with pytest.raises(ValueError):
+                c()
+
+            self.assert_span_count(3)
+            assert len(d.test_queue) == 6
+
+            snapshot_groups = {str(k): list(v) for k, v in groupby(d.test_queue, lambda s: s.exc_id)}
+
+            for span in self.spans:
+                assert span.get_tag("error.debug.info-captured") == "true"
+
+                exc_id = span.get_tag("_dd.debug.error.exception-id")
+
+                # Retrieve all the snapshots for this span
+                snapshots = {s.uuid: s for s in snapshot_groups[exc_id]}
+
+                n = len(snapshots)
+
+                # function name and line number information
+                info = {k: v for k, v in enumerate([("c", "41"), ("b", "36"), ("a", "31")][-n:], start=1)}
+
+                for i in range(1, n + 1):
+                    fn, line = info[i]
+
+                    # Check that we have all the tags for each snapshot
+                    assert span.get_tag("_dd.debug.error.%d.snapshot.id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                        "_dd.debug.error.%d.file" % i
+                    )
+                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                        i,
+                        span.get_tag("_dd.debug.error.%d.function" % i),
+                    )
+                    assert span.get_tag("_dd.debug.error.%d.line" % i) == line, "_dd.debug.error.%d.line = %s" % (
+                        i,
+                        span.get_tag("_dd.debug.error.%d.line" % i),
+                    )
+
+                    assert all(str(s.exc_id) == exc_id for s in snapshots.values())
