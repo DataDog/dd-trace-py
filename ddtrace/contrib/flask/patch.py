@@ -294,7 +294,10 @@ def patch():
     _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
-    _w("flask", "Flask.finalize_request", traced_finalize_request)
+
+    if config._api_security_enabled:
+        _w("flask", "Flask.finalize_request", traced_finalize_request)
+
     if flask_version >= (2, 0, 0):
         _w("flask", "Flask.register_error_handler", traced_register_error_handler)
     else:
@@ -442,6 +445,9 @@ def unpatch():
         "render_template_string",
         "templating._render",
     ]
+
+    if config._api_security_enabled:
+        props.append("Flask.finalize_request")
 
     if flask_version >= (2, 0, 0):
         props.append("Flask.register_error_handler")
