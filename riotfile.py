@@ -126,7 +126,7 @@ venv = Venv(
         Venv(
             pys=["3"],
             pkgs={
-                "flake8": ">=3.8,<3.9",
+                "flake8": "==3.8.4",
                 "flake8-blind-except": latest,
                 "flake8-builtins": latest,
                 "flake8-docstrings": latest,
@@ -2513,6 +2513,7 @@ venv = Venv(
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
+                "pillow": latest,
             },
         ),
         Venv(

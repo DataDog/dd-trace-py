@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "createTranslation",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/audio/translations",
+      "openai.request.file": "/dd-trace-py/tests/contrib/openai/test_data/french_audio.mp3",
+      "openai.request.method": "POST",
+      "openai.request.model": "whisper-1",
+      "openai.request.prompt": "and when I've given up,",
+      "openai.request.response_format": "text",
+      "openai.response.text": "when I've had enough of running after.\\n",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "4fcef2d554164afba532cc2998492162"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.remaining": 49,
+      "process_id": 39520
+    },
+    "duration": 922636000,
+    "start": 1684794004634658000
+  }]]

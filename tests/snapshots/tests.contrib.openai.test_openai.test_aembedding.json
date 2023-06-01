@@ -19,7 +19,6 @@
       "openai.request.input": "hello world",
       "openai.request.method": "POST",
       "openai.request.model": "text-embedding-ada-002",
-      "openai.response.created": "None",
       "openai.response.model": "text-embedding-ada-002-v2",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "e33160ca0936409b9543e6582ba39fa8"

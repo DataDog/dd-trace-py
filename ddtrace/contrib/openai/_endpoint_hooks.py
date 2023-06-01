@@ -304,7 +304,7 @@ class _EmbeddingHook(_EndpointHook):
         manually set them in _pre_response().
         """
         text_input = kwargs.get("input")
-        if isinstance(text_input, list):
+        if isinstance(text_input, list) and not isinstance(text_input[0], int):
             for idx, inp in enumerate(text_input):
                 span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
         else:
@@ -315,7 +315,6 @@ class _EmbeddingHook(_EndpointHook):
         if not resp:
             return
         span.set_tag_str("openai.response.model", resp.get("model", ""))
-        span.set_tag("openai.response.created", resp.get("created"))
         if "data" in resp:
             span.set_tag("openai.response.embeddings_count", len(resp["data"]))
             for result in resp["data"]:
@@ -622,7 +621,7 @@ class _ModerationHook(_EndpointHook):
             for category in categories.keys():
                 span.set_metric("openai.response.category_scores.%s" % category, scores.get(category, 0))
                 span.set_tag("openai.response.categories.%s" % category, _format_bool(categories.get(category, "")))
-            span.set_tag_str("openai.response.flagged", str(flagged))
+            span.set_tag("openai.response.flagged", _format_bool(flagged))
             span.set_tag_str("openai.response.id", mod_id)
             span.set_tag_str("openai.response.model", model)
         return resp

@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 import sys
 from typing import AsyncGenerator
@@ -5,6 +6,7 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
+from PIL import Image
 import mock
 import pytest
 import vcr
@@ -597,6 +599,175 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Edit"):
+        pytest.skip("edit not supported for this version of openai")
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_edit", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("edit.yaml"):
+            openai.Edit.create(
+                api_key=request_api_key,
+                model="text-davinci-edit-001",
+                input="thsi si a spelilgn imstkae.",
+                instruction="fix spelling mistakes",
+                n=3,
+                temperature=0.2,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Edit"):
+        pytest.skip("edit not supported for this version of openai")
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_aedit", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("aedit.yaml"):
+            await openai.Edit.acreate(
+                api_key=request_api_key,
+                model="text-davinci-edit-001",
+                input="thsi si a spelilgn imstkae.",
+                instruction="fix spelling mistakes",
+                n=3,
+                top_p=0.3,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_image_create", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("image_create.yaml"):
+            openai.Image.create(
+                api_key=request_api_key,
+                prompt="sleepy capybara with monkey on top",
+                n=1,
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(token="tests.contrib.openai.test_openai.test_image_acreate", ignores=["meta.http.useragent"]):
+        with openai_vcr.use_cassette("image_acreate.yaml"):
+            await openai.Image.acreate(
+                api_key=request_api_key,
+                prompt="sleepy capybara with monkey on top",
+                n=1,
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_image_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_edit",
+        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
+    ):
+        with openai_vcr.use_cassette("image_edit.yaml"):
+            openai.Image.create_edit(
+                image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+                mask=open(os.path.join(os.path.dirname(__file__), "test_data/mask.png"), "rb"),
+                api_key=request_api_key,
+                n=1,
+                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_aedit",
+        ignores=["meta.http.useragent", "meta.openai.request.image", "meta.openai.request.mask"],
+    ):
+        with openai_vcr.use_cassette("image_aedit.yaml"):
+            await openai.Image.acreate_edit(
+                image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+                mask=open(os.path.join(os.path.dirname(__file__), "test_data/mask.png"), "rb"),
+                api_key=request_api_key,
+                n=1,
+                prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_image_variation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_variation",
+        ignores=["meta.http.useragent", "meta.openai.request.image"],
+    ):
+        with openai_vcr.use_cassette("image_variation.yaml"):
+            openai.Image.create_variation(
+                image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+                api_key=request_api_key,
+                n=1,
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_avariation",
+        ignores=["meta.http.useragent", "meta.openai.request.image"],
+    ):
+        with openai_vcr.use_cassette("image_avariation.yaml"):
+            await openai.Image.acreate_variation(
+                image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+                api_key=request_api_key,
+                n=1,
+                size="256x256",
+                response_format="url",
+            )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    image = Image.open(os.path.join(os.path.dirname(__file__), "test_data/image.png"))
+    image_arr = BytesIO()
+    image.save(image_arr, format="PNG")
+    with openai_vcr.use_cassette("image_edit.yaml"):
+        openai.Image.create_edit(
+            image=image_arr.getvalue(),
+            n=1,
+            prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+            size="256x256",
+            response_format="url",
+        )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with openai_vcr.use_cassette("image_create_b64_json.yaml"):
+        openai.Image.create(
+            prompt="sleepy capybara with monkey on top", n=1, size="256x256", response_format="b64_json"
+        )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
@@ -609,7 +780,7 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
 def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with openai_vcr.use_cassette("embedding.yaml"):
+    with openai_vcr.use_cassette("embedding_string_array.yaml"):
         openai.Embedding.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
 
 
@@ -617,7 +788,7 @@ def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
 def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with openai_vcr.use_cassette("embedding.yaml"):
+    with openai_vcr.use_cassette("embedding_token_array.yaml"):
         openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
 
 
@@ -625,7 +796,7 @@ def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
 def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with openai_vcr.use_cassette("embedding.yaml"):
+    with openai_vcr.use_cassette("embedding_array_of_token_arrays.yaml"):
         openai.Embedding.create(
             input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
         )
@@ -639,6 +810,115 @@ async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, s
     with snapshot_context(token="tests.contrib.openai.test_openai.test_aembedding", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("embedding_async.yaml"):
             await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_transcribe",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("transcribe.yaml"):
+            openai.Audio.transcribe(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/english_audio.mp3"), "rb"),
+                model="whisper-1",
+                response_format="verbose_json",
+                prompt="what's that over there?",
+                temperature=0.3,
+                language="en",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_atranscribe",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("atranscribe.yaml"):
+            await openai.Audio.atranscribe(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/english_audio.mp3"), "rb"),
+                model="whisper-1",
+                response_format="text",
+                prompt="what's that over there?",
+                temperature=0.7,
+                language="en",
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_translate",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("translate.yaml"):
+            openai.Audio.translate(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/french_audio.mp3"), "rb"),
+                model="whisper-1",
+                response_format="verbose_json",
+                prompt="and when I've given up,",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_atranslate",
+        ignores=["meta.http.useragent", "meta.openai.request.file"],
+    ):
+        with openai_vcr.use_cassette("atranslate.yaml"):
+            await openai.Audio.atranslate(
+                api_key=request_api_key,
+                file=open(os.path.join(os.path.dirname(__file__), "test_data/french_audio.mp3"), "rb"),
+                model="whisper-1",
+                response_format="text",
+                prompt="and when I've given up,",
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Moderation"):
+        pytest.skip("moderation not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_create_moderation", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("moderation.yaml"):
+            openai.Moderation.create(
+                api_key=request_api_key,
+                input="i want to kill them.",
+                model="text-moderation-latest",
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_acreate_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Moderation"):
+        pytest.skip("moderation not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_acreate_moderation", ignores=["meta.http.useragent"]
+    ):
+        with openai_vcr.use_cassette("amoderation.yaml"):
+            await openai.Moderation.acreate(
+                api_key=request_api_key,
+                input="that group of loud children annoy me.",
+                model="text-moderation-latest",
+            )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])

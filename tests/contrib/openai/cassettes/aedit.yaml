@@ -1,15 +1,8 @@
 interactions:
 - request:
-    body: '{"input": "i want to kill them.", "model": "text-moderation-latest"}'
+    body: '{"model": "text-davinci-edit-001", "input": "thsi si a spelilgn imstkae.",
+      "instruction": "fix spelling mistakes", "n": 3, "top_p": 0.3}'
     headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '68'
       Content-Type:
       - application/json
       User-Agent:
@@ -19,21 +12,24 @@ interactions:
         "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
         PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
-    method: POST
-    uri: https://api.openai.com/v1/moderations
+    method: post
+    uri: https://api.openai.com/v1/edits
   response:
     body:
-      string: !!binary |
-        H4sIAAAAAAAAA2yPXWuDMBiF/8t7rWnUxCTeFjZW2EV3URhjjKCvGki1JHFrKf734Tpl0l0ezgfP
-        uYKpoIBjX7lY7GTHn91w2JutvbzKy9dBPFb8tHt4edpDNIXQQgEBzyGehNPB9F1MKYMIHPrBBg/F
-        2xVqq5sGKyiCGzCCUgdsemfQQ3EFj+dBWyhqbT1G0OqAc/DT9Ba7ctEebR232h2X9K28OZqud361
-        sQmtQx2wM12zGPPgpnH61Jry1xgXpsuHL3u3BuNEZHmeCIYxFTMgJUKKPEtz9heTEsUVE5kSK1hO
-        0lzINJkW5B10ShKqJKXZzb2Hp4QyqgRlPP3vAidS5SxVP/1xfB+/AQAA//8DAJDYZPbFAQAA
+      string: '{"object":"edit","created":1684789788,"choices":[{"text":"this is a
+        spelling mistake.\n","index":0},{"text":"this is a spelling mistake.\n","index":1},{"text":"this
+        is a spelling mistake.\n","index":2}],"usage":{"prompt_tokens":28,"completion_tokens":90,"total_tokens":118}}
+
+        '
     headers:
+      Access-Control-Allow-Origin:
+      - '*'
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7cb8abb90bbd43dd-EWR
+      - 7cb80ad40a128c7e-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
       Connection:
       - keep-alive
       Content-Encoding:
@@ -41,24 +37,33 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 22 May 2023 22:59:39 GMT
+      - Mon, 22 May 2023 21:09:49 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
       alt-svc:
       - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - text-davinci-edit:001
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '288'
+      - '880'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '20'
+      x-ratelimit-remaining-requests:
+      - '19'
+      x-ratelimit-reset-requests:
+      - 3s
       x-request-id:
-      - 7f9ca630908fc4df7386a31baf0757cd
+      - d5773e88c39ac2850c70162cfa98e013
     status:
       code: 200
       message: OK
+    url: https://api.openai.com/v1/edits
 version: 1
