@@ -27,7 +27,6 @@ class TooLarge(Exception):
 
 
 class APIManager(Service):
-
     COLLECTED = [
         (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "_dd.schema.req.headers", dict),
         (SPAN_DATA_NAMES.REQUEST_QUERY, "_dd.schema.req.query", dict),
@@ -130,6 +129,7 @@ class APIManager(Service):
             value = env.waf_addresses.get(address, _sentinel)
             if value is _sentinel:
                 continue
+            json_serialized = ()
             try:
                 if transform is not None:
                     value = transform(value)
@@ -140,6 +140,11 @@ class APIManager(Service):
             except Exception as e:
                 self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
                 self._log_limiter.limit(
-                    log.warning, "Failed to get schema from %r:\n%s", address, repr(value)[:256], exc_info=True
+                    log.warning,
+                    "Failed to get schema from %r [schema length=%d]:\n%s",
+                    address,
+                    len(json_serialized),
+                    repr(value)[:256],
+                    exc_info=True,
                 )
         self._schema_meter.increment("spans")
