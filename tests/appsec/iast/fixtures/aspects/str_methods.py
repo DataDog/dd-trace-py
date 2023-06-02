@@ -140,6 +140,10 @@ def do_decode(s, encoding="utf-8", errors="strict"):  # type: (bytes, str, str) 
     return s.decode(encoding, errors)
 
 
+def do_translate(s, translate_dict):  # type: (str, dict) -> str
+    return s.translate(translate_dict)
+
+
 def do_decode_simple(s):  # type: (bytes, str, str) -> str
     return s.decode()
 

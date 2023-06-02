@@ -126,32 +126,17 @@ def test_common_replace_aspects(input_str, output_str, mod_function, check_range
     assert not get_tainted_ranges(input_str)
 
 
-# def test_notstr_method(input_str, output_str, mod_function):
-#     """
-#     Test that when called from an object that is not a string we are not
-#     replacing it with the string method
-#     """
-#     from ddtrace.appsec.iast._taint_tracking import setup
-#     setup(bytes.join, bytearray.join)
-#
-#     assert not get_tainted_ranges(input_str)
-#     res = mod_function(input_str)
-#     assert res == output_str
-#     assert not get_tainted_ranges(input_str)
-#     assert not get_tainted_ranges(res)
-
-
 def test_translate():
     from ddtrace.appsec.iast._taint_tracking import setup
 
     setup(bytes.join, bytearray.join)
 
     input_str = "foobar"
-    translate_dict = {"f": "g", "r": "z"}
+    translate_dict = str.maketrans({"f": "g", "r": "z"})
     output_str = "goobaz"
 
     assert not get_tainted_ranges(input_str)
-    res = mod.do_translate(input_str)
+    res = mod.do_translate(input_str, translate_dict)
     assert res == output_str
     assert not get_tainted_ranges(input_str)
     assert not get_tainted_ranges(res)
@@ -159,7 +144,7 @@ def test_translate():
     s_tainted = taint_pyobject(
         pyobject=input_str, source_name=_SOURCE1.name, source_value=_SOURCE1.value, source_origin=_SOURCE1.origin
     )
-    res = mod.do_translate(s_tainted)
+    res = mod.do_translate(s_tainted, translate_dict)
     assert res == output_str
     assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1)]
     assert not get_tainted_ranges(input_str)
