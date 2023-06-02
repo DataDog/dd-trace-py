@@ -105,6 +105,8 @@ def test_tags_from_context():
     assert metas["celery.reply_to"] == "44b7f305"
     assert metrics["celery.retries"] == 4
     assert metas["celery.timelimit"] == "('now', 'later')"
+    assert metas["celery.hostname"] == "localhost"
+    assert metas["out.host"] == "localhost"
     assert metas.get("custom_meta", sentinel) is sentinel
     assert metrics.get("custom_metric", sentinel) is sentinel
 

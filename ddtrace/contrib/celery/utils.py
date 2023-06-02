@@ -18,6 +18,7 @@ TAG_KEYS = frozenset(
         ("exchange", "celery.exchange"),
         ("expires", "celery.expires"),
         ("hostname", "celery.hostname"),
+        ("hostname", "out.host"),
         ("id", "celery.id"),
         ("priority", "celery.priority"),
         ("queue", "celery.queue"),
@@ -29,6 +30,7 @@ TAG_KEYS = frozenset(
         # Celery 4.0 uses `origin` instead of `hostname`; this change preserves
         # the same name for the tag despite Celery version
         ("origin", "celery.hostname"),
+        ("origin", "out.host"),
         ("state", "celery.state"),
     ]
 )
