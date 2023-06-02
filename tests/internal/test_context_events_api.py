@@ -147,7 +147,35 @@ class TestContextEventsApi(unittest.TestCase):
         assert core.get_item(data_key) is None
 
     def test_core_context_relationship_across_threads(self):
-        assert False
+        data_key = "banana"
+        data_value = "bazinga"
+        thread_nested_context_id = "in.nested"
+        thread_context_id = "in.thread"
+        parent_context_id = "main"
+
+        def make_context(_results):
+            with core.context_with_data(thread_context_id, **{data_key: data_value}):
+                _results[thread_context_id] = dict()
+                _results[thread_context_id][data_key] = core.get_item(data_key)
+                _results[thread_context_id]["_id"] = core.current_context.identifier
+                _results[thread_context_id]["parent"] = core.current_context.parent.identifier
+                with core.context_with_data(thread_nested_context_id):
+                    _results[thread_nested_context_id] = dict()
+                    _results[thread_nested_context_id]["_id"] = core.current_context.identifier
+                    _results[thread_nested_context_id]["parent"] = core.current_context.parent.identifier
+
+        results = dict()
+
+        with core.context_with_data(parent_context_id):
+            thread_that_makes_context = threading.Thread(target=make_context, args=(results,))
+            thread_that_makes_context.start()
+            thread_that_makes_context.join()
+
+        assert results[thread_context_id]["_id"] == thread_context_id
+        assert results[thread_context_id]["parent"] == parent_context_id
+        assert results[thread_context_id][data_key] == data_value
+        assert results[thread_nested_context_id]["_id"] == thread_nested_context_id
+        assert results[thread_nested_context_id]["parent"] == thread_context_id
 
     def test_core_context_with_data_inheritance(self):
         data_key = "my.cool.data"

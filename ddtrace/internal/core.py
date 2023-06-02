@@ -28,6 +28,10 @@ class ExecutionContext:
         return self._parents
 
     @property
+    def parent(self):
+        return self._parents[0] if self._parents else None
+
+    @property
     def children(self):
         return self._children
 
