@@ -377,6 +377,15 @@ pyexport_initializer(py::module& m)
 
     m.def("reset_stdlib_paths_and_modules", [] { initializer->reset_stdlib_paths_and_modules(); });
 
+    m.def(
+            "create_context", []() { return initializer->create_context(); },
+            py::return_value_policy::reference);
+    m.def(
+            "get_context", [](const size_t tx_id) { return
+                    initializer->get_context(tx_id); },
+            py::return_value_policy::reference, "tx_id"_a = 0);
+    m.def("contexts_reset", [] { initializer->contexts_reset(); });
+
     // TODO: Migrate/change this when the new TaintedMap is merged
     //    m.def("get_ranges_dict", [] {
     //        // In this case we want the usually dangerous "create if it doesn't
@@ -404,18 +413,10 @@ pyexport_initializer(py::module& m)
     //        }
     //    });
     //
-    //    m.def(
-    //        "create_context", []() { return initializer->create_context(); },
-    //        py::return_value_policy::reference);
     //
-    //    m.def(
-    //        "get_context", [](const size_t tx_id) { return
-    //        initializer->get_context(tx_id); },
-    //        py::return_value_policy::reference, "tx_id"_a = "");
     //
     //    m.def("context_id", [] { return initializer->context_id(); });
     //
-    //    m.def("contexts_reset", [] { initializer->contexts_reset(); });
     //
     //    m.def("is_stdlib_module", [](const string& module_name) {
     //        return initializer->stdlib_modules.find(module_name) !=

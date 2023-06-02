@@ -6,12 +6,18 @@ import pytest
 
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking import contexts_reset
+from ddtrace.appsec.iast._taint_tracking import create_context
 
 
-def setup():
+@pytest.fixture(autouse=True)
+def reset_context():
     oce._enabled = True
-
+    from ddtrace.appsec.iast._taint_tracking import setup
+    setup(bytes.join, bytearray.join)
+    yield
+    contexts_reset()
+    _ = create_context()
 
 def catch_all(fun, args, kwargs):
     try:
@@ -39,11 +45,9 @@ def catch_all(fun, args, kwargs):
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    setup(bytes.join, bytearray.join)
     clear_taint_mapping()
     if should_be_tainted:
         infix = taint_pyobject(
@@ -89,14 +93,10 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 @pytest.mark.parametrize("suffix", ["", "abc", "èôï"])
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    setup(bytes.join, bytearray.join)
-    clear_taint_mapping()
     if should_be_tainted:
         infix = taint_pyobject(
             pyobject=infix, source_name="test_decode_aspect", source_value=infix, source_origin=OriginType.PARAMETER

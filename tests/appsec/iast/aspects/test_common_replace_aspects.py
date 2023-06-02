@@ -7,6 +7,8 @@ try:
     from ddtrace.appsec.iast._taint_tracking import TaintRange
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -14,6 +16,15 @@ except (ImportError, AttributeError):
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
+
+
+@pytest.fixture(autouse=True)
+def reset_context():
+    from ddtrace.appsec.iast._taint_tracking import setup
+    setup(bytes.join, bytearray.join)
+    yield
+    contexts_reset()
+    _ = create_context()
 
 
 @pytest.mark.parametrize(
@@ -103,10 +114,6 @@ _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
     ],
 )
 def test_common_replace_aspects(input_str, output_str, mod_function, check_ranges):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
-
     assert not get_tainted_ranges(input_str)
     res = mod_function(input_str)
     assert res == output_str
@@ -127,10 +134,6 @@ def test_common_replace_aspects(input_str, output_str, mod_function, check_range
 
 
 def test_translate():
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
-
     input_str = "foobar"
     translate_dict = str.maketrans({"f": "g", "r": "z"})
     output_str = "goobaz"
@@ -151,10 +154,6 @@ def test_translate():
 
 
 def test_upper_in_decorator():
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
-
     s = "foobar"
     assert not get_tainted_ranges(s)
 

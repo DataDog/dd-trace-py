@@ -8,6 +8,8 @@ try:
     from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -15,12 +17,17 @@ except (ImportError, AttributeError):
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
+@pytest.fixture(autouse=True)
+def reset_context():
+    from ddtrace.appsec.iast._taint_tracking import setup
+    setup(bytes.join, bytearray.join)
+    yield
+    contexts_reset()
+    _ = create_context()
+
+
 class TestOperatorJoinReplacement(object):
     def test_string_join_tainted_joiner(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject="-joiner-",

@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 from ddtrace.appsec.iast._taint_tracking._native import aspect_helpers  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
@@ -48,6 +51,9 @@ __all__ = [
     "is_notinterned_notfasttainted_unicode",
     "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
+    "contexts_reset",
+    "get_context",
+    "create_context",
 ]
 
 
