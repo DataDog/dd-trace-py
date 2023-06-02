@@ -1,11 +1,15 @@
 from collections import defaultdict
 from contextlib import contextmanager
+import logging
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+
+
+log = logging.getLogger(__name__)
 
 
 class ExecutionContext:
@@ -96,9 +100,11 @@ class EventHub:
         self._listeners[event_id].append(callback)
 
     def dispatch(self, event_id: str, args: List[Any]):
+        log.debug("Dispatching event %s", event_id)
         results = []
         exceptions = []
         for listener in self._listeners.get(event_id, []):
+            log.debug("Calling listener %s", listener)
             result = None
             exception = None
             try:

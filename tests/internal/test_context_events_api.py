@@ -1,5 +1,7 @@
 import unittest
 
+import mock
+
 from ddtrace.internal import core
 
 
@@ -48,16 +50,12 @@ class TestContextEventsApi(unittest.TestCase):
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
         event_name = "context.ended.%s" % context_id
-        was_called = False
-
-        def handler():
-            global was_called
-            was_called = True
-
+        handler = mock.Mock()
         core.on(event_name, handler)
+        assert not handler.called
         with core.context_with_data(context_id):
             pass
-        assert was_called
+        assert handler.called
 
     def test_core_root_context(self):
         assert isinstance(core.root_context, core.ExecutionContext)
