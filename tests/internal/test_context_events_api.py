@@ -1,3 +1,4 @@
+import threading
 import unittest
 
 import mock
@@ -45,7 +46,39 @@ class TestContextEventsApi(unittest.TestCase):
         assert results[1] == handler_return + str(dynamic_value) + "!"
 
     def test_core_dispatch_multiple_listeners_multiple_threads(self):
-        assert False
+        event_name = "my.cool.event"
+
+        def make_target(make_target_id):
+            def target():
+                def listener():
+                    if make_target_id % 2 == 0:
+                        return make_target_id * 2
+                    else:
+                        raise ValueError
+
+                core.on(event_name, listener)
+
+            return target
+
+        threads = []
+        thread_count = 10
+        for idx in range(thread_count):
+            t = threading.Thread(target=make_target(idx))
+            t.start()
+            threads.append(t)
+
+        results, exceptions = core.dispatch(event_name, [])
+
+        for t in threads:
+            t.join()
+
+        assert results == list((i * 2) if i % 2 == 0 else None for i in range(thread_count))
+        assert len(exceptions) == thread_count
+        for idx, exception in enumerate(exceptions):
+            if idx % 2 == 0:
+                assert exception is None
+            else:
+                assert isinstance(exception, ValueError)
 
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
