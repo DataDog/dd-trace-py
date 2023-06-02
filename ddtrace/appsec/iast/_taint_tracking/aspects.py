@@ -7,13 +7,13 @@ from typing import Text
 
 from six import binary_type
 
+from ddtrace.appsec.iast._taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 

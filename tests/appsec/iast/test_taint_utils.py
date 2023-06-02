@@ -5,10 +5,10 @@ import pytest
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
     from ddtrace.appsec.iast._taint_utils import check_tainted_args
 except (ImportError, AttributeError):
@@ -21,40 +21,61 @@ def setup():
 
 
 def test_tainted_types():
-    tainted = taint_pyobject("hello", Source("request_body", "hello", "request_body"))
+
+    tainted = taint_pyobject(
+        pyobject="hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(b"hello", Source("request_body", "hello", 0))
+    tainted = taint_pyobject(
+        pyobject=b"hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(bytearray("hello", encoding="utf-8"), Source("request_body", "hello", 0))
+    tainted = taint_pyobject(
+        bytearray("hello", encoding="utf-8"),
+        source_name="request_body",
+        source_value="hello",
+        source_origin=OriginType.PARAMETER,
+    )
     assert is_pyobject_tainted(tainted)
 
     # Not tainted as string is empty
-    not_tainted = taint_pyobject("", Source("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        "", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(123456, Source("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        123456, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(1234.56, Source("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        1234.56, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject({"a": "1", "b": 2}, Source("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        {"a": "1", "b": 2}, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(["a", "1", "b", 2], Source("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        ["a", "1", "b", 2], source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
 
 def test_tainted_getitem():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
-        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
     )
 
     # Strings are tainted, but integers are not
@@ -74,7 +95,8 @@ def test_tainted_getitem():
 def test_tainted_get():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
-        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
     )
 
     # Not-existing key returns None or default
@@ -102,7 +124,10 @@ def test_tainted_get():
 
 def test_tainted_items():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
-    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
 
     # Keys and values are tainted if string-like
     for k, v in tainted_knights.items():
@@ -117,7 +142,10 @@ def test_tainted_items():
 
 def test_tainted_keys_and_values():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
-    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
 
     # Keys are tainted if string-like
     for k in tainted_knights.keys():
@@ -138,7 +166,8 @@ def test_checked_tainted_args():
     setattr(cursor.executemany, "__name__", "executemany")
 
     arg = "nobody expects the spanish inquisition"
-    tainted_arg = taint_pyobject(arg, Source("request_body", arg, 0))
+
+    tainted_arg = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
 
     untainted_arg = "gallahad the pure"
 
