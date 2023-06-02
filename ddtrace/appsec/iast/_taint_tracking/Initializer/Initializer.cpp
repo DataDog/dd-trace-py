@@ -103,8 +103,10 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     for (auto& kv_taint_map : *tx_map) {
         kv_taint_map.second->decref();
     }
-    tx_map->clear();
-    delete tx_map;
+    if (tx_map) {
+        tx_map->clear();
+        delete tx_map;
+    }
     active_map_addreses.erase(it);
 }
 

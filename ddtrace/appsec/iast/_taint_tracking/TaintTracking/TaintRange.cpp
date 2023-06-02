@@ -131,7 +131,8 @@ get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map)
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
     }
-    if (tx_map->empty()) {
+    if (!tx_map or tx_map->empty()) {
+        // TODO: log something here: "no tx_map, maybe call create_context()?"
         return {};
     }
 
@@ -151,6 +152,10 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
+        if (not tx_map) {
+            // TODO: log something here: "no tx_map, maybe call create_context()?"
+            return;
+        }
     }
 
     auto tx_id = initializer->context_id();
@@ -225,6 +230,10 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
+        if (not tx_map) {
+            // TODO: log something here: "no tx_map, maybe call create_context()?"
+            return nullptr;
+        }
     }
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
@@ -242,6 +251,10 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
 
     if (not tx_taint_map) {
         tx_taint_map = initializer->get_tainting_map();
+        if (not tx_taint_map) {
+            // TODO: log something here: "no tx_map, maybe call create_context()?"
+            return;
+        }
     }
 
     auto hash = get_unique_id(str);
