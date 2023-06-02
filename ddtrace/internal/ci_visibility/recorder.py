@@ -40,6 +40,8 @@ from .writer import CIVisibilityWriter
 
 log = get_logger(__name__)
 
+TEST_LEVEL = "suite"
+
 
 def _extract_repository_name_from_url(repository_url):
     # type: (str) -> str
@@ -224,11 +226,16 @@ class CIVisibility(Service):
         return cls._instance and cls._instance._test_skipping_enabled_by_api
 
     @classmethod
-    def should_skip(cls, test, suite, module):
+    def should_skip(cls, suite, module, test=None):
         if not cls.enabled:
             return False
 
-        return cls._instance and test in cls._instance._get_tests_to_skip(suite, module)
+        if test is not None:
+            return cls._instance and test in cls._instance._get_tests_to_skip(suite, module)
+
+        else:
+            return cls._instance and cls._instance._get_tests_to_skip(suite, module) != []
+        return False
 
     def _fetch_tests_to_skip(self):
         # Make sure git uploading has finished
@@ -246,6 +253,7 @@ class CIVisibility(Service):
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
                     "configurations": ci._get_runtime_and_os_metadata(),
+                    "test_level": TEST_LEVEL,
                 },
             }
         }
@@ -276,9 +284,12 @@ class CIVisibility(Service):
             return
 
         for item in parsed["data"]:
-            if item["type"] == "test" and "suite" in item["attributes"]:
+            if item["type"] == TEST_LEVEL and "suite" in item["attributes"]:
                 module = item["attributes"].get("module", None)
-                self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
+                if TEST_LEVEL == "test":
+                    self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
+                else:
+                    self._tests_to_skip[(item["attributes"]["suite"], module)].append("")
 
     def _get_tests_to_skip(self, suite, module):
         return self._tests_to_skip.get((suite, module), [])

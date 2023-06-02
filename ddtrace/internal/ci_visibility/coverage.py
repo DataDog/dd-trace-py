@@ -1,4 +1,3 @@
-import contextlib
 from itertools import groupby
 import json
 import os
@@ -70,15 +69,14 @@ def segments(lines):
     return _segments
 
 
-@contextlib.contextmanager
-def cover(span):
-    """Calculates code coverage on the given span and saves it as a tag"""
+def _coverage_start():
     COV.start()
-    test_id = str(span.trace_id)
-    COV
-    yield COV
+
+
+def _coverage_end(span):
+    span_id = str(span.trace_id)
     COV.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(COV, test_id=test_id))
+    span.set_tag(COVERAGE_TAG_NAME, build_payload(COV, test_id=span_id))
     COV._collector._clear_data()
     COV._collector.data.clear()
 

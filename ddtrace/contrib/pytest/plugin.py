@@ -34,6 +34,8 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.coverage import _coverage_end
+from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -318,14 +320,11 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
-
-    if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-        item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
-    ):
-        # Replace test body by pytest skip call
-        item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
-        yield
-        return
+        if coverage_enabled(str(item.config.rootdir)) and not (
+            _CIVisibility.test_skipping_enabled()
+            and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
+        ):
+            _coverage_start()
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
@@ -384,11 +383,11 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if coverage_enabled(str(item.config.rootdir)):
-            from ddtrace.internal.ci_visibility.coverage import cover
-
-            with cover(span):
-                yield
+        if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
+            test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+        ):
+            item.add_marker(pytest.mark.skip)
+            yield
         else:
             yield
 
@@ -397,6 +396,12 @@ def pytest_runtest_protocol(item, nextitem):
         nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
+
+        if coverage_enabled(str(item.config.rootdir)) and not (
+            _CIVisibility.test_skipping_enabled()
+            and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
+        ):
+            _coverage_end(span)
         test_suite_span.finish()
 
     nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
