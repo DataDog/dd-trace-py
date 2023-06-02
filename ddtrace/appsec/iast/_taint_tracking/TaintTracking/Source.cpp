@@ -48,6 +48,12 @@ void
 pyexport_source(py::module& m)
 {
     m.def("origin_to_str", &origin_to_str, "origin"_a);
+    py::enum_<TagMappingMode>(m, "TagMappingMode")
+      .value("Normal", TagMappingMode::Normal)
+      .value("Mapper", TagMappingMode::Mapper)
+      .value("Mapper_Replace", TagMappingMode::Mapper_Replace)
+      .export_values();
+
     py::enum_<OriginType>(m, "OriginType")
       .value("PARAMETER", OriginType::PARAMETER)
       .value("PARAMETER_NAME", OriginType::PARAMETER_NAME)

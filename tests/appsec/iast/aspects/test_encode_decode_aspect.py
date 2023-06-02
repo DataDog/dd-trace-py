@@ -14,10 +14,12 @@ from ddtrace.appsec.iast._taint_tracking import create_context
 def reset_context():
     oce._enabled = True
     from ddtrace.appsec.iast._taint_tracking import setup
+
     setup(bytes.join, bytearray.join)
     yield
     contexts_reset()
     _ = create_context()
+
 
 def catch_all(fun, args, kwargs):
     try:
