@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dbapi-async: Pass `exc_type`, `exc_val`, `exc_tb` down to the wrapped object on `__aexit__` calls.
